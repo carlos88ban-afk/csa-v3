@@ -14,6 +14,18 @@ Las decisiones arquitectónicas formales del stack viven como ADRs en [`docs/adr
 - ✅ El proyecto se puede retomar meses después sin perder contexto (ver `checkpoints/CHECKPOINT.md`).
 - ❌ Más disciplina requerida por slice (doc-first añade fricción a cambios rápidos).
 
+### 2026-08-04 — Despliegue a Vercel adelantado antes de M6 (VS-009)
+
+**Contexto:**
+- Según `ROADMAP.md`, la publicación real (dominio, enlaces seguros) es M6/VS-009, y el proyecto está en M4 (VS-007). El usuario pidió ver la UI en una URL real ya, sin esperar a VS-009.
+
+**Decisión:**
+- Se conecta el repo a Vercel (plan Hobby, `adr/0001`) y se despliega el estado actual (auth + builder jerárquico) ahora. Esto es únicamente exponer el hosting — la funcionalidad de "publicación con enlaces seguros" de VS-009 (control de acceso a evaluaciones publicadas) sigue sin implementar y sigue en el backlog en su orden original.
+
+**Consecuencias:**
+- ✅ El usuario puede verificar visualmente el progreso en producción desde ya.
+- ❌ La URL de Vercel queda accesible sin las protecciones de publicación que diseñará VS-009 — aceptable porque hoy sólo expone auth + CRUD de organización propia, sin datos de terceros ni evaluaciones publicadas.
+
 ### 2026-08-04 — Sistema de memoria en `docs/project_notes/` en vez de `memory/`
 
 **Contexto:**
