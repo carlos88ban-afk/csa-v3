@@ -39,3 +39,4 @@ Constantes y configuración del proyecto. **Nunca guardar contraseñas, API keys
 
 - Repositorio: `https://github.com/carlos88ban-afk/csa-v3.git`.
 - Proyecto Neon: provisionado por el usuario 2026-08-04, sin URL de dashboard registrada aquí todavía.
+- Producción (Vercel, adelantado antes de VS-009 — ver `project_notes/decisions.md`): `https://csa-v3-web.vercel.app`. Proyecto Vercel: `csa-v3-web`, scope `carlos88ban-afks-projects`.
