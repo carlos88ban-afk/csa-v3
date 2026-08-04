@@ -12,6 +12,11 @@ Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni
 - **Description**: Árbol completo de `docs/` (visión, objetivos, alcance, roadmap, backlog, riesgos, deuda técnica, dominio, arquitectura, ADRs 0001–0005, checkpoints, project_notes).
 - **Notes**: Ver `docs/slices/VS-002.md`. Stack cerrado tras análisis de la propuesta inicial de OpenCode y corrección de tres datos técnicos (Vercel Hobby ToS comercial, tope real de Neon, riesgo de recorte silencioso de Oracle Cloud Always Free).
 
+### 2026-08-04 - VS-003: Auth + Organización
+- **Status**: Completed
+- **Description**: Better Auth (plugin `organization`) sobre Neon vía Drizzle, `packages/db` nuevo, primera app Next.js (`apps/web`) con la ruta de auth. 6 tests contra Neon real (registro, login, org/owner, invitación sin email, aceptar invitación, tenant-scoping).
+- **Notes**: Dos intentos de delegar la implementación a OpenCode fallaron (cola gratuita saturada, luego proceso colgado) — se implementó directamente. Ver `docs/slices/VS-003.md` para decisiones tomadas durante la implementación y `docs/RISKS.md` R-005/R-006 para los riesgos nuevos (tests contra Neon real, conexión no pooled).
+
 ### 2026-08-04 - Análisis de propuesta de stack (OpenCode)
 - **Status**: Completed
 - **Description**: Se verificaron con búsqueda web las afirmaciones técnicas de la propuesta inicial. Se confirmó R2/Better Auth/Drizzle/Vitest+Playwright sin cambios. Se corrigió: (1) Vercel Hobby prohíbe uso comercial — resuelto confirmando que el proyecto es uso interno; (2) Neon omitía el tope de 100 CU-h/mes — documentado como riesgo monitoreado; (3) Postgres self-hosted en Oracle Cloud Always Free fue considerado pero descartado por recorte de cuota sin previo aviso en jun-2026 — se optó por Neon.

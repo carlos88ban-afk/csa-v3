@@ -1,36 +1,40 @@
-checkpoint: c9e1a1b0-0001-4a2b-8c3d-000000000001
+checkpoint: c9e1a1b0-0002-4a2b-8c3d-000000000002
 fecha: 2026-08-04
 estado: en_progreso
-slice_actual: VS-003
+slice_actual: VS-004
 
-slices_completados: [VS-001, VS-002]
+slices_completados: [VS-001, VS-002, VS-003]
 
 decisiones_del_dia:
-  - ADR-0001 (hosting Vercel Hobby) — Proposed, válido confirmado: proyecto es uso interno/no comercial
-  - ADR-0002 (BD Neon) — Proposed, elegido sobre Oracle self-hosted por riesgo de política impredecible
-  - ADR-0003 (storage R2) — Proposed, elegido sobre Azure Blob por egress gratuito
-  - ADR-0004 (auth Better Auth) — Proposed
-  - ADR-0005 (tooling monorepo) — Accepted, implementado
+  - VS-003 implementado directamente (no vía OpenCode): dos intentos de delegar a OpenCode fallaron (503 de cola gratuita saturada, luego proceso colgado con Gemini 2.5 Pro) sin escribir nada — se mataron los procesos huérfanos y se implementó a mano.
+  - Auth: plugin `organization` de Better Auth usado tal cual (no custom schema); roles owner/member únicamente en este slice, RBAC completo queda en M11.
+  - Sin proveedor de email: invitaciones exponen el token/link en la respuesta de la API, no se envía correo (doc-first: no hay ADR de proveedor de email).
+  - Tests corren contra el proyecto Neon REAL (no había Docker ni una BD de prueba separada) — decisión explícita del usuario, riesgo documentado en RISKS.md R-005/R-006.
+  - dotenv-cli adoptado para cargar .env de la raíz de forma consistente en todos los scripts (build/test/dev/db:*).
 
 archivos_modificados:
-  - package.json, pnpm-workspace.yaml, turbo.json, tsconfig.base.json, .gitignore
-  - packages/sdk-core/** (package.json, tsconfig.json, src/index.ts, src/index.test.ts)
-  - .github/workflows/ci.yml
-  - README.md
-  - docs/** (árbol completo de gobierno, ver docs/README.md)
+  - docs/domain/organization-user.md, docs/slices/VS-003.md (spec doc-first)
+  - packages/db/** (nuevo paquete: client.ts, auth.ts, schema/auth.ts generado, drizzle.config.ts, tests __tests__/auth.test.ts, vitest.config.ts)
+  - apps/web/** (nuevo: Next.js App Router, app/api/auth/[...all]/route.ts)
+  - turbo.json (fix outputs de build para .next/**), package.json raíz (dotenv-cli)
+  - docs/database/README.md, docs/RISKS.md (R-005, R-006), docs/TECH_DEBT.md (TD-001, TD-002), docs/BACKLOG.md, docs/CHANGELOG.md
 
 proximos_pasos:
-  - VS-003: Auth + Organización (Better Auth, tablas organizations/users, invitación simple)
-  - Antes de VS-003: especificar en docs/domain/ el agregado Organization/User y sus invariantes (doc-first)
+  - VS-004: Dominio core CRUD (Framework/Dimensión/Indicador/Subindicador) — API tipada SDK-first
+  - Antes de VS-004: especificar en docs/domain/ los agregados del núcleo de evaluación con sus invariantes (doc-first), incluyendo el organizationId obligatorio en cada tabla (invariante ya anotada en organization-user.md)
+  - Pendiente no bloqueante: cambiar DATABASE_URL a connection string pooled antes de un despliegue real
 
 bloqueos: []
 
 contexto_para_continuar: |
-  M0 completado: monorepo scaffoldeado (pnpm+Turborepo+TS strict+Vitest, packages/sdk-core
-  con test real pasando) y árbol de gobierno docs/ completo con ADRs 0001-0005 registradas
-  como Proposed (0005 Accepted). Stack cerrado: Next.js+Vercel Hobby, Neon, Drizzle,
-  Cloudflare R2, Better Auth, Vitest+Playwright, pnpm+Turborepo. Riesgos documentados en
-  docs/RISKS.md (R-001 a R-004). Para retomar: leer este archivo, luego docs/BACKLOG.md,
-  luego empezar VS-003 siguiendo el protocolo doc-first (docs/README.md, regla rectora).
-  Comando de verificación: pnpm install && pnpm build && pnpm test && pnpm typecheck
-  (o pnpm slice:close).
+  VS-001/002/003 completados y verdes (pnpm slice:close: build+test+typecheck).
+  Stack cerrado: Next.js+Vercel Hobby, Neon (real, ya provisionado y con schema
+  de auth aplicado), Drizzle, Better Auth (plugin organization), Cloudflare R2,
+  Vitest+Playwright, pnpm+Turborepo. packages/db expone `auth`, `db`, `schema`.
+  apps/web sirve /api/auth/[...all]. 6 tests de auth pasan contra Neon real con
+  limpieza automática. .env en la raíz (gitignored) tiene DATABASE_URL,
+  BETTER_AUTH_URL, BETTER_AUTH_SECRET — cargado vía dotenv-cli en los scripts,
+  no hace falta exportarlo a mano. Para retomar: leer este archivo, luego
+  docs/BACKLOG.md, luego especificar el dominio del núcleo de evaluación
+  (Framework/Dimensión/Indicador/Subindicador) antes de VS-004.
+  Comando de verificación: pnpm install && pnpm slice:close.
