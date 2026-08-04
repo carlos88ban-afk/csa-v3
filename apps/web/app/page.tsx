@@ -1,3 +1,17 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { authClient } from "@/lib/auth-client";
+
 export default function HomePage() {
-  return <main>Plataforma CSA — en construcción (M1).</main>;
+  const router = useRouter();
+  const { data: session, isPending } = authClient.useSession();
+
+  useEffect(() => {
+    if (isPending) return;
+    router.push(session ? "/organizations" : "/login");
+  }, [isPending, session, router]);
+
+  return <main>Cargando...</main>;
 }

@@ -4,6 +4,15 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-006 — Builder jerárquico (UI) (2026-08-04)
+
+- Cliente Better Auth (`better-auth/react` + plugin `organization`) en `apps/web/lib/auth-client.ts`.
+- Páginas: `/signup`, `/login`, `/organizations` (crear/seleccionar organización activa), `/frameworks`, `/frameworks/[id]`, `.../dimensions/[id]`, `.../indicators/[id]` (CRUD de Subindicador con edición inline y borrado).
+- `components/app-header.tsx`: header mínimo con email de sesión y cerrar sesión (no especificado originalmente, añadido por necesidad real de usabilidad).
+- Corregido: `apps/web/tsconfig.json` no incluía la lib `DOM`, causando errores de tipo confusos en manejadores de eventos y `fetch`.
+- Flujo completo (registro → organización → Framework → Dimensión → Indicador → Subindicador → editar → borrar → logout → login) verificado manualmente en Chrome real, no solo con tests automatizados.
+- Mismo bug de imports `.js` relativos vs alias `@/*` que en VS-004, evitado desde el inicio en este slice.
+
 ### VS-004 — Dominio core CRUD + schema (2026-08-04)
 
 - `docs/domain/evaluation-hierarchy.md`: especificación doc-first del modelo core, fusiona el alcance de VS-004+VS-005 del roadmap original en un slice.

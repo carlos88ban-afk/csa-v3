@@ -20,4 +20,4 @@ Cada milestone es lanzable por sí mismo. El producto es usable (de forma incomp
 
 ¹ VS-005 (migraciones DB) se fusionó dentro de VS-004 el 2026-08-04 — ver `domain/evaluation-hierarchy.md`, nota de alcance (mismo patrón que VS-003: un slice sin persistencia real no es funcional/probado de punta a punta).
 
-Estado actual: **M1 completado, M2 en progreso** — ver `checkpoints/CHECKPOINT.md`.
+Estado actual: **M0–M3 completados** (M2 y M3 fusionaron sus slices originales en unidades funcionales, ver notas al pie), **M4 en progreso** — ver `checkpoints/CHECKPOINT.md`.

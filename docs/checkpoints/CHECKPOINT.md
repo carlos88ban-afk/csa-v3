@@ -1,36 +1,45 @@
-checkpoint: c9e1a1b0-0003-4a2b-8c3d-000000000003
+checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000004
 fecha: 2026-08-04
 estado: en_progreso
-slice_actual: VS-006
+slice_actual: VS-007
 
-slices_completados: [VS-001, VS-002, VS-003, VS-004]
+slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006]
 
 decisiones_del_dia:
-  - VS-004 fusiona el VS-004 (API) + VS-005 (migraciones) del roadmap original en un solo slice funcional — mismo patrón que VS-003.
-  - formSchema/revisionNumber de Subindicador ya existen a nivel de servicio (packages/db) pero no se exponen en la API pública todavía — motor de formularios es M4 (VS-007).
-  - Autorización: servicio recibe organizationId ya resuelto; requireActiveMember (packages/db/src/authz.ts) es quien autentica y resuelve la organización activa en las rutas API.
-  - Bug de Turbopack corregido: imports relativos con extensión .js hacia apps/web/lib fallaban ("Module not found") aunque tsc los resolvía bien — se migró a los alias @/* de tsconfig.json.
+  - VS-006 (Builder UI) verificado de punta a punta en Chrome real (claude-in-chrome), no solo con tests automatizados — a pedido explícito del usuario.
+  - apps/web/tsconfig.json necesitaba "lib": ["ES2022", "DOM", "DOM.Iterable"] explícito (heredaba solo ES2022 de tsconfig.base.json) — sin esto, tipos de eventos DOM y fetch fallaban de forma confusa.
+  - Se añadió components/app-header.tsx (logout) no especificado en el contrato original — hueco de usabilidad real detectado durante la verificación manual.
+  - Datos de la cuenta de verificación (org "Org Demo VS-006", framework "Framework ESG Demo", etc.) se dejaron a propósito en el Neon real para que el usuario también pueda revisarlos en el navegador.
+  - Next.js 16 autogenera apps/web/AGENTS.md y apps/web/CLAUDE.md en cada `next dev` (avisos de breaking changes de esa versión) — se dejan y commitean, es el comportamiento recomendado por el propio framework.
 
 archivos_modificados:
-  - docs/domain/evaluation-hierarchy.md, docs/slices/VS-004.md (spec doc-first)
-  - packages/db/src/schema/domain.ts, src/domain/service.ts, src/authz.ts (nuevo), src/index.ts (actualizado)
-  - packages/sdk-core/src/domain.ts (nuevo, zod schemas + tipos), src/index.ts (actualizado), package.json (+zod)
-  - apps/web/lib/api-errors.ts (nuevo), apps/web/app/api/{frameworks,dimensions,indicators,subindicators}/route.ts y /[id]/route.ts (8 archivos nuevos), package.json (+sdk-core, +zod)
-  - docs/database/README.md, docs/ROADMAP.md, docs/BACKLOG.md, docs/CHANGELOG.md, docs/project_notes/issues.md
+  - docs/slices/VS-006.md (spec + resultado doc-first)
+  - apps/web/lib/auth-client.ts, apps/web/lib/api-client.ts (nuevos)
+  - apps/web/app/{signup,login,organizations,frameworks}/page.tsx, apps/web/app/frameworks/[frameworkId]/**/page.tsx (nuevos, árbol completo)
+  - apps/web/components/app-header.tsx (nuevo), apps/web/app/layout.tsx (actualizado)
+  - apps/web/app/page.tsx (reescrito, redirección según sesión)
+  - apps/web/tsconfig.json (+lib DOM)
+  - apps/web/AGENTS.md, apps/web/CLAUDE.md (autogenerados por Next.js, commiteados)
+  - docs/ROADMAP.md, docs/BACKLOG.md, docs/CHANGELOG.md, docs/TECH_DEBT.md (TD-003), docs/project_notes/issues.md
 
 proximos_pasos:
-  - M3/VS-006: Builder jerárquico (árbol simple) — primera UI real sobre el CRUD de VS-004
-  - Antes de VS-006: especificar en docs/domain/ (o un nuevo doc) el diseño de pantallas del Builder (una responsabilidad por pantalla, ver VISION.md) si aplica, o ir directo a implementación si el diseño ya es suficientemente claro en el brief original del usuario
+  - M4/VS-007: Form Engine v1 — elementos básicos dentro de un Subindicador, validación, autosave. Este es el primer motor real (engine/form) de docs/architecture/overview.md.
+  - Antes de VS-007: especificar en docs/engines/form.md el diseño del motor (tipos de elemento soportados en v1, estructura de formSchema que ya existe como columna jsonb desde VS-004, estrategia de autosave)
+  - Pendiente no bloqueante: proveedor de email (BACKLOG), connection string pooled (RISKS R-006), migraciones versionadas (TECH_DEBT TD-001), Playwright (TECH_DEBT TD-003)
 
 bloqueos: []
 
 contexto_para_continuar: |
-  VS-001 a VS-004 completados y verdes (pnpm slice:close: 5 tasks build, 12 tests,
-  5 tasks typecheck — todo en apps/web + packages/db + packages/sdk-core).
-  Modelo core completo: Framework/Dimension/Indicator/Subindicator con CRUD
-  tenant-scoped, 8 rutas API REST en apps/web, contratos compartidos en
-  sdk-core. Stack sin cambios respecto al checkpoint anterior. .env sigue
-  en la raíz (gitignored), cargado vía dotenv-cli. Para retomar: leer este
-  archivo, luego docs/BACKLOG.md, luego decidir si VS-006 (Builder UI)
-  necesita spec adicional o se implementa directo sobre el CRUD ya probado.
+  M0 a M3 completados y verdes (pnpm slice:close: 5 tasks build, 12 tests, 5 tasks
+  typecheck). Además del backend (auth + dominio core), ahora existe una UI real
+  y funcional en apps/web: signup/login/logout, gestión de organización activa,
+  y el árbol completo Framework→Dimensión→Indicador→Subindicador con CRUD,
+  verificado manualmente en Chrome (no solo tests). Servidor de desarrollo
+  corría en http://localhost:3000 al cierre de esta sesión (puede haberse
+  detenido; relanzar con `pnpm --filter @plataforma-csa/web dev`). Hay datos
+  de verificación reales en el Neon del proyecto (org "Org Demo VS-006") que
+  se dejaron a propósito. Para retomar: leer este archivo, luego
+  docs/BACKLOG.md, luego especificar docs/engines/form.md antes de VS-007
+  (el motor de formularios es la pieza central que faltaba — formSchema ya
+  existe como columna desde VS-004 pero vacía).
   Comando de verificación: pnpm install && pnpm slice:close.

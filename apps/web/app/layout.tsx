@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { AppHeader } from "@/components/app-header";
 
 export const metadata = {
   title: "Plataforma CSA",
@@ -8,7 +9,10 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body>
+        <AppHeader />
+        {children}
+      </body>
     </html>
   );
 }
