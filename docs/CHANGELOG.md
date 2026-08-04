@@ -4,6 +4,16 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-004 — Dominio core CRUD + schema (2026-08-04)
+
+- `docs/domain/evaluation-hierarchy.md`: especificación doc-first del modelo core, fusiona el alcance de VS-004+VS-005 del roadmap original en un slice.
+- Schema Drizzle nuevo en `packages/db` (`framework`, `dimension`, `indicator`, `subindicator`), todas con `organizationId` denormalizado, aplicado a Neon.
+- Contratos compartidos (zod + tipos) en `packages/sdk-core/src/domain.ts` — SDK-first.
+- Servicio CRUD tenant-scoped en `packages/db/src/domain/service.ts` con validación de jerarquía entre organizaciones y versionado de `formSchema`/`revisionNumber` en Subindicador (motor de formularios en sí queda para M4).
+- 8 rutas API REST en `apps/web` (`/api/frameworks`, `/dimensions`, `/indicators`, `/subindicators`, cada una con `[id]`).
+- 6 tests nuevos en `packages/db` (12 en total con VS-003) contra Neon real.
+- Corregido: imports relativos con extensión `.js` hacia `apps/web/lib/` fallaban en Turbopack (Next.js 16) — se migró a los alias `@/*`.
+
 ### VS-003 — Auth + Organización (2026-08-04)
 
 - `docs/domain/organization-user.md`: especificación doc-first del agregado Organization/User/Member/Invitation.

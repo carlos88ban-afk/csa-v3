@@ -23,6 +23,9 @@ importers:
       '@plataforma-csa/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@plataforma-csa/sdk-core':
+        specifier: workspace:*
+        version: link:../../packages/sdk-core
       better-auth:
         specifier: ^1.3.34
         version: 1.6.25(@prisma/client@5.22.0)(better-sqlite3@12.11.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@prisma/client@5.22.0)(@types/pg@8.20.4)(better-sqlite3@12.11.1)(kysely@0.29.4)(pg@8.22.0))(next@16.3.0(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(pg@8.22.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@2.1.9(@types/node@22.20.1))
@@ -35,6 +38,9 @@ importers:
       react-dom:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^22.10.0
@@ -51,6 +57,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@plataforma-csa/sdk-core':
+        specifier: workspace:*
+        version: link:../sdk-core
       better-auth:
         specifier: ^1.3.34
         version: 1.6.25(@prisma/client@5.22.0)(better-sqlite3@12.11.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@prisma/client@5.22.0)(@types/pg@8.20.4)(better-sqlite3@12.11.1)(kysely@0.28.17)(pg@8.22.0))(next@16.3.0(@babel/core@7.29.7)(@types/node@26.1.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(pg@8.22.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@2.1.9(@types/node@26.1.2))
@@ -78,6 +87,10 @@ importers:
         version: 2.1.9(@types/node@26.1.2)
 
   packages/sdk-core:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       typescript:
         specifier: ^5.7.0

@@ -17,6 +17,11 @@ Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni
 - **Description**: Better Auth (plugin `organization`) sobre Neon vía Drizzle, `packages/db` nuevo, primera app Next.js (`apps/web`) con la ruta de auth. 6 tests contra Neon real (registro, login, org/owner, invitación sin email, aceptar invitación, tenant-scoping).
 - **Notes**: Dos intentos de delegar la implementación a OpenCode fallaron (cola gratuita saturada, luego proceso colgado) — se implementó directamente. Ver `docs/slices/VS-003.md` para decisiones tomadas durante la implementación y `docs/RISKS.md` R-005/R-006 para los riesgos nuevos (tests contra Neon real, conexión no pooled).
 
+### 2026-08-04 - VS-004: Dominio core CRUD + schema
+- **Status**: Completed
+- **Description**: Schema Drizzle (framework/dimension/indicator/subindicator) + contratos SDK-first en sdk-core + servicio CRUD tenant-scoped + 8 rutas API en apps/web. 6 tests nuevos contra Neon real (12 en total con VS-003).
+- **Notes**: Fusiona VS-004+VS-005 del roadmap original (ver docs/slices/VS-004.md). Bug real encontrado: imports relativos `.js` hacia apps/web/lib fallaban en Turbopack — resuelto con alias `@/*`.
+
 ### 2026-08-04 - Análisis de propuesta de stack (OpenCode)
 - **Status**: Completed
 - **Description**: Se verificaron con búsqueda web las afirmaciones técnicas de la propuesta inicial. Se confirmó R2/Better Auth/Drizzle/Vitest+Playwright sin cambios. Se corrigió: (1) Vercel Hobby prohíbe uso comercial — resuelto confirmando que el proyecto es uso interno; (2) Neon omitía el tope de 100 CU-h/mes — documentado como riesgo monitoreado; (3) Postgres self-hosted en Oracle Cloud Always Free fue considerado pero descartado por recorte de cuota sin previo aviso en jun-2026 — se optó por Neon.

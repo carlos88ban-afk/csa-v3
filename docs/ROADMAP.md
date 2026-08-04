@@ -6,7 +6,7 @@ Cada milestone es lanzable por sí mismo. El producto es usable (de forma incomp
 |---|---|---|
 | M0 | Gobernanza, repositorio, CI, Checkpoint Manager | VS-001, VS-002 |
 | M1 | Auth + Organización (tenant) | VS-003 |
-| M2 | Modelo core (Framework→Dimensión→Indicador→Subindicador) CRUD + migraciones DB | VS-004, VS-005 |
+| M2 | Modelo core (Framework→Dimensión→Indicador→Subindicador) CRUD + schema DB | VS-004¹ |
 | M3 | Builder jerárquico (árbol simple) | VS-006 |
 | M4 | Form Engine v1 (elementos básicos + validación + autosave) | VS-007 |
 | M5 | Registry de componentes pluggable + versionado | VS-008 |
@@ -18,4 +18,6 @@ Cada milestone es lanzable por sí mismo. El producto es usable (de forma incomp
 | M11 | Permisos (RBAC) | VS-014 |
 | M12 | i18n + WCAG 2.2 AA + polish | VS-015+ |
 
-Estado actual: **M0 en progreso** — ver `checkpoints/CHECKPOINT.md`.
+¹ VS-005 (migraciones DB) se fusionó dentro de VS-004 el 2026-08-04 — ver `domain/evaluation-hierarchy.md`, nota de alcance (mismo patrón que VS-003: un slice sin persistencia real no es funcional/probado de punta a punta).
+
+Estado actual: **M1 completado, M2 en progreso** — ver `checkpoints/CHECKPOINT.md`.
