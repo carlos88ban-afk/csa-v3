@@ -27,6 +27,11 @@ Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni
 - **Description**: Primera UI real: auth (signup/login/logout), organizaciones, y árbol Framework→Dimensión→Indicador→Subindicador con CRUD completo consumiendo las rutas API de VS-004.
 - **Notes**: Verificado de punta a punta en Chrome real (no solo tests automatizados) — ver `docs/slices/VS-006.md`. Se corrigió un gap real de `tsconfig.json` (lib DOM faltante) y se añadió un header con logout no especificado originalmente.
 
+### 2026-08-05 - VS-010: Runtime de respuesta + guardar progreso
+- **Status**: Completed
+- **Description**: Convierte la página pública de solo lectura (VS-009) en un formulario interactivo — tabla `response` nueva ligada a la Evaluación (no a una identidad de evaluado), árbol de navegación persistente + Prev/Next + render real de los 7 tipos de elemento + autosave + progreso en `apps/web/app/evaluations/[token]/page.tsx`. Referencia visual: portal S&P Global CSA (comparación pedida por el usuario).
+- **Notes**: Ver `docs/slices/VS-010.md` y `docs/engines/persistence.md`. Verificado en producción con Framework de prueba (7 tipos de elemento), autosave confirmado tras recargar, `curl` sin cookies confirma que el endpoint no depende de sesión. Delegada la escritura de los contratos zod de `sdk-core` a un subagente de OpenCode (ejecución mecánica, ver memoria `feedback_opencode_subagent`).
+
 ### 2026-08-05 - VS-007: Form Engine v1
 - **Status**: Completed
 - **Description**: Primer motor real (`engine/form`): 7 tipos de elemento v1 (zod discriminated union en sdk-core), Form Editor con autosave (debounce 1500ms) sobre el `formSchema`/`revisionNumber` ya existentes desde VS-004.

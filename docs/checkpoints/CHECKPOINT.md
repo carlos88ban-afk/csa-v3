@@ -1,44 +1,46 @@
-checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000007
+checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000008
 fecha: 2026-08-05
 estado: en_progreso
-slice_actual: VS-010
+slice_actual: VS-011
 
-slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009]
+slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010]
 
 decisiones_del_dia:
-  - VS-009 (engine/publishing) especificado doc-first en engines/publishing.md. Decisión central: Evaluación guarda un snapshot completo e inmutable del árbol al publicar, no un puntero a revisionNumber — el schema actual (VS-004/VS-007) no conserva historial de formSchema (cada UPDATE sobrescribe la fila), así que un puntero sería inútil sin una tabla de historial que nadie pidió construir todavía.
-  - Nueva tabla `evaluation` (organizationId/frameworkId/token único/title/snapshot jsonb/publishedAt), aplicada a Neon con `db:push`. Revocar un enlace = borrar la fila (mismo patrón CRUD que el resto del dominio, sin soft-delete).
-  - `getEvaluationByToken` es la única función de todo el dominio sin parámetro `organizationId` — a propósito, documentado explícitamente: la seguridad del enlace público depende del token (192 bits de entropía), no de una sesión.
-  - Bug real: `drizzle.config.ts` no incluía la ruta del nuevo archivo de schema (`evaluation.ts`) — `db:push` reportaba "No changes detected" en vez de crear la tabla, sin error visible. Mismo patrón de bug ya visto con `turbo.json`/`globalEnv` (Vercel): un archivo de configuración con lista explícita de rutas que hay que recordar actualizar junto con el archivo nuevo.
-  - Verificación en producción de VS-009 fue más rigurosa que solo visual: se usó `curl` sin cookies para confirmar que el endpoint público responde sin sesión, y que revocar lo tumba a 404 de inmediato — una revisión solo en el navegador (misma pestaña con sesión activa) no habría probado la ausencia de dependencia de sesión.
-  - Cuenta/organización de prueba de VS-009 (vs009-verify@example.com / "Org VS-009") creadas, verificadas y limpiadas de Neon al terminar.
+  - VS-010 (engine/persistence) especificado doc-first en engines/persistence.md. Decisión central: la Respuesta se ata a `evaluationId` (resuelto vía token), no a una identidad de evaluado — no existe concepto de cuenta de evaluado en el dominio; un enlace publicado es una sesión de respuesta compartida, mismo principio que "sin colaboración concurrente" ya aceptado en engines/form.md.
+  - Nueva tabla `response` (evaluationId/subindicatorId/answers jsonb), única por (evaluationId, subindicatorId), aplicada a Neon con `db:push`. `subindicatorId` sin FK hacia `subindicator` a propósito: la Evaluación es un snapshot congelado, el Subindicador original puede editarse/borrarse sin afectarla — `response-service.ts` valida contra el snapshot en su lugar.
+  - Runtime UI reescrito por completo (antes: un solo scroll de solo lectura de VS-009). Incorpora las mejoras identificadas al comparar con el portal S&P Global CSA (pedido explícito del usuario): árbol de navegación persistente por Framework/Dimensión/Indicador/Subindicador (no breadcrumb lineal), Prev/Next, banners con color por variant, progreso global y por punto del árbol.
+  - Delegada la escritura de los contratos zod de `packages/sdk-core/src/response.ts` (+ tests) a un subagente de OpenCode — tarea mecánica con el contrato ya decidido, mismo patrón que `form-schema.ts`. Revisado antes de integrar.
+  - Verificación en producción de VS-010 usó una sesión ya activa en el navegador (`ui-verify@example.com`, sin organización) en vez de crear una cuenta nueva — no se escribió ninguna contraseña en ningún formulario ni por API (regla de seguridad sin excepciones). El árbol de contenido de prueba se creó vía `fetch` autenticado desde la propia página (mismas rutas que usa la UI), no clic a clic.
 
 archivos_modificados:
-  - docs/engines/publishing.md, docs/slices/VS-009.md (spec + resultado doc-first)
-  - packages/db/src/schema/evaluation.ts, domain/evaluation-service.ts, __tests__/evaluation.test.ts (nuevos)
-  - packages/db/drizzle.config.ts (agrega evaluation.ts a schema paths)
-  - packages/sdk-core/src/evaluation.ts, evaluation.test.ts (nuevos)
-  - apps/web/app/api/evaluations/**, apps/web/app/api/public/evaluations/[token]/route.ts (nuevos)
-  - apps/web/app/evaluations/[token]/page.tsx (nuevo, página pública)
-  - apps/web/app/frameworks/[frameworkId]/page.tsx (botón Publicar + lista)
-  - docs/engines/README.md, docs/ROADMAP.md, docs/BACKLOG.md, docs/CHANGELOG.md, docs/project_notes/issues.md
+  - docs/engines/persistence.md, docs/slices/VS-010.md, docs/engines/README.md (spec + resultado doc-first)
+  - packages/db/src/schema/response.ts, domain/response-service.ts, __tests__/response.test.ts (nuevos)
+  - packages/db/drizzle.config.ts (agrega response.ts), src/index.ts (exports)
+  - packages/sdk-core/src/response.ts, response.test.ts (nuevos), src/index.ts (export)
+  - apps/web/app/api/public/evaluations/[token]/responses/route.ts, .../[subindicatorId]/route.ts (nuevos)
+  - apps/web/lib/api-client.ts (agrega método put)
+  - apps/web/app/evaluations/[token]/page.tsx (reescrito: árbol, Prev/Next, render real de elementos, autosave, progreso)
+  - apps/web/app/globals.css (reemplaza .eval-* por .runtime-*/.tree-dot)
+  - docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md
 
 proximos_pasos:
-  - M7/VS-010: Runtime de respuesta + guardar progreso (`engine/persistence`). Especificar `docs/engines/persistence.md` antes de implementar (doc-first). Esto construye el formulario INTERACTIVO sobre la página pública que VS-009 dejó de solo lectura — captura de respuestas + autosave de progreso del evaluado.
+  - M8/VS-011: Evidencias (uploads → R2). Especificar antes de implementar (doc-first) — extiende engine/persistence y engine/components con un tipo de elemento que depende de almacenamiento de archivos.
   - Pendiente no bloqueante: proveedor de email (BACKLOG), migraciones versionadas de Drizzle (TECH_DEBT TD-001), Playwright (TECH_DEBT TD-003), tabla de historial de revisiones de formSchema si se necesita fuera del contexto de publicación (ver engines/publishing.md).
 
 bloqueos: []
 
 contexto_para_continuar: |
-  M0 a M6 completados y verdes (pnpm slice:close: 5 tasks build, 16 tests, 5
-  tasks typecheck). Un Framework ahora se puede publicar (VS-009) como
-  Evaluación con un enlace público seguro, sin necesidad de cuenta —
-  verificado con curl que no depende de sesión. La página pública
-  (apps/web/app/evaluations/[token]/page.tsx) es de solo lectura: muestra
-  el árbol completo congelado en el momento de publicar, pero no captura
-  respuestas todavía — eso es M7/VS-010, el siguiente slice. La app vive en
-  producción (https://csa-v3-web.vercel.app); el flujo de trabajo desde
-  VS-008 verifica ahí, no en localhost. No quedan datos de prueba en Neon.
+  M0 a M7 completados y verdes (pnpm slice:close: 5 tasks build, 52 tests, 5
+  tasks typecheck). La página pública de una Evaluación
+  (apps/web/app/evaluations/[token]/page.tsx) ya no es de solo lectura: el
+  evaluado responde preguntas usando un árbol de navegación persistente +
+  Prev/Next, con autosave (tabla `response`, debounce 1500ms) y progreso
+  visible por Subindicador/global — sin necesidad de cuenta, la Respuesta se
+  ata al token de la Evaluación. Adjuntar archivos como Evidencia sigue
+  fuera de alcance (M8/VS-011, siguiente). La app vive en producción
+  (https://csa-v3-web.vercel.app); el flujo de trabajo desde VS-008 verifica
+  ahí, no en localhost. No quedan datos de prueba en Neon.
   Para retomar: leer este archivo, luego docs/BACKLOG.md, luego especificar
-  docs/engines/persistence.md antes de VS-010.
+  un doc de engine/components (o extender persistence.md) para Evidencias
+  antes de VS-011.
   Comando de verificación: pnpm install && pnpm slice:close.

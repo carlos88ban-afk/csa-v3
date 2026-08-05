@@ -4,6 +4,16 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-010 — Runtime de respuesta + guardar progreso (2026-08-05)
+
+- `docs/engines/persistence.md`: especificación doc-first. Decisión central: la Respuesta se ata a la Evaluación (`evaluationId`, resuelto vía token), no a una identidad de evaluado — no existe concepto de cuenta de evaluado en el dominio; un enlace publicado es una sesión de respuesta compartida, mismo principio que "sin colaboración concurrente" ya aceptado en `form.md`.
+- `packages/db/src/schema/response.ts` (nuevo): tabla `response` (evaluationId/subindicatorId/answers jsonb), única por (evaluationId, subindicatorId). `subindicatorId` sin FK hacia `subindicator` a propósito — la Evaluación es un snapshot congelado, el Subindicador original puede borrarse sin afectarla.
+- `packages/db/src/domain/response-service.ts` (nuevo): `upsertResponse` (valida que `subindicatorId` exista en el snapshot antes de aceptar el `upsert`, `ON CONFLICT` sobre la unique compuesta), `listResponses`. Sin `organizationId` — mismo criterio que `getEvaluationByToken`.
+- API: `GET/PUT /api/public/evaluations/[token]/responses(/[subindicatorId])` (sin autenticación, bajo prefijo `public/`).
+- UI: reescritura completa de `apps/web/app/evaluations/[token]/page.tsx` — árbol de navegación persistente (Dimensión→Indicador→Subindicador, colapsable, con punto de color por progreso), Prev/Next, render real de los 7 tipos de elemento (banner con color por `variant`, preguntas con input real), autosave (debounce 1500ms, mismo patrón que el Builder), progreso global y por Subindicador calculado en cliente (sin columna nueva en DB). Referencia visual explícita: portal S&P Global CSA (comparación pedida por el usuario).
+- 3 tests de integración nuevos en `packages/db` contra Neon real: upsert crea y actualiza sin duplicar fila; `subindicatorId` ajeno al snapshot lanza `NotFoundError`; borrar la Evaluación borra en cascada sus Respuestas.
+- Verificado de punta a punta en navegador real contra producción: Framework con 2 Dimensiones/3 Indicadores/3 Subindicadores (uno con los 7 tipos de elemento, uno con una pregunta, uno vacío) creado vía API autenticada, publicado, respondido en el link público — árbol, Prev/Next, autosave (confirmado recargando la página), progreso global (67% tras 4/6 preguntas) y color de los puntos del árbol funcionando. Confirmado con `curl` sin cookies que `GET .../responses` devuelve exactamente lo respondido, y que tokens/subindicatorIds inválidos devuelven 404. Datos de prueba (Framework, cascada completa incluyendo Evaluación y Respuestas) limpiados desde producción.
+
 ### UI — Sistema de diseño (2026-08-05)
 
 Adelantado a pedido del usuario (fuera del roadmap M0–M12, que reservaba "diseño visual pulido" para M12). No es un slice del roadmap — ver `docs/architecture/design-system.md` para el diseño completo y `docs/project_notes/decisions.md` para el registro de la decisión de adelantarlo.
