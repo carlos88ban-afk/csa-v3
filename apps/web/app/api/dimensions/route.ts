@@ -1,4 +1,4 @@
-import { createDimension, listDimensions, requireActiveMember } from "@plataforma-csa/db";
+import { createDimension, listDimensions, requireActiveMember, requireWriteAccess } from "@plataforma-csa/db";
 import { createDimensionInput } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { organizationId } = await requireActiveMember(request.headers);
+    const { organizationId } = await requireWriteAccess(request.headers);
     const input = createDimensionInput.parse(await request.json());
     const row = await createDimension(organizationId, input);
     return Response.json({ dimension: row }, { status: 201 });

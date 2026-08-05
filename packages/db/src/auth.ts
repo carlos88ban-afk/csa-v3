@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins";
+import { defaultRoles } from "better-auth/plugins/organization/access";
 import { db } from "./client.js";
 import * as schema from "./schema/auth.js";
 
@@ -28,6 +29,20 @@ export const auth = betterAuth({
   plugins: [
     organization({
       sendInvitationEmail,
+      // Roles RBAC de M11 (ver docs/engines/permission.md): "editor" y
+      // "evaluador" reutilizan los permisos de organización de "member" por
+      // defecto (sin acciones de gestión — invitar/remover sigue siendo
+      // solo de "owner"); no se definen statements nuevos porque el
+      // permiso que de verdad importa (escritura sobre Framework/etc.) lo
+      // decide `requireWriteAccess` en packages/db/src/authz.ts, no el
+      // access-control de Better Auth. Esto solo declara los roles para que
+      // el cliente tipado (`authClient.organization.inviteMember`, etc.)
+      // los acepte.
+      roles: {
+        owner: defaultRoles.owner,
+        editor: defaultRoles.member,
+        evaluador: defaultRoles.member,
+      },
     }),
   ],
 });

@@ -96,7 +96,7 @@ describe("VS-003 — Auth + Organización (contra Neon real)", () => {
     const invite = await auth.api.createInvitation({
       body: {
         email: emailFor("invitee"),
-        role: "member",
+        role: "editor",
         organizationId: org!.id,
       },
       headers,
@@ -108,7 +108,7 @@ describe("VS-003 — Auth + Organización (contra Neon real)", () => {
     expect(invitationEmailCallCount).toBe(callsBefore + 1);
   });
 
-  it("aceptar una invitación asigna el rol member al invitado", async () => {
+  it("aceptar una invitación asigna el rol elegido (VS-014: editor/evaluador) al invitado", async () => {
     const { headers: ownerHeaders } = await signUpAndSignIn(emailFor("org-accept-owner"), "Owner");
     const org = await auth.api.createOrganization({
       body: { name: `Org Accept ${runId}`, slug: `org-accept-${runId}` },
@@ -118,7 +118,7 @@ describe("VS-003 — Auth + Organización (contra Neon real)", () => {
 
     const inviteeEmail = emailFor("accept-invitee");
     const invite = await auth.api.createInvitation({
-      body: { email: inviteeEmail, role: "member", organizationId: org!.id },
+      body: { email: inviteeEmail, role: "evaluador", organizationId: org!.id },
       headers: ownerHeaders,
     });
 
@@ -137,7 +137,7 @@ describe("VS-003 — Auth + Organización (contra Neon real)", () => {
       headers: ownerHeaders,
     });
     const membership = members.members.find((m) => m.userId === inviteeId);
-    expect(membership?.role).toBe("member");
+    expect(membership?.role).toBe("evaluador");
   });
 
   it("tenant-scoping: un usuario que no es miembro no puede leer los miembros de la organización", async () => {

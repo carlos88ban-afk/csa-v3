@@ -11,6 +11,6 @@ Documentados:
 - [`evidences.md`](evidences.md) — M8 (VS-011)
 - [`export.md`](export.md) — M9 (VS-012)
 - [`formula.md`](formula.md), [`rule.md`](rule.md) — M10 (VS-013)
+- [`permission.md`](permission.md) — M11 (VS-014)
 
-Pendiente de documentar (se añade un archivo por motor cuando su slice correspondiente empiece, según `../ROADMAP.md`):
-- `permission.md` — M11 (VS-014)
+Sin motores pendientes — M0–M11 completados. `../ROADMAP.md` M12 (i18n + WCAG + polish) no introduce un motor nuevo.

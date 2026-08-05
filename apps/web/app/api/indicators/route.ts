@@ -1,4 +1,4 @@
-import { createIndicator, listIndicators, requireActiveMember } from "@plataforma-csa/db";
+import { createIndicator, listIndicators, requireActiveMember, requireWriteAccess } from "@plataforma-csa/db";
 import { createIndicatorInput } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { organizationId } = await requireActiveMember(request.headers);
+    const { organizationId } = await requireWriteAccess(request.headers);
     const input = createIndicatorInput.parse(await request.json());
     const row = await createIndicator(organizationId, input);
     return Response.json({ indicator: row }, { status: 201 });

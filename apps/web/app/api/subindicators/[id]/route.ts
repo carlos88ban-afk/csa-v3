@@ -1,4 +1,4 @@
-import { deleteSubindicator, getSubindicator, requireActiveMember, updateSubindicator } from "@plataforma-csa/db";
+import { deleteSubindicator, getSubindicator, requireActiveMember, requireWriteAccess, updateSubindicator } from "@plataforma-csa/db";
 import { updateSubindicatorInput } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
@@ -21,7 +21,7 @@ export async function GET(request: Request, { params }: Params) {
 export async function PATCH(request: Request, { params }: Params) {
   try {
     const { id } = await params;
-    const { organizationId } = await requireActiveMember(request.headers);
+    const { organizationId } = await requireWriteAccess(request.headers);
     const input = updateSubindicatorInput.parse(await request.json());
     const row = await updateSubindicator(organizationId, id, input);
     if (!row) return Response.json({ error: "subindicator_NOT_FOUND" }, { status: 404 });
@@ -34,7 +34,7 @@ export async function PATCH(request: Request, { params }: Params) {
 export async function DELETE(request: Request, { params }: Params) {
   try {
     const { id } = await params;
-    const { organizationId } = await requireActiveMember(request.headers);
+    const { organizationId } = await requireWriteAccess(request.headers);
     const row = await deleteSubindicator(organizationId, id);
     if (!row) return Response.json({ error: "subindicator_NOT_FOUND" }, { status: 404 });
     return Response.json({ subindicator: row });

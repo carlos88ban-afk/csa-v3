@@ -1,4 +1,4 @@
-import { createEvaluation, listEvaluations, requireActiveMember } from "@plataforma-csa/db";
+import { createEvaluation, listEvaluations, requireActiveMember, requireWriteAccess } from "@plataforma-csa/db";
 import { createEvaluationInput } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { organizationId } = await requireActiveMember(request.headers);
+    const { organizationId } = await requireWriteAccess(request.headers);
     const input = createEvaluationInput.parse(await request.json());
     const row = await createEvaluation(organizationId, input);
     return Response.json({ evaluation: row }, { status: 201 });

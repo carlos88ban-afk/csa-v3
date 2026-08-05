@@ -1,4 +1,4 @@
-import { createSubindicator, listSubindicators, requireActiveMember } from "@plataforma-csa/db";
+import { createSubindicator, listSubindicators, requireActiveMember, requireWriteAccess } from "@plataforma-csa/db";
 import { createSubindicatorInput } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { organizationId } = await requireActiveMember(request.headers);
+    const { organizationId } = await requireWriteAccess(request.headers);
     const input = createSubindicatorInput.parse(await request.json());
     const row = await createSubindicator(organizationId, input);
     return Response.json({ subindicator: row }, { status: 201 });

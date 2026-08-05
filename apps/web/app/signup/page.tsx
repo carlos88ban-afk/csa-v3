@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { Button, Card } from "@/components/ui";
 
@@ -12,6 +12,13 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Soporta volver a una invitación pendiente (VS-014) tras registrarse.
+  const [nextPath, setNextPath] = useState("/organizations");
+
+  useEffect(() => {
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (next) setNextPath(next);
+  }, []);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -23,7 +30,7 @@ export default function SignupPage() {
       setError(signUpError.message ?? "No se pudo crear la cuenta");
       return;
     }
-    router.push("/organizations");
+    router.push(nextPath);
   }
 
   return (

@@ -3,7 +3,7 @@ import { applySetCookies } from "better-auth/cookies";
 import { eq } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 import { auth } from "../auth.js";
-import { AuthzError, requireActiveMember } from "../authz.js";
+import { AuthzError, requireActiveMember, requireWriteAccess } from "../authz.js";
 import { db } from "../client.js";
 import {
   createDimension,
@@ -20,7 +20,7 @@ import {
   updateFramework,
   updateSubindicator,
 } from "../domain/service.js";
-import { organization, user } from "../schema/auth.js";
+import { member, organization, user } from "../schema/auth.js";
 import { dimension, framework, indicator, subindicator } from "../schema/domain.js";
 
 // Contra Neon real (ver docs/RISKS.md R-005) — cada dato usa un runId único
@@ -166,5 +166,31 @@ describe("VS-004 — dominio core (Framework→Dimensión→Indicador→Subindic
 
     // Este usuario nunca creó ni se unió a una organización → sin sesión activa.
     await expect(requireActiveMember(headers)).rejects.toThrow(AuthzError);
+  });
+
+  it("requireWriteAccess (VS-014) exige owner/editor; evaluador queda en solo lectura", async () => {
+    const { organizationId, headers: ownerHeaders } = await makeOrgWithOwner("perm-owner");
+
+    async function addMemberWithRole(label: string, role: string) {
+      const email = emailFor(label);
+      const signUp = await auth.api.signUpEmail({ body: { email, password: PASSWORD, name: label } });
+      createdUserIds.add(signUp.user.id);
+      const signIn = await auth.api.signInEmail({ body: { email, password: PASSWORD }, returnHeaders: true });
+      const headers = new Headers();
+      applySetCookies(headers, signIn.headers.getSetCookie());
+      await db.insert(member).values({ id: randomUUID(), organizationId, userId: signUp.user.id, role, createdAt: new Date() });
+      await auth.api.setActiveOrganization({ headers, body: { organizationId } });
+      return headers;
+    }
+
+    const editorHeaders = await addMemberWithRole("perm-editor", "editor");
+    const evaluadorHeaders = await addMemberWithRole("perm-evaluador", "evaluador");
+
+    await expect(requireWriteAccess(ownerHeaders)).resolves.toMatchObject({ organizationId, role: "owner" });
+    await expect(requireWriteAccess(editorHeaders)).resolves.toMatchObject({ organizationId, role: "editor" });
+    await expect(requireWriteAccess(evaluadorHeaders)).rejects.toThrow(AuthzError);
+
+    // Lectura sigue permitida para los tres roles, incluido evaluador.
+    await expect(requireActiveMember(evaluadorHeaders)).resolves.toMatchObject({ role: "evaluador" });
   });
 });

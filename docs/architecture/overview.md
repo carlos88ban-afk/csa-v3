@@ -31,7 +31,7 @@ No microservicios. Con ~20 usuarios concurrentes (NFR-1), el costo de infraestru
 - `engine/formula` — componentes calculados (parser/evaluador de expresiones aritméticas a mano, sin librería).
 - `engine/rule` — visibilidad condicional (`visibleIf` sobre cualquier Elemento).
 - `engine/validation` — validación sync/async/cross-field.
-- `engine/permission` — RBAC (dueño / editor / evaluador).
+- `engine/permission` — RBAC (dueño / editor / evaluador; gate de escritura sobre `member.role`, sin `access-control` custom de Better Auth).
 - `engine/components` — registry de componentes (arquitectura de plugins).
 - `engine/publishing` — publicación, versionado y share links.
 - `engine/persistence` — esquema de respuestas (JSONB schema-aware) + integración R2.
