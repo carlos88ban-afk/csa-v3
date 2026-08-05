@@ -12,6 +12,7 @@ Adelantado a pedido del usuario (fuera del roadmap M0–M12, que reservaba "dise
 - Decisión de tooling: **sin librería de estilos nueva** (ni Tailwind) — CSS nativo de Next.js (`globals.css` + `next/font`), cero dependencias nuevas. `docs/architecture/stack.md` actualizado, sin ADR nueva (no hay costo/vendor lock-in que justifique una).
 - `apps/web/components/ui.tsx` (nuevo): primitivas compartidas `Button`, `Card`, `Pill`, `Breadcrumb`.
 - Rediseñadas las 9 pantallas existentes (signup, login, organizations, frameworks, framework detail + publicación, dimension, indicator, Form Editor, página pública de Evaluación) y `AppHeader` — sin cambios de comportamiento, solo visual/estructural (breadcrumbs reemplazan los links "← Volver" de un solo paso).
+- Verificado de punta a punta en navegador real contra producción: cuenta nueva → organización → Framework → Dimensión → Indicador → Subindicador → agregar elemento (autosave con pill de estado "Guardado — rev. N") → publicar → abrir el enlace público → confirmar que la jerarquía se ve legible con las cards anidadas. Confirmado modo claro y oscuro (`prefers-color-scheme`) con buen contraste en ambos. Datos de prueba limpiados de Neon.
 
 ### VS-009 — Publicación + enlaces seguros (2026-08-05)
 
