@@ -21,6 +21,7 @@ Esta carpeta es la **única fuente de verdad** del proyecto. Si el código y la 
 | [`api/`](api/) | Contratos de API |
 | [`database/`](database/) | Esquema, migraciones, ERD |
 | [`playbooks/`](playbooks/) | Cómo operar builder, runtime, publishing, persistencia, permisos |
+| [`analysis/`](analysis/) | Análisis comparativos y estudios (no son especificaciones de implementación) |
 | [`checkpoints/`](checkpoints/) | Estado retomable del proyecto (Checkpoint Manager) |
 | [`slices/`](slices/) | Plan y cierre de cada vertical slice |
 | [`project_notes/`](project_notes/) | Memoria: bugs, decisiones, hechos clave, issues |

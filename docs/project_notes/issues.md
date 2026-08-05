@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-05 - AN-001: Comparación con el portal S&P Global CSA 2026
+- **Status**: Completed
+- **Description**: Análisis comparativo (no slice) documentado en `docs/analysis/csa-sp-global-comparison.md`. Inspección en vivo del portal S&P (login Okta con cuenta real del usuario, CSA 2026 → Questionnaires → sub-cuestionario 1.1.1 a nivel DOM). Conclusión: la estructura S&P Dimensión→Criterio→Sub-criterio ya está replicada (Dimensión→Indicador→Subindicador); gaps son aditivos sobre `engine/form`.
+- **Notes**: Gaps candidatos a backlog: opciones anidadas, campo URL pública, estado por pregunta + Approved/Submitted, N/A + comentarios confidenciales, Save/Cancel/Reset, numeración automática. Archivos: `docs/analysis/csa-sp-global-comparison.md`, `docs/README.md` (mapa + carpeta `analysis/`), `docs/CHANGELOG.md` (AN-001).
+
 ### 2026-08-04 - VS-001: Scaffold monorepo
 - **Status**: Completed
 - **Description**: pnpm workspace + Turborepo + TS strict + Vitest + CI. `packages/sdk-core` con test real, build/test/typecheck verificados en verde localmente.

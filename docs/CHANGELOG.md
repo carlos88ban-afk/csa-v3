@@ -4,6 +4,12 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### AN-001 — Comparación con el portal S&P Global CSA 2026 (2026-08-05)
+
+- `docs/analysis/csa-sp-global-comparison.md`: análisis comparativo (no slice). Inspección en vivo del portal S&P (sesión real del usuario, sección Questionnaires del CSA 2026, sub-cuestionario 1.1.1 documentado a nivel DOM).
+- Resultado: la jerarquía S&P (Dimensión → Criterio → Sub-criterio = formulario) es 1:1 con la ya implementada (Dimensión → Indicador → Subindicador); el Runtime ya replica la navegación del portal (árbol, Prev/Next, progreso) desde VS-010.
+- Gaps documentados (aditivos sobre `engine/form`, no arquitectónicos): opciones anidadas, campo URL pública, estado por pregunta + flujo Approved/Submitted, opción N/A + comentarios confidenciales, botones Save/Cancel/Reset, numeración automática. Candidatos a BACKLOG.md si el usuario los prioriza.
+
 ### TD-003 — Playwright E2E (2026-08-05)
 
 - `apps/web/e2e/`: Playwright nuevo (deuda TD-003 pagada). `playwright.config.ts` corre contra un `next dev` LOCAL (nunca producción, mismo criterio de R-005/TD-002), `workers: 1` (un solo servidor + Neon compartida). `global-setup.ts`/`global-teardown.ts` crean y borran fixtures reales (usuario, organización, Framework→Subindicador, Evaluación publicada) llamando `auth.api.*` y funciones de `packages/db` directo en Node — nunca por HTTP ni formulario del navegador, así ningún spec escribe jamás una contraseña. La sesión se inyecta vía `storageState` (cookies parseadas a mano del `Set-Cookie` de Better Auth).

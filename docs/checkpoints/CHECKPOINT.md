@@ -22,6 +22,7 @@ archivos_modificados:
 
 proximos_pasos:
   - Siguiente: TD-001 + TD-002 juntas — provisionar una rama/proyecto Neon aislado para tests, migrar los tests de `packages/db` a apuntar ahí, y migrar de `drizzle-kit push` a migraciones versionadas (`generate`/`migrate`).
+  - Candidatos nuevos (AN-001, ver docs/analysis/csa-sp-global-comparison.md — NO comprometidos, requieren alinear con el usuario): opciones anidadas en selecciones, campo URL pública, estado por pregunta + flujo Approved/Submitted, N/A + comentarios confidenciales, Save/Cancel/Reset, numeración automática. Si el usuario los prioriza, cada uno entra a BACKLOG.md y se diseña doc-first en docs/engines/form.md.
   - Pendiente no bloqueante, sigue en BACKLOG.md: proveedor de email (ADR), tabla de historial de revisiones de formSchema si se necesita fuera del contexto de publicación.
 
 bloqueos: []
