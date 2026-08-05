@@ -1,6 +1,6 @@
 "use client";
 
-import type { FormElement, Subindicator } from "@plataforma-csa/sdk-core";
+import { componentRegistry, type FormElement, type Subindicator } from "@plataforma-csa/sdk-core";
 import { use, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
 
@@ -15,44 +15,48 @@ interface Props {
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-const ELEMENT_TYPE_LABELS: Record<FormElement["type"], string> = {
-  texto_corto: "Texto corto",
-  texto_largo: "Texto largo",
-  numero: "Número",
-  seleccion_unica: "Selección única",
-  seleccion_multiple: "Selección múltiple",
-  instruccion: "Instrucción",
-  banner: "Banner",
-};
+// Metadata de tipo (etiqueta, si captura respuesta, versión) viene del
+// registry de sdk-core — ver docs/engines/components.md. Esta página ya no
+// mantiene su propia copia de esa información.
+type QuestionComponentType = Extract<(typeof componentRegistry)[number], { isQuestion: true }>["type"];
+const QUESTION_TYPES = new Set<QuestionComponentType>(
+  componentRegistry.filter((c): c is Extract<(typeof componentRegistry)[number], { isQuestion: true }> => c.isQuestion).map((c) => c.type),
+);
 
-type QuestionType = "texto_corto" | "texto_largo" | "numero" | "seleccion_unica" | "seleccion_multiple";
-const QUESTION_TYPES = new Set<QuestionType>([
-  "texto_corto",
-  "texto_largo",
-  "numero",
-  "seleccion_unica",
-  "seleccion_multiple",
-]);
+function isQuestion(el: FormElement): el is Extract<FormElement, { type: QuestionComponentType }> {
+  return QUESTION_TYPES.has(el.type as QuestionComponentType);
+}
 
-function isQuestion(el: FormElement): el is Extract<FormElement, { type: QuestionType }> {
-  return QUESTION_TYPES.has(el.type as QuestionType);
+function componentVersionOf(type: FormElement["type"]): number {
+  return componentRegistry.find((c) => c.type === type)!.version;
+}
+
+function labelOf(type: FormElement["type"]): string {
+  return componentRegistry.find((c) => c.type === type)!.label;
 }
 
 function newElement(type: FormElement["type"]): FormElement {
   const id = crypto.randomUUID();
+  const componentVersion = componentVersionOf(type);
   switch (type) {
     case "texto_corto":
     case "texto_largo":
-      return { id, type, label: "" };
+      return { id, type, label: "", componentVersion };
     case "numero":
-      return { id, type, label: "" };
+      return { id, type, label: "", componentVersion };
     case "seleccion_unica":
     case "seleccion_multiple":
-      return { id, type, label: "", options: [{ id: crypto.randomUUID(), label: "" }] };
+      return {
+        id,
+        type,
+        label: "",
+        options: [{ id: crypto.randomUUID(), label: "" }],
+        componentVersion,
+      };
     case "instruccion":
-      return { id, type, label: "" };
+      return { id, type, label: "", componentVersion };
     case "banner":
-      return { id, type, label: "", variant: "info" };
+      return { id, type, label: "", variant: "info", componentVersion };
   }
 }
 
@@ -184,7 +188,7 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
           {elements.map((el, index) => (
             <li key={el.id}>
               <p>
-                <strong>{ELEMENT_TYPE_LABELS[el.type]}</strong>{" "}
+                <strong>{labelOf(el.type)}</strong>{" "}
                 <button type="button" onClick={() => moveElement(el.id, -1)} disabled={index === 0}>
                   ▲
                 </button>{" "}
@@ -344,9 +348,9 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
 
       <h3>Agregar elemento</h3>
       <select value={addingType} onChange={(e) => setAddingType(e.target.value as FormElement["type"])}>
-        {Object.entries(ELEMENT_TYPE_LABELS).map(([type, label]) => (
-          <option key={type} value={type}>
-            {label}
+        {componentRegistry.map((c) => (
+          <option key={c.type} value={c.type}>
+            {c.label}
           </option>
         ))}
       </select>{" "}

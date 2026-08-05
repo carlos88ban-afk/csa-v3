@@ -7,8 +7,11 @@ import { z } from "zod";
 // independiente de revisionNumber (que versiona el *contenido*, en
 // packages/db/src/schema/domain.ts).
 
+// componentVersion: versión del registry (component-registry.ts) vigente al
+// CREAR el elemento — no se reescribe al editar. Ver docs/engines/components.md.
 const formElementBase = {
   id: z.string().min(1),
+  componentVersion: z.number().int().positive().optional(),
 };
 
 // label/options[].label permiten vacío a propósito: el autosave del Builder
