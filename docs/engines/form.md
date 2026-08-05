@@ -1,0 +1,100 @@
+# Motor: `engine/form` (v1 — M4/VS-007)
+
+Orquestación de formularios por metadatos (`../architecture/overview.md`). Responsabilidad de este motor: definir la **forma** del `formSchema` (jsonb) que vive en cada Subindicador (`../domain/evaluation-hierarchy.md`) y las reglas para leerlo/escribirlo. No incluye render de Runtime para evaluados (M7), ni componentes pluggable/versionados (`engine/components`, M5), ni fórmulas/condicionales (`engine/formula`/`engine/rule`, M10).
+
+## Alcance v1
+
+- Editor (Builder) de la lista de Elementos de un Subindicador: crear, editar, reordenar, borrar.
+- Autosave del `formSchema` mientras se edita.
+- Validación **estructural** del `formSchema` (que el JSON tenga forma válida) vía zod en `sdk-core`, punto único de verdad para Builder y API (principio SDK-first).
+- Cada Elemento puede declarar reglas de validación de **contenido** (`required`, `maxLength`, `min`/`max`, etc.) como metadatos — el motor v1 las *define y persiste*, no las *ejecuta* (no hay Runtime de respuesta todavía, eso es M7/`engine/persistence`).
+
+## Fuera de alcance (explícito)
+
+- Render del formulario para un evaluado respondiendo (Runtime) — M7 (VS-010).
+- Tipos de elemento que dependen de otros motores todavía no construidos: `tabla`, `grid`, `upload`, `evidencia` (necesitan R2 / `engine/components`, M5/M8), `calculado` (`engine/formula`, M10), `condicional` (`engine/rule`, M10).
+- Registry de componentes pluggable/versionado (`engine/components`) — v1 tiene un set fijo de tipos de elemento en código, no un registry externo.
+- Ejecución de las reglas de validación de contenido sobre una respuesta real — solo se definen y se guardan.
+- Colaboración en tiempo real (múltiples editores simultáneos sobre el mismo Subindicador) — fuera de alcance dado NFR-1 (~20 usuarios concurrentes, no necesariamente editando el mismo formulario a la vez). Sin lock ni resolución de conflictos; último autosave gana.
+
+## Tipos de elemento v1
+
+Subconjunto de `../domain/ubiquitous-language.md` (fila "Elemento") que no depende de motores futuros: **pregunta** (en sus variantes de texto/número/selección), **instrucción**, **banner**, **texto**. El resto (`tabla`, `grid`, `upload`, `URL`, `evidencia`, `calculado`, `repetible`, `condicional`) queda pendiente para M5/M8/M10.
+
+| `type` | Uso | Config propia |
+|---|---|---|
+| `texto_corto` | Pregunta de respuesta corta (input de una línea) | `maxLength?: number` |
+| `texto_largo` | Pregunta de respuesta larga (textarea) | `maxLength?: number` |
+| `numero` | Pregunta numérica | `min?: number`, `max?: number` |
+| `seleccion_unica` | Pregunta de opción única (radio) | `options: {id, label}[]` |
+| `seleccion_multiple` | Pregunta de opción múltiple (checkbox) | `options: {id, label}[]`, `minSelected?`, `maxSelected?` |
+| `instruccion` | Texto informativo, no captura respuesta | — |
+| `banner` | Aviso destacado, no captura respuesta | `variant: "info" \| "warning"` |
+
+Campos base compartidos por todo elemento:
+
+- `id: string` — UUID generado en cliente al crear el elemento. Estable entre ediciones; el Runtime futuro (M7) lo usará para mapear respuestas a elementos, por eso no se recicla ni se basa en el índice del array.
+- `type: <tabla anterior>`
+- `label: string` — texto de la pregunta/instrucción/banner. **Permite vacío a propósito**: el autosave guarda el formulario mientras se edita (un elemento recién agregado empieza con `label: ""`), no solo su estado terminado. Que todo elemento tenga label no-vacío es una validación de "¿está listo para publicarse?" que pertenece a `engine/publishing` (M6), no una condición para poder guardar un borrador.
+- `helpText?: string` — solo aplica a tipos "pregunta" (no a `instruccion`/`banner`).
+- `required?: boolean` — solo aplica a tipos "pregunta".
+
+## Estructura del Form Schema
+
+```ts
+interface FormSchema {
+  schemaVersion: 1;   // versión del *formato* JSON — permite migrarlo en el futuro (M5+) sin tocar revisionNumber
+  elements: FormElement[]; // orden del array = orden de presentación; sin campo `order` redundante
+}
+```
+
+`schemaVersion` es independiente de `revisionNumber` (columna en `subindicator`, ya implementada en VS-004): `revisionNumber` cuenta ediciones de contenido; `schemaVersion` versiona la forma del JSON en sí. No se espera que `schemaVersion` cambie en v1 — se documenta ahora para no tener que migrar datos existentes cuando aparezca `schemaVersion: 2`.
+
+## Contratos (`packages/sdk-core`)
+
+Nuevo archivo `packages/sdk-core/src/form-schema.ts`, mismo patrón que `domain.ts` (zod + `z.infer`, exportado desde `index.ts`):
+
+- `formElement` — `z.discriminatedUnion("type", [...])`, una rama zod por tipo de la tabla anterior.
+- `formSchema` — `z.object({ schemaVersion: z.literal(1), elements: z.array(formElement) })`.
+- Tipos derivados: `FormElement`, `FormSchema` (unión discriminada de TS, no una interfaz `formSchema: unknown` genérica).
+
+`updateSubindicatorInput` (`packages/sdk-core/src/domain.ts`) gana el campo opcional que hoy está excluido a propósito (comentario "el motor de formularios es M4"):
+
+```ts
+export const updateSubindicatorInput = z.object({
+  title: z.string().min(1).optional(),
+  description: z.string().optional(),
+  formSchema: formSchema.optional(),
+});
+```
+
+## Persistencia (`packages/db`)
+
+Ya implementada desde VS-004, sin cambios necesarios: `updateSubindicator` en `packages/db/src/domain/service.ts` acepta `formSchema?: unknown` y hace bump atómico de `revisionNumber` cuando la clave está presente en el input (`"formSchema" in input`). El motor v1 se apoya en esta capa tal cual — la validación de forma ocurre antes, en el límite de la API (zod), el servicio permanece agnóstico del contenido.
+
+## API
+
+`PATCH /api/subindicators/[id]` (`apps/web/app/api/subindicators/[id]/route.ts`) — se retira el comentario "formSchema no se acepta todavía" y el handler pasa a parsear el body completo con `updateSubindicatorInput` (ahora incluye `formSchema`). Mismo patrón de errores existente (`apps/web/lib/api-errors.ts`): `ZodError` → 400 con `details`.
+
+No se agregan endpoints nuevos — el Form Editor reutiliza la ruta de update de Subindicador que ya existe.
+
+## Autosave
+
+- Debounce de 1500ms desde el último cambio local antes de disparar `PATCH` (evita un `revisionNumber` nuevo por cada tecla).
+- Cada autosave exitoso muestra el `revisionNumber` devuelto por la API como confirmación visual ("Guardado — revisión N"), reusando la invariante de versionado ya documentada en `../domain/evaluation-hierarchy.md`.
+- Sin colaboración concurrente (ver "Fuera de alcance") — no hay merge ni bloqueo optimista; el PATCH siempre sobrescribe con el estado local completo del array `elements`.
+- Fallos de autosave (red, 401 por sesión expirada, etc.) se muestran inline sin perder el estado local en memoria — el usuario puede reintentar editando de nuevo (dispara otro debounce) sin recargar la página.
+
+## UI (Builder)
+
+Nueva ruta `apps/web/app/frameworks/[frameworkId]/dimensions/[dimensionId]/indicators/[indicatorId]/subindicators/[subindicatorId]/page.tsx` ("Form Editor"), mismo patrón que el resto del Builder (`"use client"`, `params` vía `use()`, `apps/web/lib/api-client.ts`). La página de Indicador (que hoy lista Subindicadores inline sin navegación a detalle) gana un enlace por Subindicador hacia esta ruta.
+
+Editor v1: lista ordenada de Elementos, selector de tipo para agregar uno nuevo, formulario de config por elemento según su `type`, botones subir/bajar para reordenar (sin drag-and-drop — no se introduce una librería nueva solo para esto en v1), botón de borrar por elemento. Sin diseño visual elaborado, mismo criterio que VS-006.
+
+## Testing
+
+Mismo patrón que VS-004/VS-006:
+
+- `packages/sdk-core`: tests de `formElement`/`formSchema` (zod) — casos válidos por tipo y casos inválidos (discriminante desconocido, campos requeridos faltantes).
+- `packages/db`: test de integración contra Neon real que verifica que un `updateSubindicator` con `formSchema` incrementa `revisionNumber` exactamente en 1 (ya cubierto genéricamente por VS-004, se añade un caso con contenido `FormSchema`-shaped realista).
+- `apps/web`: sin Playwright todavía (`../TECH_DEBT.md` TD-003) — verificación manual en navegador real (claude-in-chrome), mismo criterio que VS-006.

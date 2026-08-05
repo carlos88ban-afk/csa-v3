@@ -27,6 +27,11 @@ Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni
 - **Description**: Primera UI real: auth (signup/login/logout), organizaciones, y árbol Framework→Dimensión→Indicador→Subindicador con CRUD completo consumiendo las rutas API de VS-004.
 - **Notes**: Verificado de punta a punta en Chrome real (no solo tests automatizados) — ver `docs/slices/VS-006.md`. Se corrigió un gap real de `tsconfig.json` (lib DOM faltante) y se añadió un header con logout no especificado originalmente.
 
+### 2026-08-05 - VS-007: Form Engine v1
+- **Status**: Completed
+- **Description**: Primer motor real (`engine/form`): 7 tipos de elemento v1 (zod discriminated union en sdk-core), Form Editor con autosave (debounce 1500ms) sobre el `formSchema`/`revisionNumber` ya existentes desde VS-004.
+- **Notes**: Ver `docs/slices/VS-007.md` y `docs/engines/form.md`. Dos bugs reales de la interacción autosave/validación encontrados y corregidos durante la verificación manual en Chrome (autosave disparándose sin edición del usuario; "Error al guardar" en elementos recién creados). Intento de delegar a OpenCode falló por un problema de entorno (heredoc bash en Windows) — implementado directamente.
+
 ### 2026-08-04 - Análisis de propuesta de stack (OpenCode)
 - **Status**: Completed
 - **Description**: Se verificaron con búsqueda web las afirmaciones técnicas de la propuesta inicial. Se confirmó R2/Better Auth/Drizzle/Vitest+Playwright sin cambios. Se corrigió: (1) Vercel Hobby prohíbe uso comercial — resuelto confirmando que el proyecto es uso interno; (2) Neon omitía el tope de 100 CU-h/mes — documentado como riesgo monitoreado; (3) Postgres self-hosted en Oracle Cloud Always Free fue considerado pero descartado por recorte de cuota sin previo aviso en jun-2026 — se optó por Neon.

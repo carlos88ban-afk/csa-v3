@@ -4,6 +4,19 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-007 — Form Engine v1 (2026-08-05)
+
+- `docs/engines/form.md`: especificación doc-first del primer motor real (`engine/form`) — 7 tipos de elemento v1, estructura del Form Schema, autosave, fuera de alcance explícito (Runtime, tipos que dependen de M5/M8/M10).
+- `packages/sdk-core/src/form-schema.ts` (nuevo): `formElement` (zod discriminated union) y `formSchema`, con `schemaVersion` independiente de `revisionNumber`. `updateSubindicatorInput` gana el campo `formSchema` (antes excluido a propósito).
+- `apps/web/app/api/subindicators/[id]/route.ts`: acepta `formSchema` en el `PATCH` (la persistencia y el versionado ya existían desde VS-004, solo faltaba exponerlo).
+- Form Editor nuevo (`apps/web/.../subindicators/[subindicatorId]/page.tsx`): agregar/editar/reordenar/borrar Elementos, autosave con debounce de 1500ms. Enlace "Abrir formulario" añadido a la lista de Subindicadores.
+- Test de integración en `packages/db` actualizado con contenido `FormSchema` realista (antes usaba un objeto no representativo).
+- Verificado de punta a punta en Chrome real: los 7 tipos de elemento, reordenar, borrar, autosave, y persistencia tras recargar la página.
+- **Dos bugs reales corregidos durante la verificación manual** (no solo tipeo):
+  1. El autosave se disparaba con solo cargar la página (sin edición del usuario) por depender de un `useEffect` reactivo sobre `elements` — rediseñado para que el autosave se dispare únicamente desde los manejadores de mutación explícitos del usuario.
+  2. Un elemento recién agregado (con `label` vacío) fallaba la validación zod y mostraba "Error al guardar" antes de que el usuario pudiera escribir — se relajó el esquema para permitir `label` vacío en un borrador (la validación de "listo para publicar" es de `engine/publishing`, M6).
+- Intento de delegar el Form Editor a OpenCode falló por un problema de heredoc de bash en este entorno Windows (~35 min, sin producir el archivo) — se implementó directamente.
+
 ### VS-006 — Builder jerárquico (UI) (2026-08-04)
 
 - Cliente Better Auth (`better-auth/react` + plugin `organization`) en `apps/web/lib/auth-client.ts`.

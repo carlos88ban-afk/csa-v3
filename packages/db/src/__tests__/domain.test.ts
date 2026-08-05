@@ -142,9 +142,16 @@ describe("VS-004 — dominio core (Framework→Dimensión→Indicador→Subindic
     expect(afterTitleOnly?.revisionNumber).toBe(1);
 
     const afterFormSchema = await updateSubindicator(organizationId, sub.id, {
-      formSchema: { elements: [] },
+      formSchema: {
+        schemaVersion: 1,
+        elements: [
+          { id: "el-1", type: "instruccion", label: "Lea con atención antes de responder" },
+          { id: "el-2", type: "texto_corto", label: "Nombre de la empresa", required: true },
+        ],
+      },
     });
     expect(afterFormSchema?.revisionNumber).toBe(2);
+    expect(afterFormSchema?.formSchema).toMatchObject({ schemaVersion: 1 });
   });
 
   it("requireActiveMember rechaza sesiones no autenticadas y usuarios sin organización activa", async () => {

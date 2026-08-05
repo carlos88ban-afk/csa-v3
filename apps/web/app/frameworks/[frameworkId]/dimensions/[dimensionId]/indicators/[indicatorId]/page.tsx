@@ -91,6 +91,9 @@ export default function IndicatorDetailPage({ params }: Props) {
               ) : (
                 <>
                   {sub.title} (rev. {sub.revisionNumber}){" "}
+                  <a href={`/frameworks/${frameworkId}/dimensions/${dimensionId}/indicators/${indicatorId}/subindicators/${sub.id}`}>
+                    Abrir formulario
+                  </a>{" "}
                   <button type="button" onClick={() => startEdit(sub)}>
                     Editar
                   </button>{" "}

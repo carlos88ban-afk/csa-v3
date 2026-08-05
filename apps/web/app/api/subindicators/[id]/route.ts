@@ -22,7 +22,6 @@ export async function PATCH(request: Request, { params }: Params) {
   try {
     const { id } = await params;
     const { organizationId } = await requireActiveMember(request.headers);
-    // formSchema no se acepta por API todavía (motor de formularios = M4).
     const input = updateSubindicatorInput.parse(await request.json());
     const row = await updateSubindicator(organizationId, id, input);
     if (!row) return Response.json({ error: "subindicator_NOT_FOUND" }, { status: 404 });

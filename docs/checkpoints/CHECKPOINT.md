@@ -1,45 +1,48 @@
-checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000004
-fecha: 2026-08-04
+checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000005
+fecha: 2026-08-05
 estado: en_progreso
-slice_actual: VS-007
+slice_actual: VS-008
 
-slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006]
+slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007]
 
 decisiones_del_dia:
-  - VS-006 (Builder UI) verificado de punta a punta en Chrome real (claude-in-chrome), no solo con tests automatizados — a pedido explícito del usuario.
-  - apps/web/tsconfig.json necesitaba "lib": ["ES2022", "DOM", "DOM.Iterable"] explícito (heredaba solo ES2022 de tsconfig.base.json) — sin esto, tipos de eventos DOM y fetch fallaban de forma confusa.
-  - Se añadió components/app-header.tsx (logout) no especificado en el contrato original — hueco de usabilidad real detectado durante la verificación manual.
-  - Datos de la cuenta de verificación (org "Org Demo VS-006", framework "Framework ESG Demo", etc.) se dejaron a propósito en el Neon real para que el usuario también pueda revisarlos en el navegador.
-  - Next.js 16 autogenera apps/web/AGENTS.md y apps/web/CLAUDE.md en cada `next dev` (avisos de breaking changes de esa versión) — se dejan y commitean, es el comportamiento recomendado por el propio framework.
+  - Se adelantó el despliegue a Vercel (plan Hobby, ADR-0001) antes de M6/VS-009, a pedido explícito del usuario, solo para exponer el hosting — la funcionalidad de publicación con enlaces seguros sigue pendiente en su orden original. URL: https://csa-v3-web.vercel.app (ver `project_notes/key_facts.md`).
+  - Bug real de infraestructura: Turborepo 2.x no pasaba `DATABASE_URL`/`BETTER_AUTH_*` a las tasks en Vercel pese a estar configuradas — requería `globalEnv` explícito en `turbo.json`. Documentado en `project_notes/bugs.md`.
+  - Bug real de auth: `BETTER_AUTH_URL` de producción no coincidía con el origin real, causando 403 `INVALID_ORIGIN` en signup — corregido. R-006 (connection string no pooled) cerrado de paso: local y producción ya usan la pooled.
+  - VS-007 (Form Engine v1) especificado doc-first en `engines/form.md` antes de implementar, siguiendo la regla rectora. Verificado de punta a punta en Chrome real, no solo con tests.
+  - Dos bugs reales de diseño encontrados y corregidos durante la verificación manual de VS-007 (autosave disparándose sin edición del usuario; validación demasiado estricta bloqueando el guardado de un borrador) — ver hallazgos en `slices/VS-007.md`.
+  - Intento de delegar el Form Editor (VS-007) a un subagente OpenCode falló por un problema de entorno (heredoc bash en Windows) — se implementó directamente. Mismo patrón de fallo ya visto en VS-003.
 
 archivos_modificados:
-  - docs/slices/VS-006.md (spec + resultado doc-first)
-  - apps/web/lib/auth-client.ts, apps/web/lib/api-client.ts (nuevos)
-  - apps/web/app/{signup,login,organizations,frameworks}/page.tsx, apps/web/app/frameworks/[frameworkId]/**/page.tsx (nuevos, árbol completo)
-  - apps/web/components/app-header.tsx (nuevo), apps/web/app/layout.tsx (actualizado)
-  - apps/web/app/page.tsx (reescrito, redirección según sesión)
-  - apps/web/tsconfig.json (+lib DOM)
-  - apps/web/AGENTS.md, apps/web/CLAUDE.md (autogenerados por Next.js, commiteados)
-  - docs/ROADMAP.md, docs/BACKLOG.md, docs/CHANGELOG.md, docs/TECH_DEBT.md (TD-003), docs/project_notes/issues.md
+  - docs/engines/form.md, docs/engines/README.md, docs/slices/VS-007.md (spec + resultado doc-first)
+  - packages/sdk-core/src/form-schema.ts, form-schema.test.ts (nuevos); domain.ts, index.ts (actualizados)
+  - packages/db/src/__tests__/domain.test.ts (test de revisionNumber con FormSchema realista)
+  - apps/web/app/api/subindicators/[id]/route.ts (expone formSchema)
+  - apps/web/app/frameworks/.../subindicators/[subindicatorId]/page.tsx (nuevo, Form Editor)
+  - apps/web/app/frameworks/.../indicators/[indicatorId]/page.tsx (enlace "Abrir formulario")
+  - turbo.json (globalEnv para Vercel)
+  - docs/RISKS.md (R-006 cerrado), docs/project_notes/{bugs,decisions,key_facts,issues}.md
+  - docs/ROADMAP.md, docs/BACKLOG.md, docs/CHANGELOG.md
 
 proximos_pasos:
-  - M4/VS-007: Form Engine v1 — elementos básicos dentro de un Subindicador, validación, autosave. Este es el primer motor real (engine/form) de docs/architecture/overview.md.
-  - Antes de VS-007: especificar en docs/engines/form.md el diseño del motor (tipos de elemento soportados en v1, estructura de formSchema que ya existe como columna jsonb desde VS-004, estrategia de autosave)
-  - Pendiente no bloqueante: proveedor de email (BACKLOG), connection string pooled (RISKS R-006), migraciones versionadas (TECH_DEBT TD-001), Playwright (TECH_DEBT TD-003)
+  - M5/VS-008: Registry de componentes pluggable + versionado (`engine/components`). Especificar `docs/engines/components.md` antes de implementar (doc-first).
+  - Pendiente no bloqueante: proveedor de email (BACKLOG), migraciones versionadas de Drizzle (TECH_DEBT TD-001), Playwright (TECH_DEBT TD-003).
 
 bloqueos: []
 
 contexto_para_continuar: |
-  M0 a M3 completados y verdes (pnpm slice:close: 5 tasks build, 12 tests, 5 tasks
-  typecheck). Además del backend (auth + dominio core), ahora existe una UI real
-  y funcional en apps/web: signup/login/logout, gestión de organización activa,
-  y el árbol completo Framework→Dimensión→Indicador→Subindicador con CRUD,
-  verificado manualmente en Chrome (no solo tests). Servidor de desarrollo
-  corría en http://localhost:3000 al cierre de esta sesión (puede haberse
-  detenido; relanzar con `pnpm --filter @plataforma-csa/web dev`). Hay datos
-  de verificación reales en el Neon del proyecto (org "Org Demo VS-006") que
-  se dejaron a propósito. Para retomar: leer este archivo, luego
-  docs/BACKLOG.md, luego especificar docs/engines/form.md antes de VS-007
-  (el motor de formularios es la pieza central que faltaba — formSchema ya
-  existe como columna desde VS-004 pero vacía).
+  M0 a M4 completados y verdes (pnpm slice:close: 5 tasks build, 12 tests, 5
+  tasks typecheck). El proyecto ahora tiene su primer motor real (engine/form
+  v1): un Subindicador puede tener un formulario real con 7 tipos de elemento
+  (texto corto/largo, número, selección única/múltiple, instrucción, banner),
+  editable en un Form Editor con autosave, verificado de punta a punta en
+  Chrome real. Además, la app está desplegada en producción en Vercel
+  (https://csa-v3-web.vercel.app) desde antes de tiempo (adelantado a pedido
+  del usuario, no forma parte del roadmap todavía como funcionalidad de
+  publicación — eso es VS-009/M6). Servidor de desarrollo local puede haberse
+  detenido; relanzar con `pnpm --filter @plataforma-csa/web dev`. Datos de
+  verificación de VS-007 se crearon y se limpiaron del Neon real (no quedan
+  datos de prueba de VS-007, a diferencia de VS-006 donde sí se dejaron
+  a propósito). Para retomar: leer este archivo, luego docs/BACKLOG.md,
+  luego especificar docs/engines/components.md antes de VS-008.
   Comando de verificación: pnpm install && pnpm slice:close.

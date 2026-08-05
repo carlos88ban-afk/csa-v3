@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { formSchema, type FormSchema } from "./form-schema.js";
 
 // Contratos compartidos del modelo core (ver docs/domain/evaluation-hierarchy.md).
 // SDK-first: tanto la API (apps/web) como el futuro Builder (M3) consumen
@@ -52,7 +53,7 @@ export type CreateSubindicatorInput = z.infer<typeof createSubindicatorInput>;
 export const updateSubindicatorInput = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),
-  // formSchema no se expone todavía: el motor de formularios es M4 (VS-007).
+  formSchema: formSchema.optional(),
 });
 export type UpdateSubindicatorInput = z.infer<typeof updateSubindicatorInput>;
 
@@ -91,7 +92,7 @@ export interface Subindicator {
   indicatorId: string;
   title: string;
   description: string | null;
-  formSchema: unknown;
+  formSchema: FormSchema | null;
   revisionNumber: number;
   createdAt: Date;
   updatedAt: Date;
