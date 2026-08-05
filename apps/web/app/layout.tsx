@@ -24,8 +24,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es" className={`${publicSans.variable} ${plexMono.variable}`}>
       <body>
+        {/* WCAG 2.4.1 Bypass Blocks — ver docs/architecture/accessibility.md */}
+        <a href="#main-content" className="skip-link">
+          Saltar al contenido
+        </a>
         <AppHeader />
-        {children}
+        <div id="main-content">{children}</div>
       </body>
     </html>
   );

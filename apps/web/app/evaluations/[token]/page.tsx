@@ -217,7 +217,8 @@ export default function PublicEvaluationPage({ params }: Props) {
           >
             ‹ Anterior
           </button>
-          <div className="runtime-topbar__status">
+          {/* 4.1.3 Status Messages — ver docs/architecture/accessibility.md */}
+          <div className="runtime-topbar__status" aria-live="polite">
             {saveStatus === "saving" && <Pill variant="accent">Guardando…</Pill>}
             {saveStatus === "saved" && <Pill variant="good">Guardado</Pill>}
             {saveStatus === "error" && <Pill variant="warn">Error al guardar</Pill>}

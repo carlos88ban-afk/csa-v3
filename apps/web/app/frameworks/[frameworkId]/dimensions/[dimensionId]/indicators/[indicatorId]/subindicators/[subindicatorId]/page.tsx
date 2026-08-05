@@ -202,9 +202,12 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
       />
       <div className="entry-list__main">
         <h1>{subindicator.title}</h1>
-        {saveStatus === "saving" && <Pill variant="accent">Guardando…</Pill>}
-        {saveStatus === "saved" && <Pill variant="good">Guardado — rev. {revisionNumber}</Pill>}
-        {saveStatus === "idle" && revisionNumber !== null && <Pill>Rev. {revisionNumber}</Pill>}
+        {/* 4.1.3 Status Messages — ver docs/architecture/accessibility.md */}
+        <span aria-live="polite">
+          {saveStatus === "saving" && <Pill variant="accent">Guardando…</Pill>}
+          {saveStatus === "saved" && <Pill variant="good">Guardado — rev. {revisionNumber}</Pill>}
+          {saveStatus === "idle" && revisionNumber !== null && <Pill>Rev. {revisionNumber}</Pill>}
+        </span>
       </div>
       {saveStatus === "error" && <p className="alert" role="alert">Error al guardar: {saveError}</p>}
 

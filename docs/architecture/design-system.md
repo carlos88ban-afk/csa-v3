@@ -21,11 +21,11 @@ Definida como variables CSS en `:root` (modo claro) y redefinida bajo `@media (p
 | `--surface-muted` | `#EFEDE6` | `#1F252D` | Zebra de listas, encabezados de tabla |
 | `--ink` | `#1C2530` | `#E7E4DD` | Texto principal — azul-pizarra profundo, no negro puro |
 | `--ink-muted` | `#5B6675` | `#98A2AD` | Texto secundario, meta |
-| `--border` | `#DBD7CE` | `#2B323B` | Líneas finas (hairline), estilo ledger |
+| `--border` | `#83817C` | `#757A80` | Líneas finas (hairline), estilo ledger — ajustado en M12/VS-015 (`accessibility.md`) para cumplir 3:1 (WCAG 1.4.11) contra `--bg`/`--surface` en límites de componentes (inputs, tarjetas) |
 | `--accent` | `#33507D` | `#82A2D1` | Marca/foco — azul "tinta de sello", deliberadamente distinto del azul índigo genérico de SaaS y sin colisionar con los colores semánticos |
 | `--accent-soft` | `#E4EAF2` | `#223349` | Fondo de estado activo/seleccionado |
-| `--good` | `#2E7D4F` | `#57B37E` | Semántico — verificado/guardado (separado del accent) |
-| `--warn` | `#A66A17` | `#D9A24B` | Semántico — advertencia |
+| `--good` | `#297147` | `#57B37E` | Semántico — verificado/guardado (separado del accent). Claro ajustado en M12/VS-015 para cumplir 4.5:1 como texto de `Pill` sobre `--good-soft` |
+| `--warn` | `#8D5A14` | `#D9A24B` | Semántico — advertencia. Claro ajustado en M12/VS-015 para cumplir 4.5:1 como texto de `Pill` sobre `--warn-soft` |
 | `--critical` | `#B23B3B` | `#E2827E` | Semántico — error |
 
 ## Tipografía

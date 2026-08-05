@@ -9,13 +9,15 @@
   --surface-muted: #efede6;
   --ink: #1c2530;
   --ink-muted: #5b6675;
-  --border: #dbd7ce;
+  /* --border/--good/--warn ajustados en M12/VS-015 (accessibility.md) para
+     cumplir contraste WCAG 2.2 AA — ver docs/architecture/accessibility.md. */
+  --border: #83817c;
   --accent: #33507d;
   --accent-ink: #ffffff;
   --accent-soft: #e4eaf2;
-  --good: #2e7d4f;
+  --good: #297147;
   --good-soft: #e3f0e7;
-  --warn: #a66a17;
+  --warn: #8d5a14;
   --warn-soft: #f3e9d8;
   --critical: #b23b3b;
   --critical-soft: #f5e2e2;
@@ -47,7 +49,7 @@
     --surface-muted: #1f252d;
     --ink: #e7e4dd;
     --ink-muted: #98a2ad;
-    --border: #2b323b;
+    --border: #757a80;
     --accent: #82a2d1;
     --accent-ink: #0f1620;
     --accent-soft: #223349;
@@ -66,7 +68,7 @@
   --surface-muted: #1f252d;
   --ink: #e7e4dd;
   --ink-muted: #98a2ad;
-  --border: #2b323b;
+  --border: #757a80;
   --accent: #82a2d1;
   --accent-ink: #0f1620;
   --accent-soft: #223349;
@@ -84,13 +86,13 @@
   --surface-muted: #efede6;
   --ink: #1c2530;
   --ink-muted: #5b6675;
-  --border: #dbd7ce;
+  --border: #83817c;
   --accent: #33507d;
   --accent-ink: #ffffff;
   --accent-soft: #e4eaf2;
-  --good: #2e7d4f;
+  --good: #297147;
   --good-soft: #e3f0e7;
-  --warn: #a66a17;
+  --warn: #8d5a14;
   --warn-soft: #f3e9d8;
   --critical: #b23b3b;
   --critical-soft: #f5e2e2;
@@ -195,6 +197,26 @@ button:disabled {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* --- Accesibilidad (WCAG 2.2 AA, ver docs/architecture/accessibility.md) - */
+
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: var(--space-4);
+  z-index: 100;
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  top: var(--space-2);
 }
 
 /* --- Layout shell --------------------------------------------------- */
@@ -453,6 +475,9 @@ input[type="checkbox"] {
 .btn--sm {
   padding: var(--space-1) var(--space-3);
   font-size: var(--text-xs);
+  /* WCAG 2.2 2.5.8 Target Size Minimum (AA) — ver accessibility.md */
+  min-width: 24px;
+  min-height: 24px;
 }
 
 /* --- Pills -------------------------------------------------------------- */
