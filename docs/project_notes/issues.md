@@ -32,6 +32,11 @@ Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni
 - **Description**: Octavo tipo de elemento `evidencia` (isQuestion, config maxFiles/maxSizeMb/acceptedTypes) + flujo completo de archivos con Cloudflare R2 vía presigned URLs: PUT/GET firmadas de 5 min, el binario nunca pasa por Vercel. Refs (key/name/size/mimeType) en el jsonb de `response` sin tabla nueva. 3 rutas públicas nuevas (presign/download-url/DELETE) con validación contra snapshot congelado y anti-IDOR por prefijo de key. `EvidenceView` en el Runtime + config en el Builder.
 - **Notes**: Ver `docs/slices/VS-011.md` y `docs/engines/evidences.md`. Hallazgo de producción: el bucket R2 sin política CORS falla el PUT del navegador con "Failed to fetch" — CORS configurado vía API de Cloudflare (token CFAT del usuario) y documentado en la spec. Verificado en producción navegando en Chrome: upload real, persistencia tras recarga, descarga íntegra, "Quitar" borra objeto de R2; seguridad 404/400/413/415 OK. Deploy vía GitHub Integration (el CLI desde la raíz excede 100MB de upload). ADR 0003 → Accepted.
 
+### 2026-08-05 - VS-015: Accesibilidad (WCAG 2.2 AA) — cierra el roadmap original
+- **Status**: Completed
+- **Description**: Auditoría de contraste (fórmula de luminancia relativa WCAG) sobre los tokens compartidos de `design-system.md` — encontró y corrigió `--border` (~1.3:1 → ≥3.5:1) y `Pill` good/warn en modo claro (4.30/3.72 → ≥4.84:1). Más: tamaño mínimo de objetivo en `.btn--sm`, link "Saltar al contenido", `aria-live` en autosave.
+- **Notes**: Ver `docs/slices/VS-015.md`, `docs/architecture/accessibility.md`. Con este slice se completan los 12 milestones del roadmap original (`docs/ROADMAP.md`) — próximo paso requiere alinear con el usuario qué sigue, no hay un M13 definido. Verificación en producción: skip link confirmado funcionalmente (Tab → `document.activeElement`), no solo visualmente.
+
 ### 2026-08-05 - VS-014: Permisos (RBAC dueño/editor/evaluador)
 - **Status**: Completed
 - **Description**: `requireWriteAccess` gatea las 10 rutas de escritura del dominio (rechaza `evaluador`). Se expuso por primera vez en la app la gestión de miembros/invitaciones que VS-003 dejó solo como capacidad de backend (sin ruta API nueva, usa `authClient.organization.*` directo) + página de aceptación nueva.

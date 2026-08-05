@@ -4,6 +4,18 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-015 — Accesibilidad (WCAG 2.2 AA) (2026-08-05)
+
+- `docs/architecture/accessibility.md`: especificación doc-first. Cierra NFR-5. Sin motor de dominio nuevo (M12 es transversal) — vive en `architecture/`, no en `engines/`. Alcance dirigido a hallazgos reales de auditar los tokens/componentes compartidos con la fórmula de contraste WCAG, no un checklist especulativo de los ~50 criterios.
+- Contraste (1.4.11 Non-text Contrast): `--border` medía ~1.3:1 contra `--bg`/`--surface` (muy bajo el 3:1 exigido para límites de `input`/`select`/`textarea`/tarjetas) — ajustado a `#83817C`/`#757A80` (claro/oscuro), ≥3.5:1 en ambos modos contra ambos fondos.
+- Contraste (1.4.3 Contrast Minimum): texto de `Pill` variantes `good`/`warn` en modo claro medía 4.30:1/3.72:1 sobre su fondo `-soft` (bajo 4.5:1) — `--good`/`--warn` oscurecidos a `#297147`/`#8D5A14` (≥4.84:1). Modo oscuro ya pasaba, sin cambios.
+- Tamaño de objetivo (2.5.8 Target Size Minimum, nuevo en WCAG 2.2): `.btn--sm` medía menos de 24×24px — gana `min-width`/`min-height: 24px`.
+- Bypass Blocks (2.4.1): link "Saltar al contenido" nuevo en `apps/web/app/layout.tsx`, apuntando a un wrapper `id="main-content"` alrededor de `{children}` — un solo cambio en el layout raíz, sin tocar las ~13 páginas individuales.
+- Status Messages (4.1.3): `aria-live="polite"` en los contenedores de estado de autosave del Form Editor y el Runtime (no en el componente `Pill` en sí, que también se usa para insignias estáticas que no deben anunciarse en cada render).
+- Ya cumplido sin cambios: labels de formulario (todo `input`/`select`/`textarea` ya vive envuelto en `<label>`, asociación válida por anidamiento — confirmado inspeccionando el HTML real, no solo el árbol de accesibilidad abreviado), foco visible global (`:focus-visible`), `<html lang="es">`.
+- i18n/traducciones sigue explícitamente fuera de alcance — NFR-5 lo excluye de M0–M12; no se instala una librería de i18n sin un segundo idioma real que soportar.
+- Verificado en navegador real contra producción: contraste recalculado con la fórmula de luminancia relativa de WCAG contra los valores finales de `globals.css`; skip link confirmado como primer elemento enfocable con Tab (`document.activeElement`) y visible al recibir foco; árbol de accesibilidad de `/organizations` inspeccionado sin gaps reales.
+
 ### VS-014 — Permisos (RBAC: dueño / editor / evaluador) (2026-08-05)
 
 - `docs/engines/permission.md`: especificación doc-first. Refina el rol binario `owner`/`member` (VS-003) en tres roles. Sin *statements* de access-control nuevos en Better Auth — el permiso real (escritura sobre el dominio) lo decide `requireWriteAccess`, no el plugin de organización; los roles solo se declaran (reutilizando los permisos de `member` por defecto) porque el **cliente tipado** de Better Auth lo exige para que `inviteMember`/`updateMemberRole` compilen con `"editor"`/`"evaluador"` como valores válidos — ajuste real encontrado al implementar, documentado en la spec.
