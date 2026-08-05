@@ -1,9 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { answerValue, responseAnswers, upsertResponseInput } from "./response.js";
+import { answerValue, evidenceRef, responseAnswers, upsertResponseInput } from "./response.js";
+
+const sampleRef = { key: "evaluations/ev1/file-abc", name: "reporte.pdf", size: 1024, mimeType: "application/pdf" };
+
+describe("evidenceRef", () => {
+  it("acepta una referencia válida", () => {
+    expect(evidenceRef.safeParse(sampleRef).success).toBe(true);
+  });
+
+  it("rechaza una referencia sin key", () => {
+    const { success } = evidenceRef.safeParse({ name: "x.pdf", size: 1, mimeType: "application/pdf" });
+    expect(success).toBe(false);
+  });
+
+  it("rechaza una referencia con tamaño negativo", () => {
+    const { success } = evidenceRef.safeParse({ ...sampleRef, size: -1 });
+    expect(success).toBe(false);
+  });
+});
 
 describe("answerValue", () => {
   it.each(["texto", 42, ["a", "b"]])("acepta un valor válido de tipo %s", (value) => {
     expect(answerValue.safeParse(value).success).toBe(true);
+  });
+
+  it("acepta un array de refs de evidencia", () => {
+    expect(answerValue.safeParse([sampleRef]).success).toBe(true);
   });
 
   it("rechaza un objeto anidado como valor", () => {

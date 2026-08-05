@@ -101,4 +101,17 @@ describe("VS-010 — engine/persistence (contra Neon real)", () => {
     const remaining = await db.select().from(response).where(eq(response.evaluationId, ev.id));
     expect(remaining).toHaveLength(0);
   });
+
+  it("persiste y recupera refs de evidencia dentro de answers", async () => {
+    const { ev, subindicatorId } = await publishedEvaluationWithSubindicator("evidencia");
+
+    const refs = [
+      { key: `evaluations/${ev.id}/archivo-abc`, name: "reporte.pdf", size: 2048, mimeType: "application/pdf" },
+    ];
+    await upsertResponse(ev.id, subindicatorId, { "el-1": refs });
+
+    const all = await listResponses(ev.id);
+    expect(all).toHaveLength(1);
+    expect(all[0]!.answers).toEqual({ "el-1": refs });
+  });
 });

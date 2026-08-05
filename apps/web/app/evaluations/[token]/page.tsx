@@ -1,6 +1,14 @@
 "use client";
 
-import { componentRegistry, type Evaluation, type EvaluationSnapshot, type FormElement, type ResponseAnswers } from "@plataforma-csa/sdk-core";
+import {
+  componentRegistry,
+  type AnswerValue,
+  type Evaluation,
+  type EvaluationSnapshot,
+  type EvidenceRef,
+  type FormElement,
+  type ResponseAnswers,
+} from "@plataforma-csa/sdk-core";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
 import { Pill } from "@/components/ui";
@@ -126,7 +134,7 @@ export default function PublicEvaluationPage({ params }: Props) {
     }, 1500);
   }
 
-  function setAnswer(elementId: string, value: string | number | string[]) {
+  function setAnswer(elementId: string, value: AnswerValue) {
     if (!active) return;
     const subId = active.sub.id;
     const next = { ...(answersBySub[subId] ?? {}), [elementId]: value };
@@ -241,6 +249,8 @@ export default function PublicEvaluationPage({ params }: Props) {
             {active.sub.formSchema.elements.map((el) => (
               <ElementView
                 key={el.id}
+                token={token}
+                subindicatorId={active.sub.id}
                 element={el}
                 value={answersBySub[active.sub.id]?.[el.id]}
                 onChange={(value) => setAnswer(el.id, value)}
@@ -254,18 +264,155 @@ export default function PublicEvaluationPage({ params }: Props) {
 }
 
 interface ElementViewProps {
+  token: string;
+  subindicatorId: string;
   element: FormElement;
-  value: string | number | string[] | undefined;
-  onChange: (value: string | number | string[]) => void;
+  value: AnswerValue | undefined;
+  onChange: (value: AnswerValue) => void;
 }
 
-function ElementView({ element, value, onChange }: ElementViewProps) {
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Componente del tipo `evidencia` (ver docs/engines/evidences.md): el
+// navegador sube el binario directo a R2 con una presigned URL generada por
+// el servidor; solo las refs (key/nombre/tamaño/tipo) viven en la Respuesta.
+function EvidenceView({
+  token,
+  subindicatorId,
+  element,
+  value,
+  onChange,
+}: {
+  token: string;
+  subindicatorId: string;
+  element: Extract<FormElement, { type: "evidencia" }>;
+  value: EvidenceRef[] | undefined;
+  onChange: (value: EvidenceRef[]) => void;
+}) {
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const refs = value ?? [];
+  const maxFiles = element.maxFiles ?? 5;
+  const maxSizeMb = element.maxSizeMb ?? 10;
+  const accept = element.acceptedTypes?.length
+    ? element.acceptedTypes
+        .map((t) => (t.includes("/") ? t : `.${t.replace(/^\./, "")}`))
+        .join(",")
+    : undefined;
+
+  function removeRef(key: string) {
+    void api
+      .del(`/api/public/evaluations/${token}/evidences`, { key })
+      .then(() => onChange(refs.filter((r) => r.key !== key)))
+      .catch(() => {});
+  }
+
+  async function handleFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploadError(null);
+    const list = Array.from(files).slice(0, maxFiles - refs.length);
+    if (list.length === 0) {
+      setUploadError(`Máximo ${maxFiles} archivo(s)`);
+      return;
+    }
+    for (const file of list) {
+      if (file.size > maxSizeMb * 1024 * 1024) {
+        setUploadError(`${file.name} supera el máximo de ${maxSizeMb} MB`);
+        continue;
+      }
+      setUploading(file.name);
+      try {
+        const { key, url } = await api.post<{ key: string; url: string }>(
+          `/api/public/evaluations/${token}/evidences/presign`,
+          {
+            subindicatorId,
+            elementId: element.id,
+            fileName: file.name,
+            contentType: file.type || "application/octet-stream",
+            size: file.size,
+          },
+        );
+        const putRes = await fetch(url, { method: "PUT", body: file });
+        if (!putRes.ok) throw new Error(`Upload HTTP_${putRes.status}`);
+        onChange([...refs, { key, name: file.name, size: file.size, mimeType: file.type || "application/octet-stream" }]);
+      } catch (err) {
+        setUploadError(err instanceof Error ? err.message : "No se pudo subir el archivo");
+      } finally {
+        setUploading(null);
+      }
+    }
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
+  async function downloadRef(ref: EvidenceRef) {
+    try {
+      const { url } = await api.post<{ url: string }>(
+        `/api/public/evaluations/${token}/evidences/download-url`,
+        { key: ref.key },
+      );
+      window.open(url, "_blank", "noopener");
+    } catch {
+      setUploadError("No se pudo generar el enlace de descarga");
+    }
+  }
+
+  return (
+    <div className="runtime-evidence">
+      <input ref={inputRef} type="file" multiple={maxFiles > 1} accept={accept} onChange={(e) => void handleFiles(e.target.files)} />
+      {uploading && <p className="runtime-evidence__uploading">Subiendo {uploading}…</p>}
+      {uploadError && (
+        <p className="runtime-evidence__error" role="alert">
+          {uploadError}
+        </p>
+      )}
+      {refs.length > 0 && (
+        <ul className="runtime-evidence__list">
+          {refs.map((ref) => (
+            <li key={ref.key} className="runtime-evidence__item">
+              <span className="runtime-evidence__name" title={ref.name}>
+                {ref.name}
+              </span>
+              <span className="runtime-evidence__meta">{formatBytes(ref.size)}</span>
+              <button type="button" className="btn btn--secondary btn--sm" onClick={() => void downloadRef(ref)}>
+                Descargar
+              </button>
+              <button type="button" className="btn btn--danger btn--sm" onClick={() => removeRef(ref.key)}>
+                Quitar
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ElementView({ token, subindicatorId, element, value, onChange }: ElementViewProps) {
   if (element.type === "instruccion") {
     return <p className="runtime-instruction">{element.label}</p>;
   }
 
   if (element.type === "banner") {
     return <p className={`runtime-banner runtime-banner--${element.variant}`}>{element.label}</p>;
+  }
+
+  if (element.type === "evidencia") {
+    const refs = Array.isArray(value) && value.length > 0 && typeof value[0] === "object" ? (value as EvidenceRef[]) : [];
+    return (
+      <div className="field runtime-question">
+        <span className="field__label">
+          {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
+        </span>
+        {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
+        <EvidenceView token={token} subindicatorId={subindicatorId} element={element} value={refs} onChange={(next) => onChange(next)} />
+      </div>
+    );
   }
 
   return (
@@ -311,7 +458,7 @@ function ElementView({ element, value, onChange }: ElementViewProps) {
 
       {element.type === "seleccion_multiple" &&
         (() => {
-          const selected = Array.isArray(value) ? value : [];
+          const selected = Array.isArray(value) && typeof value[0] === "string" ? (value as string[]) : [];
           return (
             <div className="runtime-options">
               {element.options.map((opt) => (

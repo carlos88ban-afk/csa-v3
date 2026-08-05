@@ -760,6 +760,56 @@ input[type="checkbox"] {
   gap: var(--space-2);
 }
 
+.runtime-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.runtime-evidence__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.runtime-evidence__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+}
+
+.runtime-evidence__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.runtime-evidence__meta {
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.runtime-evidence__uploading {
+  font-size: var(--text-xs);
+  color: var(--accent);
+}
+
+.runtime-evidence__error {
+  font-size: var(--text-xs);
+  color: var(--warn);
+}
+
 @media (max-width: 860px) {
   .runtime-layout {
     flex-direction: column;

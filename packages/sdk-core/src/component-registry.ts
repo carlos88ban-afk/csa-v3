@@ -27,6 +27,7 @@ export const componentRegistry = [
   { type: "seleccion_multiple", label: "Selección múltiple", isQuestion: true, version: 1 },
   { type: "instruccion", label: "Instrucción", isQuestion: false, version: 1 },
   { type: "banner", label: "Banner", isQuestion: false, version: 1 },
+  { type: "evidencia", label: "Evidencia", isQuestion: true, version: 1 },
 ] as const satisfies readonly ComponentDefinition[];
 
 // Chequeo de exhaustividad en compile-time: si FormElement["type"] gana o

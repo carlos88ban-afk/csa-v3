@@ -22,6 +22,7 @@ describe("formElement", () => {
     },
     { type: "instruccion", id: "6", label: "Lea con atención" },
     { type: "banner", id: "7", label: "Aviso importante", variant: "warning" },
+    { type: "evidencia", id: "8", label: "Adjunte su certificado", maxFiles: 3, maxSizeMb: 10, acceptedTypes: ["pdf", "png"] },
   ])("acepta un elemento válido de tipo $type", (element) => {
     expect(formElement.safeParse(element).success).toBe(true);
   });
@@ -38,6 +39,16 @@ describe("formElement", () => {
 
   it("rechaza banner sin variant", () => {
     const result = formElement.safeParse({ id: "1", type: "banner", label: "x" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza evidencia con maxFiles no entero", () => {
+    const result = formElement.safeParse({ id: "1", type: "evidencia", label: "x", maxFiles: 1.5 });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza evidencia con maxSizeMb negativo", () => {
+    const result = formElement.safeParse({ id: "1", type: "evidencia", label: "x", maxSizeMb: -1 });
     expect(result.success).toBe(false);
   });
 

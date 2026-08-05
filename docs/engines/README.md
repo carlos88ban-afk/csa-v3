@@ -8,8 +8,8 @@ Documentados:
 - [`components.md`](components.md) — M5 (VS-008)
 - [`publishing.md`](publishing.md) — M6 (VS-009)
 - [`persistence.md`](persistence.md) — M7 (VS-010)
+- [`evidences.md`](evidences.md) — M8 (VS-011)
 
 Pendiente de documentar (se añade un archivo por motor cuando su slice correspondiente empiece, según `../ROADMAP.md`):
-- Evidencias (uploads → R2) — M8 (VS-011), extiende `persistence.md`/`components.md`
 - `formula.md`, `rule.md` — M10 (VS-013)
 - `permission.md` — M11 (VS-014)

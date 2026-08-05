@@ -71,6 +71,13 @@ export const formElement = z.discriminatedUnion("type", [
     label: z.string(),
     variant: z.enum(["info", "warning"]),
   }),
+  z.object({
+    ...questionBase,
+    type: z.literal("evidencia"),
+    maxFiles: z.number().int().positive().optional(),
+    maxSizeMb: z.number().positive().optional(),
+    acceptedTypes: z.array(z.string().min(1)).optional(),
+  }),
 ]);
 export type FormElement = z.infer<typeof formElement>;
 

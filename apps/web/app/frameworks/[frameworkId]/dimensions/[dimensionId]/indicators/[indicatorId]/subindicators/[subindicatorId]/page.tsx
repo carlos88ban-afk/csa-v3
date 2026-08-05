@@ -58,6 +58,8 @@ function newElement(type: FormElement["type"]): FormElement {
       return { id, type, label: "", componentVersion };
     case "banner":
       return { id, type, label: "", variant: "info", componentVersion };
+    case "evidencia":
+      return { id, type, label: "", componentVersion };
   }
 }
 
@@ -343,6 +345,49 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
                     <option value="warning">Advertencia</option>
                   </select>
                 </label>
+              )}
+
+              {el.type === "evidencia" && (
+                <div className="field-grid">
+                  <label className="field">
+                    <span className="field__label">Máximo de archivos</span>
+                    <input
+                      type="number"
+                      value={el.maxFiles ?? ""}
+                      onChange={(e) =>
+                        updateElement(el.id, {
+                          maxFiles: e.target.value === "" ? undefined : Number(e.target.value),
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field__label">Tamaño máximo por archivo (MB)</span>
+                    <input
+                      type="number"
+                      value={el.maxSizeMb ?? ""}
+                      onChange={(e) =>
+                        updateElement(el.id, {
+                          maxSizeMb: e.target.value === "" ? undefined : Number(e.target.value),
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field__label">Tipos aceptados (separados por coma, ej. pdf, png)</span>
+                    <input
+                      value={el.acceptedTypes?.join(", ") ?? ""}
+                      onChange={(e) =>
+                        updateElement(el.id, {
+                          acceptedTypes:
+                            e.target.value.trim() === ""
+                              ? undefined
+                              : e.target.value.split(",").map((s) => s.trim()).filter((s) => s.length > 0),
+                        })
+                      }
+                    />
+                  </label>
+                </div>
               )}
             </li>
           ))}
