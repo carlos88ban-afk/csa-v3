@@ -29,7 +29,7 @@ Constantes y configuración del proyecto. **Nunca guardar contraseñas, API keys
 - `packages/db` — cliente Drizzle + config de Better Auth (`auth`, `db`, `schema`) sobre Neon. Scripts: `db:generate-auth-schema`, `db:push` (ambos cargan `.env` de la raíz vía `dotenv-cli`).
 - `apps/web` — Next.js App Router. Ruta de auth: `app/api/auth/[...all]`. Sin UI todavía (fuera de alcance hasta M3).
 - Comando de verificación de cierre de slice: `pnpm build && pnpm test && pnpm typecheck` (alias `pnpm slice:close`).
-- `.env` en la raíz (gitignored): `DATABASE_URL` (Neon, directa — no pooled, ver `RISKS.md` R-006), `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`. Cargado automáticamente por `dotenv-cli` en los scripts de `packages/db` y `apps/web` — no exportar a mano.
+- `.env` en la raíz (gitignored): `DATABASE_URL` (Neon, directa — no pooled, ver `RISKS.md` R-006), `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`, `R2_ACCOUNT_ID`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_BUCKET_NAME` (Cloudflare R2, ver ADR-0003 y `engines/evidences.md`). Cargado automáticamente por `dotenv-cli` en los scripts de `packages/db` y `apps/web` — no exportar a mano. Mismas 4 vars de R2 configuradas también en Vercel production.
 
 ## Puertos de desarrollo local
 
