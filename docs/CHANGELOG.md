@@ -4,6 +4,15 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-012 — Exportación de resultados (CSV) (2026-08-05)
+
+- `docs/engines/export.md`: especificación doc-first. Decisión central: **CSV plano**, no Excel/PDF — `SCOPE.md` pide explícitamente "exportación básica" (BI/analítica está fuera de alcance), y CSV no requiere una librería nueva (a diferencia de generar `.xlsx`/PDF real).
+- `packages/db/src/domain/evaluation-service.ts`: `getEvaluation(organizationId, id)` (nuevo, lookup tenant-scoped por id — faltaba, `evaluation-service.ts` solo tenía `listEvaluations` y `getEvaluationByToken` sin org).
+- API: `GET /api/evaluations/[id]/export` (autenticado, tenant-scoped — a diferencia de `persistence.md`/`evidences.md` que son públicas por token, exportar es una acción de revisión del admin). Una fila por Elemento tipo pregunta (Dimensión/Indicador/Subindicador/Elemento/Tipo/Respuesta); `seleccion_unica`/`multiple` resuelven ids a labels; `evidencia` lista nombres de archivo; preguntas sin responder quedan con celda vacía (refleja cobertura completa, no solo lo respondido). CSV en UTF-8 con BOM (compatibilidad Excel/tildes) y escapado RFC 4180 sin librería nueva.
+- UI: link "Exportar CSV" junto a "Revocar" en la lista de Evaluaciones publicadas de `apps/web/app/frameworks/[frameworkId]/page.tsx` — descarga nativa vía `<a href>`, sin manejo de blobs en cliente.
+- 1 test de integración nuevo en `packages/db` contra Neon real: `getEvaluation` tenant-scoped (null para Evaluación de otra Organización).
+- Verificado de punta a punta en navegador real contra producción: Evaluación con respuestas de texto (con coma), selección única/múltiple (con coma en una opción) y una pregunta sin responder; CSV exportado con click real desde la UI y confirmado por `fetch` — labels correctos, escapado RFC 4180 correcto, tildes/ñ legibles, BOM UTF-8 confirmado en los bytes crudos (`EF BB BF`), celda vacía para la pregunta sin responder, `id` inexistente → 404, sin sesión → 401. Datos de prueba limpiados.
+
 ### VS-011 — Evidencias: uploads directos a Cloudflare R2 (2026-08-05)
 
 - `docs/engines/evidences.md`: especificación doc-first. Decisión central: **presigned URLs de R2** — el navegador sube el binario con `PUT` directo a R2 (URL firmada por el servidor, validez 5 min) y descarga con `GET` firmado; los binarios nunca pasan por la función serverless de Vercel (límite Hobby ~4.5MB). Claves `evaluations/{evaluationId}/{uuid}` con anti-IDOR por prefijo: toda operación rechaza keys que no pertenezcan a la Evaluación del token.
