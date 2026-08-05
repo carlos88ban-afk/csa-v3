@@ -35,6 +35,7 @@ No microservicios. Con ~20 usuarios concurrentes (NFR-1), el costo de infraestru
 - `engine/components` — registry de componentes (arquitectura de plugins).
 - `engine/publishing` — publicación, versionado y share links.
 - `engine/persistence` — esquema de respuestas (JSONB schema-aware) + integración R2.
+- `engine/export` — exportación básica de resultados (CSV).
 
 Cada motor se documenta en [`../engines/`](../engines/) antes de implementarse (regla doc-first).
 

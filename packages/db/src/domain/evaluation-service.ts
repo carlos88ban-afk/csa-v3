@@ -95,6 +95,14 @@ export async function listEvaluations(organizationId: string, frameworkId: strin
     .where(and(eq(evaluation.frameworkId, frameworkId), eq(evaluation.organizationId, organizationId)));
 }
 
+export async function getEvaluation(organizationId: string, id: string) {
+  const [row] = await db
+    .select()
+    .from(evaluation)
+    .where(and(eq(evaluation.id, id), eq(evaluation.organizationId, organizationId)));
+  return row ?? null;
+}
+
 export async function deleteEvaluation(organizationId: string, id: string) {
   const [row] = await db
     .delete(evaluation)

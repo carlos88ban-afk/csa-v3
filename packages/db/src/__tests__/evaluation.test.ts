@@ -5,7 +5,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { auth } from "../auth.js";
 import { db } from "../client.js";
 import { createDimension, createFramework, createIndicator, createSubindicator, updateSubindicator } from "../domain/service.js";
-import { createEvaluation, deleteEvaluation, getEvaluationByToken, listEvaluations } from "../domain/evaluation-service.js";
+import { createEvaluation, deleteEvaluation, getEvaluation, getEvaluationByToken, listEvaluations } from "../domain/evaluation-service.js";
 import { organization, user } from "../schema/auth.js";
 import { dimension, framework, indicator, subindicator } from "../schema/domain.js";
 import { evaluation } from "../schema/evaluation.js";
@@ -113,6 +113,20 @@ describe("VS-009 — engine/publishing (contra Neon real)", () => {
 
     await deleteEvaluation(organizationId, ev.id);
     expect(await getEvaluationByToken(ev.token)).toBeNull();
+  });
+
+  it("getEvaluation (VS-012) es tenant-scoped: null para una Evaluación de otra organización", async () => {
+    const { organizationId: owner } = await makeOrgWithOwner("export-owner");
+    const { organizationId: intruder } = await makeOrgWithOwner("export-intruder");
+
+    const fw = await createFramework(owner, { name: "Framework Export" });
+    const ev = await createEvaluation(owner, { frameworkId: fw.id });
+
+    const found = await getEvaluation(owner, ev.id);
+    expect(found?.id).toBe(ev.id);
+
+    expect(await getEvaluation(intruder, ev.id)).toBeNull();
+    expect(await getEvaluation(owner, "evaluation-que-nunca-existio")).toBeNull();
   });
 
   it("no se puede publicar un framework de otra organización", async () => {

@@ -121,9 +121,12 @@ export default function FrameworkDetailPage({ params }: Props) {
                   <Pill variant="good">Publicada</Pill>
                   <a href={`/evaluations/${ev.token}`}>{`/evaluations/${ev.token}`}</a>
                 </span>
-                <Button type="button" variant="danger" size="sm" onClick={() => handleRevoke(ev.id)}>
-                  Revocar
-                </Button>
+                <span className="entry-list__actions">
+                  <a href={`/api/evaluations/${ev.id}/export`}>Exportar CSV</a>
+                  <Button type="button" variant="danger" size="sm" onClick={() => handleRevoke(ev.id)}>
+                    Revocar
+                  </Button>
+                </span>
               </li>
             ))}
           </ul>
