@@ -3,6 +3,7 @@
 import { componentRegistry, type FormElement, type Subindicator } from "@plataforma-csa/sdk-core";
 import { use, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
+import { Breadcrumb, Button, Pill } from "@/components/ui";
 
 interface Props {
   params: Promise<{
@@ -163,94 +164,101 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
     );
   }
 
-  if (!subindicator) return <main>Cargando...</main>;
+  if (!subindicator) return <main className="loading">Cargando...</main>;
 
   return (
-    <main>
-      <p>
-        <a href={`/frameworks/${frameworkId}/dimensions/${dimensionId}/indicators/${indicatorId}`}>
-          ← Indicador
-        </a>
-      </p>
-      <h1>{subindicator.title}</h1>
-      <p>
-        {saveStatus === "saving" && "Guardando..."}
-        {saveStatus === "saved" && `Guardado — revisión ${revisionNumber}`}
-        {saveStatus === "error" && `Error al guardar: ${saveError}`}
-        {saveStatus === "idle" && revisionNumber !== null && `Revisión ${revisionNumber}`}
-      </p>
+    <main className="page">
+      <Breadcrumb
+        items={[
+          { label: "Frameworks", href: "/frameworks" },
+          { label: "Framework", href: `/frameworks/${frameworkId}` },
+          { label: "Dimensión", href: `/frameworks/${frameworkId}/dimensions/${dimensionId}` },
+          { label: "Indicador", href: `/frameworks/${frameworkId}/dimensions/${dimensionId}/indicators/${indicatorId}` },
+          { label: subindicator.title },
+        ]}
+      />
+      <div className="entry-list__main">
+        <h1>{subindicator.title}</h1>
+        {saveStatus === "saving" && <Pill variant="accent">Guardando…</Pill>}
+        {saveStatus === "saved" && <Pill variant="good">Guardado — rev. {revisionNumber}</Pill>}
+        {saveStatus === "idle" && revisionNumber !== null && <Pill>Rev. {revisionNumber}</Pill>}
+      </div>
+      {saveStatus === "error" && <p className="alert" role="alert">Error al guardar: {saveError}</p>}
 
       <h2>Elementos</h2>
       {elements.length === 0 ? (
-        <p>Todavía no hay elementos en este formulario.</p>
+        <p className="empty">Todavía no hay elementos en este formulario.</p>
       ) : (
-        <ol>
+        <ol className="element-list">
           {elements.map((el, index) => (
-            <li key={el.id}>
-              <p>
-                <strong>{labelOf(el.type)}</strong>{" "}
-                <button type="button" onClick={() => moveElement(el.id, -1)} disabled={index === 0}>
-                  ▲
-                </button>{" "}
-                <button
-                  type="button"
-                  onClick={() => moveElement(el.id, 1)}
-                  disabled={index === elements.length - 1}
-                >
-                  ▼
-                </button>{" "}
-                <button type="button" onClick={() => removeElement(el.id)}>
-                  Borrar
-                </button>
-              </p>
+            <li key={el.id} className="element-card">
+              <div className="element-card__head">
+                <span className="element-card__type">{labelOf(el.type)}</span>
+                <span className="element-card__controls">
+                  <Button type="button" size="sm" onClick={() => moveElement(el.id, -1)} disabled={index === 0} aria-label="Subir">
+                    ▲
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => moveElement(el.id, 1)}
+                    disabled={index === elements.length - 1}
+                    aria-label="Bajar"
+                  >
+                    ▼
+                  </Button>
+                  <Button type="button" variant="danger" size="sm" onClick={() => removeElement(el.id)}>
+                    Borrar
+                  </Button>
+                </span>
+              </div>
 
-              <label>
-                Texto
-                <input
-                  value={el.label}
-                  onChange={(e) => updateElement(el.id, { label: e.target.value })}
-                />
+              <label className="field">
+                <span className="field__label">Texto</span>
+                <input value={el.label} onChange={(e) => updateElement(el.id, { label: e.target.value })} />
               </label>
 
               {isQuestion(el) && (
-                <>
-                  <label>
-                    Ayuda
+                <div className="field-grid">
+                  <label className="field">
+                    <span className="field__label">Ayuda</span>
                     <input
                       value={el.helpText ?? ""}
                       onChange={(e) => updateElement(el.id, { helpText: e.target.value })}
                     />
                   </label>
-                  <label>
+                  <label className="field field--checkbox">
                     <input
                       type="checkbox"
                       checked={el.required ?? false}
                       onChange={(e) => updateElement(el.id, { required: e.target.checked })}
                     />
-                    Obligatorio
+                    <span className="field__label">Obligatorio</span>
                   </label>
-                </>
+                </div>
               )}
 
               {(el.type === "texto_corto" || el.type === "texto_largo") && (
-                <label>
-                  Longitud máxima
-                  <input
-                    type="number"
-                    value={el.maxLength ?? ""}
-                    onChange={(e) =>
-                      updateElement(el.id, {
-                        maxLength: e.target.value === "" ? undefined : Number(e.target.value),
-                      })
-                    }
-                  />
-                </label>
+                <div className="field-grid">
+                  <label className="field">
+                    <span className="field__label">Longitud máxima</span>
+                    <input
+                      type="number"
+                      value={el.maxLength ?? ""}
+                      onChange={(e) =>
+                        updateElement(el.id, {
+                          maxLength: e.target.value === "" ? undefined : Number(e.target.value),
+                        })
+                      }
+                    />
+                  </label>
+                </div>
               )}
 
               {el.type === "numero" && (
-                <>
-                  <label>
-                    Mínimo
+                <div className="field-grid">
+                  <label className="field">
+                    <span className="field__label">Mínimo</span>
                     <input
                       type="number"
                       value={el.min ?? ""}
@@ -259,8 +267,8 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
                       }
                     />
                   </label>
-                  <label>
-                    Máximo
+                  <label className="field">
+                    <span className="field__label">Máximo</span>
                     <input
                       type="number"
                       value={el.max ?? ""}
@@ -269,39 +277,36 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
                       }
                     />
                   </label>
-                </>
+                </div>
               )}
 
               {(el.type === "seleccion_unica" || el.type === "seleccion_multiple") && (
-                <div>
-                  <p>Opciones</p>
-                  <ul>
-                    {el.options.map((opt) => (
-                      <li key={opt.id}>
-                        <input
-                          value={opt.label}
-                          onChange={(e) => updateOption(el.id, opt.id, e.target.value)}
-                        />{" "}
-                        <button
-                          type="button"
-                          onClick={() => removeOption(el.id, opt.id)}
-                          disabled={el.options.length <= 1}
-                        >
-                          Quitar
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  <button type="button" onClick={() => addOption(el.id)}>
+                <div className="options">
+                  <span className="options__label">Opciones</span>
+                  {el.options.map((opt) => (
+                    <div className="option-row" key={opt.id}>
+                      <input value={opt.label} onChange={(e) => updateOption(el.id, opt.id, e.target.value)} />
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="sm"
+                        onClick={() => removeOption(el.id, opt.id)}
+                        disabled={el.options.length <= 1}
+                      >
+                        Quitar
+                      </Button>
+                    </div>
+                  ))}
+                  <Button type="button" size="sm" onClick={() => addOption(el.id)}>
                     Agregar opción
-                  </button>
+                  </Button>
                 </div>
               )}
 
               {el.type === "seleccion_multiple" && (
-                <>
-                  <label>
-                    Mínimo seleccionadas
+                <div className="field-grid">
+                  <label className="field">
+                    <span className="field__label">Mínimo seleccionadas</span>
                     <input
                       type="number"
                       value={el.minSelected ?? ""}
@@ -312,8 +317,8 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
                       }
                     />
                   </label>
-                  <label>
-                    Máximo seleccionadas
+                  <label className="field">
+                    <span className="field__label">Máximo seleccionadas</span>
                     <input
                       type="number"
                       value={el.maxSelected ?? ""}
@@ -324,17 +329,15 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
                       }
                     />
                   </label>
-                </>
+                </div>
               )}
 
               {el.type === "banner" && (
-                <label>
-                  Tipo de aviso
+                <label className="field">
+                  <span className="field__label">Tipo de aviso</span>
                   <select
                     value={el.variant}
-                    onChange={(e) =>
-                      updateElement(el.id, { variant: e.target.value as "info" | "warning" })
-                    }
+                    onChange={(e) => updateElement(el.id, { variant: e.target.value as "info" | "warning" })}
                   >
                     <option value="info">Info</option>
                     <option value="warning">Advertencia</option>
@@ -347,16 +350,18 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
       )}
 
       <h3>Agregar elemento</h3>
-      <select value={addingType} onChange={(e) => setAddingType(e.target.value as FormElement["type"])}>
-        {componentRegistry.map((c) => (
-          <option key={c.type} value={c.type}>
-            {c.label}
-          </option>
-        ))}
-      </select>{" "}
-      <button type="button" onClick={addElement}>
-        Agregar elemento
-      </button>
+      <div className="add-element-bar">
+        <select value={addingType} onChange={(e) => setAddingType(e.target.value as FormElement["type"])}>
+          {componentRegistry.map((c) => (
+            <option key={c.type} value={c.type}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        <Button type="button" variant="primary" onClick={addElement}>
+          Agregar elemento
+        </Button>
+      </div>
     </main>
   );
 }

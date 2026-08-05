@@ -26,6 +26,18 @@ Las decisiones arquitectónicas formales del stack viven como ADRs en [`docs/adr
 - ✅ El usuario puede verificar visualmente el progreso en producción desde ya.
 - ❌ La URL de Vercel queda accesible sin las protecciones de publicación que diseñará VS-009 — aceptable porque hoy sólo expone auth + CRUD de organización propia, sin datos de terceros ni evaluaciones publicadas.
 
+### 2026-08-05 — Sistema de diseño UI adelantado antes de M12
+
+**Contexto:**
+- `docs/slices/VS-006.md` había marcado "diseño visual pulido" explícitamente fuera de alcance hasta M12. El usuario pidió mejorar la UI ahora, después de cerrar VS-009 (M6).
+
+**Decisión:**
+- Se construye un sistema de diseño (paleta, tipografía, layout — ver `../architecture/design-system.md`) y se aplica a las 9 pantallas existentes, sin esperar a M12. Sin librería de estilos nueva (CSS nativo de Next.js) para no introducir una dependencia sin justificar. Sin cambios de comportamiento — solo visual/estructural.
+
+**Consecuencias:**
+- ✅ El producto se ve terminado antes en las demos, sin bloquear el roadmap funcional (M7+ sigue en su orden).
+- ❌ Cada pantalla nueva de aquí en adelante debe seguir el sistema de diseño ya establecido, no HTML semántico mínimo como hasta VS-009 — más superficie a mantener consistente por slice.
+
 ### 2026-08-04 — Sistema de memoria en `docs/project_notes/` en vez de `memory/`
 
 **Contexto:**

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import { Button, Card } from "@/components/ui";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -26,32 +27,34 @@ export default function SignupPage() {
   }
 
   return (
-    <main>
+    <main className="page page--narrow">
       <h1>Crear cuenta</h1>
-      <form onSubmit={handleSubmit}>
-        <label>
-          Nombre
-          <input value={name} onChange={(e) => setName(e.target.value)} required />
-        </label>
-        <label>
-          Email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <label>
-          Contraseña
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            minLength={8}
-            required
-          />
-        </label>
-        {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Creando..." : "Crear cuenta"}
-        </button>
-      </form>
+      <Card>
+        <form className="form" onSubmit={handleSubmit}>
+          <label className="field">
+            <span className="field__label">Nombre</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} required />
+          </label>
+          <label className="field">
+            <span className="field__label">Email</span>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </label>
+          <label className="field">
+            <span className="field__label">Contraseña</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              minLength={8}
+              required
+            />
+          </label>
+          {error && <p className="alert" role="alert">{error}</p>}
+          <Button type="submit" variant="primary" disabled={submitting}>
+            {submitting ? "Creando..." : "Crear cuenta"}
+          </Button>
+        </form>
+      </Card>
       <p>
         ¿Ya tienes cuenta? <a href="/login">Inicia sesión</a>
       </p>

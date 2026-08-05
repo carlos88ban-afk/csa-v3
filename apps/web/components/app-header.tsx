@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { Button } from "@/components/ui";
 
 export function AppHeader() {
   const router = useRouter();
@@ -15,11 +16,16 @@ export function AppHeader() {
   }
 
   return (
-    <header>
-      <span>{session.user.email}</span>{" "}
-      <button type="button" onClick={handleSignOut}>
-        Cerrar sesión
-      </button>
+    <header className="app-header">
+      <a href="/frameworks" className="app-header__mark">
+        Plataforma CSA
+      </a>
+      <div className="app-header__session">
+        <span>{session.user.email}</span>
+        <Button type="button" size="sm" onClick={handleSignOut}>
+          Cerrar sesión
+        </Button>
+      </div>
     </header>
   );
 }

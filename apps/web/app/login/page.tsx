@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import { Button, Card } from "@/components/ui";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,27 +26,24 @@ export default function LoginPage() {
   }
 
   return (
-    <main>
+    <main className="page page--narrow">
       <h1>Iniciar sesión</h1>
-      <form onSubmit={handleSubmit}>
-        <label>
-          Email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <label>
-          Contraseña
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </label>
-        {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Entrando..." : "Entrar"}
-        </button>
-      </form>
+      <Card>
+        <form className="form" onSubmit={handleSubmit}>
+          <label className="field">
+            <span className="field__label">Email</span>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </label>
+          <label className="field">
+            <span className="field__label">Contraseña</span>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          </label>
+          {error && <p className="alert" role="alert">{error}</p>}
+          <Button type="submit" variant="primary" disabled={submitting}>
+            {submitting ? "Entrando..." : "Entrar"}
+          </Button>
+        </form>
+      </Card>
       <p>
         ¿No tienes cuenta? <a href="/signup">Crea una</a>
       </p>

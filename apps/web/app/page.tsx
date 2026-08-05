@@ -13,5 +13,5 @@ export default function HomePage() {
     router.push(session ? "/organizations" : "/login");
   }, [isPending, session, router]);
 
-  return <main>Cargando...</main>;
+  return <main className="loading">Cargando...</main>;
 }

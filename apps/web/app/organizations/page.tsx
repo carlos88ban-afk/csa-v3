@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import { Button, Card, Pill } from "@/components/ui";
 
 function slugify(name: string): string {
   return name
@@ -52,48 +53,54 @@ export default function OrganizationsPage() {
     await authClient.organization.setActive({ organizationId });
   }
 
-  if (sessionPending || !session) return <main>Cargando...</main>;
+  if (sessionPending || !session) return <main className="loading">Cargando...</main>;
 
   return (
-    <main>
+    <main className="page">
       <h1>Tus organizaciones</h1>
       {activeOrganization && (
         <p>
-          Organización activa: <strong>{activeOrganization.name}</strong> —{" "}
-          <a href="/frameworks">ir a Frameworks</a>
+          Organización activa: <strong>{activeOrganization.name}</strong> — <a href="/frameworks">ir a Frameworks</a>
         </p>
       )}
 
-      {orgsPending ? (
-        <p>Cargando organizaciones...</p>
-      ) : organizations && organizations.length > 0 ? (
-        <ul>
-          {organizations.map((org) => (
-            <li key={org.id}>
-              {org.name}{" "}
-              {activeOrganization?.id !== org.id && (
-                <button type="button" onClick={() => handleSetActive(org.id)}>
-                  Usar esta
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>Todavía no perteneces a ninguna organización.</p>
-      )}
+      <Card>
+        {orgsPending ? (
+          <p className="empty">Cargando organizaciones...</p>
+        ) : organizations && organizations.length > 0 ? (
+          <ul className="entry-list">
+            {organizations.map((org) => (
+              <li key={org.id} className="entry-list__row">
+                <span className="entry-list__main">
+                  {org.name}
+                  {activeOrganization?.id === org.id && <Pill variant="accent">Activa</Pill>}
+                </span>
+                {activeOrganization?.id !== org.id && (
+                  <Button type="button" size="sm" onClick={() => handleSetActive(org.id)}>
+                    Usar esta
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="empty">Todavía no perteneces a ninguna organización.</p>
+        )}
+      </Card>
 
       <h2>Crear organización nueva</h2>
-      <form onSubmit={handleCreate}>
-        <label>
-          Nombre
-          <input value={name} onChange={(e) => setName(e.target.value)} required />
-        </label>
-        {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={submitting || name.trim().length === 0}>
-          {submitting ? "Creando..." : "Crear"}
-        </button>
-      </form>
+      <Card>
+        <form className="form form--row" onSubmit={handleCreate}>
+          <label className="field">
+            <span className="field__label">Nombre</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} required />
+          </label>
+          <Button type="submit" variant="primary" disabled={submitting || name.trim().length === 0}>
+            {submitting ? "Creando..." : "Crear"}
+          </Button>
+        </form>
+        {error && <p className="alert" role="alert">{error}</p>}
+      </Card>
     </main>
   );
 }

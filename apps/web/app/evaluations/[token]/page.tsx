@@ -3,6 +3,7 @@
 import type { Evaluation } from "@plataforma-csa/sdk-core";
 import { use, useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
+import { Pill } from "@/components/ui";
 
 interface Props {
   params: Promise<{ token: string }>;
@@ -24,48 +25,53 @@ export default function PublicEvaluationPage({ params }: Props) {
       .catch(() => setNotFound(true));
   }, [token]);
 
-  if (notFound) return <main>Este enlace no existe o ya no está disponible.</main>;
-  if (!evaluation) return <main>Cargando...</main>;
+  if (notFound) return <main className="page">Este enlace no existe o ya no está disponible.</main>;
+  if (!evaluation) return <main className="loading">Cargando...</main>;
 
   const { snapshot } = evaluation;
 
   return (
-    <main>
-      <h1>{snapshot.frameworkName}</h1>
-      {snapshot.frameworkDescription && <p>{snapshot.frameworkDescription}</p>}
+    <main className="page page--wide">
+      <div>
+        <Pill variant="accent">Evaluación publicada</Pill>
+        <h1 style={{ marginTop: "var(--space-2)" }}>{snapshot.frameworkName}</h1>
+        {snapshot.frameworkDescription && <p>{snapshot.frameworkDescription}</p>}
+      </div>
 
-      {snapshot.dimensions.map((dim) => (
-        <section key={dim.id}>
-          <h2>{dim.title}</h2>
-          {dim.description && <p>{dim.description}</p>}
+      <div className="eval-tree">
+        {snapshot.dimensions.map((dim) => (
+          <section key={dim.id} className="eval-dimension">
+            <h2>{dim.title}</h2>
+            {dim.description && <p>{dim.description}</p>}
 
-          {dim.indicators.map((ind) => (
-            <div key={ind.id}>
-              <h3>{ind.title}</h3>
-              {ind.description && <p>{ind.description}</p>}
+            {dim.indicators.map((ind) => (
+              <div key={ind.id} className="eval-indicator">
+                <h3>{ind.title}</h3>
+                {ind.description && <p>{ind.description}</p>}
 
-              {ind.subindicators.map((sub) => (
-                <div key={sub.id}>
-                  <h4>{sub.title}</h4>
-                  {sub.description && <p>{sub.description}</p>}
-                  {!sub.formSchema || sub.formSchema.elements.length === 0 ? (
-                    <p>Este formulario todavía no tiene elementos.</p>
-                  ) : (
-                    <ol>
-                      {sub.formSchema.elements.map((el) => (
-                        <li key={el.id}>
-                          {el.label || <em>(sin texto)</em>}
-                          {"required" in el && el.required ? " *" : ""}
-                        </li>
-                      ))}
-                    </ol>
-                  )}
-                </div>
-              ))}
-            </div>
-          ))}
-        </section>
-      ))}
+                {ind.subindicators.map((sub) => (
+                  <div key={sub.id} className="eval-subindicator">
+                    <strong>{sub.title}</strong>
+                    {sub.description && <p>{sub.description}</p>}
+                    {!sub.formSchema || sub.formSchema.elements.length === 0 ? (
+                      <p className="empty">Este formulario todavía no tiene elementos.</p>
+                    ) : (
+                      <ol className="eval-elements">
+                        {sub.formSchema.elements.map((el) => (
+                          <li key={el.id} className="eval-element">
+                            <span>{el.label || <em>(sin texto)</em>}</span>
+                            {"required" in el && el.required && <Pill variant="warn">obligatorio</Pill>}
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </section>
+        ))}
+      </div>
     </main>
   );
 }

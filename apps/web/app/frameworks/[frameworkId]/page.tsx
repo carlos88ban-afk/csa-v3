@@ -3,6 +3,7 @@
 import type { Dimension, Evaluation, Framework } from "@plataforma-csa/sdk-core";
 import { use, useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
+import { Breadcrumb, Button, Card, Pill } from "@/components/ui";
 
 interface Props {
   params: Promise<{ frameworkId: string }>;
@@ -65,60 +66,69 @@ export default function FrameworkDetailPage({ params }: Props) {
     }
   }
 
-  if (!framework || dimensions === null || evaluations === null) return <main>Cargando...</main>;
+  if (!framework || dimensions === null || evaluations === null) return <main className="loading">Cargando...</main>;
 
   return (
-    <main>
-      <p>
-        <a href="/frameworks">← Frameworks</a>
-      </p>
+    <main className="page">
+      <Breadcrumb items={[{ label: "Frameworks", href: "/frameworks" }, { label: framework.name }]} />
       <h1>{framework.name}</h1>
       {framework.description && <p>{framework.description}</p>}
 
       <h2>Dimensiones</h2>
-      {dimensions.length === 0 ? (
-        <p>Todavía no hay dimensiones.</p>
-      ) : (
-        <ul>
-          {dimensions.map((dim) => (
-            <li key={dim.id}>
-              <a href={`/frameworks/${frameworkId}/dimensions/${dim.id}`}>{dim.title}</a>
-            </li>
-          ))}
-        </ul>
-      )}
+      <Card>
+        {dimensions.length === 0 ? (
+          <p className="empty">Todavía no hay dimensiones.</p>
+        ) : (
+          <ul className="entry-list">
+            {dimensions.map((dim) => (
+              <li key={dim.id} className="entry-list__row">
+                <a className="entry-list__title" href={`/frameworks/${frameworkId}/dimensions/${dim.id}`}>
+                  {dim.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       <h3>Nueva dimensión</h3>
-      <form onSubmit={handleCreate}>
-        <label>
-          Título
-          <input value={title} onChange={(e) => setTitle(e.target.value)} required />
-        </label>
-        {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={submitting || title.trim().length === 0}>
-          {submitting ? "Creando..." : "Crear"}
-        </button>
-      </form>
+      <Card>
+        <form className="form form--row" onSubmit={handleCreate}>
+          <label className="field">
+            <span className="field__label">Título</span>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} required />
+          </label>
+          <Button type="submit" variant="primary" disabled={submitting || title.trim().length === 0}>
+            {submitting ? "Creando..." : "Crear"}
+          </Button>
+        </form>
+        {error && <p className="alert" role="alert">{error}</p>}
+      </Card>
 
       <h2>Publicación</h2>
-      <button type="button" onClick={handlePublish} disabled={publishing}>
-        {publishing ? "Publicando..." : "Publicar"}
-      </button>
-      {publishError && <p role="alert">{publishError}</p>}
-      {evaluations.length === 0 ? (
-        <p>Todavía no se publicó ninguna evaluación.</p>
-      ) : (
-        <ul>
-          {evaluations.map((ev) => (
-            <li key={ev.id}>
-              <a href={`/evaluations/${ev.token}`}>{`/evaluations/${ev.token}`}</a>{" "}
-              <button type="button" onClick={() => handleRevoke(ev.id)}>
-                Revocar
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <Card>
+        <Button type="button" variant="primary" onClick={handlePublish} disabled={publishing}>
+          {publishing ? "Publicando..." : "Publicar"}
+        </Button>
+        {publishError && <p className="alert" role="alert">{publishError}</p>}
+        {evaluations.length === 0 ? (
+          <p className="empty">Todavía no se publicó ninguna evaluación.</p>
+        ) : (
+          <ul className="entry-list">
+            {evaluations.map((ev) => (
+              <li key={ev.id} className="entry-list__row">
+                <span className="entry-list__main">
+                  <Pill variant="good">Publicada</Pill>
+                  <a href={`/evaluations/${ev.token}`}>{`/evaluations/${ev.token}`}</a>
+                </span>
+                <Button type="button" variant="danger" size="sm" onClick={() => handleRevoke(ev.id)}>
+                  Revocar
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </main>
   );
 }

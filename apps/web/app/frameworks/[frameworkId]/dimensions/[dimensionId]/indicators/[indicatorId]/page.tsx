@@ -3,6 +3,7 @@
 import type { Indicator, Subindicator } from "@plataforma-csa/sdk-core";
 import { use, useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
+import { Breadcrumb, Button, Card, Pill } from "@/components/ui";
 
 interface Props {
   params: Promise<{ frameworkId: string; dimensionId: string; indicatorId: string }>;
@@ -61,63 +62,81 @@ export default function IndicatorDetailPage({ params }: Props) {
     setSubindicators((prev) => (prev ?? []).filter((s) => s.id !== id));
   }
 
-  if (!indicator || subindicators === null) return <main>Cargando...</main>;
+  if (!indicator || subindicators === null) return <main className="loading">Cargando...</main>;
 
   return (
-    <main>
-      <p>
-        <a href={`/frameworks/${frameworkId}/dimensions/${dimensionId}`}>← Dimensión</a>
-      </p>
+    <main className="page">
+      <Breadcrumb
+        items={[
+          { label: "Frameworks", href: "/frameworks" },
+          { label: "Framework", href: `/frameworks/${frameworkId}` },
+          { label: "Dimensión", href: `/frameworks/${frameworkId}/dimensions/${dimensionId}` },
+          { label: indicator.title },
+        ]}
+      />
       <h1>{indicator.title}</h1>
       {indicator.description && <p>{indicator.description}</p>}
 
       <h2>Subindicadores</h2>
-      {subindicators.length === 0 ? (
-        <p>Todavía no hay subindicadores.</p>
-      ) : (
-        <ul>
-          {subindicators.map((sub) => (
-            <li key={sub.id}>
-              {editingId === sub.id ? (
-                <>
-                  <input value={editingTitle} onChange={(e) => setEditingTitle(e.target.value)} />
-                  <button type="button" onClick={() => handleSaveEdit(sub.id)}>
-                    Guardar
-                  </button>
-                  <button type="button" onClick={() => setEditingId(null)}>
-                    Cancelar
-                  </button>
-                </>
-              ) : (
-                <>
-                  {sub.title} (rev. {sub.revisionNumber}){" "}
-                  <a href={`/frameworks/${frameworkId}/dimensions/${dimensionId}/indicators/${indicatorId}/subindicators/${sub.id}`}>
-                    Abrir formulario
-                  </a>{" "}
-                  <button type="button" onClick={() => startEdit(sub)}>
-                    Editar
-                  </button>{" "}
-                  <button type="button" onClick={() => handleDelete(sub.id)}>
-                    Borrar
-                  </button>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      <Card>
+        {subindicators.length === 0 ? (
+          <p className="empty">Todavía no hay subindicadores.</p>
+        ) : (
+          <ul className="entry-list">
+            {subindicators.map((sub) => (
+              <li key={sub.id} className="entry-list__row">
+                {editingId === sub.id ? (
+                  <>
+                    <input value={editingTitle} onChange={(e) => setEditingTitle(e.target.value)} />
+                    <span className="entry-list__actions">
+                      <Button type="button" variant="primary" size="sm" onClick={() => handleSaveEdit(sub.id)}>
+                        Guardar
+                      </Button>
+                      <Button type="button" size="sm" onClick={() => setEditingId(null)}>
+                        Cancelar
+                      </Button>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="entry-list__main">
+                      <a
+                        className="entry-list__title"
+                        href={`/frameworks/${frameworkId}/dimensions/${dimensionId}/indicators/${indicatorId}/subindicators/${sub.id}`}
+                      >
+                        {sub.title}
+                      </a>
+                      <Pill>rev. {sub.revisionNumber}</Pill>
+                    </span>
+                    <span className="entry-list__actions">
+                      <Button type="button" size="sm" onClick={() => startEdit(sub)}>
+                        Editar
+                      </Button>
+                      <Button type="button" variant="danger" size="sm" onClick={() => handleDelete(sub.id)}>
+                        Borrar
+                      </Button>
+                    </span>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       <h3>Nuevo subindicador</h3>
-      <form onSubmit={handleCreate}>
-        <label>
-          Título
-          <input value={title} onChange={(e) => setTitle(e.target.value)} required />
-        </label>
-        {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={submitting || title.trim().length === 0}>
-          {submitting ? "Creando..." : "Crear"}
-        </button>
-      </form>
+      <Card>
+        <form className="form form--row" onSubmit={handleCreate}>
+          <label className="field">
+            <span className="field__label">Título</span>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} required />
+          </label>
+          <Button type="submit" variant="primary" disabled={submitting || title.trim().length === 0}>
+            {submitting ? "Creando..." : "Crear"}
+          </Button>
+        </form>
+        {error && <p className="alert" role="alert">{error}</p>}
+      </Card>
     </main>
   );
 }

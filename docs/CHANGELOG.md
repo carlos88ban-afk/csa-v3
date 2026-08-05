@@ -4,6 +4,15 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### UI — Sistema de diseño (2026-08-05)
+
+Adelantado a pedido del usuario (fuera del roadmap M0–M12, que reservaba "diseño visual pulido" para M12). No es un slice del roadmap — ver `docs/architecture/design-system.md` para el diseño completo y `docs/project_notes/decisions.md` para el registro de la decisión de adelantarlo.
+
+- `docs/architecture/design-system.md` (nuevo): paleta (6 tokens + semánticos, claro/oscuro vía `prefers-color-scheme` + `data-theme`), tipografía (Public Sans + IBM Plex Mono, vía `next/font/google`, sin dependencias nuevas), concepto de layout (breadcrumb jerárquico, tarjetas, listas de hairlines).
+- Decisión de tooling: **sin librería de estilos nueva** (ni Tailwind) — CSS nativo de Next.js (`globals.css` + `next/font`), cero dependencias nuevas. `docs/architecture/stack.md` actualizado, sin ADR nueva (no hay costo/vendor lock-in que justifique una).
+- `apps/web/components/ui.tsx` (nuevo): primitivas compartidas `Button`, `Card`, `Pill`, `Breadcrumb`.
+- Rediseñadas las 9 pantallas existentes (signup, login, organizations, frameworks, framework detail + publicación, dimension, indicator, Form Editor, página pública de Evaluación) y `AppHeader` — sin cambios de comportamiento, solo visual/estructural (breadcrumbs reemplazan los links "← Volver" de un solo paso).
+
 ### VS-009 — Publicación + enlaces seguros (2026-08-05)
 
 - `docs/engines/publishing.md`: especificación doc-first. Decisión central: la Evaluación guarda un **snapshot completo e inmutable** del árbol (no un puntero a `revisionNumber`) porque el schema actual no conserva historial de `formSchema` — construir esa tabla de historial no está pedido por ningún milestone y sería sobre-alcance para este slice.

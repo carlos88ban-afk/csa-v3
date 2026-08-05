@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
 import { authClient } from "@/lib/auth-client";
+import { Button, Card } from "@/components/ui";
 
 export default function FrameworksPage() {
   const router = useRouter();
@@ -48,37 +49,43 @@ export default function FrameworksPage() {
     }
   }
 
-  if (sessionPending || orgPending || !activeOrganization) return <main>Cargando...</main>;
+  if (sessionPending || orgPending || !activeOrganization) return <main className="loading">Cargando...</main>;
 
   return (
-    <main>
+    <main className="page">
       <h1>Frameworks — {activeOrganization.name}</h1>
 
-      {frameworks === null ? (
-        <p>Cargando frameworks...</p>
-      ) : frameworks.length === 0 ? (
-        <p>Todavía no hay frameworks.</p>
-      ) : (
-        <ul>
-          {frameworks.map((fw) => (
-            <li key={fw.id}>
-              <a href={`/frameworks/${fw.id}`}>{fw.name}</a>
-            </li>
-          ))}
-        </ul>
-      )}
+      <Card>
+        {frameworks === null ? (
+          <p className="empty">Cargando frameworks...</p>
+        ) : frameworks.length === 0 ? (
+          <p className="empty">Todavía no hay frameworks.</p>
+        ) : (
+          <ul className="entry-list">
+            {frameworks.map((fw) => (
+              <li key={fw.id} className="entry-list__row">
+                <a className="entry-list__title" href={`/frameworks/${fw.id}`}>
+                  {fw.name}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       <h2>Nuevo framework</h2>
-      <form onSubmit={handleCreate}>
-        <label>
-          Nombre
-          <input value={name} onChange={(e) => setName(e.target.value)} required />
-        </label>
-        {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={submitting || name.trim().length === 0}>
-          {submitting ? "Creando..." : "Crear"}
-        </button>
-      </form>
+      <Card>
+        <form className="form form--row" onSubmit={handleCreate}>
+          <label className="field">
+            <span className="field__label">Nombre</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} required />
+          </label>
+          <Button type="submit" variant="primary" disabled={submitting || name.trim().length === 0}>
+            {submitting ? "Creando..." : "Crear"}
+          </Button>
+        </form>
+        {error && <p className="alert" role="alert">{error}</p>}
+      </Card>
     </main>
   );
 }

@@ -11,6 +11,7 @@ Decisiones formalizadas en `adr/0001` a `adr/0005`. Este documento es el resumen
 | Auth | Better Auth | Auth0 ❌ (pago al crecer); Clerk ⚠️ (núcleo propietario). Ver `adr/0004`. |
 | Tests | Vitest + Playwright | Jest + Cypress ⚠️ (más pesados). |
 | Tooling | pnpm + Turborepo + TypeScript strict | Nx ⚠️ (sobredimensionado para este alcance). Ver `adr/0005`. |
+| UI / Estilos | CSS nativo de Next.js (hoja global + `next/font`) | Tailwind ⚠️ (dependencia nueva sin justificar para ~10 pantallas; sin ADR porque no hay dependencia/costo/vendor lock-in nuevo). Ver `design-system.md`. |
 
 ## Costo mensual estimado
 
