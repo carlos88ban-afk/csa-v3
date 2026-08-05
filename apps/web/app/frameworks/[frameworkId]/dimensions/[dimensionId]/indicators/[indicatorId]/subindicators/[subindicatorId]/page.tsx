@@ -1,6 +1,13 @@
 "use client";
 
-import { componentRegistry, type FormElement, type Subindicator } from "@plataforma-csa/sdk-core";
+import {
+  FormulaSyntaxError,
+  componentRegistry,
+  parseFormula,
+  type Condition,
+  type FormElement,
+  type Subindicator,
+} from "@plataforma-csa/sdk-core";
 import { use, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
 import { Breadcrumb, Button, Pill } from "@/components/ui";
@@ -60,6 +67,20 @@ function newElement(type: FormElement["type"]): FormElement {
       return { id, type, label: "", variant: "info", componentVersion };
     case "evidencia":
       return { id, type, label: "", componentVersion };
+    case "calculado":
+      return { id, type, label: "", expression: "", componentVersion };
+  }
+}
+
+// undefined si la fórmula es válida (o está vacía — a medio escribir, mismo
+// criterio que un label vacío en form.md), el mensaje de error si no.
+function formulaError(expression: string): string | undefined {
+  if (expression.trim() === "") return undefined;
+  try {
+    parseFormula(expression);
+    return undefined;
+  } catch (err) {
+    return err instanceof FormulaSyntaxError ? err.message : "Fórmula inválida";
   }
 }
 
@@ -195,7 +216,9 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
           {elements.map((el, index) => (
             <li key={el.id} className="element-card">
               <div className="element-card__head">
-                <span className="element-card__type">{labelOf(el.type)}</span>
+                <span className="element-card__type">
+                  {labelOf(el.type)} <Pill>{el.id}</Pill>
+                </span>
                 <span className="element-card__controls">
                   <Button type="button" size="sm" onClick={() => moveElement(el.id, -1)} disabled={index === 0} aria-label="Subir">
                     ▲
@@ -220,6 +243,67 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
                 <input value={el.label} onChange={(e) => updateElement(el.id, { label: e.target.value })} />
               </label>
 
+              <div className="field-grid">
+                <label className="field">
+                  <span className="field__label">Mostrar solo si (ver docs/engines/rule.md)</span>
+                  <select
+                    value={el.visibleIf?.elementId ?? ""}
+                    onChange={(e) => {
+                      const elementId = e.target.value;
+                      updateElement(el.id, {
+                        visibleIf:
+                          elementId === ""
+                            ? undefined
+                            : { elementId, operator: el.visibleIf?.operator ?? "isAnswered", value: el.visibleIf?.value },
+                      });
+                    }}
+                  >
+                    <option value="">Siempre visible</option>
+                    {elements
+                      .filter((other) => other.id !== el.id)
+                      .map((other) => (
+                        <option key={other.id} value={other.id}>
+                          {other.label || "(sin texto)"} — {other.id}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                {el.visibleIf && (
+                  <>
+                    <label className="field">
+                      <span className="field__label">Condición</span>
+                      <select
+                        value={el.visibleIf.operator}
+                        onChange={(e) =>
+                          updateElement(el.id, {
+                            visibleIf: { ...(el.visibleIf as Condition), operator: e.target.value as Condition["operator"] },
+                          })
+                        }
+                      >
+                        <option value="isAnswered">Tiene respuesta</option>
+                        <option value="isEmpty">No tiene respuesta</option>
+                        <option value="equals">Es igual a</option>
+                        <option value="notEquals">Es distinto de</option>
+                        <option value="contains">Incluye (selección múltiple)</option>
+                      </select>
+                    </label>
+                    {(el.visibleIf.operator === "equals" ||
+                      el.visibleIf.operator === "notEquals" ||
+                      el.visibleIf.operator === "contains") && (
+                      <label className="field">
+                        <span className="field__label">Valor</span>
+                        <input
+                          value={el.visibleIf.value ?? ""}
+                          onChange={(e) =>
+                            updateElement(el.id, { visibleIf: { ...(el.visibleIf as Condition), value: e.target.value } })
+                          }
+                        />
+                      </label>
+                    )}
+                  </>
+                )}
+              </div>
+
               {isQuestion(el) && (
                 <div className="field-grid">
                   <label className="field">
@@ -229,14 +313,16 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
                       onChange={(e) => updateElement(el.id, { helpText: e.target.value })}
                     />
                   </label>
-                  <label className="field field--checkbox">
-                    <input
-                      type="checkbox"
-                      checked={el.required ?? false}
-                      onChange={(e) => updateElement(el.id, { required: e.target.checked })}
-                    />
-                    <span className="field__label">Obligatorio</span>
-                  </label>
+                  {el.type !== "calculado" && (
+                    <label className="field field--checkbox">
+                      <input
+                        type="checkbox"
+                        checked={el.required ?? false}
+                        onChange={(e) => updateElement(el.id, { required: e.target.checked })}
+                      />
+                      <span className="field__label">Obligatorio</span>
+                    </label>
+                  )}
                 </div>
               )}
 
@@ -387,6 +473,36 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
                       }
                     />
                   </label>
+                </div>
+              )}
+              {el.type === "calculado" && (
+                <div className="field-grid">
+                  <label className="field">
+                    <span className="field__label">{"Fórmula (referencia otros elementos como {id})"}</span>
+                    <input
+                      value={el.expression}
+                      placeholder="{el-1} + {el-2} * 2"
+                      onChange={(e) => updateElement(el.id, { expression: e.target.value })}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field__label">Decimales</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={el.decimals ?? ""}
+                      onChange={(e) =>
+                        updateElement(el.id, {
+                          decimals: e.target.value === "" ? undefined : Number(e.target.value),
+                        })
+                      }
+                    />
+                  </label>
+                  {formulaError(el.expression) && (
+                    <p className="alert" role="alert">
+                      {formulaError(el.expression)}
+                    </p>
+                  )}
                 </div>
               )}
             </li>

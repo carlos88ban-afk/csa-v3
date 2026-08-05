@@ -28,8 +28,8 @@ No microservicios. Con ~20 usuarios concurrentes (NFR-1), el costo de infraestru
 
 - `sdk-core` — contratos TypeScript compartidos; única fuente de tipos entre Builder, Runtime y API.
 - `engine/form` — orquestación de formularios por metadatos.
-- `engine/formula` — componentes calculados.
-- `engine/rule` — visibilidad y lógica condicional.
+- `engine/formula` — componentes calculados (parser/evaluador de expresiones aritméticas a mano, sin librería).
+- `engine/rule` — visibilidad condicional (`visibleIf` sobre cualquier Elemento).
 - `engine/validation` — validación sync/async/cross-field.
 - `engine/permission` — RBAC (dueño / editor / evaluador).
 - `engine/components` — registry de componentes (arquitectura de plugins).

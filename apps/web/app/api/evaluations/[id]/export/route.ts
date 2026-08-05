@@ -1,5 +1,11 @@
 import { getEvaluation, listResponses, requireActiveMember } from "@plataforma-csa/db";
-import { componentRegistry, type EvaluationSnapshot, type FormElement, type ResponseAnswers } from "@plataforma-csa/sdk-core";
+import {
+  componentRegistry,
+  isElementVisible,
+  type EvaluationSnapshot,
+  type FormElement,
+  type ResponseAnswers,
+} from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
 // Motor engine/export v1 (ver docs/engines/export.md). Autenticado y
@@ -53,8 +59,12 @@ function buildCsv(snapshot: EvaluationSnapshot, answersBySub: Map<string, Respon
   for (const dim of snapshot.dimensions) {
     for (const ind of dim.indicators) {
       for (const sub of ind.subindicators) {
-        const answers = answersBySub.get(sub.id);
-        const questions = (sub.formSchema?.elements ?? []).filter(isQuestion);
+        const answers = answersBySub.get(sub.id) ?? {};
+        // Elementos ocultos por visibleIf (docs/engines/rule.md) no se
+        // exportan — nunca se le pidieron al evaluado.
+        const questions = (sub.formSchema?.elements ?? []).filter(
+          (el) => isQuestion(el) && isElementVisible(el.visibleIf, answers),
+        );
         for (const el of questions) {
           rows.push([
             dim.title,
@@ -62,7 +72,7 @@ function buildCsv(snapshot: EvaluationSnapshot, answersBySub: Map<string, Respon
             sub.title,
             el.label || "(sin texto)",
             componentRegistry.find((c) => c.type === el.type)?.label ?? el.type,
-            formatAnswer(el, answers?.[el.id]),
+            formatAnswer(el, answers[el.id]),
           ]);
         }
       }

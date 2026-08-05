@@ -23,8 +23,21 @@ describe("formElement", () => {
     { type: "instruccion", id: "6", label: "Lea con atención" },
     { type: "banner", id: "7", label: "Aviso importante", variant: "warning" },
     { type: "evidencia", id: "8", label: "Adjunte su certificado", maxFiles: 3, maxSizeMb: 10, acceptedTypes: ["pdf", "png"] },
+    { type: "calculado", id: "9", label: "Total", expression: "{el-1} + {el-2}", decimals: 2 },
+    { type: "calculado", id: "10", label: "Total sin decimals", expression: "1 + 1" },
   ])("acepta un elemento válido de tipo $type", (element) => {
     expect(formElement.safeParse(element).success).toBe(true);
+  });
+
+  it("acepta visibleIf en cualquier tipo de elemento", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "banner",
+      label: "Solo si aplica",
+      variant: "info",
+      visibleIf: { elementId: "otro", operator: "equals", value: "si" },
+    });
+    expect(result.success).toBe(true);
   });
 
   it("rechaza un type desconocido", () => {
@@ -84,5 +97,69 @@ describe("formSchema", () => {
       elements: [{ id: "1", type: "desconocido", label: "x" }],
     });
     expect(result.success).toBe(false);
+  });
+
+  it("acepta un calculado que referencia un numero y otro calculado sin ciclo", () => {
+    const result = formSchema.safeParse({
+      schemaVersion: 1,
+      elements: [
+        { id: "n1", type: "numero", label: "A" },
+        { id: "c1", type: "calculado", label: "Doble de A", expression: "{n1} * 2" },
+        { id: "c2", type: "calculado", label: "Doble de c1", expression: "{c1} * 2" },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rechaza una fórmula que se autorreferencia (ciclo de longitud 1)", () => {
+    const result = formSchema.safeParse({
+      schemaVersion: 1,
+      elements: [{ id: "c1", type: "calculado", label: "X", expression: "{c1} + 1" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza un ciclo de fórmulas de longitud 2", () => {
+    const result = formSchema.safeParse({
+      schemaVersion: 1,
+      elements: [
+        { id: "c1", type: "calculado", label: "A", expression: "{c2} + 1" },
+        { id: "c2", type: "calculado", label: "B", expression: "{c1} + 1" },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza un ciclo de fórmulas de longitud 3", () => {
+    const result = formSchema.safeParse({
+      schemaVersion: 1,
+      elements: [
+        { id: "c1", type: "calculado", label: "A", expression: "{c2}" },
+        { id: "c2", type: "calculado", label: "B", expression: "{c3}" },
+        { id: "c3", type: "calculado", label: "C", expression: "{c1}" },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza visibleIf que referencia al propio elemento", () => {
+    const result = formSchema.safeParse({
+      schemaVersion: 1,
+      elements: [
+        { id: "1", type: "texto_corto", label: "X", visibleIf: { elementId: "1", operator: "isAnswered" } },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("acepta visibleIf que referencia otro elemento", () => {
+    const result = formSchema.safeParse({
+      schemaVersion: 1,
+      elements: [
+        { id: "1", type: "seleccion_unica", label: "¿Aplica?", options: [{ id: "si", label: "Sí" }] },
+        { id: "2", type: "texto_corto", label: "Detalle", visibleIf: { elementId: "1", operator: "equals", value: "si" } },
+      ],
+    });
+    expect(result.success).toBe(true);
   });
 });

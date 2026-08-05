@@ -10,7 +10,7 @@ Documentados:
 - [`persistence.md`](persistence.md) — M7 (VS-010)
 - [`evidences.md`](evidences.md) — M8 (VS-011)
 - [`export.md`](export.md) — M9 (VS-012)
+- [`formula.md`](formula.md), [`rule.md`](rule.md) — M10 (VS-013)
 
 Pendiente de documentar (se añade un archivo por motor cuando su slice correspondiente empiece, según `../ROADMAP.md`):
-- `formula.md`, `rule.md` — M10 (VS-013)
 - `permission.md` — M11 (VS-014)

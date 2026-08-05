@@ -33,3 +33,10 @@ export interface Response {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// Criterio compartido de "¿tiene respuesta?": lo usa progreso (docs/engines/persistence.md) y visibilidad (docs/engines/rule.md).
+export function hasAnswer(value: AnswerValue | undefined): boolean {
+  if (value === undefined || value === "") return false;
+  if (Array.isArray(value)) return value.length > 0;
+  return true;
+}

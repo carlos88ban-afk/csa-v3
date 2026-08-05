@@ -2,6 +2,9 @@
 
 import {
   componentRegistry,
+  evaluateExpression,
+  hasAnswer,
+  isElementVisible,
   type AnswerValue,
   type Evaluation,
   type EvaluationSnapshot,
@@ -57,14 +60,12 @@ function flatten(snapshot: EvaluationSnapshot): FlatSubindicator[] {
   return out;
 }
 
+// Elementos ocultos por `visibleIf` (docs/engines/rule.md) no cuentan en el
+// progreso — no se le pidieron al evaluado, no son "preguntas sin responder".
 function progressOf(sub: SnapshotSubindicator, answers: ResponseAnswers | undefined) {
-  const questions = (sub.formSchema?.elements ?? []).filter(isQuestion);
-  const answered = questions.filter((q) => {
-    const value = answers?.[q.id];
-    if (value === undefined || value === "") return false;
-    if (Array.isArray(value)) return value.length > 0;
-    return true;
-  }).length;
+  const a = answers ?? {};
+  const questions = (sub.formSchema?.elements ?? []).filter((el) => isQuestion(el) && isElementVisible(el.visibleIf, a));
+  const answered = questions.filter((q) => hasAnswer(a[q.id])).length;
   return { answered, total: questions.length };
 }
 
@@ -246,16 +247,19 @@ export default function PublicEvaluationPage({ params }: Props) {
           <p className="empty">Este formulario todavía no tiene elementos.</p>
         ) : (
           <div className="runtime-elements">
-            {active.sub.formSchema.elements.map((el) => (
-              <ElementView
-                key={el.id}
-                token={token}
-                subindicatorId={active.sub.id}
-                element={el}
-                value={answersBySub[active.sub.id]?.[el.id]}
-                onChange={(value) => setAnswer(el.id, value)}
-              />
-            ))}
+            {active.sub.formSchema.elements
+              .filter((el) => isElementVisible(el.visibleIf, answersBySub[active.sub.id] ?? {}))
+              .map((el) => (
+                <ElementView
+                  key={el.id}
+                  token={token}
+                  subindicatorId={active.sub.id}
+                  element={el}
+                  answers={answersBySub[active.sub.id] ?? {}}
+                  value={answersBySub[active.sub.id]?.[el.id]}
+                  onChange={(value) => setAnswer(el.id, value)}
+                />
+              ))}
           </div>
         )}
       </div>
@@ -267,6 +271,7 @@ interface ElementViewProps {
   token: string;
   subindicatorId: string;
   element: FormElement;
+  answers: ResponseAnswers;
   value: AnswerValue | undefined;
   onChange: (value: AnswerValue) => void;
 }
@@ -393,13 +398,58 @@ function EvidenceView({
   );
 }
 
-function ElementView({ token, subindicatorId, element, value, onChange }: ElementViewProps) {
+// Elemento `calculado` (docs/engines/formula.md): de solo lectura, el
+// Runtime recalcula la expresión contra las respuestas numéricas actuales
+// del Subindicador en cada render y —si el resultado cambia— lo autoguarda
+// por el mismo camino que cualquier respuesta (participa en progreso/CSV
+// exactamente igual que una pregunta normal).
+function CalculadoView({
+  element,
+  answers,
+  onChange,
+}: {
+  element: Extract<FormElement, { type: "calculado" }>;
+  answers: ResponseAnswers;
+  onChange: (value: number) => void;
+}) {
+  const numericValues: Record<string, number> = {};
+  for (const [id, val] of Object.entries(answers)) {
+    if (typeof val === "number") numericValues[id] = val;
+  }
+  const computed = evaluateExpression(element.expression, numericValues);
+
+  useEffect(() => {
+    if (computed !== undefined && answers[element.id] !== computed) {
+      onChange(computed);
+    }
+    // Solo depende del valor recalculado — no de `onChange` (se recrea cada
+    // render) ni de `answers` completo (ya está reflejado en `computed`).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computed]);
+
+  const decimals = element.decimals ?? 2;
+  const display = computed === undefined ? "" : String(Number(computed.toFixed(decimals)));
+
+  return (
+    <div className="field runtime-question">
+      <span className="field__label">{element.label || <em>(sin texto)</em>}</span>
+      {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
+      <input value={display} disabled readOnly placeholder="(sin calcular)" />
+    </div>
+  );
+}
+
+function ElementView({ token, subindicatorId, element, answers, value, onChange }: ElementViewProps) {
   if (element.type === "instruccion") {
     return <p className="runtime-instruction">{element.label}</p>;
   }
 
   if (element.type === "banner") {
     return <p className={`runtime-banner runtime-banner--${element.variant}`}>{element.label}</p>;
+  }
+
+  if (element.type === "calculado") {
+    return <CalculadoView element={element} answers={answers} onChange={(next) => onChange(next)} />;
   }
 
   if (element.type === "evidencia") {
