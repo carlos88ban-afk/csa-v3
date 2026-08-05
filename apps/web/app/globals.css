@@ -568,55 +568,208 @@ input[type="checkbox"] {
   gap: var(--space-2);
 }
 
-/* --- Public evaluation page --------------------------------------------- */
+/* --- Runtime de respuesta (evaluación pública, VS-010) ------------------- */
+/* Ver docs/engines/persistence.md — layout de dos columnas propio (no
+   .page/.page--wide) porque el árbol lateral es persistente durante toda la
+   sesión de respuesta, referencia visual: portal S&P Global CSA. */
 
-.eval-tree {
+.runtime-layout {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-}
-
-.eval-dimension {
-  display: flex;
-  flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-6);
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-8);
 }
 
-.eval-indicator {
+.runtime-nav {
+  flex: 0 0 280px;
+  position: sticky;
+  top: var(--space-6);
+  max-height: calc(100vh - var(--space-8));
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding-left: var(--space-4);
-  border-left: 2px solid var(--border);
-}
-
-.eval-subindicator {
+  gap: var(--space-1);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: var(--space-4) var(--space-6);
+  padding: var(--space-4);
+}
+
+.runtime-nav__head {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.runtime-nav__dim {
+  display: flex;
+  flex-direction: column;
+}
+
+.runtime-nav__ind {
+  display: flex;
+  flex-direction: column;
+  margin-left: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--border);
+}
+
+.runtime-nav__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: none;
+  text-align: left;
+  padding: var(--space-2) var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.runtime-nav__caret {
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  width: 0.8em;
+  flex-shrink: 0;
+}
+
+.runtime-nav__sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: none;
+  text-align: left;
+  padding: var(--space-1) var(--space-2);
+  margin-left: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  border-radius: var(--radius);
+}
+
+.runtime-nav__sub:hover {
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+
+.runtime-nav__sub--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tree-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--border);
+}
+
+.tree-dot--neutral {
+  background: var(--ink-muted);
+}
+
+.tree-dot--accent {
+  background: var(--accent);
+}
+
+.tree-dot--good {
+  background: var(--good);
+}
+
+.runtime-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-6);
+}
+
+.runtime-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
 }
 
-.eval-elements {
+.runtime-topbar__status {
+  min-height: 1.5rem;
+}
+
+.runtime-breadcrumb-mini {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.runtime-elements {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.runtime-instruction {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.runtime-banner {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.runtime-banner--info {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.runtime-banner--warning {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.runtime-question {
+  padding: var(--space-4);
+  background: var(--surface-muted);
+  border-radius: var(--radius);
+}
+
+.runtime-question__help {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.runtime-options {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.eval-element {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
-  padding: var(--space-2) 0;
-  border-top: 1px solid var(--border);
-}
+@media (max-width: 860px) {
+  .runtime-layout {
+    flex-direction: column;
+  }
 
-.eval-element:first-child {
-  border-top: none;
+  .runtime-nav {
+    position: static;
+    width: 100%;
+    max-height: none;
+  }
 }
 
 /* --- Overflow guard ------------------------------------------------------ */

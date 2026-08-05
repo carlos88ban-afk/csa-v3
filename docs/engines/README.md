@@ -7,9 +7,9 @@ Documentados:
 - [`form.md`](form.md) — M4 (VS-007)
 - [`components.md`](components.md) — M5 (VS-008)
 - [`publishing.md`](publishing.md) — M6 (VS-009)
+- [`persistence.md`](persistence.md) — M7 (VS-010)
 
 Pendiente de documentar (se añade un archivo por motor cuando su slice correspondiente empiece, según `../ROADMAP.md`):
-- `publishing.md` — M6 (VS-009)
-- `persistence.md` — M7/M8 (VS-010/011)
+- Evidencias (uploads → R2) — M8 (VS-011), extiende `persistence.md`/`components.md`
 - `formula.md`, `rule.md` — M10 (VS-013)
 - `permission.md` — M11 (VS-014)
