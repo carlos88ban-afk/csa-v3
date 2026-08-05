@@ -32,6 +32,11 @@ Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni
 - **Description**: Primer motor real (`engine/form`): 7 tipos de elemento v1 (zod discriminated union en sdk-core), Form Editor con autosave (debounce 1500ms) sobre el `formSchema`/`revisionNumber` ya existentes desde VS-004.
 - **Notes**: Ver `docs/slices/VS-007.md` y `docs/engines/form.md`. Dos bugs reales de la interacción autosave/validación encontrados y corregidos durante la verificación manual en Chrome (autosave disparándose sin edición del usuario; "Error al guardar" en elementos recién creados). Intento de delegar a OpenCode falló por un problema de entorno (heredoc bash en Windows) — implementado directamente.
 
+### 2026-08-05 - VS-008: Registry de componentes pluggable + versionado
+- **Status**: Completed
+- **Description**: `engine/components` v1 — registry único (`packages/sdk-core/src/component-registry.ts`) reemplaza metadata de tipo duplicada entre sdk-core y la UI del Builder (VS-007). Cada `FormElement` gana `componentVersion`.
+- **Notes**: Ver `docs/slices/VS-008.md` y `docs/engines/components.md`. Bug real de tipos encontrado y corregido: anotar el registry con un tipo explícito ensanchaba los literales y dejaba el chequeo de exhaustividad en compile-time vacío — resuelto con `as const satisfies`. Verificado en navegador real contra producción (no local, a pedido del usuario), incluida confirmación directa en Neon de que `componentVersion` persiste correctamente.
+
 ### 2026-08-04 - Análisis de propuesta de stack (OpenCode)
 - **Status**: Completed
 - **Description**: Se verificaron con búsqueda web las afirmaciones técnicas de la propuesta inicial. Se confirmó R2/Better Auth/Drizzle/Vitest+Playwright sin cambios. Se corrigió: (1) Vercel Hobby prohíbe uso comercial — resuelto confirmando que el proyecto es uso interno; (2) Neon omitía el tope de 100 CU-h/mes — documentado como riesgo monitoreado; (3) Postgres self-hosted en Oracle Cloud Always Free fue considerado pero descartado por recorte de cuota sin previo aviso en jun-2026 — se optó por Neon.

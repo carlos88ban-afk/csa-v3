@@ -4,7 +4,7 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Siguiente
 
-- [ ] VS-008 — Registry de componentes pluggable + versionado (M5)
+- [ ] VS-009 — Publicación + enlaces seguros (M6)
 - [ ] Decidir proveedor de email/SMTP (ADR) si se necesita invitación automática por correo — hoy el link se comparte manualmente (ver `docs/domain/organization-user.md`)
 - [ ] Migrar a migraciones versionadas de Drizzle en vez de `db:push` cuando exista un segundo entorno (`docs/TECH_DEBT.md` TD-001)
 - [ ] Añadir Playwright para el Builder cuando haya más de un flujo crítico (`docs/TECH_DEBT.md` TD-003)
@@ -17,6 +17,7 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 - [x] VS-004 — Dominio core CRUD + schema (Framework→Dimensión→Indicador→Subindicador, 6 tests) — 2026-08-04
 - [x] VS-006 — Builder jerárquico (UI, verificado en navegador real) — 2026-08-04
 - [x] VS-007 — Form Engine v1 (7 tipos de elemento, autosave, verificado en navegador real) — 2026-08-05
+- [x] VS-008 — Registry de componentes pluggable + versionado (verificado en producción) — 2026-08-05
 
 ## Reglas de entrada al backlog
 

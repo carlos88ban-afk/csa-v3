@@ -11,6 +11,7 @@ Formato: por slice, no por commit individual.
 - `packages/sdk-core/src/form-schema.ts`: `formElementBase` gana `componentVersion?: number` (versión del registry vigente al crear el elemento, no se reescribe al editar).
 - Form Editor (`apps/web/.../subindicators/[subindicatorId]/page.tsx`): el selector "Agregar elemento" y el type-guard `isQuestion()` pasan a leer del registry en vez de estructuras locales duplicadas (`ELEMENT_TYPE_LABELS`, `QUESTION_TYPES` hardcodeados en VS-007); `newElement()` graba `componentVersion`.
 - Bug real encontrado y corregido durante la implementación: anotar `componentRegistry` con el tipo explícito `readonly ComponentDefinition[]` ensanchaba los literales de cada entrada, dejando el chequeo de exhaustividad **vacío** (compilaba aunque se borraran entradas del array). Resuelto usando `as const satisfies readonly ComponentDefinition[]` en vez de una anotación de tipo, que verifica la forma sin perder los literales.
+- Verificado en navegador real contra producción (`https://csa-v3-web.vercel.app`, no local, a pedido del usuario): selector "Agregar elemento" sigue mostrando los 7 tipos vía registry, elemento nuevo creado con `componentVersion: 1` (confirmado consultando directamente el `formSchema` en Neon), autosave y persistencia tras recargar siguen intactos.
 
 ### VS-007 — Form Engine v1 (2026-08-05)
 
