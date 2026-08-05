@@ -37,6 +37,11 @@ Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni
 - **Description**: `engine/components` v1 — registry único (`packages/sdk-core/src/component-registry.ts`) reemplaza metadata de tipo duplicada entre sdk-core y la UI del Builder (VS-007). Cada `FormElement` gana `componentVersion`.
 - **Notes**: Ver `docs/slices/VS-008.md` y `docs/engines/components.md`. Bug real de tipos encontrado y corregido: anotar el registry con un tipo explícito ensanchaba los literales y dejaba el chequeo de exhaustividad en compile-time vacío — resuelto con `as const satisfies`. Verificado en navegador real contra producción (no local, a pedido del usuario), incluida confirmación directa en Neon de que `componentVersion` persiste correctamente.
 
+### 2026-08-05 - VS-009: Publicación + enlaces seguros
+- **Status**: Completed
+- **Description**: `engine/publishing` v1 — tabla `evaluation` nueva, un Framework se publica capturando un snapshot completo e inmutable del árbol (no un puntero a `revisionNumber`, el schema no guarda historial). Enlace público sin sesión (`/evaluations/[token]`), revocar = borrar la fila.
+- **Notes**: Ver `docs/slices/VS-009.md` y `docs/engines/publishing.md`. Bug real corregido: `drizzle.config.ts` no incluía el nuevo archivo de schema, `db:push` no creaba la tabla sin avisar. Verificado con `curl` sin cookies (no solo visualmente) que el endpoint público funciona sin sesión y que revocar lo tumba a 404 de inmediato.
+
 ### 2026-08-04 - Análisis de propuesta de stack (OpenCode)
 - **Status**: Completed
 - **Description**: Se verificaron con búsqueda web las afirmaciones técnicas de la propuesta inicial. Se confirmó R2/Better Auth/Drizzle/Vitest+Playwright sin cambios. Se corrigió: (1) Vercel Hobby prohíbe uso comercial — resuelto confirmando que el proyecto es uso interno; (2) Neon omitía el tope de 100 CU-h/mes — documentado como riesgo monitoreado; (3) Postgres self-hosted en Oracle Cloud Always Free fue considerado pero descartado por recorte de cuota sin previo aviso en jun-2026 — se optó por Neon.

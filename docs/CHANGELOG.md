@@ -13,6 +13,7 @@ Formato: por slice, no por commit individual.
 - UI: botón "Publicar" + lista de enlaces con "Revocar" en la página de Framework; página pública nueva `apps/web/app/evaluations/[token]/page.tsx` (sin sesión, solo lectura — capturar respuestas es M7).
 - 4 tests de integración nuevos en `packages/db` contra Neon real: snapshot fiel al árbol, inmutabilidad tras editar el original, `getEvaluationByToken` sin sesión (inexistente/revocado → `null`), tenant-scoping al publicar.
 - Bug real encontrado y corregido: `drizzle.config.ts` no incluía la ruta del nuevo archivo de schema (`./src/schema/evaluation.ts`) — `db:push` reportaba "No changes detected" en vez de crear la tabla, silenciosamente. Mismo patrón de bug ya visto con `turbo.json` (variables de entorno) — un archivo de configuración con una lista explícita de rutas que hay que recordar actualizar en el mismo commit que agrega el archivo nuevo.
+- Verificado de punta a punta en navegador real contra producción (no local, mismo criterio que VS-008): publicar desde el Builder generó el link; se confirmó con `curl` sin cookies que `/api/public/evaluations/[token]` responde 200 y devuelve el snapshot completo sin sesión; al revocar, el mismo endpoint pasó a devolver 404 de inmediato.
 
 ### VS-008 — Registry de componentes pluggable + versionado (2026-08-05)
 
