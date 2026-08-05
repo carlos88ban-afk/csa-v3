@@ -26,8 +26,8 @@ Subconjunto de `../domain/ubiquitous-language.md` (fila "Elemento") que no depen
 | `texto_corto` | Pregunta de respuesta corta (input de una línea) | `maxLength?: number` |
 | `texto_largo` | Pregunta de respuesta larga (textarea) | `maxLength?: number` |
 | `numero` | Pregunta numérica | `min?: number`, `max?: number` |
-| `seleccion_unica` | Pregunta de opción única (radio) | `options: {id, label}[]` |
-| `seleccion_multiple` | Pregunta de opción múltiple (checkbox) | `options: {id, label}[]`, `minSelected?`, `maxSelected?` |
+| `seleccion_unica` | Pregunta de opción única (radio) | `options: {id, label, subOptions?}[]` — ver "Opciones anidadas" |
+| `seleccion_multiple` | Pregunta de opción múltiple (checkbox) | `options: {id, label, subOptions?}[]`, `minSelected?`, `maxSelected?` — ver "Opciones anidadas" |
 | `instruccion` | Texto informativo, no captura respuesta | — |
 | `banner` | Aviso destacado, no captura respuesta | `variant: "info" \| "warning"` |
 
@@ -49,6 +49,51 @@ interface FormSchema {
 ```
 
 `schemaVersion` es independiente de `revisionNumber` (columna en `subindicator`, ya implementada en VS-004): `revisionNumber` cuenta ediciones de contenido; `schemaVersion` versiona la forma del JSON en sí. No se espera que `schemaVersion` cambie en v1 — se documenta ahora para no tener que migrar datos existentes cuando aparezca `schemaVersion: 2`.
+
+## Opciones anidadas (VS-016)
+
+Gap 1 de `../analysis/csa-sp-global-comparison.md`: en el portal S&P Global CSA, elegir una opción de un radio/checkbox puede desplegar su propio sub-checklist (ej. elegir "Sí" en una pregunta despliega 3 sub-opciones de detalle). Se implementa como una extensión aditiva de `formOption`, no un tipo de Elemento nuevo.
+
+**Un solo nivel de anidamiento** — decisión explícita de alcance: la inspección en vivo del portal S&P no mostró un tercer nivel (sub-sub-opciones), así que `subOptions` no es recursivo. Si aparece un caso real de 2 niveles de anidamiento, es un cambio aditivo (`subOptions[].subOptions?`), no un rediseño.
+
+```ts
+const formOption = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  subOptions: z.array(z.object({ id: z.string().min(1), label: z.string() })).optional(),
+});
+```
+
+`subOptions` aplica igual a `seleccion_unica` y `seleccion_multiple`: una opción con `subOptions` no cambiada su semántica de selección (sigue siendo una opción radio/checkbox normal); solo que, mientras esté seleccionada, el Runtime revela sus sub-opciones como checkboxes independientes (selección múltiple siempre, sea cual sea el tipo del padre — mismo patrón que S&P).
+
+### Respuesta de las sub-opciones: clave sintética, sin cambios en `response.ts`
+
+La respuesta del elemento padre **no cambia de forma** (`seleccion_unica` sigue guardando `string` = id de la opción elegida; `seleccion_multiple` sigue guardando `string[]`). Las sub-opciones marcadas se guardan en el mismo mapa `answers` bajo una **clave sintética** `` `${elementId}::${optionId}` `` → `string[]` (ids de sub-opciones marcadas):
+
+```ts
+// answers de un Subindicador con un elemento seleccion_unica (id "el-1")
+// cuya opción "opt-si" (id) tiene subOptions y el evaluado marcó 2:
+{
+  "el-1": "opt-si",              // respuesta del elemento, forma sin cambios
+  "el-1::opt-si": ["sub-a", "sub-c"], // clave sintética, valor string[] (ya soportado por answerValue)
+}
+```
+
+Esto es deliberado: `responseAnswers = z.record(string, answerValue)` ya acepta cualquier clave string y `answerValue` ya incluye `string[]` — **cero cambios en `packages/sdk-core/src/response.ts`, `rule.ts` (evaluación de `visibleIf`), ni en el schema de `packages/db`**. El progreso (`hasAnswer`) y `visibleIf` siguen mirando únicamente `answers[elementId]` (la respuesta del padre); las claves sintéticas no cuentan para progreso ni se usan en condiciones — son un detalle de renderizado/registro, no una unidad de "pregunta respondida" nueva. `"::"` no puede colisionar con un `id` real de elemento (siempre `crypto.randomUUID()`).
+
+### Builder
+
+`SubindicatorFormEditorPage` (`form.md` → UI Builder): cada fila de opción de `seleccion_unica`/`seleccion_multiple` gana una lista anidada de sub-opciones editable con el mismo patrón CRUD que las opciones (`addSubOption`/`updateSubOption`/`removeSubOption`, mismos botones "Agregar"/"Quitar"), colapsada por defecto si la opción no tiene ninguna todavía.
+
+### Runtime
+
+`ElementView` (`persistence.md` → UI Runtime): al renderizar `seleccion_unica`/`seleccion_multiple`, si la opción actualmente seleccionada/marcada tiene `subOptions`, se renderiza debajo un grupo de checkboxes adicional (mismo componente visual que `seleccion_multiple`, `<fieldset>` anidado) que lee/escribe `answers[`${element.id}::${opt.id}`]`. Si la opción se deselecciona, las sub-respuestas quedan en el mapa (no se borran) por si el evaluado vuelve a seleccionarla — mismo criterio que el resto del motor (autosave guarda estado intermedio, no valida completitud).
+
+### Fuera de alcance (explícito)
+
+- **Exportación CSV de sub-opciones** (`export.md`): v1 de este gap no agrega columnas nuevas al CSV — sigue resolviendo solo la opción del padre. Aditivo para un slice futuro si se pide.
+- **Sub-opciones recursivas (2+ niveles)** — ver arriba.
+- **`visibleIf` sobre una sub-opción específica** — las condiciones siguen operando solo sobre elementos (`elementId`), no sobre sub-opciones dentro de un elemento.
 
 ## Contratos (`packages/sdk-core`)
 

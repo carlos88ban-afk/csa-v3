@@ -187,6 +187,57 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
     );
   }
 
+  // Sub-opciones anidadas (docs/engines/form.md, "Opciones anidadas VS-016"):
+  // un solo nivel, mismo patrón CRUD que las opciones de primer nivel.
+  function addSubOption(elementId: string, optionId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return {
+          ...el,
+          options: el.options.map((opt) =>
+            opt.id === optionId
+              ? { ...opt, subOptions: [...(opt.subOptions ?? []), { id: crypto.randomUUID(), label: "" }] }
+              : opt,
+          ),
+        };
+      }),
+    );
+  }
+
+  function updateSubOption(elementId: string, optionId: string, subOptionId: string, label: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return {
+          ...el,
+          options: el.options.map((opt) =>
+            opt.id === optionId
+              ? { ...opt, subOptions: (opt.subOptions ?? []).map((sub) => (sub.id === subOptionId ? { ...sub, label } : sub)) }
+              : opt,
+          ),
+        };
+      }),
+    );
+  }
+
+  function removeSubOption(elementId: string, optionId: string, subOptionId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return {
+          ...el,
+          options: el.options.map((opt) =>
+            opt.id === optionId ? { ...opt, subOptions: (opt.subOptions ?? []).filter((sub) => sub.id !== subOptionId) } : opt,
+          ),
+        };
+      }),
+    );
+  }
+
   if (!subindicator) return <main className="loading">Cargando...</main>;
 
   return (
@@ -375,17 +426,41 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
                 <div className="options">
                   <span className="options__label">Opciones</span>
                   {el.options.map((opt) => (
-                    <div className="option-row" key={opt.id}>
-                      <input value={opt.label} onChange={(e) => updateOption(el.id, opt.id, e.target.value)} />
-                      <Button
-                        type="button"
-                        variant="danger"
-                        size="sm"
-                        onClick={() => removeOption(el.id, opt.id)}
-                        disabled={el.options.length <= 1}
-                      >
-                        Quitar
-                      </Button>
+                    <div className="option-row-group" key={opt.id}>
+                      <div className="option-row">
+                        <input value={opt.label} onChange={(e) => updateOption(el.id, opt.id, e.target.value)} />
+                        <Button
+                          type="button"
+                          variant="danger"
+                          size="sm"
+                          onClick={() => removeOption(el.id, opt.id)}
+                          disabled={el.options.length <= 1}
+                        >
+                          Quitar
+                        </Button>
+                      </div>
+                      <div className="sub-options">
+                        {(opt.subOptions ?? []).map((sub) => (
+                          <div className="option-row option-row--sub" key={sub.id}>
+                            <input
+                              value={sub.label}
+                              placeholder="Sub-opción"
+                              onChange={(e) => updateSubOption(el.id, opt.id, sub.id, e.target.value)}
+                            />
+                            <Button
+                              type="button"
+                              variant="danger"
+                              size="sm"
+                              onClick={() => removeSubOption(el.id, opt.id, sub.id)}
+                            >
+                              Quitar
+                            </Button>
+                          </div>
+                        ))}
+                        <Button type="button" size="sm" onClick={() => addSubOption(el.id, opt.id)}>
+                          Agregar sub-opción
+                        </Button>
+                      </div>
                     </div>
                   ))}
                   <Button type="button" size="sm" onClick={() => addOption(el.id)}>

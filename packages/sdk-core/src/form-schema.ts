@@ -34,6 +34,7 @@ const questionBase = {
 const formOption = z.object({
   id: z.string().min(1),
   label: z.string(),
+  subOptions: z.array(z.object({ id: z.string().min(1), label: z.string() })).optional(),
 });
 
 export const formElement = z.discriminatedUnion("type", [

@@ -25,6 +25,21 @@ describe("formElement", () => {
     { type: "evidencia", id: "8", label: "Adjunte su certificado", maxFiles: 3, maxSizeMb: 10, acceptedTypes: ["pdf", "png"] },
     { type: "calculado", id: "9", label: "Total", expression: "{el-1} + {el-2}", decimals: 2 },
     { type: "calculado", id: "10", label: "Total sin decimals", expression: "1 + 1" },
+    {
+      type: "seleccion_unica",
+      id: "11",
+      label: "¿Aplica?",
+      options: [{ id: "si", label: "Sí", subOptions: [{ id: "sub-a", label: "Sub A" }] }],
+    },
+    {
+      type: "seleccion_multiple",
+      id: "12",
+      label: "Seleccione todos los que apliquen",
+      options: [
+        { id: "opt-1", label: "Opción 1" },
+        { id: "opt-2", label: "Opción 2", subOptions: [{ id: "sub-b", label: "Sub B" }, { id: "sub-c", label: "Sub C" }] },
+      ],
+    },
   ])("acepta un elemento válido de tipo $type", (element) => {
     expect(formElement.safeParse(element).success).toBe(true);
   });
@@ -67,6 +82,16 @@ describe("formElement", () => {
 
   it("rechaza un elemento sin id", () => {
     const result = formElement.safeParse({ type: "texto_corto", label: "x" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza una opción con subOptions que tiene id vacío", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "opt-a", label: "Opción A", subOptions: [{ id: "", label: "Sub vacía" }] }],
+    });
     expect(result.success).toBe(false);
   });
 });

@@ -293,6 +293,7 @@ export default function PublicEvaluationPage({ params }: Props) {
                   answers={answersBySub[active.sub.id] ?? {}}
                   value={answersBySub[active.sub.id]?.[el.id]}
                   onChange={(value) => setAnswer(el.id, value)}
+                  onAnswerChange={setAnswer}
                 />
               ))}
           </div>
@@ -309,6 +310,43 @@ interface ElementViewProps {
   answers: ResponseAnswers;
   value: AnswerValue | undefined;
   onChange: (value: AnswerValue) => void;
+  // Opciones anidadas (docs/engines/form.md, "Opciones anidadas VS-016"): las
+  // sub-opciones marcadas se guardan bajo una clave sintética
+  // `${elementId}::${optionId}` en el mismo mapa de answers, no en `value`
+  // (que sigue siendo solo la respuesta del elemento padre) — por eso este
+  // componente necesita poder escribir claves arbitrarias, no solo la propia.
+  onAnswerChange: (key: string, value: AnswerValue) => void;
+}
+
+// Sub-checklist revelado bajo una opción seleccionada que tiene subOptions
+// (docs/engines/form.md, "Opciones anidadas VS-016"). Siempre selección
+// múltiple, sea cual sea el tipo del elemento padre — mismo patrón que S&P.
+function SubOptionsView({
+  subKey,
+  subOptions,
+  value,
+  onChange,
+}: {
+  subKey: string;
+  subOptions: { id: string; label: string }[];
+  value: AnswerValue | undefined;
+  onChange: (value: string[]) => void;
+}) {
+  const selected = Array.isArray(value) && typeof value[0] === "string" ? (value as string[]) : [];
+  return (
+    <div className="sub-options runtime-options" key={subKey}>
+      {subOptions.map((sub) => (
+        <label key={sub.id} className="field--checkbox">
+          <input
+            type="checkbox"
+            checked={selected.includes(sub.id)}
+            onChange={(e) => onChange(e.target.checked ? [...selected, sub.id] : selected.filter((id) => id !== sub.id))}
+          />
+          {sub.label}
+        </label>
+      ))}
+    </div>
+  );
 }
 
 function formatBytes(bytes: number): string {
@@ -474,7 +512,7 @@ function CalculadoView({
   );
 }
 
-function ElementView({ token, subindicatorId, element, answers, value, onChange }: ElementViewProps) {
+function ElementView({ token, subindicatorId, element, answers, value, onChange, onAnswerChange }: ElementViewProps) {
   if (element.type === "instruccion") {
     return <p className="runtime-instruction">{element.label}</p>;
   }
@@ -548,10 +586,20 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange 
       {element.type === "seleccion_unica" && (
         <div className="runtime-options">
           {element.options.map((opt) => (
-            <label key={opt.id} className="field--checkbox">
-              <input type="radio" name={element.id} checked={value === opt.id} onChange={() => onChange(opt.id)} />
-              {opt.label}
-            </label>
+            <div key={opt.id} className="option-row-group">
+              <label className="field--checkbox">
+                <input type="radio" name={element.id} checked={value === opt.id} onChange={() => onChange(opt.id)} />
+                {opt.label}
+              </label>
+              {value === opt.id && opt.subOptions && opt.subOptions.length > 0 && (
+                <SubOptionsView
+                  subKey={`${element.id}::${opt.id}`}
+                  subOptions={opt.subOptions}
+                  value={answers[`${element.id}::${opt.id}`]}
+                  onChange={(next) => onAnswerChange(`${element.id}::${opt.id}`, next)}
+                />
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -562,16 +610,26 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange 
           return (
             <div className="runtime-options">
               {element.options.map((opt) => (
-                <label key={opt.id} className="field--checkbox">
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(opt.id)}
-                    onChange={(e) =>
-                      onChange(e.target.checked ? [...selected, opt.id] : selected.filter((id) => id !== opt.id))
-                    }
-                  />
-                  {opt.label}
-                </label>
+                <div key={opt.id} className="option-row-group">
+                  <label className="field--checkbox">
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(opt.id)}
+                      onChange={(e) =>
+                        onChange(e.target.checked ? [...selected, opt.id] : selected.filter((id) => id !== opt.id))
+                      }
+                    />
+                    {opt.label}
+                  </label>
+                  {selected.includes(opt.id) && opt.subOptions && opt.subOptions.length > 0 && (
+                    <SubOptionsView
+                      subKey={`${element.id}::${opt.id}`}
+                      subOptions={opt.subOptions}
+                      value={answers[`${element.id}::${opt.id}`]}
+                      onChange={(next) => onAnswerChange(`${element.id}::${opt.id}`, next)}
+                    />
+                  )}
+                </div>
               ))}
             </div>
           );
