@@ -4,6 +4,19 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-013 — Motores: fórmula + reglas condicionales (2026-08-05)
+
+- `docs/engines/formula.md`/`docs/engines/rule.md`: especificación doc-first. Decisiones centrales: parser/evaluador de expresiones **a mano** (sin librería, mismo principio ya aplicado en todo el proyecto); `visibleIf` como propiedad de **cualquier** Elemento en vez de inventar un Elemento contenedor `condicional` (que hubiera roto el modelo plano `elements: FormElement[]`); el valor de un `calculado` se **autoguarda como una respuesta más** — reutiliza el 100% de progreso/exportación/persistencia ya construidos, en vez de inventar un concepto nuevo de "valor derivado".
+- `packages/sdk-core/src/formula.ts` (nuevo): `parseFormula`/`extractExpressionReferences`/`evaluateExpression` — tokenizer + parser recursivo-descendente (suma, resta, multiplicación, división, paréntesis, menos unario, referencias `{id}`), nunca lanza en evaluación (undefined ante referencia faltante o división por cero).
+- `packages/sdk-core/src/rule.ts` (nuevo): `condition` (zod) + `isElementVisible` — condición simple (`elementId`+`operator`+`value`, sin árboles AND/OR); se evalúa siempre contra la respuesta guardada del Elemento referenciado (nunca contra si ese Elemento está visible), lo que evita por completo el problema de dependencias cíclicas de visibilidad sin necesitar código para resolverlo.
+- `packages/sdk-core/src/response.ts`: `hasAnswer` (nuevo) — criterio compartido de "¿tiene respuesta?", usado ahora por progreso y por `isElementVisible`.
+- `packages/sdk-core/src/form-schema.ts`: rama `calculado` (`expression`, `decimals?`), `visibleIf?: Condition` en `formElementBase` (todo Elemento), `.superRefine()` en `formSchema` que detecta ciclos de fórmulas (DFS blanco/gris/negro sobre el subgrafo `calculado`→`calculado`) y autorreferencias en `visibleIf`.
+- UI Builder: id del Elemento visible en su tarjeta (necesario para escribir `{id}` en fórmulas), editor genérico de `visibleIf` (aplica a cualquier tipo), config de fórmula con validación inline (`parseFormula`) y decimales.
+- UI Runtime: Elementos ocultos por `visibleIf` se filtran del render y del cálculo de progreso; `calculado` se renderiza de solo lectura y se recalcula/autoguarda en cada cambio relevante.
+- API export (VS-012): filtra filas por `isElementVisible`, `calculado` se exporta como cualquier pregunta (columna Tipo = "Calculado").
+- 48+26+27 tests nuevos/ampliados en `packages/sdk-core` (`formula.test.ts`, `rule.test.ts`, `form-schema.test.ts`) — 144 tests en total en el monorepo.
+- Verificado de punta a punta en navegador real contra producción: Subindicador con `seleccion_unica`+`visibleIf`, dos `numero` y un `calculado`; el Elemento condicionado aparece/desaparece en vivo, el progreso excluye correctamente lo oculto (0%→20%→40%→80%→100%), el calculado se autoguarda y persiste tras recargar, el CSV exportado incluye el calculado y excluye lo oculto, y una fórmula con ciclo es rechazada por la API con 400. Datos de prueba limpiados.
+
 ### VS-012 — Exportación de resultados (CSV) (2026-08-05)
 
 - `docs/engines/export.md`: especificación doc-first. Decisión central: **CSV plano**, no Excel/PDF — `SCOPE.md` pide explícitamente "exportación básica" (BI/analítica está fuera de alcance), y CSV no requiere una librería nueva (a diferencia de generar `.xlsx`/PDF real).
