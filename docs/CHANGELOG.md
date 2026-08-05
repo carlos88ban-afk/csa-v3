@@ -4,6 +4,16 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-009 — Publicación + enlaces seguros (2026-08-05)
+
+- `docs/engines/publishing.md`: especificación doc-first. Decisión central: la Evaluación guarda un **snapshot completo e inmutable** del árbol (no un puntero a `revisionNumber`) porque el schema actual no conserva historial de `formSchema` — construir esa tabla de historial no está pedido por ningún milestone y sería sobre-alcance para este slice.
+- `packages/db/src/schema/evaluation.ts` (nuevo): tabla `evaluation` (organizationId/frameworkId/token único/title/snapshot jsonb/publishedAt) aplicada a Neon con `db:push`.
+- `packages/db/src/domain/evaluation-service.ts` (nuevo): `createEvaluation` (recorre el árbol, genera token de 192 bits con `crypto.randomBytes`), `listEvaluations`, `deleteEvaluation` (revocar = borrar), `getEvaluationByToken` — la única función del dominio sin `organizationId`, a propósito: la seguridad depende del token, no de una sesión.
+- API: `POST/GET /api/evaluations`, `DELETE /api/evaluations/[id]` (autenticados) + `GET /api/public/evaluations/[token]` (sin autenticación, bajo prefijo `public/` para que el límite sea visible en la estructura de carpetas).
+- UI: botón "Publicar" + lista de enlaces con "Revocar" en la página de Framework; página pública nueva `apps/web/app/evaluations/[token]/page.tsx` (sin sesión, solo lectura — capturar respuestas es M7).
+- 4 tests de integración nuevos en `packages/db` contra Neon real: snapshot fiel al árbol, inmutabilidad tras editar el original, `getEvaluationByToken` sin sesión (inexistente/revocado → `null`), tenant-scoping al publicar.
+- Bug real encontrado y corregido: `drizzle.config.ts` no incluía la ruta del nuevo archivo de schema (`./src/schema/evaluation.ts`) — `db:push` reportaba "No changes detected" en vez de crear la tabla, silenciosamente. Mismo patrón de bug ya visto con `turbo.json` (variables de entorno) — un archivo de configuración con una lista explícita de rutas que hay que recordar actualizar en el mismo commit que agrega el archivo nuevo.
+
 ### VS-008 — Registry de componentes pluggable + versionado (2026-08-05)
 
 - `docs/engines/components.md`: especificación doc-first. "Pluggable" en v1 = un solo lugar de verdad en código para metadata de tipo, no un constructor no-code de tipos nuevos para administradores — se documenta explícitamente qué queda fuera (registry persistido en BD, motor de migración, nuevos tipos de elemento).

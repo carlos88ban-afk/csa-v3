@@ -6,6 +6,7 @@ Documentados:
 
 - [`form.md`](form.md) — M4 (VS-007)
 - [`components.md`](components.md) — M5 (VS-008)
+- [`publishing.md`](publishing.md) — M6 (VS-009)
 
 Pendiente de documentar (se añade un archivo por motor cuando su slice correspondiente empiece, según `../ROADMAP.md`):
 - `publishing.md` — M6 (VS-009)
