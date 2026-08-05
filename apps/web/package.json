@@ -9,6 +9,7 @@
     "start": "dotenv -e ../../.env -- next start",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "echo \"no tests in apps/web yet — covered in packages/db\"",
+    "test:e2e": "dotenv -e ../../.env -- playwright test",
     "lint": "echo \"no lint configured yet\""
   },
   "dependencies": {
@@ -23,6 +24,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

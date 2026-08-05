@@ -80,6 +80,10 @@ export default function PublicEvaluationPage({ params }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Id del Subindicador recién tocado por el evaluado (ver setAnswer). null =
+  // ningún cambio local todavía, así el efecto de autosave no dispara al
+  // hidratar `answersBySub` desde el GET inicial de respuestas guardadas.
+  const dirtySubRef = useRef<string | null>(null);
 
   useEffect(() => {
     api
@@ -97,7 +101,18 @@ export default function PublicEvaluationPage({ params }: Props) {
       .then((res) => {
         const map: Record<string, ResponseAnswers> = {};
         for (const row of res.responses) map[row.subindicatorId] = row.answers;
-        setAnswersBySub(map);
+        // El formulario ya es interactivo apenas carga `evaluation` (efecto
+        // separado, en paralelo) — si el evaluado responde algo antes de que
+        // ESTE fetch resuelva, un overwrite ciego perdería esa respuesta. Las
+        // ediciones locales (ya en `prev`) son más recientes que la foto
+        // guardada, así que ganan por sobre lo recién llegado del servidor.
+        setAnswersBySub((prev) => {
+          const merged: Record<string, ResponseAnswers> = { ...map };
+          for (const [subId, localAnswers] of Object.entries(prev)) {
+            merged[subId] = { ...(merged[subId] ?? {}), ...localAnswers };
+          }
+          return merged;
+        });
       })
       .catch(() => {});
   }, [token]);
@@ -117,9 +132,6 @@ export default function PublicEvaluationPage({ params }: Props) {
     return total === 0 ? 0 : Math.round((answered / total) * 100);
   }, [flat, answersBySub]);
 
-  // Mismo patrón que el Form Editor del Builder (form.md): el autosave se
-  // dispara solo desde la mutación explícita de una respuesta, nunca por un
-  // efecto reactivo — así hidratar `answersBySub` al cargar no dispara un PUT.
   function scheduleAutosave(subindicatorId: string, answers: ResponseAnswers) {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(async () => {
@@ -135,13 +147,35 @@ export default function PublicEvaluationPage({ params }: Props) {
     }, 1500);
   }
 
+  // El updater de un setState NO se ejecuta de forma síncrona de manera
+  // garantizada (la "eager state" es un detalle de implementación interno,
+  // no un contrato) — leer su resultado justo después de llamar al setter
+  // (como hacía una versión anterior de este código) podía capturar
+  // `undefined` y mandar un autosave vacío. El patrón correcto: la mutación
+  // solo marca QUÉ Subindicador cambió (`dirtySubRef`, un ref — su escritura
+  // sí es síncrona); un efecto separado dispara el autosave a partir del
+  // estado ya comprometido por React, nunca por lectura especulativa.
   function setAnswer(elementId: string, value: AnswerValue) {
     if (!active) return;
     const subId = active.sub.id;
-    const next = { ...(answersBySub[subId] ?? {}), [elementId]: value };
-    setAnswersBySub((prev) => ({ ...prev, [subId]: next }));
-    scheduleAutosave(subId, next);
+    dirtySubRef.current = subId;
+    setAnswersBySub((prev) => ({
+      ...prev,
+      [subId]: { ...(prev[subId] ?? {}), [elementId]: value },
+    }));
   }
+
+  // Se dispara con cada commit de `answersBySub` — incluida la hidratación
+  // inicial — pero `dirtySubRef` sigue en null hasta la primera mutación real
+  // del evaluado, así que la hidratación nunca agenda un autosave.
+  useEffect(() => {
+    const subId = dirtySubRef.current;
+    if (!subId) return;
+    const answers = answersBySub[subId];
+    if (!answers) return;
+    scheduleAutosave(subId, answers);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answersBySub]);
 
   function toggleCollapsed(id: string) {
     setCollapsed((prev) => {
@@ -432,11 +466,11 @@ function CalculadoView({
   const display = computed === undefined ? "" : String(Number(computed.toFixed(decimals)));
 
   return (
-    <div className="field runtime-question">
+    <label className="field runtime-question">
       <span className="field__label">{element.label || <em>(sin texto)</em>}</span>
       {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
       <input value={display} disabled readOnly placeholder="(sin calcular)" />
-    </div>
+    </label>
   );
 }
 
@@ -456,45 +490,60 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange 
   if (element.type === "evidencia") {
     const refs = Array.isArray(value) && value.length > 0 && typeof value[0] === "object" ? (value as EvidenceRef[]) : [];
     return (
-      <div className="field runtime-question">
+      <fieldset className="field runtime-question">
+        <legend className="field__label">
+          {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
+        </legend>
+        {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
+        <EvidenceView token={token} subindicatorId={subindicatorId} element={element} value={refs} onChange={(next) => onChange(next)} />
+      </fieldset>
+    );
+  }
+
+  // texto_corto/texto_largo/numero: un solo control -> <label> (asocia el
+  // nombre accesible directo al input, ver docs/architecture/accessibility.md).
+  if (element.type === "texto_corto" || element.type === "texto_largo" || element.type === "numero") {
+    return (
+      <label className="field runtime-question">
         <span className="field__label">
           {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
         </span>
         {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
-        <EvidenceView token={token} subindicatorId={subindicatorId} element={element} value={refs} onChange={(next) => onChange(next)} />
-      </div>
+
+        {element.type === "texto_corto" && (
+          <input value={(value as string) ?? ""} maxLength={element.maxLength} onChange={(e) => onChange(e.target.value)} />
+        )}
+
+        {element.type === "texto_largo" && (
+          <textarea
+            value={(value as string) ?? ""}
+            maxLength={element.maxLength}
+            rows={4}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        )}
+
+        {element.type === "numero" && (
+          <input
+            type="number"
+            value={value === undefined ? "" : (value as number)}
+            min={element.min}
+            max={element.max}
+            onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+          />
+        )}
+      </label>
     );
   }
 
+  // seleccion_unica/seleccion_multiple: grupo de varios controles -> <fieldset>
+  // + <legend> nombra el grupo; cada opción ya tiene su propio <label>.
   return (
-    <div className="field runtime-question">
-      <span className="field__label">
+    <fieldset className="field runtime-question">
+      <legend className="field__label">
         {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
-      </span>
+      </legend>
       {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
-
-      {element.type === "texto_corto" && (
-        <input value={(value as string) ?? ""} maxLength={element.maxLength} onChange={(e) => onChange(e.target.value)} />
-      )}
-
-      {element.type === "texto_largo" && (
-        <textarea
-          value={(value as string) ?? ""}
-          maxLength={element.maxLength}
-          rows={4}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      )}
-
-      {element.type === "numero" && (
-        <input
-          type="number"
-          value={value === undefined ? "" : (value as number)}
-          min={element.min}
-          max={element.max}
-          onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
-        />
-      )}
 
       {element.type === "seleccion_unica" && (
         <div className="runtime-options">
@@ -527,6 +576,6 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange 
             </div>
           );
         })()}
-    </div>
+    </fieldset>
   );
 }

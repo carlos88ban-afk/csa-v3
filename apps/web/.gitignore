@@ -1,2 +1,4 @@
 .vercel
 .env*
+# Cookies de sesión reales de los fixtures de Playwright (TD-003) — nunca se commitean.
+e2e/.auth

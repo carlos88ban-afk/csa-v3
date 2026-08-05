@@ -8,3 +8,4 @@ export { AuthzError, requireActiveMember, requireWriteAccess } from "./authz.js"
 export * from "./domain/service.js";
 export * from "./domain/evaluation-service.js";
 export * from "./domain/response-service.js";
+export * from "./test-utils.js";

@@ -1,47 +1,45 @@
-checkpoint: c9e1a1b0-0004-4a2b-8c3d-00000000000d
+checkpoint: c9e1a1b0-0004-4a2b-8c3d-00000000000e
 fecha: 2026-08-05
 estado: en_progreso
-slice_actual: ninguno — roadmap original completo, pendiente definir siguiente fase con el usuario
+slice_actual: ninguno — TD-003 pagada, siguiente es TD-001+TD-002 juntas
 
-slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015]
+slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003]
 
 decisiones_del_dia:
-  - VS-015 (M12, último milestone del roadmap original) especificado doc-first en `architecture/accessibility.md` — no `engines/`, porque M12 no introduce un motor de dominio nuevo, es transversal sobre lo ya construido.
-  - Alcance deliberadamente acotado a hallazgos reales, no un checklist especulativo de los ~50 criterios de WCAG 2.2 AA: se auditaron con la fórmula real de contraste (luminancia relativa) los tokens compartidos de `design-system.md`, que se propagan automáticamente a las ~13 pantallas por ser el único origen de color de toda la app.
-  - Hallazgos reales corregidos: `--border` (1.4.11, ~1.3:1 → ≥3.5:1 contra bg/surface en ambos modos), `Pill` good/warn en modo claro (1.4.3, 4.30/3.72 → ≥4.84:1), `.btn--sm` sin tamaño mínimo de objetivo (2.5.8, nuevo en WCAG 2.2), sin forma de saltar el `AppHeader` (2.4.1), autosave sin anunciar a lectores de pantalla (4.1.3).
-  - Ya cumplido, verificado sin cambios: labels de formulario (todo input ya envuelto en `<label>`, confirmado inspeccionando el HTML real — el árbol de accesibilidad abreviado de Chrome no mostraba el nombre computado pero la asociación es válida por anidamiento), foco visible global, `<html lang="es">`.
-  - i18n/traducciones sigue explícitamente fuera de alcance (NFR-5 lo excluye de M0–M12) — no se instala una librería de i18n sin un segundo idioma real que soportar, sería infraestructura especulativa.
-  - **Con este slice se completan los 12 milestones del roadmap original** (`ROADMAP.md`). No hay un M13 definido — el siguiente paso requiere alinear con el usuario qué sigue (¿nuevas features no anticipadas en el roadmap original? ¿pulir deuda técnica pendiente (TD-001/002/003)? ¿el producto ya cubre lo que el usuario necesita?).
+  - Deuda técnica priorizada con el usuario: TD-003 (Playwright) primero, luego TD-001+TD-002 juntas (migraciones versionadas + rama Neon de test), porque provisionar el segundo entorno Neon que TD-002 necesita es exactamente la condición de disparo que TD-001 ya tenía declarada.
+  - TD-003 pagada: Playwright en `apps/web/e2e/`, dos specs (`builder-publish.spec.ts`, `public-runtime.spec.ts`) cubriendo Builder→Publicar y Runtime público. Fixtures vía `auth.api.*`/`packages/db` directo en Node — nunca contraseña en un formulario ni por HTTP (regla de seguridad de la sesión, sin excepciones ni para cuentas descartables).
+  - Corre contra `next dev` LOCAL, no producción (única excepción al criterio "verificar contra Vercel" del resto del proyecto) — e2e necesita crear y borrar datos de test constantemente, y hacerlo contra producción ensuciaría datos reales (mismo riesgo ya aceptado en R-005/TD-002 para los tests de `packages/db`).
+  - Este trabajo encontró y corrigió 2 bugs reales de producción, no solo agregó cobertura: (1) el Runtime tenía preguntas sin label realmente asociado pese a que VS-015 lo daba por verificado — corregido separando controles simples (`<label>`) de grupos (`<fieldset>`+`<legend>`); (2) el autosave del Runtime tenía una condición de carrera de pérdida de datos real — el fetch de hidratación de respuestas guardadas podía sobreescribir una respuesta recién tecleada, y el mecanismo de disparo del autosave asumía (incorrectamente) que el updater de `setState` se ejecuta de forma síncrona — reescrito al patrón correcto (`useEffect` reactivo al estado ya comprometido por React, no lectura especulativa post-`setState`).
+  - `packages/db/src/test-utils.ts` nuevo (`deleteTestFixtures`) para que el teardown de e2e pueda borrar fixtures sin que `apps/web` tenga que importar `drizzle-orm` directo (mantiene ese acoplamiento encapsulado en `packages/db`, regla ya establecida).
+  - Verificado con 2 corridas consecutivas en verde de `pnpm test:e2e` (3/3 specs) más `pnpm slice:close` (build+test+typecheck) en verde.
 
 archivos_modificados:
-  - docs/architecture/accessibility.md (nuevo), docs/slices/VS-015.md (nuevo), docs/architecture/design-system.md (tabla de paleta actualizada), docs/ROADMAP.md (roadmap cerrado)
-  - apps/web/app/globals.css (tokens --border/--good/--warn ajustados, .btn--sm target size, .skip-link nuevo)
-  - apps/web/app/layout.tsx (skip link + wrapper id="main-content")
-  - apps/web/app/frameworks/.../subindicators/[subindicatorId]/page.tsx, apps/web/app/evaluations/[token]/page.tsx (aria-live en estado de autosave)
-  - docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md
+  - apps/web/e2e/ (nuevo: playwright.config.ts, global-setup.ts, global-teardown.ts, builder-publish.spec.ts, public-runtime.spec.ts)
+  - apps/web/app/evaluations/[token]/page.tsx (labels de Runtime con asociación real; autosave reescrito a patrón useEffect; fusión de hidratación con ediciones locales en curso)
+  - packages/db/src/test-utils.ts (nuevo), packages/db/src/index.ts (export)
+  - apps/web/package.json (script test:e2e, devDependency @playwright/test), apps/web/.gitignore (e2e/.auth)
+  - docs/TECH_DEBT.md (TD-003 movida a "Pagada"), docs/BACKLOG.md, docs/CHANGELOG.md, docs/project_notes/issues.md
 
 proximos_pasos:
-  - Sin slice definido. Conversar con el usuario: el roadmap de 12 milestones (auth, dominio core, Builder, Form Engine, registry de componentes, publicación, Runtime de respuesta, evidencias, exportación, fórmulas/reglas, RBAC, accesibilidad) está completo y verificado en producción end-to-end. Preguntar qué sigue antes de especificar nada nuevo (regla doc-first no se salta ni para decidir la siguiente fase).
-  - Pendiente no bloqueante, sigue en BACKLOG.md: proveedor de email (ADR), migraciones versionadas de Drizzle (TECH_DEBT TD-001), Playwright (TECH_DEBT TD-003), tabla de historial de revisiones de formSchema si se necesita fuera del contexto de publicación.
+  - Siguiente: TD-001 + TD-002 juntas — provisionar una rama/proyecto Neon aislado para tests, migrar los tests de `packages/db` a apuntar ahí, y migrar de `drizzle-kit push` a migraciones versionadas (`generate`/`migrate`).
+  - Pendiente no bloqueante, sigue en BACKLOG.md: proveedor de email (ADR), tabla de historial de revisiones de formSchema si se necesita fuera del contexto de publicación.
 
 bloqueos: []
 
 contexto_para_continuar: |
-  Roadmap original M0-M12 completado y verde (pnpm slice:close: 5 tasks
-  build, 145 tests, 5 tasks typecheck). La plataforma cubre el ciclo
-  completo: Builder jerárquico (Framework→Dimensión→Indicador→
-  Subindicador→9 tipos de Elemento incluidos calculado/visibleIf) →
-  Publicación con enlaces seguros → Runtime de respuesta con progreso,
-  evidencias (R2) y campos calculados en vivo → Exportación CSV → RBAC de
-  tres roles con gestión de miembros/invitaciones → accesibilidad WCAG 2.2
-  AA auditada sobre los tokens compartidos. La app vive en producción
-  (https://csa-v3-web.vercel.app); el flujo de trabajo desde VS-008 verifica
-  ahí, no en localhost. No quedan datos de prueba de VS-015 en Neon (cambio
-  de CSS/markup, sin datos). Quedan en producción los datos de prueba de
-  VS-011 dejados intencionalmente por el agente anterior para revisión del
-  usuario (org "Org VS-010", framework "VS-011 Evidencias Prod") — no se
-  tocaron en ningún slice posterior.
-  Para retomar: leer este archivo, luego docs/BACKLOG.md, luego preguntar
-  al usuario qué sigue — no hay una siguiente especificación pendiente de
-  implementar todavía.
-  Comando de verificación: pnpm install && pnpm slice:close.
+  Roadmap original M0-M12 completo (checkpoint anterior) + TD-003 (Playwright
+  E2E) pagada en este checkpoint. La plataforma sigue viva en producción
+  (https://csa-v3-web.vercel.app) sin cambios funcionales de este trabajo más
+  allá de los 2 bugs reales corregidos en el Runtime (labels + race condition
+  de autosave) — ambos ya verificados con `pnpm slice:close` en verde y con
+  Playwright pasando 2 corridas consecutivas contra `next dev` local.
+  Los tests e2e nuevos corren SOLO local (`pnpm --filter @plataforma-csa/web
+  test:e2e`, requiere un `next dev` — el propio comando lo levanta si no hay
+  uno ya corriendo en :3000) — es la única parte del proyecto que no se
+  verifica contra Vercel, a propósito (ver TECH_DEBT.md).
+  Para retomar: leer este archivo, luego docs/BACKLOG.md, luego empezar
+  TD-001+TD-002 (provisionar rama Neon de test + migraciones versionadas de
+  Drizzle) — ya no requiere alinear con el usuario, la priorización ya está
+  confirmada.
+  Comando de verificación: pnpm install && pnpm slice:close && pnpm
+  --filter @plataforma-csa/web test:e2e.

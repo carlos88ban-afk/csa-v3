@@ -5,8 +5,7 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 ## Siguiente
 
 - [ ] Decidir proveedor de email/SMTP (ADR) si se necesita invitación automática por correo — hoy el link se comparte manualmente (ver `docs/domain/organization-user.md`)
-- [ ] Migrar a migraciones versionadas de Drizzle en vez de `db:push` cuando exista un segundo entorno (`docs/TECH_DEBT.md` TD-001)
-- [ ] Añadir Playwright para el Builder cuando haya más de un flujo crítico (`docs/TECH_DEBT.md` TD-003)
+- [ ] Migrar a migraciones versionadas de Drizzle en vez de `db:push`, junto con provisionar una rama/proyecto Neon aislado para tests (`docs/TECH_DEBT.md` TD-001 + TD-002)
 - [ ] Si se necesita reconstruir el historial de una revisión de `formSchema` fuera del contexto de una publicación, construir una tabla de historial real (ver `docs/engines/publishing.md`, decisión de usar snapshot en vez de historial)
 
 ## Completado
@@ -25,6 +24,7 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 - [x] VS-013 — Motores fórmula + reglas condicionales (calculado, visibleIf, verificado en producción) — 2026-08-05
 - [x] VS-014 — Permisos (RBAC dueño/editor/evaluador, gestión de miembros/invitaciones, verificado en producción) — 2026-08-05
 - [x] VS-015 — Accesibilidad WCAG 2.2 AA (contraste, target size, skip link, aria-live, verificado en producción) — 2026-08-05
+- [x] TD-003 — Playwright E2E (Builder→Publicar, Runtime público) — 2026-08-05
 
 ## Reglas de entrada al backlog
 
