@@ -74,6 +74,25 @@ Env vars nuevas (`.env` local + Vercel, todas requeridas; sin ellas las rutas de
 
 Endpoint del cliente S3: `https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com`, region `auto`, `forcePathStyle: true`. Dependencias nuevas en `apps/web`: `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` (solo server-side, importadas únicamente en rutas API y `lib/r2.ts`, nunca en componentes cliente).
 
+**CORS del bucket (requerido, se configuró manualmente en el dashboard de Cloudflare)**: sin política CORS, el `PUT` del navegador a la presigned URL falla con "Failed to fetch" (error de red opaco: R2 rechaza sin headers CORS). Regla aplicada en el bucket `plataforma-csa-files`:
+
+```json
+{
+  "rules": [{
+    "allowed": {
+      "headers": ["*"],
+      "methods": ["GET", "PUT", "DELETE", "HEAD"],
+      "origins": ["https://csa-v3-web.vercel.app", "http://localhost:3000"]
+    },
+    "exposeHeaders": ["ETag", "Content-Length"],
+    "id": "csa-browser",
+    "maxAgeSeconds": 3600
+  }]
+}
+```
+
+(Puede aplicarse con `PUT https://api.cloudflare.com/client/v4/accounts/{account}/r2/buckets/{bucket}/cors` — body `{"rules":[...]}`. Cualquier origen nuevo que sirva el Runtime debe añadirse a `allowed.origins`.)
+
 ## API (`apps/web`)
 
 Todas bajo el prefijo público, mismo criterio que `persistence.md` (el límite sin auth visible en la estructura de carpetas). El token resuelve la Evaluación (`getEvaluationByToken`, 404 si no existe); `subindicatorId`/`elementId` deben existir en el snapshot **y** el elemento debe ser de tipo `evidencia` (valida contra el snapshot congelado, no contra el Subindicador vivo — mismo principio que `response-service.ts`).

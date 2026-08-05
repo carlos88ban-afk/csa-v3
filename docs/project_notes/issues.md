@@ -27,6 +27,11 @@ Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni
 - **Description**: Primera UI real: auth (signup/login/logout), organizaciones, y árbol Framework→Dimensión→Indicador→Subindicador con CRUD completo consumiendo las rutas API de VS-004.
 - **Notes**: Verificado de punta a punta en Chrome real (no solo tests automatizados) — ver `docs/slices/VS-006.md`. Se corrigió un gap real de `tsconfig.json` (lib DOM faltante) y se añadió un header con logout no especificado originalmente.
 
+### 2026-08-05 - VS-011: Evidencias (uploads → R2)
+- **Status**: Completed
+- **Description**: Octavo tipo de elemento `evidencia` (isQuestion, config maxFiles/maxSizeMb/acceptedTypes) + flujo completo de archivos con Cloudflare R2 vía presigned URLs: PUT/GET firmadas de 5 min, el binario nunca pasa por Vercel. Refs (key/name/size/mimeType) en el jsonb de `response` sin tabla nueva. 3 rutas públicas nuevas (presign/download-url/DELETE) con validación contra snapshot congelado y anti-IDOR por prefijo de key. `EvidenceView` en el Runtime + config en el Builder.
+- **Notes**: Ver `docs/slices/VS-011.md` y `docs/engines/evidences.md`. Hallazgo de producción: el bucket R2 sin política CORS falla el PUT del navegador con "Failed to fetch" — CORS configurado vía API de Cloudflare (token CFAT del usuario) y documentado en la spec. Verificado en producción navegando en Chrome: upload real, persistencia tras recarga, descarga íntegra, "Quitar" borra objeto de R2; seguridad 404/400/413/415 OK. Deploy vía GitHub Integration (el CLI desde la raíz excede 100MB de upload). ADR 0003 → Accepted.
+
 ### 2026-08-05 - VS-010: Runtime de respuesta + guardar progreso
 - **Status**: Completed
 - **Description**: Convierte la página pública de solo lectura (VS-009) en un formulario interactivo — tabla `response` nueva ligada a la Evaluación (no a una identidad de evaluado), árbol de navegación persistente + Prev/Next + render real de los 7 tipos de elemento + autosave + progreso en `apps/web/app/evaluations/[token]/page.tsx`. Referencia visual: portal S&P Global CSA (comparación pedida por el usuario).

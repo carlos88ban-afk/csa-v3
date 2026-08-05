@@ -1,6 +1,6 @@
 # 0003 — Almacenamiento de archivos: Cloudflare R2
 
-Estado: Proposed
+Estado: Accepted (2026-08-05, M8/VS-011 — bucket `plataforma-csa-files` en uso con presigned URLs; política CORS configurada, ver `../engines/evidences.md`)
 
 ## Contexto
 

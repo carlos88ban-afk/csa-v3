@@ -4,6 +4,18 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-011 — Evidencias: uploads directos a Cloudflare R2 (2026-08-05)
+
+- `docs/engines/evidences.md`: especificación doc-first. Decisión central: **presigned URLs de R2** — el navegador sube el binario con `PUT` directo a R2 (URL firmada por el servidor, validez 5 min) y descarga con `GET` firmado; los binarios nunca pasan por la función serverless de Vercel (límite Hobby ~4.5MB). Claves `evaluations/{evaluationId}/{uuid}` con anti-IDOR por prefijo: toda operación rechaza keys que no pertenezcan a la Evaluación del token.
+- `packages/sdk-core`: octavo tipo de elemento `evidencia` (`isQuestion: true`, config `maxFiles` default 5 / `maxSizeMb` default 10 / `acceptedTypes`) + `evidenceRef` (key/name/size/mimeType) y cuarto caso en `answerValue` — las refs persisten en el jsonb de `response` sin tabla nueva.
+- `packages/db`: test de integración contra Neon real — Respuesta con refs de evidencia persiste y se recupera intacta (sin cambios de schema).
+- `apps/web`: `lib/r2.ts` (cliente S3/R2 server-only, presign PUT/GET, `belongsToEvaluation`), `lib/evidence-validation.ts` (valida contra el snapshot congelado: elemento debe ser `evidencia`, límites de tamaño/tipo), 3 rutas públicas nuevas (`presign` 413/415, `download-url` 404, `DELETE` idempotente). `api-client.ts` gana `del(path, body?)`.
+- UI Runtime: componente `EvidenceView` (input file con accept/multiple derivados, upload secuencial por archivo con indicador, lista con nombre/tamaño + Descargar/Quitar, progreso del Subindicador al tener ≥1 ref). UI Builder: elemento `evidencia` en el selector y config propia (maxFiles/maxSizeMb/acceptedTypes).
+- Infra: env vars `R2_ACCOUNT_ID`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_BUCKET_NAME` en `.env` y Vercel production; dependencias `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` (server-only).
+- Hallazgo de producción: el bucket no tenía política CORS y el `PUT` del navegador fallaba con "Failed to fetch" (error de red opaco). Configurado CORS en Cloudflare (orígenes vercel+localhost, métodos GET/PUT/DELETE/HEAD) y documentado en la spec como requisito de operación.
+- Verificado de punta a punta en navegador real contra producción: Framework con elemento `evidencia` publicado, upload real desde el link público sin sesión (presign 200 → PUT 200), persistencia tras recarga, descarga íntegra, "Quitar" borra ref y objeto de R2; seguridad: key foránea → 404, elemento no-`evidencia` → 400, >5MB → 413, tipo no aceptado → 415, body vacío → 400. Objetos de prueba limpiados de R2.
+- ADR 0003 (Cloudflare R2) pasa de Proposed a Accepted.
+
 ### VS-010 — Runtime de respuesta + guardar progreso (2026-08-05)
 
 - `docs/engines/persistence.md`: especificación doc-first. Decisión central: la Respuesta se ata a la Evaluación (`evaluationId`, resuelto vía token), no a una identidad de evaluado — no existe concepto de cuenta de evaluado en el dominio; un enlace publicado es una sesión de respuesta compartida, mismo principio que "sin colaboración concurrente" ya aceptado en `form.md`.

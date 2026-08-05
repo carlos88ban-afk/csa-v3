@@ -4,7 +4,6 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Siguiente
 
-- [ ] VS-011 — Evidencias (uploads → R2) (M8)
 - [ ] Decidir proveedor de email/SMTP (ADR) si se necesita invitación automática por correo — hoy el link se comparte manualmente (ver `docs/domain/organization-user.md`)
 - [ ] Migrar a migraciones versionadas de Drizzle en vez de `db:push` cuando exista un segundo entorno (`docs/TECH_DEBT.md` TD-001)
 - [ ] Añadir Playwright para el Builder cuando haya más de un flujo crítico (`docs/TECH_DEBT.md` TD-003)
@@ -21,6 +20,7 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 - [x] VS-008 — Registry de componentes pluggable + versionado (verificado en producción) — 2026-08-05
 - [x] VS-009 — Publicación + enlaces seguros (snapshot inmutable, verificado en producción) — 2026-08-05
 - [x] VS-010 — Runtime de respuesta + guardar progreso (árbol de navegación, autosave, progreso, verificado en producción) — 2026-08-05
+- [x] VS-011 — Evidencias (uploads → R2, presigned URLs, verificado en producción) — 2026-08-05
 
 ## Reglas de entrada al backlog
 
