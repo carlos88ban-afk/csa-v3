@@ -38,6 +38,19 @@ Las decisiones arquitectónicas formales del stack viven como ADRs en [`docs/adr
 - ✅ El producto se ve terminado antes en las demos, sin bloquear el roadmap funcional (M7+ sigue en su orden).
 - ❌ Cada pantalla nueva de aquí en adelante debe seguir el sistema de diseño ya establecido, no HTML semántico mínimo como hasta VS-009 — más superficie a mantener consistente por slice.
 
+### 2026-08-05 — Límite de verificación manual con múltiples cuentas (VS-014, RBAC)
+
+**Contexto:**
+- VS-014 (permisos dueño/editor/evaluador) necesitaría, para una verificación 100% realista, una segunda cuenta de prueba aceptando una invitación y probando que la escritura le sea rechazada.
+- El agente de IA que ejecuta este proyecto opera bajo una regla de seguridad sin excepciones: nunca escribe una contraseña en ningún formulario ni la envía por API, ni siquiera para crear una cuenta de prueba desechable.
+
+**Decisión:**
+- La verificación manual de RBAC en producción se detiene en lo que no requiere una segunda contraseña: crear la invitación, confirmar que el link se genera, confirmar que la página de aceptación existe y que Better Auth rechaza a un usuario que no es el destinatario. La corrección del rechazo de escritura para `evaluador` se respalda en el test de integración de `packages/db` contra Neon real (mismo dato que usa producción), no en un click-through de dos usuarios en el navegador.
+
+**Consecuencias:**
+- ✅ No se compromete la regla de seguridad por conveniencia de verificación.
+- ❌ Cualquier feature futura que dependa de multi-usuario real (RBAC, colaboración) tiene el mismo límite — el usuario humano es quien puede completar esa verificación específica si la necesita con certeza absoluta.
+
 ### 2026-08-04 — Sistema de memoria en `docs/project_notes/` en vez de `memory/`
 
 **Contexto:**

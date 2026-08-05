@@ -20,4 +20,4 @@ Cada milestone es lanzable por sí mismo. El producto es usable (de forma incomp
 
 ¹ VS-005 (migraciones DB) se fusionó dentro de VS-004 el 2026-08-04 — ver `domain/evaluation-hierarchy.md`, nota de alcance (mismo patrón que VS-003: un slice sin persistencia real no es funcional/probado de punta a punta).
 
-Estado actual: **M0–M10 completados**, **M11 siguiente (VS-014 — Permisos/RBAC)** — ver `checkpoints/CHECKPOINT.md`.
+Estado actual: **M0–M11 completados**, **M12 siguiente (i18n + WCAG 2.2 AA + polish — último milestone del roadmap original)** — ver `checkpoints/CHECKPOINT.md`.
