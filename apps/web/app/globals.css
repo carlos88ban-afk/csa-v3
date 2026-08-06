@@ -201,6 +201,22 @@ button:disabled {
 
 /* --- Accesibilidad (WCAG 2.2 AA, ver docs/architecture/accessibility.md) - */
 
+/* Oculta visualmente sin ocultar de lectores de pantalla (patrón estándar) —
+   usado por <caption> de tabla_datos (VS-024): el <legend> del fieldset ya
+   muestra el label visible, el caption es redundante visualmente pero
+   requerido por WCAG para asociar la tabla con su nombre accesible. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .skip-link {
   position: absolute;
   top: -100%;
@@ -832,6 +848,31 @@ input[type="checkbox"] {
 .runtime-question__unit {
   font-size: var(--text-sm);
   color: var(--ink-muted);
+}
+
+/* Tabla de datos (docs/engines/form.md, VS-024). */
+.runtime-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.runtime-table th,
+.runtime-table td {
+  border: 1px solid var(--border);
+  padding: var(--space-2);
+  text-align: left;
+}
+
+.runtime-table th[scope="row"] {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.runtime-table input,
+.runtime-table select {
+  width: 100%;
+  min-width: 8ch;
 }
 
 /* Estado por pregunta (docs/engines/persistence.md, VS-018). */

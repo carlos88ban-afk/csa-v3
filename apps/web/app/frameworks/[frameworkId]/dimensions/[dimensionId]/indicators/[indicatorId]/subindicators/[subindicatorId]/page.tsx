@@ -70,6 +70,15 @@ function newElement(type: FormElement["type"]): FormElement {
       return { id, type, label: "", componentVersion };
     case "url_publica":
       return { id, type, label: "", componentVersion };
+    case "tabla_datos":
+      return {
+        id,
+        type,
+        label: "",
+        columns: [{ id: crypto.randomUUID(), label: "" }],
+        rows: [{ id: crypto.randomUUID(), label: "", cellType: "texto" }],
+        componentVersion,
+      };
     case "calculado":
       return { id, type, label: "", expression: "", componentVersion };
   }
@@ -235,6 +244,110 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
           ...el,
           options: el.options.map((opt) =>
             opt.id === optionId ? { ...opt, subOptions: (opt.subOptions ?? []).filter((sub) => sub.id !== subOptionId) } : opt,
+          ),
+        };
+      }),
+    );
+  }
+
+  // Tabla de datos (VS-024, docs/engines/form.md "Tabla de datos"): columnas
+  // son solo encabezados, filas cargan tipo/unidad de toda la fila.
+  type TableRow = Extract<FormElement, { type: "tabla_datos" }>["rows"][number];
+
+  function addColumn(elementId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId || el.type !== "tabla_datos") return el;
+        return { ...el, columns: [...el.columns, { id: crypto.randomUUID(), label: "" }] };
+      }),
+    );
+  }
+
+  function updateColumn(elementId: string, columnId: string, label: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId || el.type !== "tabla_datos") return el;
+        return { ...el, columns: el.columns.map((c) => (c.id === columnId ? { ...c, label } : c)) };
+      }),
+    );
+  }
+
+  function removeColumn(elementId: string, columnId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId || el.type !== "tabla_datos") return el;
+        if (el.columns.length <= 1) return el;
+        return { ...el, columns: el.columns.filter((c) => c.id !== columnId) };
+      }),
+    );
+  }
+
+  function addRow(elementId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId || el.type !== "tabla_datos") return el;
+        return { ...el, rows: [...el.rows, { id: crypto.randomUUID(), label: "", cellType: "texto" as const }] };
+      }),
+    );
+  }
+
+  function updateRow(elementId: string, rowId: string, patch: Partial<TableRow>) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId || el.type !== "tabla_datos") return el;
+        return { ...el, rows: el.rows.map((r) => (r.id === rowId ? { ...r, ...patch } : r)) };
+      }),
+    );
+  }
+
+  function removeRow(elementId: string, rowId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId || el.type !== "tabla_datos") return el;
+        if (el.rows.length <= 1) return el;
+        return { ...el, rows: el.rows.filter((r) => r.id !== rowId) };
+      }),
+    );
+  }
+
+  function addRowOption(elementId: string, rowId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId || el.type !== "tabla_datos") return el;
+        return {
+          ...el,
+          rows: el.rows.map((r) =>
+            r.id === rowId ? { ...r, options: [...(r.options ?? []), { id: crypto.randomUUID(), label: "" }] } : r,
+          ),
+        };
+      }),
+    );
+  }
+
+  function updateRowOption(elementId: string, rowId: string, optionId: string, label: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId || el.type !== "tabla_datos") return el;
+        return {
+          ...el,
+          rows: el.rows.map((r) =>
+            r.id === rowId ? { ...r, options: (r.options ?? []).map((o) => (o.id === optionId ? { ...o, label } : o)) } : r,
+          ),
+        };
+      }),
+    );
+  }
+
+  function removeRowOption(elementId: string, rowId: string, optionId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId || el.type !== "tabla_datos") return el;
+        return {
+          ...el,
+          rows: el.rows.map((r) =>
+            r.id === rowId && (r.options?.length ?? 0) > 1
+              ? { ...r, options: (r.options ?? []).filter((o) => o.id !== optionId) }
+              : r,
           ),
         };
       }),
@@ -626,6 +739,153 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
                     />
                   </label>
                 </div>
+              )}
+              {el.type === "tabla_datos" && (
+                <>
+                  <div className="options">
+                    <span className="options__label">Columnas</span>
+                    {el.columns.map((col) => (
+                      <div className="option-row" key={col.id}>
+                        <input
+                          value={col.label}
+                          placeholder="Encabezado de columna, ej. FY 2024"
+                          onChange={(e) => updateColumn(el.id, col.id, e.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          variant="danger"
+                          size="sm"
+                          onClick={() => removeColumn(el.id, col.id)}
+                          disabled={el.columns.length <= 1}
+                        >
+                          Quitar
+                        </Button>
+                      </div>
+                    ))}
+                    <Button type="button" size="sm" onClick={() => addColumn(el.id)}>
+                      Agregar columna
+                    </Button>
+                  </div>
+
+                  <div className="options">
+                    <span className="options__label">Filas</span>
+                    {el.rows.map((row) => (
+                      <div className="option-row-group" key={row.id}>
+                        <div className="option-row">
+                          <input
+                            value={row.label}
+                            placeholder="Encabezado de fila, ej. Total Scope 1"
+                            onChange={(e) => updateRow(el.id, row.id, { label: e.target.value })}
+                          />
+                          <select
+                            value={row.cellType}
+                            onChange={(e) =>
+                              updateRow(el.id, row.id, {
+                                cellType: e.target.value as TableRow["cellType"],
+                                unit: undefined,
+                                availableUnits: undefined,
+                                options: undefined,
+                                maxLength: undefined,
+                              })
+                            }
+                          >
+                            <option value="texto">Texto</option>
+                            <option value="numero">Número</option>
+                            <option value="seleccion_desplegable">Selección desplegable</option>
+                          </select>
+                          <Button
+                            type="button"
+                            variant="danger"
+                            size="sm"
+                            onClick={() => removeRow(el.id, row.id)}
+                            disabled={el.rows.length <= 1}
+                          >
+                            Quitar
+                          </Button>
+                        </div>
+
+                        {row.cellType === "texto" && (
+                          <label className="field">
+                            <span className="field__label">Longitud máxima</span>
+                            <input
+                              type="number"
+                              value={row.maxLength ?? ""}
+                              onChange={(e) =>
+                                updateRow(el.id, row.id, {
+                                  maxLength: e.target.value === "" ? undefined : Number(e.target.value),
+                                })
+                              }
+                            />
+                          </label>
+                        )}
+
+                        {row.cellType === "numero" && (
+                          <div className="field-grid">
+                            <label className="field">
+                              <span className="field__label">Unidad</span>
+                              <input
+                                value={row.unit ?? ""}
+                                placeholder="ej. met. ton. CO2e, %"
+                                onChange={(e) =>
+                                  updateRow(el.id, row.id, { unit: e.target.value === "" ? undefined : e.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="field">
+                              <span className="field__label">Unidades disponibles (separadas por coma)</span>
+                              <input
+                                key={row.id}
+                                defaultValue={row.availableUnits?.join(", ") ?? ""}
+                                placeholder="ej. MWh, GJ, kWh"
+                                // onBlur, no onChange: mismo bug/fix que VS-023
+                                // (docs/engines/form.md) — controlado + recorte
+                                // en cada tecla se come el separador recién
+                                // escrito.
+                                onBlur={(e) =>
+                                  updateRow(el.id, row.id, {
+                                    availableUnits:
+                                      e.target.value.trim() === ""
+                                        ? undefined
+                                        : e.target.value.split(",").map((s) => s.trim()).filter((s) => s.length > 0),
+                                  })
+                                }
+                              />
+                            </label>
+                          </div>
+                        )}
+
+                        {row.cellType === "seleccion_desplegable" && (
+                          <div className="sub-options">
+                            {(row.options ?? []).map((opt) => (
+                              <div className="option-row option-row--sub" key={opt.id}>
+                                <input
+                                  value={opt.label}
+                                  placeholder="Opción"
+                                  onChange={(e) => updateRowOption(el.id, row.id, opt.id, e.target.value)}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={() => removeRowOption(el.id, row.id, opt.id)}
+                                  disabled={(row.options?.length ?? 0) <= 1}
+                                >
+                                  Quitar
+                                </Button>
+                              </div>
+                            ))}
+                            <Button type="button" size="sm" onClick={() => addRowOption(el.id, row.id)}>
+                              Agregar opción
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    <Button type="button" size="sm" onClick={() => addRow(el.id)}>
+                      Agregar fila
+                    </Button>
+                  </div>
+                </>
               )}
               {el.type === "calculado" && (
                 <div className="field-grid">

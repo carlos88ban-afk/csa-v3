@@ -37,6 +37,29 @@ const formOption = z.object({
   subOptions: z.array(z.object({ id: z.string().min(1), label: z.string() })).optional(),
 });
 
+// Tabla de datos (VS-024, docs/engines/form.md "Tabla de datos"): columnas
+// son solo encabezados, filas cargan el tipo/unidad de TODA la fila.
+// `options` solo aplica si cellType === "seleccion_desplegable", `unit`/
+// `availableUnits` solo si cellType === "numero", `maxLength` solo si
+// cellType === "texto" — no expresado como discriminated union anidado
+// (costo de complejidad no justificado, ver el doc), lo exige el Builder.
+const formTableCellType = z.enum(["texto", "numero", "seleccion_desplegable"]);
+
+const formTableColumn = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+});
+
+const formTableRow = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  cellType: formTableCellType,
+  unit: z.string().min(1).optional(),
+  availableUnits: z.array(z.string().min(1)).min(1).optional(),
+  options: z.array(formOption).min(1).optional(),
+  maxLength: z.number().int().positive().optional(),
+});
+
 export const formElement = z.discriminatedUnion("type", [
   z.object({
     ...questionBase,
@@ -104,6 +127,15 @@ export const formElement = z.discriminatedUnion("type", [
     ...questionBase,
     type: z.literal("url_publica"),
     maxUrls: z.number().int().positive().optional(),
+  }),
+  // Tabla de datos (VS-024): el tipo de celda se define por FILA, no por
+  // celda individual (ver docs/engines/form.md, "Decisión de diseño") — una
+  // fila es una métrica con una unidad, las columnas son sus períodos.
+  z.object({
+    ...questionBase,
+    type: z.literal("tabla_datos"),
+    columns: z.array(formTableColumn).min(1),
+    rows: z.array(formTableRow).min(1),
   }),
   // Sin questionBase: no es una pregunta editada por el evaluado, el
   // Runtime escribe su valor automáticamente (ver docs/engines/formula.md,

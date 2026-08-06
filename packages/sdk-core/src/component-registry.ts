@@ -30,6 +30,7 @@ export const componentRegistry = [
   { type: "banner", label: "Banner", isQuestion: false, version: 1 },
   { type: "evidencia", label: "Evidencia", isQuestion: true, version: 1 },
   { type: "url_publica", label: "URL pública", isQuestion: true, version: 1 },
+  { type: "tabla_datos", label: "Tabla de datos", isQuestion: true, version: 1 },
   { type: "calculado", label: "Calculado", isQuestion: true, version: 1 },
 ] as const satisfies readonly ComponentDefinition[];
 

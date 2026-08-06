@@ -21,6 +21,7 @@ import {
   type EvidenceRef,
   type FormElement,
   type ResponseAnswers,
+  type TableValue,
 } from "@plataforma-csa/sdk-core";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
@@ -690,6 +691,118 @@ function UrlPublicaView({
   );
 }
 
+// Tabla de datos (VS-024, docs/engines/form.md "Tabla de datos"): <table>
+// real, celdas leídas/escritas en el mapa anidado rowId->columnId->valor
+// (onChange reconstruye el objeto completo, mismo patrón inmutable que el
+// resto del Runtime). Unidad por fila (si availableUnits) via unitKey con id
+// compuesto `${element.id}::${row.id}` — una unidad por fila, no por celda.
+function FormTableView({
+  element,
+  value,
+  answers,
+  onChange,
+  onAnswerChange,
+  locked,
+}: {
+  element: Extract<FormElement, { type: "tabla_datos" }>;
+  value: TableValue | undefined;
+  answers: ResponseAnswers;
+  onChange: (value: TableValue) => void;
+  onAnswerChange: (key: string, value: AnswerValue) => void;
+  locked?: boolean;
+}) {
+  const table = value ?? {};
+
+  function updateCell(rowId: string, columnId: string, cell: string | number) {
+    onChange({ ...table, [rowId]: { ...(table[rowId] ?? {}), [columnId]: cell } });
+  }
+
+  return (
+    <table className="runtime-table">
+      <caption className="sr-only">{element.label}</caption>
+      <thead>
+        <tr>
+          <th scope="col" />
+          {element.columns.map((col) => (
+            <th key={col.id} scope="col">
+              {col.label}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {element.rows.map((row) => {
+          const rowValue = table[row.id] ?? {};
+          const rowUnitKey = unitKey(`${element.id}::${row.id}`);
+          const rowUnit = row.availableUnits
+            ? ((answers[rowUnitKey] as string | undefined) ?? row.availableUnits[0])
+            : undefined;
+          return (
+            <tr key={row.id}>
+              <th scope="row">
+                {row.label}
+                {row.availableUnits && row.availableUnits.length > 0 && (
+                  <select value={rowUnit} disabled={locked} onChange={(e) => onAnswerChange(rowUnitKey, e.target.value)}>
+                    {row.availableUnits.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {!row.availableUnits && row.unit && <span className="runtime-question__unit"> ({row.unit})</span>}
+              </th>
+              {element.columns.map((col) => {
+                const cell = rowValue[col.id];
+                if (row.cellType === "seleccion_desplegable") {
+                  return (
+                    <td key={col.id}>
+                      <select
+                        value={(cell as string) ?? ""}
+                        disabled={locked}
+                        onChange={(e) => updateCell(row.id, col.id, e.target.value)}
+                      >
+                        <option value="">Seleccionar…</option>
+                        {(row.options ?? []).map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  );
+                }
+                if (row.cellType === "numero") {
+                  return (
+                    <td key={col.id}>
+                      <input
+                        type="number"
+                        value={cell === undefined ? "" : (cell as number)}
+                        disabled={locked}
+                        onChange={(e) => updateCell(row.id, col.id, e.target.value === "" ? "" : Number(e.target.value))}
+                      />
+                    </td>
+                  );
+                }
+                return (
+                  <td key={col.id}>
+                    <input
+                      value={(cell as string) ?? ""}
+                      maxLength={row.maxLength}
+                      disabled={locked}
+                      onChange={(e) => updateCell(row.id, col.id, e.target.value)}
+                    />
+                  </td>
+                );
+              })}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 // VS-018 (docs/engines/persistence.md, "Estado por pregunta"): fila de
 // estado + acción "Marcar como completo", compartida por todos los tipos de
 // pregunta que capturan respuesta manual (no calculado/instruccion/banner).
@@ -833,6 +946,29 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
           element={element}
           value={refs}
           onChange={(next) => onChange(next)}
+          locked={locked}
+        />
+        {statusRow}
+        {naCommentRow}
+      </fieldset>
+    );
+  }
+
+  if (element.type === "tabla_datos") {
+    const table = value && typeof value === "object" && !Array.isArray(value) ? (value as TableValue) : undefined;
+    return (
+      <fieldset className="field runtime-question">
+        <legend className="field__label">
+          {number && `${number} `}
+          {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
+        </legend>
+        {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
+        <FormTableView
+          element={element}
+          value={table}
+          answers={answers}
+          onChange={(next) => onChange(next)}
+          onAnswerChange={onAnswerChange}
           locked={locked}
         />
         {statusRow}

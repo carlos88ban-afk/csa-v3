@@ -72,6 +72,32 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
     const unit = (answers[unitKey(element.id)] as string | undefined) ?? element.availableUnits?.[0] ?? element.unit;
     return unit ? `${String(value)} ${unit}` : String(value);
   }
+  // Tabla de datos (VS-024, docs/engines/form.md "Tabla de datos"): no cabe
+  // en una celda CSV plana, se serializa "fila: col1=v1, col2=v2; fila2: ...",
+  // resolviendo labels de fila/columna (no ids) y la unidad por fila (mismo
+  // criterio que numero suelto, id compuesto element.id::row.id).
+  if (element.type === "tabla_datos" && typeof value === "object" && !Array.isArray(value)) {
+    const table = value as Record<string, Record<string, string | number>>;
+    return element.rows
+      .map((row) => {
+        const rowValue = table[row.id] ?? {};
+        const unit = row.availableUnits
+          ? ((answers[unitKey(`${element.id}::${row.id}`)] as string | undefined) ?? row.availableUnits[0])
+          : row.unit;
+        const cells = element.columns
+          .map((col) => {
+            const cell = rowValue[col.id];
+            if (cell === undefined || cell === "") return null;
+            const resolved =
+              row.cellType === "seleccion_desplegable" ? (row.options?.find((o) => o.id === cell)?.label ?? String(cell)) : String(cell);
+            return `${col.label}=${resolved}${unit && row.cellType === "numero" ? ` ${unit}` : ""}`;
+          })
+          .filter((c): c is string => c !== null);
+        return cells.length > 0 ? `${row.label}: ${cells.join(", ")}` : null;
+      })
+      .filter((r): r is string => r !== null)
+      .join("; ");
+  }
   return String(value);
 }
 

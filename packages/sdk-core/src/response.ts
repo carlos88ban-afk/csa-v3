@@ -16,7 +16,21 @@ export const evidenceRef = z.object({
 });
 export type EvidenceRef = z.infer<typeof evidenceRef>;
 
-export const answerValue = z.union([z.string(), z.number(), z.array(z.string()), z.array(evidenceRef)]);
+// Respuesta de tabla_datos (VS-024, docs/engines/form.md "Tabla de datos"):
+// mapa anidado rowId -> columnId -> valor de celda, no un array de filas —
+// mismo criterio de mapas keyed-por-id ya usado en todo el motor (answers
+// en sí, las claves sintéticas ::status/::na/::comment/::unit).
+export const tableCellValue = z.union([z.string(), z.number()]);
+export const tableValue = z.record(z.string(), z.record(z.string(), tableCellValue));
+export type TableValue = z.infer<typeof tableValue>;
+
+export const answerValue = z.union([
+  z.string(),
+  z.number(),
+  z.array(z.string()),
+  z.array(evidenceRef),
+  tableValue,
+]);
 export type AnswerValue = z.infer<typeof answerValue>;
 
 export const responseAnswers = z.record(z.string(), answerValue);
@@ -38,6 +52,12 @@ export interface Response {
 export function hasAnswer(value: AnswerValue | undefined): boolean {
   if (value === undefined || value === "") return false;
   if (Array.isArray(value)) return value.length > 0;
+  // tabla_datos (VS-024): un objeto (no array) cuenta como respondido si
+  // alguna celda de alguna fila tiene valor — no exige la tabla completa,
+  // mismo criterio "guarda estado intermedio" del resto del motor.
+  if (typeof value === "object") {
+    return Object.values(value).some((row) => Object.values(row).some((cell) => cell !== undefined && cell !== ""));
+  }
   return true;
 }
 

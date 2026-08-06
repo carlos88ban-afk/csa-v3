@@ -36,6 +36,18 @@ describe("formElement", () => {
       options: [{ id: "usd", label: "USD" }, { id: "pen", label: "PEN" }],
     },
     {
+      type: "tabla_datos",
+      id: "tbl-1",
+      label: "Emisiones GHG Scope 1",
+      columns: [{ id: "fy2023", label: "FY 2023" }, { id: "fy2024", label: "FY 2024" }],
+      rows: [
+        { id: "total", label: "Total Scope 1", cellType: "numero", unit: "met. ton. CO2e" },
+        { id: "coverage", label: "Coverage %", cellType: "numero", availableUnits: ["%"] },
+        { id: "moneda", label: "Moneda", cellType: "seleccion_desplegable", options: [{ id: "usd", label: "USD" }] },
+        { id: "nota", label: "Nota", cellType: "texto", maxLength: 200 },
+      ],
+    },
+    {
       type: "seleccion_unica",
       id: "11",
       label: "¿Aplica?",
@@ -82,6 +94,39 @@ describe("formElement", () => {
 
   it("rechaza numero con availableUnits vacío", () => {
     const result = formElement.safeParse({ id: "1", type: "numero", label: "x", availableUnits: [] });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza tabla_datos sin columns", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "tabla_datos",
+      label: "x",
+      columns: [],
+      rows: [{ id: "r1", label: "Fila", cellType: "texto" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza tabla_datos sin rows", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "tabla_datos",
+      label: "x",
+      columns: [{ id: "c1", label: "Col" }],
+      rows: [],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza una fila de tabla_datos con cellType desconocido", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "tabla_datos",
+      label: "x",
+      columns: [{ id: "c1", label: "Col" }],
+      rows: [{ id: "r1", label: "Fila", cellType: "fecha" }],
+    });
     expect(result.success).toBe(false);
   });
 

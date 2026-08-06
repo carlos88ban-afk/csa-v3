@@ -12,14 +12,14 @@ Orquestación de formularios por metadatos (`../architecture/overview.md`). Resp
 ## Fuera de alcance (explícito)
 
 - Render del formulario para un evaluado respondiendo (Runtime) — M7 (VS-010).
-- Tipos de elemento que dependen de otros motores todavía no construidos: `tabla`, `grid`, `upload`, `evidencia` (necesitan R2 / `engine/components`, M5/M8), `calculado` (`engine/formula`, M10), `condicional` (`engine/rule`, M10).
+- Tipos de elemento que dependen de otros motores todavía no construidos: `grid`, `upload` (necesitan R2 / `engine/components`, M5/M8), `condicional` (`engine/rule`, M10). (`tabla_datos`, `evidencia` y `calculado` ya implementados — VS-024/VS-008/VS-013.)
 - Registry de componentes pluggable/versionado (`engine/components`) — v1 tiene un set fijo de tipos de elemento en código, no un registry externo.
 - Ejecución de las reglas de validación de contenido sobre una respuesta real — solo se definen y se guardan.
 - Colaboración en tiempo real (múltiples editores simultáneos sobre el mismo Subindicador) — fuera de alcance dado NFR-1 (~20 usuarios concurrentes, no necesariamente editando el mismo formulario a la vez). Sin lock ni resolución de conflictos; último autosave gana.
 
 ## Tipos de elemento v1
 
-Subconjunto de `../domain/ubiquitous-language.md` (fila "Elemento") que no depende de motores futuros: **pregunta** (en sus variantes de texto/número/selección), **instrucción**, **banner**, **texto**. El resto (`tabla`, `grid`, `upload`, `URL`, `evidencia`, `calculado`, `repetible`, `condicional`) queda pendiente para M5/M8/M10.
+Subconjunto de `../domain/ubiquitous-language.md` (fila "Elemento") que no depende de motores futuros: **pregunta** (en sus variantes de texto/número/selección/tabla), **instrucción**, **banner**, **texto**. El resto (`grid`, `upload`, `repetible`, `condicional`) queda pendiente para M5/M8/M10.
 
 | `type` | Uso | Config propia |
 |---|---|---|
@@ -32,6 +32,7 @@ Subconjunto de `../domain/ubiquitous-language.md` (fila "Elemento") que no depen
 | `instruccion` | Texto informativo, no captura respuesta | — |
 | `banner` | Aviso destacado, no captura respuesta | `variant: "info" \| "warning"` |
 | `url_publica` | Pregunta de referencias URL públicas (máx. N) | `maxUrls?: number` — ver "Campo URL pública" |
+| `tabla_datos` | Pregunta de tabla filas × columnas (tipo/unidad por fila) | `columns: {id, label}[]`, `rows: {id, label, cellType, unit?, availableUnits?, options?, maxLength?}[]` — ver "Tabla de datos" |
 
 Campos base compartidos por todo elemento:
 
@@ -231,6 +232,108 @@ El bloque agrupado `texto_corto|texto_largo|numero` (`ElementView`) gana, solo p
 
 - **Conversión entre unidades** (ej. mostrar el mismo valor en MWh y GJ simultáneamente, o convertir automáticamente) — el motor solo persiste qué unidad eligió el evaluado, no hace matemática de conversión. Si se necesita, es `engine/formula` (M10), fuera de alcance de este slice.
 - **Validación de que la unidad elegida esté en `availableUnits`** en el servidor — igual criterio que el resto de "Validación de reglas de contenido al guardar" (`persistence.md`): el motor guarda lo que llega, no valida contra la config al escribir.
+
+## Tabla de datos (VS-024)
+
+Gap 9 de `../analysis/csa-sp-global-comparison.md` (sección "Segunda inspección"), el más grande y complejo de los 9 gaps de AN-001: `table.form-table` del portal S&P — filas × columnas (ej. filas = métricas "Total Scope 1"/"Coverage %", columnas = años "FY2022"..."FY2025"+"Target"), cada celda con tipo de dato propio (`data-dpd-type`), unidad y unidades alternativas (`data-dpd-unit`/`data-dpd-available-units`), maxlength/hint. Requiere `seleccion_desplegable` (VS-022) y `unit`/`availableUnits` (VS-023), ya cerrados.
+
+**Decisión de diseño — el tipo de celda se define por fila, no por celda individual.** El DOM del portal S&P expone `data-dpd-type` por `<td>`, pero en los dos sub-cuestionarios inspeccionados (2.6.1, 0.1) el tipo es *siempre uniforme dentro de una fila* (ej. la fila "Total Scope 1" es `Float` con la misma unidad en las 4 columnas de año; la fila "Coverage %" es `Percent` en todas). Modelar el tipo por fila en vez de por celda evita una config combinatoria (filas × columnas) sin caso de uso real observado, y es coherente con la semántica de negocio: una fila **es** una métrica con una unidad, columnas **son** períodos/dimensiones de esa métrica. Si en el futuro aparece un caso real con tipo mixto dentro de una fila, es un cambio aditivo (mover `cellType` de la fila a la celda), no un rediseño — mismo criterio que "un solo nivel de anidamiento" en VS-016.
+
+```ts
+const formTableCellType = z.enum(["texto", "numero", "seleccion_desplegable"]);
+
+const formTableColumn = z.object({
+  id: z.string().min(1),
+  label: z.string(), // encabezado de columna, ej. "FY 2024"
+});
+
+const formTableRow = z.object({
+  id: z.string().min(1),
+  label: z.string(), // encabezado de fila, ej. "Total Scope 1"
+  cellType: formTableCellType,
+  // Config propia de numero (VS-023) y seleccion_desplegable (VS-022),
+  // aplicada a TODAS las celdas de la fila (no reusa questionBase — una fila
+  // no es un Elemento, es una sub-config dentro de uno):
+  unit: z.string().min(1).optional(),               // solo si cellType === "numero"
+  availableUnits: z.array(z.string().min(1)).min(1).optional(), // solo si cellType === "numero"
+  options: z.array(formOption).min(1).optional(),   // solo si cellType === "seleccion_desplegable"
+  maxLength: z.number().int().positive().optional(), // solo si cellType === "texto"
+});
+
+z.object({
+  ...questionBase,
+  type: z.literal("tabla_datos"),
+  columns: z.array(formTableColumn).min(1),
+  rows: z.array(formTableRow).min(1),
+});
+```
+
+`options` en `formTableRow` es estructuralmente opcional en el tipo (zod no puede expresar "requerido solo si cellType === X" dentro de un objeto plano sin un discriminated union anidado, que aquí no vale la complejidad) — el Builder exige `options` no vacío antes de guardar una fila `seleccion_desplegable` como regla de UI, no de schema; **fuera de alcance** una validación cruzada en `formSchema.superRefine` para esto (mismo criterio de costo/beneficio que `unit`/`availableUnits` mutuamente excluyentes en VS-023).
+
+### Respuesta: nueva variante de `AnswerValue` — única vez que se ensancha desde VS-007
+
+Ninguna de las 4 variantes existentes de `answerValue` (`string`, `number`, `string[]`, `EvidenceRef[]`) representa una matriz filas×columnas. Se agrega una quinta: un mapa anidado `rowId → columnId → valor de celda`, **no un array de filas** — mismo criterio ya usado en todo el motor de preferir mapas keyed-por-id a arrays cuando el id ya existe y es estable (`answers` en sí, las claves sintéticas `::status`/`::na`/`::comment`/`::unit`), evita ambigüedad de orden y permite escribir/leer una celda sin reconstruir el array completo.
+
+```ts
+// packages/sdk-core/src/response.ts
+export const tableCellValue = z.union([z.string(), z.number()]);
+export const tableValue = z.record(z.string(), z.record(z.string(), tableCellValue));
+export type TableValue = z.infer<typeof tableValue>;
+
+export const answerValue = z.union([
+  z.string(),
+  z.number(),
+  z.array(z.string()),
+  z.array(evidenceRef),
+  tableValue,
+]);
+```
+
+`hasAnswer` gana una rama: un objeto (no array) cuenta como respondido si **alguna** celda de **alguna** fila tiene un valor no vacío — no exige que la tabla esté completa (mismo criterio "guarda estado intermedio" que el resto del motor).
+
+```ts
+export function hasAnswer(value: AnswerValue | undefined): boolean {
+  if (value === undefined || value === "") return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") {
+    return Object.values(value).some((row) => Object.values(row).some((cell) => cell !== undefined && cell !== ""));
+  }
+  return true;
+}
+```
+
+Ningún otro sitio que consume `AnswerValue` genéricamente (`isAnswered`, `assertPublicResponseUpdateAllowed`, claves sintéticas `::status`/`::na`/`::comment`) necesita cambios — todos operan sobre el mapa `answers` completo o delegan en `hasAnswer`, no inspeccionan la forma interna del valor.
+
+**Sin unidad por celda elegible en runtime** (a diferencia de `numero` suelto en VS-023): si una fila tiene `availableUnits`, el Runtime muestra el `<select>` de unidad **una vez por fila** (no por celda) porque la unidad es propiedad de la métrica, no de la celda individual — la unidad elegida se guarda con la misma clave sintética `unitKey` ya definida en VS-023, aplicada al **id compuesto** `` `${element.id}::${row.id}` `` en vez de `element.id` solo (sigue sin ensanchar `answerValue`, es otra clave sintética más en `answers`).
+
+### `packages/sdk-core/src/component-registry.ts`
+
+Nueva entrada `{ type: "tabla_datos", label: "Tabla de datos", isQuestion: true, version: 1 }`.
+
+### Builder
+
+Dos listas CRUD independientes, mismo patrón ya establecido (`addOption`/`updateOption`/`removeOption` de VS-016/022, `acceptedTypes` de `evidencia`):
+
+- **Columnas**: lista simple de `{id, label}` — igual patrón que `options` de `seleccion_unica` pero sin sub-opciones (solo texto de encabezado).
+- **Filas**: por cada fila, `label` + selector `cellType` (Texto/Número/Selección desplegable) + config condicional según `cellType` (idéntica a la ya construida para el tipo `numero` suelto en VS-023 y `seleccion_desplegable` en VS-022, reutilizada aquí a nivel de fila en vez de a nivel de Elemento) — mismo fix de `onBlur` para el campo `availableUnits` de cada fila (bug encontrado y corregido en VS-023).
+
+No hay editor de celdas en el Builder — las celdas no tienen config propia (el tipo/unidad se hereda de la fila), el Builder solo define la grilla (filas × columnas), el contenido lo llena el evaluado en Runtime.
+
+### Runtime
+
+`<table>` real (accesibilidad: `<caption>` = label del elemento, `<th scope="col">` por columna, `<th scope="row">` por fila) — primera vez que el motor usa una tabla HTML nativa en vez de `<fieldset>`/`<label>`. Cada celda `<td>` renderiza el control según `row.cellType` (mismo control que el tipo suelto equivalente: `<input>` para `texto`/`numero`, `<select>` para `seleccion_desplegable`), leyendo/escribiendo `value[row.id]?.[column.id]` dentro del objeto `TableValue` completo del elemento (`onChange` reconstruye el objeto con la celda actualizada, mismo patrón inmutable que el resto del Runtime). Si `row.availableUnits` está presente, una columna extra al final de la fila (o un `<select>` compartido antes de la fila) para la unidad de esa fila vía `onAnswerChange(unitKey(`${element.id}::${row.id}`), ...)`.
+
+### Exportación (`export.md`)
+
+Una tabla no cabe en una sola celda CSV como texto plano legible sin estructura — `formatAnswer` gana una rama que serializa como `"fila1: col1=v1, col2=v2; fila2: col1=v3, ..."` (mismo separador `"; "` que ya usan `seleccion_multiple`/`url_publica` entre ítems, `", "` dentro de cada fila entre celdas), resolviendo labels de fila/columna (no ids) y agregando la unidad resuelta por fila igual que VS-023 cuando corresponda.
+
+### Fuera de alcance (explícito)
+
+- **Tipo de celda mixto dentro de una fila** — ver "Decisión de diseño" arriba.
+- **Fórmulas/celdas calculadas dentro de la tabla** (ej. un total automático de fila o columna) — `engine/formula` (M10) opera sobre Elementos completos vía `{elementId}`, no sobre celdas individuales de una tabla; fuera de alcance de este slice.
+- **Agregar/quitar filas o columnas desde el Runtime** — la grilla la define el Builder (admin), el evaluado solo llena celdas, igual criterio que el resto de `engine/form` (la estructura del formulario es responsabilidad del admin, no del evaluado).
+- **`visibleIf` a nivel de fila o columna** — las condiciones siguen operando solo sobre Elementos completos, no sobre partes internas de una tabla (mismo alcance ya excluido para sub-opciones en VS-016).
+- **maxlength/hint por celda individual** (mencionado en la inspección DOM del portal) — `maxLength` se modela por fila (aplica a `texto`), igual criterio de "por fila no por celda" que el resto de este gap; un hint de ayuda por fila puede reusar `helpText` del Elemento completo si se necesita, no se agrega un campo nuevo.
 
 ## Contratos (`packages/sdk-core`)
 

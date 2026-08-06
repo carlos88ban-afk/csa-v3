@@ -43,13 +43,23 @@ describe("answerValue", () => {
     expect(answerValue.safeParse([sampleRef]).success).toBe(true);
   });
 
-  it("rechaza un objeto anidado como valor", () => {
+  it("rechaza un objeto de un solo nivel (no matriz fila->columna->valor)", () => {
     const result = answerValue.safeParse({ text: "x" });
     expect(result.success).toBe(false);
   });
 
   it("rechaza un array de números", () => {
     const result = answerValue.safeParse([1, 2, 3]);
+    expect(result.success).toBe(false);
+  });
+
+  it("acepta un valor de tabla_datos (mapa fila->columna->celda, VS-024)", () => {
+    const result = answerValue.safeParse({ total: { fy2023: 120.5, fy2024: "n/d" } });
+    expect(result.success).toBe(true);
+  });
+
+  it("rechaza un valor de tabla_datos con una celda booleana", () => {
+    const result = answerValue.safeParse({ total: { fy2023: true } });
     expect(result.success).toBe(false);
   });
 });
@@ -193,6 +203,24 @@ describe("commentKey", () => {
 describe("unitKey", () => {
   it("retorna la clave sintética con sufijo ::unit", () => {
     expect(unitKey("el-1")).toBe("el-1::unit");
+  });
+});
+
+describe("hasAnswer", () => {
+  it("retorna false para una tabla_datos vacía", () => {
+    expect(hasAnswer({})).toBe(false);
+  });
+
+  it("retorna false para una tabla_datos con filas pero sin celdas llenas", () => {
+    expect(hasAnswer({ total: {} })).toBe(false);
+  });
+
+  it("retorna false para una tabla_datos con una celda vacía", () => {
+    expect(hasAnswer({ total: { fy2023: "" } })).toBe(false);
+  });
+
+  it("retorna true para una tabla_datos con al menos una celda llena", () => {
+    expect(hasAnswer({ total: { fy2023: "", fy2024: 120.5 } })).toBe(true);
   });
 });
 
