@@ -18,6 +18,7 @@ import {
   type ResponseAnswers,
 } from "@plataforma-csa/sdk-core";
 import { use, useEffect, useState } from "react";
+import { renderLiteMarkdown } from "@/lib/lite-markdown";
 import { api } from "@/lib/api-client";
 import { Breadcrumb, Button, Card, Pill } from "@/components/ui";
 
@@ -153,7 +154,12 @@ export default function ReviewPage({ params }: Props) {
                               {questionNumber(qIndex)} {el.label || "(sin texto)"}{" "}
                               <Pill variant={statusVariant(derived)}>{STATUS_LABEL[derived]}</Pill>
                               {markedNA && <Pill variant="warn">N/A</Pill>}
-                              {comment && <p className="runtime-question__help">Comentario confidencial: {comment}</p>}
+                              {comment && (
+                                <p className="comment-preview">
+                                  Comentario confidencial:{" "}
+                                  <span dangerouslySetInnerHTML={{ __html: renderLiteMarkdown(comment) }} />
+                                </p>
+                              )}
                             </span>
                             <span className="entry-list__actions">
                               <Button

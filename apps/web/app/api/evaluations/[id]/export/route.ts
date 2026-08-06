@@ -14,6 +14,7 @@ import {
   type ResponseAnswers,
 } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
+import { stripLiteMarkdown } from "@/lib/lite-markdown";
 
 // Motor engine/export v1 (ver docs/engines/export.md). Autenticado y
 // tenant-scoped (a diferencia de persistence.md/evidences.md): exportar es
@@ -138,7 +139,7 @@ function buildCsv(snapshot: EvaluationSnapshot, answersBySub: Map<string, Respon
             componentRegistry.find((c) => c.type === el.type)?.label ?? el.type,
             formatAnswer(el, answers[el.id], markedNA, answers),
             STATUS_LABEL[derived],
-            (answers[commentKey(el.id)] as string | undefined) ?? "",
+            stripLiteMarkdown((answers[commentKey(el.id)] as string | undefined) ?? ""),
           ]);
         });
       }

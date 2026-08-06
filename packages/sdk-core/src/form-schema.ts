@@ -31,10 +31,20 @@ const questionBase = {
   required: z.boolean().optional(),
 };
 
+// Sub-opciones a 2 niveles (VS-026, docs/engines/form.md "Sub-opciones a 2
+// niveles"): tope fijo en 2, no recursión genérica — subSubOption no tiene
+// su propio subOptions. Sin caso observado de un 3er nivel; aditivo si
+// aparece (repetir el mismo patrón un nivel más), no rediseño.
+const subSubOption = z.object({ id: z.string().min(1), label: z.string() });
+const subOption = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  subOptions: z.array(subSubOption).optional(),
+});
 const formOption = z.object({
   id: z.string().min(1),
   label: z.string(),
-  subOptions: z.array(z.object({ id: z.string().min(1), label: z.string() })).optional(),
+  subOptions: z.array(subOption).optional(),
 });
 
 // Tabla de datos (VS-024, docs/engines/form.md "Tabla de datos"): columnas
@@ -115,6 +125,9 @@ export const formElement = z.discriminatedUnion("type", [
     type: z.literal("banner"),
     label: z.string(),
     variant: z.enum(["info", "warning"]),
+    // Banner expandible/colapsable (VS-025, docs/engines/form.md): default
+    // false — banners existentes sin el campo siguen mostrándose completos.
+    expandable: z.boolean().optional(),
   }),
   z.object({
     ...questionBase,

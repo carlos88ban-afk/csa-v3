@@ -24,6 +24,7 @@ describe("formElement", () => {
     },
     { type: "instruccion", id: "6", label: "Lea con atención" },
     { type: "banner", id: "7", label: "Aviso importante", variant: "warning" },
+    { type: "banner", id: "7b", label: "Aviso largo", variant: "info", expandable: true },
     { type: "evidencia", id: "8", label: "Adjunte su certificado", maxFiles: 3, maxSizeMb: 10, acceptedTypes: ["pdf", "png"] },
     { type: "calculado", id: "9", label: "Total", expression: "{el-1} + {el-2}", decimals: 2 },
     { type: "calculado", id: "10", label: "Total sin decimals", expression: "1 + 1" },
@@ -52,6 +53,21 @@ describe("formElement", () => {
       id: "11",
       label: "¿Aplica?",
       options: [{ id: "si", label: "Sí", subOptions: [{ id: "sub-a", label: "Sub A" }] }],
+    },
+    {
+      type: "seleccion_unica",
+      id: "11b",
+      label: "¿Aplica? (2 niveles)",
+      options: [
+        {
+          id: "si",
+          label: "Sí",
+          subOptions: [
+            { id: "sub-a", label: "Sub A", subOptions: [{ id: "subsub-a1", label: "Sub-sub A1" }] },
+            { id: "sub-b", label: "Sub B" },
+          ],
+        },
+      ],
     },
     {
       type: "seleccion_multiple",
@@ -156,6 +172,22 @@ describe("formElement", () => {
       type: "seleccion_unica",
       label: "Pregunta",
       options: [{ id: "opt-a", label: "Opción A", subOptions: [{ id: "", label: "Sub vacía" }] }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza una sub-opción de 2do nivel con id vacío (VS-026)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [
+        {
+          id: "opt-a",
+          label: "Opción A",
+          subOptions: [{ id: "sub-a", label: "Sub A", subOptions: [{ id: "", label: "Sub-sub vacía" }] }],
+        },
+      ],
     });
     expect(result.success).toBe(false);
   });

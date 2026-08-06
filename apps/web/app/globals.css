@@ -812,6 +812,31 @@ input[type="checkbox"] {
   color: var(--warn);
 }
 
+/* Banner expandible/colapsable (docs/engines/form.md, VS-025). El banner
+   expandible es un <button>, resetea estilos nativos para verse igual que
+   el <p> de un banner no expandible + el caret. */
+.runtime-banner--expandable {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  border: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.runtime-banner__caret {
+  flex-shrink: 0;
+}
+
+.runtime-banner__text--clamped {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
 .runtime-question {
   padding: var(--space-4);
   background: var(--surface-muted);
@@ -892,6 +917,31 @@ input[type="checkbox"] {
 
 .runtime-question__na textarea {
   font-size: var(--text-sm);
+}
+
+/* Comentario confidencial con formato (docs/engines/form.md, VS-028). */
+.rich-toolbar {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.rich-toolbar button {
+  min-width: 2em;
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.comment-preview {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.comment-preview ul {
+  margin: 0;
+  padding-left: var(--space-4);
 }
 
 .runtime-evidence {

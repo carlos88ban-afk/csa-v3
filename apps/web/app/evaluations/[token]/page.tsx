@@ -34,6 +34,8 @@ interface Props {
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 type SnapshotSubindicator = EvaluationSnapshot["dimensions"][number]["indicators"][number]["subindicators"][number];
+type SnapshotIndicator = EvaluationSnapshot["dimensions"][number]["indicators"][number];
+type SnapshotDimension = EvaluationSnapshot["dimensions"][number];
 
 interface FlatSubindicator {
   dimId: string;
@@ -94,6 +96,37 @@ function progressOf(sub: SnapshotSubindicator, answers: ResponseAnswers | undefi
   // una pregunta marcada N/A cuenta como resuelta para el progreso.
   const answered = questions.filter((q) => isAnswered(a[q.id], a[naKey(q.id)] as string | undefined)).length;
   return { answered, total: questions.length };
+}
+
+// Estado por nodo en el árbol (VS-027, docs/engines/persistence.md):
+// agregación derivada, no persistida — mismo criterio que la numeración
+// (VS-021). Progreso de un Indicador/Dimensión = suma de answered/total de
+// sus descendientes, no un estado nuevo en `packages/db`.
+function indicatorProgress(ind: SnapshotIndicator, answersBySub: Record<string, ResponseAnswers>) {
+  return ind.subindicators.reduce(
+    (acc, sub) => {
+      const p = progressOf(sub, answersBySub[sub.id]);
+      return { answered: acc.answered + p.answered, total: acc.total + p.total };
+    },
+    { answered: 0, total: 0 },
+  );
+}
+
+function dimensionProgress(dim: SnapshotDimension, answersBySub: Record<string, ResponseAnswers>) {
+  return dim.indicators.reduce(
+    (acc, ind) => {
+      const p = indicatorProgress(ind, answersBySub);
+      return { answered: acc.answered + p.answered, total: acc.total + p.total };
+    },
+    { answered: 0, total: 0 },
+  );
+}
+
+function progressState(p: { answered: number; total: number }): "" | "neutral" | "accent" | "good" {
+  if (p.total === 0) return "";
+  if (p.answered === 0) return "neutral";
+  if (p.answered === p.total) return "good";
+  return "accent";
 }
 
 export default function PublicEvaluationPage({ params }: Props) {
@@ -287,41 +320,48 @@ export default function PublicEvaluationPage({ params }: Props) {
           <Pill variant="accent">{globalProgress}% completado</Pill>
         </div>
 
-        {snapshot.dimensions.map((dim, dimIndex) => (
-          <div key={dim.id} className="runtime-nav__dim">
-            <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(dim.id)}>
-              <span className="runtime-nav__caret">{collapsed.has(dim.id) ? "▸" : "▾"}</span>
-              {dimensionNumber(dimIndex)} {dim.title}
-            </button>
+        {snapshot.dimensions.map((dim, dimIndex) => {
+          const dimState = progressState(dimensionProgress(dim, answersBySub));
+          return (
+            <div key={dim.id} className="runtime-nav__dim">
+              <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(dim.id)}>
+                <span className="runtime-nav__caret">{collapsed.has(dim.id) ? "▸" : "▾"}</span>
+                <span className={`tree-dot${dimState ? ` tree-dot--${dimState}` : ""}`} />
+                {dimensionNumber(dimIndex)} {dim.title}
+              </button>
 
-            {!collapsed.has(dim.id) &&
-              dim.indicators.map((ind, indIndex) => (
-                <div key={ind.id} className="runtime-nav__ind">
-                  <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(ind.id)}>
-                    <span className="runtime-nav__caret">{collapsed.has(ind.id) ? "▸" : "▾"}</span>
-                    {indicatorNumber(dimIndex, indIndex)} {ind.title}
-                  </button>
+              {!collapsed.has(dim.id) &&
+                dim.indicators.map((ind, indIndex) => {
+                  const indState = progressState(indicatorProgress(ind, answersBySub));
+                  return (
+                    <div key={ind.id} className="runtime-nav__ind">
+                      <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(ind.id)}>
+                        <span className="runtime-nav__caret">{collapsed.has(ind.id) ? "▸" : "▾"}</span>
+                        <span className={`tree-dot${indState ? ` tree-dot--${indState}` : ""}`} />
+                        {indicatorNumber(dimIndex, indIndex)} {ind.title}
+                      </button>
 
-                  {!collapsed.has(ind.id) &&
-                    ind.subindicators.map((sub, subIndex) => {
-                      const p = progressOf(sub, answersBySub[sub.id]);
-                      const state = p.total === 0 ? "" : p.answered === 0 ? "neutral" : p.answered === p.total ? "good" : "accent";
-                      return (
-                        <button
-                          key={sub.id}
-                          type="button"
-                          className={`runtime-nav__sub${sub.id === activeId ? " runtime-nav__sub--active" : ""}`}
-                          onClick={() => setActiveId(sub.id)}
-                        >
-                          <span className={`tree-dot${state ? ` tree-dot--${state}` : ""}`} />
-                          {subindicatorNumber(dimIndex, indIndex, subIndex)} {sub.title}
-                        </button>
-                      );
-                    })}
-                </div>
-              ))}
-          </div>
-        ))}
+                      {!collapsed.has(ind.id) &&
+                        ind.subindicators.map((sub, subIndex) => {
+                          const state = progressState(progressOf(sub, answersBySub[sub.id]));
+                          return (
+                            <button
+                              key={sub.id}
+                              type="button"
+                              className={`runtime-nav__sub${sub.id === activeId ? " runtime-nav__sub--active" : ""}`}
+                              onClick={() => setActiveId(sub.id)}
+                            >
+                              <span className={`tree-dot${state ? ` tree-dot--${state}` : ""}`} />
+                              {subindicatorNumber(dimIndex, indIndex, subIndex)} {sub.title}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  );
+                })}
+            </div>
+          );
+        })}
       </nav>
 
       <div className="runtime-content">
@@ -440,26 +480,43 @@ function SubOptionsView({
   value,
   onChange,
   locked,
+  answers,
+  onAnswerChange,
 }: {
   subKey: string;
-  subOptions: { id: string; label: string }[];
+  subOptions: { id: string; label: string; subOptions?: { id: string; label: string }[] | undefined }[];
   value: AnswerValue | undefined;
   onChange: (value: string[]) => void;
-  locked?: boolean;
+  locked?: boolean | undefined;
+  answers: ResponseAnswers;
+  onAnswerChange: (key: string, value: AnswerValue) => void;
 }) {
   const selected = Array.isArray(value) && typeof value[0] === "string" ? (value as string[]) : [];
   return (
     <div className="sub-options runtime-options" key={subKey}>
       {subOptions.map((sub) => (
-        <label key={sub.id} className="field--checkbox">
-          <input
-            type="checkbox"
-            disabled={locked}
-            checked={selected.includes(sub.id)}
-            onChange={(e) => onChange(e.target.checked ? [...selected, sub.id] : selected.filter((id) => id !== sub.id))}
-          />
-          {sub.label}
-        </label>
+        <div key={sub.id}>
+          <label className="field--checkbox">
+            <input
+              type="checkbox"
+              disabled={locked}
+              checked={selected.includes(sub.id)}
+              onChange={(e) => onChange(e.target.checked ? [...selected, sub.id] : selected.filter((id) => id !== sub.id))}
+            />
+            {sub.label}
+          </label>
+          {selected.includes(sub.id) && sub.subOptions && sub.subOptions.length > 0 && (
+            <SubOptionsView
+              subKey={`${subKey}::${sub.id}`}
+              subOptions={sub.subOptions}
+              value={answers[`${subKey}::${sub.id}`]}
+              onChange={(next) => onAnswerChange(`${subKey}::${sub.id}`, next)}
+              locked={locked}
+              answers={answers}
+              onAnswerChange={onAnswerChange}
+            />
+          )}
+        </div>
       ))}
     </div>
   );
@@ -636,6 +693,28 @@ function CalculadoView({
       {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
       <input value={display} disabled readOnly placeholder="(sin calcular)" />
     </label>
+  );
+}
+
+// Banner expandible/colapsable (VS-025, docs/engines/form.md): arranca
+// colapsado (una línea, clamp por CSS) cuando expandable es true. Estado
+// local, no persistido — es preferencia de lectura de la sesión, mismo
+// criterio que `collapsed` del árbol de navegación.
+function BannerView({ element }: { element: Extract<FormElement, { type: "banner" }> }) {
+  const [expanded, setExpanded] = useState(!element.expandable);
+  if (!element.expandable) {
+    return <p className={`runtime-banner runtime-banner--${element.variant}`}>{element.label}</p>;
+  }
+  return (
+    <button
+      type="button"
+      className={`runtime-banner runtime-banner--${element.variant} runtime-banner--expandable`}
+      aria-expanded={expanded}
+      onClick={() => setExpanded((e) => !e)}
+    >
+      <span className="runtime-banner__caret">{expanded ? "▾" : "▸"}</span>
+      <span className={expanded ? undefined : "runtime-banner__text--clamped"}>{element.label}</span>
+    </button>
   );
 }
 
@@ -843,6 +922,12 @@ function StatusRow({
 // N/A + comentario confidencial (VS-019, docs/engines/persistence.md):
 // universales a todo tipo de pregunta, sin config nueva en el Builder.
 // "Confidencial" es una etiqueta de UI, no control de acceso — ver doc.
+// Comentario confidencial con formato (VS-028, docs/engines/form.md): el
+// campo sigue siendo un <textarea> plano (sin contentEditable, sin
+// dependencia de editor rico) — los 3 botones envuelven/prefijan la
+// selección actual con la sintaxis mínima reconocida por
+// `renderLiteMarkdown` (negrita/itálica/lista), que se renderiza formateada
+// solo en la página de Revisión (lectura administrativa).
 function NaCommentRow({
   elementId,
   markedNA,
@@ -854,6 +939,29 @@ function NaCommentRow({
   comment: string;
   onAnswerChange: (key: string, value: AnswerValue) => void;
 }) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  function wrapSelection(marker: string) {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const next = comment.slice(0, start) + marker + comment.slice(start, end) + marker + comment.slice(end);
+    onAnswerChange(commentKey(elementId), next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(start + marker.length, end + marker.length);
+    });
+  }
+
+  function prefixLine() {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const lineStart = comment.lastIndexOf("\n", start - 1) + 1;
+    onAnswerChange(commentKey(elementId), comment.slice(0, lineStart) + "- " + comment.slice(lineStart));
+  }
+
   return (
     <div className="runtime-question__na">
       <label className="field--checkbox">
@@ -864,15 +972,27 @@ function NaCommentRow({
         />
         No aplica
       </label>
-      <label className="field">
+      <div className="field">
         <span className="field__label">Comentario confidencial</span>
+        <div className="rich-toolbar" role="toolbar" aria-label="Formato del comentario">
+          <button type="button" onClick={() => wrapSelection("**")} aria-label="Negrita">
+            <strong>B</strong>
+          </button>
+          <button type="button" onClick={() => wrapSelection("*")} aria-label="Itálica">
+            <em>I</em>
+          </button>
+          <button type="button" onClick={prefixLine} aria-label="Lista">
+            •
+          </button>
+        </div>
         <textarea
+          ref={textareaRef}
           value={comment}
           maxLength={5000}
           rows={2}
           onChange={(e) => onAnswerChange(commentKey(elementId), e.target.value)}
         />
-      </label>
+      </div>
     </div>
   );
 }
@@ -883,7 +1003,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
   }
 
   if (element.type === "banner") {
-    return <p className={`runtime-banner runtime-banner--${element.variant}`}>{element.label}</p>;
+    return <BannerView element={element} />;
   }
 
   if (element.type === "calculado") {
@@ -1096,6 +1216,8 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                   value={answers[`${element.id}::${opt.id}`]}
                   onChange={(next) => onAnswerChange(`${element.id}::${opt.id}`, next)}
                   locked={locked}
+                  answers={answers}
+                  onAnswerChange={onAnswerChange}
                 />
               )}
             </div>
@@ -1128,6 +1250,8 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                       value={answers[`${element.id}::${opt.id}`]}
                       onChange={(next) => onAnswerChange(`${element.id}::${opt.id}`, next)}
                       locked={locked}
+                      answers={answers}
+                      onAnswerChange={onAnswerChange}
                     />
                   )}
                 </div>
