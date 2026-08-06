@@ -4,6 +4,16 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-018 — Estado por pregunta + flujo Approved/Submitted (2026-08-05)
+
+- Gap 3 de AN-001. Alcance completo pedido por el usuario (no la versión mínima descartada en la decisión de diseño): 5 estados por pregunta — `not_started`/`in_progress` derivados (nunca se persisten), `completed`/`approved`/`submitted` explícitos con clave sintética `${elementId}::status` en el mismo mapa `answers` (cero cambios de schema en `packages/db`, mismo patrón que VS-016/VS-017).
+- Tensión resuelta explícitamente con la "Decisión central" de `persistence.md` (sin identidad de evaluado): el lado público solo puede marcar `completed`; `Approved`/`Submitted` son una acción nueva, **autenticada y tenant-scoped** (`requireWriteAccess`, owner/editor — reutiliza 100% el RBAC de VS-014 en vez de inventar identidad de evaluado).
+- Integridad real, no solo de UI: `assertPublicResponseUpdateAllowed` (`packages/sdk-core/src/response.ts`) rechaza con 403 `element_LOCKED` cualquier intento —incluso vía `fetch`/`curl` directo, verificado en producción bypaseando la UI— de fabricar un `approved`/`submitted` desde el lado público, o de editar la respuesta de un elemento ya aprobado/enviado.
+- `packages/db`: `getResponse` (nuevo lookup de una fila) y `setElementStatus` (mergea la clave de estado sin pisar el resto de `answers`). 2 tests de integración nuevos contra Neon real.
+- `apps/web`: página nueva de Revisión (`/frameworks/[frameworkId]/evaluations/[evaluationId]/review`, link "Revisar" en la página de Framework) con Aprobar/Enviar/Revertir; Runtime público gana botón "Marcar como completo", `Pill` de estado, y bloqueo real de inputs (texto/número/selección/evidencia/URL pública) cuando `approved`/`submitted` — editar una respuesta `completed` la regresa a `in_progress` en vez de dejar una marca obsoleta. Export CSV gana columna "Estado".
+- sdk-core (`response.ts`: `elementStatus`, `deriveStatus`, `statusKey`, `LockedElementError`, `assertPublicResponseUpdateAllowed`) delegado a OpenCode — contrato completo ya escrito en el doc antes de delegar, correcto a la primera. `packages/db`/`apps/web` (rutas, RBAC, UI, integración) implementados directamente.
+- Verificado end-to-end en producción: framework de prueba con una pregunta `texto_corto` — Runtime marca "Completado", Revisión aprueba y envía (botones se habilitan/deshabilitan según el estado), lado público queda bloqueado visualmente (`disabled`) y a nivel servidor (dos intentos de bypass vía `fetch` directo devolvieron 403 `element_LOCKED`), "Revertir" baja `submitted→approved` correctamente, CSV exportado confirma columna "Estado" = "Enviado". Datos de prueba limpiados.
+
 ### VS-017 — Campo URL pública, máx. N por pregunta (2026-08-05)
 
 - Gap 2 de AN-001. `docs/engines/form.md`, sección "Campo URL pública (VS-017)": nuevo tipo de Elemento `url_publica` (`maxUrls?`, default 3), complementario a `evidencia` (archivos vs. referencias externas). Respuesta reutiliza la variante `string[]` ya existente de `answerValue` — cero cambios en `response.ts`.

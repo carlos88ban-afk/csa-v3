@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-05 - VS-018: Estado por pregunta + flujo Approved/Submitted
+- **Status**: Completed
+- **Description**: Gap 3 de AN-001, alcance completo (no versión mínima). 5 estados por pregunta (2 derivados, 3 explícitos con clave sintética `::status`). Approved/Submitted son una acción nueva autenticada (`requireWriteAccess`, reutiliza RBAC de VS-014) — el lado público sin sesión solo puede marcar `completed`, con resguardo server-side (`assertPublicResponseUpdateAllowed`) que bloquea fabricar aprobaciones incluso vía fetch directo.
+- **Notes**: sdk-core delegado a OpenCode (contrato completo en el doc), `packages/db`/`apps/web` hechos directamente (RBAC, rutas, página de Revisión nueva). Verificado end-to-end en producción incluyendo intento real de bypass del resguardo del servidor (403 confirmado). Ver `docs/engines/persistence.md` sección "Estado por pregunta + flujo Approved/Submitted (VS-018)".
+
 ### 2026-08-05 - VS-017: Campo URL pública (máx. N por pregunta)
 - **Status**: Completed
 - **Description**: Gap 2 de AN-001. Nuevo tipo de Elemento `url_publica` (`maxUrls?`, default 3), complementario a `evidencia`. Respuesta reutiliza `string[]` de `answerValue`, sin cambios en `response.ts`. Slots vacíos nunca se persisten.
