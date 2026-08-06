@@ -299,6 +299,46 @@ Revierte `answersBySub[subindicatorActivo]` a `lastSavedBySub[subindicatorActivo
 
 Barra superior del Runtime (`.runtime-topbar`, junto al indicador de estado ya existente): tres botones — `Guardar` (deshabilitado si no hay cambios pendientes respecto a `lastSavedBySub`), `Cancelar` y `Restablecer` (ambos deshabilitados en el mismo caso, mismo criterio). "¿Hay cambios pendientes?" se calcula comparando `answersBySub[activo]` contra `lastSavedBySub[activo]` (comparación superficial de JSON — el tamaño del mapa de respuestas de un Subindicador es chico, no justifica una librería de diff).
 
+## Estado por nodo en el árbol (VS-027)
+
+Ajuste menor de `../analysis/csa-sp-global-comparison.md` ("Segunda inspección"): S&P marca estado de completitud (`status0..status4`) en **cada nodo del árbol**, ramas incluidas — la plataforma hoy solo pinta el punto de color (`tree-dot`) en los Subindicadores (hojas, ver `progressOf` en "UI (Runtime)" arriba); Dimensión e Indicador no tienen ningún indicador visual de progreso, solo el caret de colapsar/expandir.
+
+**No es un estado nuevo persistido — es agregación derivada de lo que ya existe**, mismo criterio que la numeración (VS-021, "derivada, no persistida"): el progreso de un Indicador es la suma de `answered`/`total` de sus Subindicadores; el de una Dimensión, la suma de sus Indicadores. Cero cambios en `packages/db`/`response.ts` — es una función de agregación sobre datos que el cliente ya tiene cargados (`answersBySub` completo, hidratado al montar).
+
+```ts
+// apps/web/app/evaluations/[token]/page.tsx — junto a progressOf ya existente
+// (progressOf vive en el Runtime, no en sdk-core, desde VS-010; se mantiene
+// ahí por consistencia, no se relocaliza a sdk-core solo para este slice).
+function indicatorProgress(ind: SnapshotIndicator, answersBySub: Record<string, ResponseAnswers>) {
+  return ind.subindicators.reduce(
+    (acc, sub) => {
+      const p = progressOf(sub, answersBySub[sub.id]);
+      return { answered: acc.answered + p.answered, total: acc.total + p.total };
+    },
+    { answered: 0, total: 0 },
+  );
+}
+
+function dimensionProgress(dim: SnapshotDimension, answersBySub: Record<string, ResponseAnswers>) {
+  return dim.indicators.reduce(
+    (acc, ind) => {
+      const p = indicatorProgress(ind, answersBySub);
+      return { answered: acc.answered + p.answered, total: acc.total + p.total };
+    },
+    { answered: 0, total: 0 },
+  );
+}
+```
+
+### UI
+
+Árbol de navegación (`.runtime-nav`): los botones de Dimensión e Indicador (hoy solo caret + número + título) ganan el mismo `tree-dot` que ya usan los Subindicadores, calculado con `dimensionProgress`/`indicatorProgress` y el mismo criterio de 3 estados (`total === 0` → sin punto; `answered === 0` → `neutral`; `answered === total` → `good`; si no, `accent`). Sin cambio de layout — el punto se agrega al lado del caret existente, mismo patrón visual que ya usan los Subindicadores.
+
+### Fuera de alcance (explícito)
+
+- **Estado por nodo en la página de Revisión** (`review/page.tsx`) o en el Builder — el gap observado en S&P es específicamente del árbol de navegación del Runtime; Revisión ya muestra estado por pregunta individual (VS-018) y el Builder no tiene árbol (`../domain/evaluation-hierarchy.md`, "Fuera de alcance"). Aditivo si se pide.
+- **Los 5 estados de S&P (`status0..status4`) por nodo** — igual que el resto del motor, la plataforma usa el criterio de 3 colores ya establecido (`neutral`/`accent`/`good`) derivado de progreso, no el flujo completo Approved/Submitted (VS-018) a nivel de rama — ese flujo sigue siendo exclusivamente por pregunta.
+
 ## Testing
 
 Mismo patrón que VS-007/VS-009:

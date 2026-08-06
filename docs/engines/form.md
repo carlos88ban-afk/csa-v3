@@ -30,7 +30,7 @@ Subconjunto de `../domain/ubiquitous-language.md` (fila "Elemento") que no depen
 | `seleccion_multiple` | Pregunta de opción múltiple (checkbox) | `options: {id, label, subOptions?}[]`, `minSelected?`, `maxSelected?` — ver "Opciones anidadas" |
 | `seleccion_desplegable` | Pregunta de opción única (dropdown) | `options: {id, label, subOptions?}[]` — ver "Select dropdown" |
 | `instruccion` | Texto informativo, no captura respuesta | — |
-| `banner` | Aviso destacado, no captura respuesta | `variant: "info" \| "warning"` |
+| `banner` | Aviso destacado, no captura respuesta | `variant: "info" \| "warning"`, `expandable?: boolean` — ver "Banner expandible" |
 | `url_publica` | Pregunta de referencias URL públicas (máx. N) | `maxUrls?: number` — ver "Campo URL pública" |
 | `tabla_datos` | Pregunta de tabla filas × columnas (tipo/unidad por fila) | `columns: {id, label}[]`, `rows: {id, label, cellType, unit?, availableUnits?, options?, maxLength?}[]` — ver "Tabla de datos" |
 
@@ -95,8 +95,45 @@ Esto es deliberado: `responseAnswers = z.record(string, answerValue)` ya acepta 
 ### Fuera de alcance (explícito)
 
 - **Exportación CSV de sub-opciones** (`export.md`): v1 de este gap no agrega columnas nuevas al CSV — sigue resolviendo solo la opción del padre. Aditivo para un slice futuro si se pide.
-- **Sub-opciones recursivas (2+ niveles)** — ver arriba.
+- **Sub-opciones recursivas (2+ niveles)** — resuelto en VS-026, ver abajo.
 - **`visibleIf` sobre una sub-opción específica** — las condiciones siguen operando solo sobre elementos (`elementId`), no sobre sub-opciones dentro de un elemento.
+
+## Sub-opciones a 2 niveles (VS-026)
+
+Ajuste menor de `../analysis/csa-sp-global-comparison.md` ("Segunda inspección"): el sub-cuestionario 2.6.1 del portal S&P usa sub-opciones anidadas a 2 niveles (ej. "Sí, la empresa mide sus emisiones" → tabla → checkboxes de declaración). VS-016 dejó `subOptions` explícitamente no-recursivo ("aditivo si aparece un caso real de 2 niveles, no un rediseño") — este slice agrega ese segundo nivel, **fijo en 2, no recursión genérica**: no hay caso observado de un 3er nivel, y el proyecto evita diseñar para hipotéticos (`CLAUDE.md`).
+
+```ts
+const subSubOption = z.object({ id: z.string().min(1), label: z.string() });
+const subOption = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  subOptions: z.array(subSubOption).optional(), // 2do nivel, sin su propio subOptions — tope explícito
+});
+const formOption = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  subOptions: z.array(subOption).optional(), // 1er nivel, ahora tipado como subOption (antes era subSubOption)
+});
+```
+
+Cambio de forma: antes `formOption.subOptions` era `{id,label}[]`, ahora es `{id,label,subOptions?}[]` — **compatible hacia atrás**: cualquier `formOption` existente sin 2do nivel (`subOptions` de sub-opciones ausente/vacío) sigue siendo válido tal cual, zod no exige el campo nuevo.
+
+### Respuesta del 3er nivel: misma convención de clave sintética, un `::` más
+
+Mismo patrón que VS-016 (`${elementId}::${optionId}` → `string[]`), extendido un nivel: `` `${elementId}::${optionId}::${subOptionId}` `` → `string[]` (ids de sub-sub-opciones marcadas). Sigue **sin cambios en `response.ts`** (ninguna clave sintética de este patrón tiene función dedicada — ni la de VS-016 la tiene, se construye inline en el Runtime — se mantiene la misma convención por consistencia, no se introduce una función nueva solo para este nivel).
+
+### Builder
+
+`addSubOption`/`updateSubOption`/`removeSubOption` (VS-016) ganan sus equivalentes de 2do nivel — `addSubSubOption`/`updateSubSubOption`/`removeSubSubOption` — mismo patrón CRUD exacto, un nivel más de indexación (`elementId, optionId, subOptionId` en vez de `elementId, optionId`). JSX: cada fila de sub-opción (`.option-row--sub`) gana su propia lista anidada de sub-sub-opciones con el mismo estilo visual sangrado un nivel más (`.option-row--subsub`).
+
+### Runtime
+
+`SubOptionsView` (componente ya existente, VS-016) se vuelve auto-referencial una vez: al marcar una sub-opción que tiene su propio `subOptions`, se renderiza otro `SubOptionsView` anidado debajo (mismo componente, no uno nuevo) leyendo/escribiendo la clave de 3er nivel. Esto exige que `SubOptionsView` reciba `answers`/`onAnswerChange` completos (hoy solo recibe `value`/`onChange` de su propio nivel) para poder resolver la clave del nivel hijo. El tope de 2 niveles lo impone el tipo de dato (`subSubOption` no tiene `subOptions`), no un límite artificial en el componente — la recursión simplemente no tiene dónde seguir.
+
+### Fuera de alcance (explícito)
+
+- **3er nivel de sub-opciones o recursión genérica** — sin caso observado, ver "Decisión de diseño" de VS-016. Si aparece, es aditivo (repetir el mismo patrón un nivel más), no un rediseño.
+- **Exportación CSV del 2do nivel** — mismo alcance que VS-016, no se agrega.
 
 ## Campo URL pública (VS-017)
 
@@ -334,6 +371,64 @@ Una tabla no cabe en una sola celda CSV como texto plano legible sin estructura 
 - **Agregar/quitar filas o columnas desde el Runtime** — la grilla la define el Builder (admin), el evaluado solo llena celdas, igual criterio que el resto de `engine/form` (la estructura del formulario es responsabilidad del admin, no del evaluado).
 - **`visibleIf` a nivel de fila o columna** — las condiciones siguen operando solo sobre Elementos completos, no sobre partes internas de una tabla (mismo alcance ya excluido para sub-opciones en VS-016).
 - **maxlength/hint por celda individual** (mencionado en la inspección DOM del portal) — `maxLength` se modela por fila (aplica a `texto`), igual criterio de "por fila no por celda" que el resto de este gap; un hint de ayuda por fila puede reusar `helpText` del Elemento completo si se necesita, no se agrega un campo nuevo.
+
+## Banner expandible/colapsable (VS-025)
+
+Ajuste menor de `../analysis/csa-sp-global-comparison.md` ("Segunda inspección"): el portal S&P usa `banner-expandable` con un triángulo — el banner arranca colapsado (una línea) y se expande al click para mostrar el texto completo. Config aditiva sobre `banner`, sin tipo nuevo ni campo de contenido nuevo (no hay evidencia en la inspección de un campo "resumen" separado del texto completo — se colapsa/expande el mismo `label`).
+
+```ts
+z.object({
+  ...formElementBase,
+  type: z.literal("banner"),
+  label: z.string(),
+  variant: z.enum(["info", "warning"]),
+  expandable: z.boolean().optional(), // default false — banners existentes sin el campo siguen mostrándose completos, sin caret
+});
+```
+
+### Builder
+
+Config de `banner` (junto al selector de `variant`) gana un checkbox `Expandible/colapsable`.
+
+### Runtime
+
+`ElementView`, rama `banner`: si `expandable` es `true`, el banner arranca **colapsado** (una sola línea, `text-overflow: ellipsis` vía CSS, sin truncar el dato guardado — es solo presentación) con un botón caret (▸/▾, mismo patrón visual que el árbol de navegación) que alterna a texto completo. Estado de expandido/colapsado es local al componente (`useState` por elemento, no persistido — es preferencia de lectura de esa sesión, no una respuesta). Si `expandable` es `false`/ausente, comportamiento sin cambios (banner siempre completo, como hoy).
+
+### Fuera de alcance (explícito)
+
+- **Contenido de resumen vs. detalle separados** — el gap observado en S&P no distingue un texto corto colapsado de uno largo expandido, solo colapsa/expande el mismo texto. Si aparece ese caso real, es aditivo (`summary?: string` adicional a `label`), no rediseño.
+- **Persistir el estado expandido/colapsado** — es preferencia de lectura efímera, no una respuesta del evaluado; se resetea a colapsado en cada carga de página, igual criterio que `collapsed` del árbol de navegación (VS-010, tampoco persiste).
+
+## Comentario confidencial con formato (VS-028)
+
+Ajuste menor de `../analysis/csa-sp-global-comparison.md`: el portal S&P usa un editor rich text (Jodit) para el comentario confidencial (VS-019, `commentKey`, hoy `<textarea>` plano). El proyecto no tiene ninguna dependencia de UI de edición de texto instalada (`apps/web/package.json` confirmado) y tiene precedente explícito de evitar dependencias nuevas sin justificar (`../engines/export.md`, CSV manual sin librería). Un editor WYSIWYG real (Jodit/TipTap/Slate) es una dependencia no trivial (bundle, accesibilidad de un `contentEditable`, mantenimiento) para un campo que **no es visible para el evaluado que lo escribe en ningún renderizado especial** — solo se lee de vuelta en la página de Revisión y en el CSV, ambos de solo-lectura administrativa.
+
+**Decisión: markdown-lite hecho a mano, sin dependencia nueva.** `commentKey` sigue guardando `string` — **cero cambios de forma en `response.ts`/`AnswerValue`** — pero ese string ahora puede contener una sintaxis mínima (`**negrita**`, `*itálica*`, líneas que empiezan con `- ` como lista) que el Runtime ofrece escribir vía 3 botones de la barra de herramientas (envuelven/prefijan la selección del `<textarea>`, no reemplazan el textarea por un editor) y que la página de Revisión renderiza formateado con un parser propio de pocas líneas (negrita/itálica/listas únicamente, no un parser de markdown completo — mismo criterio de alcance mínimo que el resto del motor).
+
+```ts
+// apps/web/app/evaluations/[token]/page.tsx (o un módulo compartido si Revisión también lo usa)
+// Subconjunto deliberadamente mínimo: negrita, itálica, listas — no tablas,
+// no links, no headings. Si se necesita más, es aditivo.
+function renderLiteMarkdown(text: string): string { /* … */ }
+```
+
+### Runtime
+
+`NaCommentRow` (VS-019) gana una barra de 3 botones (`B`/`I`/`•`) sobre el `<textarea>` existente, que envuelven la selección actual del textarea con `**`/`*` o prefijan la línea con `- `, sin cambiar el tipo de control (sigue siendo un `<textarea>` nativo, no `contentEditable` — mismo criterio de accesibilidad/simplicidad que el resto del Builder/Runtime, que no usa ningún editor rico en ningún otro campo).
+
+### Página de Revisión (`apps/web/app/frameworks/[frameworkId]/evaluations/[evaluationId]/review/page.tsx`)
+
+El comentario confidencial, hoy mostrado como texto plano (línea `{comment}`), se renderiza con `renderLiteMarkdown` (vía `dangerouslySetInnerHTML` acotado — el parser propio solo emite `<strong>`/`<em>`/`<ul><li>`, nunca HTML arbitrario del usuario, así que no hay superficie de XSS: el texto de entrada nunca se inserta crudo, solo los 3 patrones reconocidos generan tags fijos).
+
+### Exportación (`export.md`)
+
+`formatAnswer`/el export de `Comentario confidencial` en `buildCsv` despoja la sintaxis (`**`/`*`/`- ` al inicio de línea) antes de escribir la celda CSV — un CSV es texto plano, no debe mostrar asteriscos de marcado que el usuario no escribió con intención literal.
+
+### Fuera de alcance (explícito)
+
+- **Editor WYSIWYG real (Jodit/TipTap/etc.)** — ver "Decisión" arriba. Si el equipo decide más adelante que vale la dependencia, es un cambio de implementación (cómo se escribe el string), no de contrato (`commentKey` sigue siendo `string`).
+- **Sintaxis markdown completa** (links, headings, tablas, código) — alcance mínimo deliberado (negrita/itálica/lista), aditivo si se pide más.
+- **Renderizado con formato en el propio Runtime mientras se escribe (preview en vivo)** — el evaluado escribe en el `<textarea>` plano con los 3 botones de ayuda; el renderizado formateado solo aplica en Revisión (lectura administrativa), no hay preview WYSIWYG en tiempo real — evita la complejidad de un split-view sin aportar al caso de uso (el evaluado no necesita ver el resultado formateado, solo el administrador que revisa).
 
 ## Contratos (`packages/sdk-core`)
 
