@@ -512,6 +512,56 @@ function CalculadoView({
   );
 }
 
+// Elemento `url_publica` (docs/engines/form.md, "Campo URL pública VS-017"):
+// hasta maxUrls (default 3) inputs de referencia externa, sin subida de
+// archivo. Slots vacíos nunca se persisten (ver doc) — se filtran recién al
+// escribir en `answers`, así hasAnswer() no cuenta un slot en blanco como
+// respuesta.
+function UrlPublicaView({
+  element,
+  value,
+  onChange,
+}: {
+  element: Extract<FormElement, { type: "url_publica" }>;
+  value: string[] | undefined;
+  onChange: (value: string[]) => void;
+}) {
+  const maxUrls = element.maxUrls ?? 3;
+  const urls = Array.isArray(value) ? value : [];
+  // Slots visibles = respuestas guardadas + un slot vacío extra para seguir
+  // agregando, acotado a maxUrls.
+  const slots = urls.length < maxUrls ? [...urls, ""] : urls;
+
+  function commit(nextSlots: string[]) {
+    onChange(nextSlots.map((s) => s.trim()).filter(Boolean));
+  }
+
+  function updateSlot(index: number, next: string) {
+    const nextSlots = [...slots];
+    nextSlots[index] = next;
+    commit(nextSlots);
+  }
+
+  function removeSlot(index: number) {
+    commit(slots.filter((_, i) => i !== index));
+  }
+
+  return (
+    <div className="runtime-url-list">
+      {slots.map((url, index) => (
+        <div key={index} className="option-row">
+          <input type="url" value={url} placeholder="https://..." onChange={(e) => updateSlot(index, e.target.value)} />
+          {url !== "" && (
+            <button type="button" className="btn btn--danger btn--sm" onClick={() => removeSlot(index)}>
+              Quitar
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ElementView({ token, subindicatorId, element, answers, value, onChange, onAnswerChange }: ElementViewProps) {
   if (element.type === "instruccion") {
     return <p className="runtime-instruction">{element.label}</p>;
@@ -523,6 +573,19 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
 
   if (element.type === "calculado") {
     return <CalculadoView element={element} answers={answers} onChange={(next) => onChange(next)} />;
+  }
+
+  if (element.type === "url_publica") {
+    const urls = Array.isArray(value) && (value.length === 0 || typeof value[0] === "string") ? (value as string[]) : [];
+    return (
+      <fieldset className="field runtime-question">
+        <legend className="field__label">
+          {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
+        </legend>
+        {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
+        <UrlPublicaView element={element} value={urls} onChange={(next) => onChange(next)} />
+      </fieldset>
+    );
   }
 
   if (element.type === "evidencia") {

@@ -49,6 +49,10 @@ function formatAnswer(element: FormElement, value: unknown): string {
     const refs = Array.isArray(value) ? value : [];
     return refs.map((ref) => (ref && typeof ref === "object" && "name" in ref ? String(ref.name) : "")).join("; ");
   }
+  if (element.type === "url_publica") {
+    const urls = Array.isArray(value) ? value : [];
+    return urls.map((url) => String(url)).join("; ");
+  }
   return String(value);
 }
 

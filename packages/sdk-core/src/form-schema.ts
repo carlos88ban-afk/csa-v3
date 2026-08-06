@@ -84,6 +84,11 @@ export const formElement = z.discriminatedUnion("type", [
     maxSizeMb: z.number().positive().optional(),
     acceptedTypes: z.array(z.string().min(1)).optional(),
   }),
+  z.object({
+    ...questionBase,
+    type: z.literal("url_publica"),
+    maxUrls: z.number().int().positive().optional(),
+  }),
   // Sin questionBase: no es una pregunta editada por el evaluado, el
   // Runtime escribe su valor automáticamente (ver docs/engines/formula.md,
   // "isQuestion: true" en component-registry.ts porque participa en

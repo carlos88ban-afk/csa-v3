@@ -67,6 +67,8 @@ function newElement(type: FormElement["type"]): FormElement {
       return { id, type, label: "", variant: "info", componentVersion };
     case "evidencia":
       return { id, type, label: "", componentVersion };
+    case "url_publica":
+      return { id, type, label: "", componentVersion };
     case "calculado":
       return { id, type, label: "", expression: "", componentVersion };
   }
@@ -547,6 +549,23 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
                             e.target.value.trim() === ""
                               ? undefined
                               : e.target.value.split(",").map((s) => s.trim()).filter((s) => s.length > 0),
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+              )}
+              {el.type === "url_publica" && (
+                <div className="field-grid">
+                  <label className="field">
+                    <span className="field__label">Máximo de URLs</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={el.maxUrls ?? ""}
+                      onChange={(e) =>
+                        updateElement(el.id, {
+                          maxUrls: e.target.value === "" ? undefined : Number(e.target.value),
                         })
                       }
                     />

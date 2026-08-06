@@ -25,6 +25,8 @@ describe("formElement", () => {
     { type: "evidencia", id: "8", label: "Adjunte su certificado", maxFiles: 3, maxSizeMb: 10, acceptedTypes: ["pdf", "png"] },
     { type: "calculado", id: "9", label: "Total", expression: "{el-1} + {el-2}", decimals: 2 },
     { type: "calculado", id: "10", label: "Total sin decimals", expression: "1 + 1" },
+    { type: "url_publica", id: "url-1", label: "Referencias públicas", maxUrls: 3 },
+    { type: "url_publica", id: "url-2", label: "Sin límite explícito" },
     {
       type: "seleccion_unica",
       id: "11",

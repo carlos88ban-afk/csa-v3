@@ -30,6 +30,7 @@ Subconjunto de `../domain/ubiquitous-language.md` (fila "Elemento") que no depen
 | `seleccion_multiple` | Pregunta de opción múltiple (checkbox) | `options: {id, label, subOptions?}[]`, `minSelected?`, `maxSelected?` — ver "Opciones anidadas" |
 | `instruccion` | Texto informativo, no captura respuesta | — |
 | `banner` | Aviso destacado, no captura respuesta | `variant: "info" \| "warning"` |
+| `url_publica` | Pregunta de referencias URL públicas (máx. N) | `maxUrls?: number` — ver "Campo URL pública" |
 
 Campos base compartidos por todo elemento:
 
@@ -94,6 +95,38 @@ Esto es deliberado: `responseAnswers = z.record(string, answerValue)` ya acepta 
 - **Exportación CSV de sub-opciones** (`export.md`): v1 de este gap no agrega columnas nuevas al CSV — sigue resolviendo solo la opción del padre. Aditivo para un slice futuro si se pide.
 - **Sub-opciones recursivas (2+ niveles)** — ver arriba.
 - **`visibleIf` sobre una sub-opción específica** — las condiciones siguen operando solo sobre elementos (`elementId`), no sobre sub-opciones dentro de un elemento.
+
+## Campo URL pública (VS-017)
+
+Gap 2 de `../analysis/csa-sp-global-comparison.md`: en S&P, una pregunta puede pedir hasta 3 referencias de URL pública (evidencia por enlace, complementaria a `evidencia` que son archivos). Se implementa como un tipo de Elemento nuevo, `url_publica` — no una config de `evidencia`, porque conceptualmente son dos formas de evidencia distintas (archivo subido a R2 vs. referencia externa) que ya tienen tratamientos separados en S&P.
+
+```ts
+z.object({
+  ...questionBase,
+  type: z.literal("url_publica"),
+  maxUrls: z.number().int().positive().optional(), // default en Runtime/Builder: 3 (mismo límite observado en S&P)
+});
+```
+
+**Respuesta**: `string[]` — reutiliza la variante ya existente de `answerValue` (la misma que usa `seleccion_multiple`), **cero cambios en `response.ts`**. A diferencia de un campo de texto libre, una entrada vacía a medio escribir NO se guarda en el array — el Runtime filtra strings vacíos/solo-espacios antes de escribir en `answers` (`.filter(Boolean)` sobre el valor recortado). Esto es deliberado: `hasAnswer` (`response.ts`) trata cualquier array no vacío como "respondido", así que un array con un slot en blanco (`[""]`) contaría erróneamente como respuesta — al no persistir slots vacíos, el criterio de progreso/exportación sigue siendo correcto sin tocar `hasAnswer`, que es compartido por todos los tipos de elemento.
+
+No hay validación de formato de URL en el servidor — mismo criterio ya documentado en `persistence.md` ("Validación de reglas de contenido al guardar" fuera de alcance): el motor guarda lo que el evaluado escribe. El Runtime usa `<input type="url">` por slot (hint nativo del navegador, no bloqueante).
+
+### `packages/sdk-core/src/component-registry.ts`
+
+Nueva entrada `{ type: "url_publica", label: "URL pública", isQuestion: true, version: 1 }` — el chequeo de exhaustividad existente (`AssertSameSet`) obliga a agregarla en el mismo cambio que el tipo en `form-schema.ts`.
+
+### Builder
+
+Config del elemento: campo numérico `Máximo de URLs` (`maxUrls`, igual patrón que `maxFiles` de `evidencia`).
+
+### Runtime
+
+Hasta `maxUrls` (default 3) inputs de tipo `url`, con botón "Agregar URL" (deshabilitado al llegar al máximo) y "Quitar" por slot — mismo patrón visual que la lista de Opciones del Builder, no una lista de archivos (no hay subida, es texto).
+
+### Exportación (`export.md`)
+
+`formatAnswer` gana una rama para `url_publica`: igual que `seleccion_multiple`, une el array con `"; "` (sin resolver labels, son URLs literales).
 
 ## Contratos (`packages/sdk-core`)
 
