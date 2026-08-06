@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-06 - AN-001 (2.ª inspección): recorrido completo de Questionnaires CSA 2026
+- **Status**: Completed
+- **Description**: Segunda inspección en vivo del portal S&P (navegador automatizado, cuenta real del usuario, DOM directo). Esta vez árbol completo de Questionnaires: 34 ramas (6 dimensiones + 28 indicadores) y 161 sub-cuestionarios; sub-cuestionarios 0.1, 1.1.1 y 2.6.1 inspeccionados a nivel DOM.
+- **Notes**: Confirmó los 6 gaps cerrados (VS-016 a VS-021) y descubrió **3 gaps nuevos** que el análisis del 05-08 no había visto (solo se había mirado 1.1.1, cualitativo): (1) tabla de datos numéricos `form-table` con tipo/unidad/unidades alternativas/maxlength por celda, (2) select dropdown `sims-select`, (3) unidad configurable por campo numérico. Menores: banner expandible, sub-opciones 2 niveles, rich text Jodit, estado por nodo en el árbol. Jerarquía flexible: sub-cuestionarios pueden colgar directo de la dimensión (0.1, 5.x). Documentado en `docs/analysis/csa-sp-global-comparison.md` sección "Segunda inspección". **Los 3 gaps + menores fueron priorizados por el usuario e ingresados a `docs/BACKLOG.md` ("Siguiente") el 2026-08-06** — sin especificación doc-first todavía (regla rectora: se especifica al abrir el slice).
+
 ### 2026-08-06 - VS-021: Numeración automática (árbol + preguntas)
 - **Status**: Completed
 - **Description**: Gap 6 de AN-001, último gap — cierra los 6 priorizados por el usuario. Numeración derivada por posición de array, no persistida (`dimensionNumber`/`indicatorNumber`/`subindicatorNumber` en `evaluation.ts`, `questionNumber` en `component-registry.ts`, reinicia por Subindicador, `instruccion`/`banner` nunca numeran).

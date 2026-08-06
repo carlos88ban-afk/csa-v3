@@ -1,11 +1,14 @@
 checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000014
 fecha: 2026-08-06
 estado: completo
-slice_actual: ninguno — VS-021 cerrado, los 6 gaps de AN-001 quedan resueltos
+slice_actual: ninguno — VS-021 cerrado; AN-001 2.ª inspección ingresó 3 gaps nuevos a BACKLOG "Siguiente" (sin slice asignado aún)
 
 slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021]
 
 decisiones_del_dia:
+  - AN-001 2.ª inspección en vivo (navegador automatizado, cuenta real): recorrido completo de Questionnaires CSA 2026 — 34 ramas (6 dimensiones + 28 indicadores), 161 sub-cuestionarios, DOM de 0.1/1.1.1/2.6.1. Confirmó los 6 gaps cerrados y halló 3 nuevos: tabla de datos `form-table` (tipo/unidad/unidades alternativas/maxlength por celda), select dropdown `sims-select`, unidad por campo numérico. Menores: banner expandible, sub-opciones 2 niveles, rich text Jodit, estado por nodo en árbol.
+  - Usuario priorizó los 3 gaps nuevos (+ menores como opcional) → ingresados a `docs/BACKLOG.md` "Siguiente" el 2026-08-06. Sin slice asignado: al abrir el slice se redacta la especificación doc-first (regla rectora) antes de implementar.
+  - Hallazgo estructural: el CSA permite sub-cuestionarios colgando directo de la dimensión (0.1, 5.1–5.8) sin indicador intermedio; la plataforma exige indicador — quedó documentado como opcional en el análisis.
   - VS-021 (Numeración automática) cerrado, sexto y último de los 6 gaps de AN-001 priorizados por el usuario el 2026-08-05/06. Con este slice se completa el esfuerzo de cierre de gaps iniciado al comienzo de la sesión.
   - Diseño: numeración **derivada, no persistida** — calculada en tiempo de render a partir del índice del array (mismo criterio que el resto del proyecto: "el índice del array ya es el orden", sin columna `order` redundante). `dimensionNumber`/`indicatorNumber`/`subindicatorNumber` en `packages/sdk-core/src/evaluation.ts`; `questionNumber` en `packages/sdk-core/src/component-registry.ts` (reinicia por Subindicador, solo cuenta Elementos `isQuestion` visibles según `visibleIf`; `instruccion`/`banner` nunca numeran). Cero cambios en `packages/db`.
   - Decisión de alcance explícita: el Builder NO muestra numeración (documentado en `docs/domain/evaluation-hierarchy.md`, sección "Fuera de alcance") — cada página del Builder solo carga su propio nodo + hijos directos, no hermanos/ancestros; numerar ahí exigiría fetches en cascada para un valor bajo.
@@ -30,9 +33,8 @@ archivos_modificados:
   - docs/analysis/csa-sp-global-comparison.md (los 6 gaps marcados resueltos)
 
 proximos_pasos:
-  - Ninguno relacionado a AN-001 — los 6 gaps quedan cerrados y verificados en producción (https://csa-v3-web.vercel.app).
+  - Al retomar, revisar `docs/BACKLOG.md` "Siguiente": los 3 gaps nuevos de AN-001 2.ª inspección (tabla de datos, select dropdown, unidad por celda) son los ítems de mayor prioridad — el primero en abrir slice es el de tabla de datos (requiere select + unidad para paridad completa), con especificación doc-first en `docs/engines/form.md` antes de implementar.
   - Pendiente no bloqueante, sigue en BACKLOG.md ("Siguiente"): proveedor de email/SMTP (ADR) para invitación automática; TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada); tabla de historial de revisiones de `formSchema` si se necesita reconstruir historial fuera de una publicación.
-  - Al retomar trabajo sin un pedido específico del usuario, revisar `docs/ROADMAP.md` y `docs/BACKLOG.md` para el siguiente ítem por prioridad.
 
 bloqueos: []
 

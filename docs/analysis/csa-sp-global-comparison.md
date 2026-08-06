@@ -4,6 +4,8 @@ Fecha: 2026-08-05. Tipo: análisis comparativo (no especificación de implementa
 
 **Actualización 2026-08-06: los 6 gaps identificados fueron priorizados completos por el usuario e implementados como VS-016 a VS-021 — ver tabla de mapeo abajo, todas las filas quedaron en ✅. Detalle de cada slice en `docs/CHANGELOG.md` y `docs/project_notes/issues.md`.**
 
+**Actualización 2026-08-06 (2.ª inspección en vivo, sesión nueva):** se re-inspeccionó el portal con la cuenta real del usuario, esta vez recorriendo la estructura completa de Questionnaires (árbol completo + sub-cuestionarios 0.1 "Denominator - Revenues", 1.1.1 y 2.6.1 "Direct GHG Emissions Scope 1" a nivel DOM). Confirmó los 6 gaps cerrados y **descubrió 3 tipos de elemento que el análisis del 05-08 no había visto** (solo se había inspeccionado el sub-cuestionario 1.1.1): **tabla de datos numéricos (`form-table`)**, **select dropdown (`sims-select`)** y **unidad configurable por celda numérica**. Ver "Segunda inspección (2026-08-06)" abajo.
+
 ## Método
 
 Inspección en vivo del portal (`https://portal.s1.spglobal.com/survey/ui`, sesión real del usuario, cuenta `fernando.ruiz@intercorpretail.pe`): login Okta → dashboard → participación CSA 2026 → tab **Questionnaires** → sub-cuestionario 1.1.1 "Sustainability Reporting Boundaries" (DOM inspeccionado: clases `question-entry`, `banner`, `branch`, `status0..4`, inputs reales). Solo se documenta la sección Questionnaires (Confirmation/Documents fuera de alcance, pedido del usuario).
@@ -55,6 +57,42 @@ Jerarquía exacta: **Dimensión → Criterio (indicador) → Sub-criterio (cuest
 | Multi-respondiente por empresa (flujo Approved/Submit) | Una sesión compartida por enlace (VS-010, decisión explícita); Approved/Submitted resuelto vía RBAC autenticado en vez de identidad de evaluado (VS-018) | ✅ resuelto (VS-018, sin romper la decisión de "sin identidad de evaluado") |
 | Tabs Confirmation/Questionnaires/Documents | — | N/A: gestión de participación del portal, no estructura de evaluación (fuera de pedido) |
 
+## Segunda inspección (2026-08-06, sesión completa de Questionnaires)
+
+Recorrido completo del tab Questionnaires de la participación CSA 2026 de InRetail Perú Corp. (cuenta real `fernando.ruiz@intercorpretail.pe`, navegador automatizado Chrome/151, DOM inspeccionado directamente).
+
+### Estructura del árbol (números reales)
+
+- **34 ramas** (`li.branch`): 6 dimensiones + 28 indicadores. **161 sub-cuestionarios** (`li.question-entry`).
+- Dimensiones: `0 Company Information`, `1 Governance & Economic Dimension` (11 indicadores, 1.1–1.11), `2 Environmental Dimension` (9, 2.1–2.9), `3 Social Dimension` (7, 3.1–3.7), `4 Future Questions (Optional)` (1, 4.1), `5 Feedback Survey`.
+- Numeración exacta `N.N.N` en cada nodo; el sub-cuestionario 0.1 y los 5.x cuelgan **directo de la dimensión sin indicador intermedio** — la jerarquía no es rígida (un nivel 2 es opcional).
+- Cada nodo (rama o hoja) lleva **estado de completitud** `status0..status4` (Not Started / In Progress / Completed / Approved / Submitted) con indicador visual por puntito.
+- Progreso global "% Done" en la barra superior + botón `Start questionnaire` (solo Administrador, ventana de participación seleccionada en Confirmation).
+
+### Sub-cuestionario 1.1.1 (cualitativo) — ya documentado arriba
+
+### Sub-cuestionario 2.6.1 "Direct GHG Emissions (Scope 1)" (cuantitativo)
+
+- Banner expandible `Notice: Full credit is only possible with relevant publicly available evidence` + banner de guía.
+- Pregunta de selección (radio) con **sub-opciones anidadas de 2 niveles** (ej. "Yes, the company tracks its Scope 1 emissions" → tabla → checkboxes de declaración).
+- **`table.form-table`**: filas = métricas (Total Scope 1, Coverage %), columnas = años (FY 2022–2025 + Target), **cada celda con tipo de dato propio** (`data-dpd-type="Float|Percent|Text"`), **unidad por celda** (`data-dpd-unit="met. ton. CO2e"`), **lista de unidades alternativas** (`data-dpd-available-units="met. ton. CO2e, metric tonnes carbon equivalent"`), `data-maxchars`, hint por celda.
+- **Selects dropdown** (`div.sims-select` con `data-dpd-type="List"`) para unidades/porcentajes dentro de la tabla.
+- Checkboxes de declaración (publicly available / third-party verified / normalized / differs), con textarea condicional "provide an explanation" (max 2000 chars) si se marca "differs".
+- Referencias (URL) por sección con `data-ref-type="private"|"public"` y `data-maxrefs="3"`.
+- Opciones finales: N/A, "The information is not available", comentario confidencial (rich text Jodit, max 5000), botones Save/Cancel/Reset (disabled hasta editar).
+
+### Sub-cuestionario 0.1 "Denominator - Revenues"
+
+- Select de **moneda de reporte** (afecta a todo el cuestionario), tabla `form-table` de Revenues por año fiscal, fecha de cierre fiscal (texto con formato), todo con hint `max. N chars`.
+
+### Hallazgos nuevos vs. el análisis del 05-08 (3 gaps adicionales)
+
+1. **Elemento Tabla de datos (`form-table`)** — no existe en la plataforma actual. Filas × columnas (años) con tipo de dato, unidad, unidades alternativas y maxlength por celda. Es el elemento más complejo del CSA y el único sin equivalente ni acercamiento. Un sub-cuestionario como 2.6.1 es *casi enteramente* una tabla.
+2. **Select dropdown (`sims-select`)** — no existe tipo `seleccion_desplegable` (solo radio/checkbox). Se usa para moneda, unidades, porcentajes, dentro y fuera de tablas.
+3. **Unidad por campo numérico** — `numero` no tiene `unit` ni lista de unidades alternativas; el CSA las usa de forma ubicua (met. ton. CO2e, %, moneda, MWh...).
+
+Ajustes menores observados (no bloqueantes): el banner actual no es expandible/colapsable (el CSA sí: `banner-expandable` con triángulo); las sub-opciones de la plataforma son 1 nivel y el CSA usa 2 niveles en casos puntuales; el comentario confidencial del CSA es rich text (Jodit) vs textarea plano actual; en el árbol, el CSA marca estado por *nodo* (ramas incluidas) mientras la plataforma marca estado por pregunta y progreso por subindicador.
+
 ## Veredicto
 
 **Sí se puede construir una evaluación igual de estructurada hoy.** La idea del usuario (admin crea Dimensión → Indicadores con descripción → Subindicadores que son formularios independientes con banners, preguntas y guardado) es exactamente el modelo `Framework → Dimensión → Indicador → Subindicador` ya implementado (VS-004/VS-006/VS-007), y el Runtime ya navega como el portal S&P (árbol colapsable, Prev/Next, puntos de progreso) por referencia visual explícita (VS-010).
@@ -70,4 +108,6 @@ Los gaps para igualar la experiencia S&P eran **aditivos sobre `engine/form`** (
 
 ## Siguientes pasos
 
-Ninguno pendiente de este análisis — los 6 gaps identificados están cerrados y verificados en producción. Ver `docs/CHANGELOG.md` (entradas VS-016 a VS-021) para el detalle de implementación de cada uno.
+La segunda inspección (2026-08-06) confirma que la **arquitectura** (Dimensión → Indicador → Subindicador = formulario) ya está replicada y que los 6 gaps originales están cerrados. Los 3 gaps adicionales (tabla de datos, select dropdown, unidad por celda) son **aditivos sobre `engine/form`** y **fueron priorizados por el usuario e ingresados a `docs/BACKLOG.md` ("Siguiente") el 2026-08-06** — pendientes de especificación doc-first al iniciar su slice (regla rectora). El flujo de login/gestión de participación del portal (Okta, Confirmation, Documents) sigue fuera de alcance: es gestión de participación, no estructura de evaluación.
+
+Para paridad con un sub-cuestionario cuantitativo típico se necesitan los 3 elementos nuevos + banner expandible (menor); con solo los 2 primeros (tabla + select) ya se cubre la mayoría del terreno.
