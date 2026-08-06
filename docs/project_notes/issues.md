@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-05 - VS-017: Campo URL pública (máx. N por pregunta)
+- **Status**: Completed
+- **Description**: Gap 2 de AN-001. Nuevo tipo de Elemento `url_publica` (`maxUrls?`, default 3), complementario a `evidencia`. Respuesta reutiliza `string[]` de `answerValue`, sin cambios en `response.ts`. Slots vacíos nunca se persisten.
+- **Notes**: sdk-core delegado a OpenCode (mecánico), Builder/Runtime/export hechos directamente. Verificado end-to-end en producción (tope de `maxUrls` respetado, persistencia, CSV con URLs unidas por `"; "`). Datos de prueba limpiados. Ver `docs/engines/form.md` sección "Campo URL pública (VS-017)".
+
 ### 2026-08-05 - VS-016: Opciones anidadas en selección única/múltiple
 - **Status**: Completed
 - **Description**: Gap 1 de AN-001. `formOption` gana `subOptions?` (un solo nivel). Sub-opciones marcadas se guardan con clave sintética `${elementId}::${optionId}` en el mismo mapa `answers` — sin cambios en `response.ts`/`rule.ts`/schema DB. Builder con CRUD de sub-opciones, Runtime revela sub-checklist al seleccionar la opción padre.

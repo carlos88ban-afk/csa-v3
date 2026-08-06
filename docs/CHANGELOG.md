@@ -4,6 +4,14 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-017 — Campo URL pública, máx. N por pregunta (2026-08-05)
+
+- Gap 2 de AN-001. `docs/engines/form.md`, sección "Campo URL pública (VS-017)": nuevo tipo de Elemento `url_publica` (`maxUrls?`, default 3), complementario a `evidencia` (archivos vs. referencias externas). Respuesta reutiliza la variante `string[]` ya existente de `answerValue` — cero cambios en `response.ts`.
+- `packages/sdk-core`: `formElement` gana la rama `url_publica`, `component-registry.ts` gana la entrada correspondiente (obligatoria por el chequeo de exhaustividad). Delegado a un subagente de OpenCode (mecánico, doc ya escrito); tests verdes a la primera.
+- Builder: config `Máximo de URLs`. Runtime: `UrlPublicaView`, slots `<input type="url">` acotados a `maxUrls` con "Agregar"/"Quitar"; los slots vacíos nunca se persisten (se filtran antes de escribir en `answers`) para que `hasAnswer()` no cuente un slot en blanco como respuesta.
+- Export CSV (`docs/engines/export.md`): `url_publica` une las URLs con `"; "`, sin resolver labels.
+- Verificado end-to-end en producción: framework de prueba con `maxUrls: 2`, Builder guarda con autosave, Runtime revela un slot extra hasta el tope y deja de ofrecer uno nuevo al llegar a 2, persistencia confirmada tras recargar, CSV exportado vía `fetch` directo confirma el formato `"url1; url2"`. Datos de prueba limpiados.
+
 ### VS-016 — Opciones anidadas en selección única/múltiple (2026-08-05)
 
 - Gap 1 de AN-001. `docs/engines/form.md`, sección "Opciones anidadas (VS-016)": `formOption` gana `subOptions?` opcional (un solo nivel, sin recursión — no se observó un tercer nivel en el portal S&P). Respuesta de sub-opciones marcadas usa clave sintética `` `${elementId}::${optionId}` `` en el mismo mapa `answers` — cero cambios en `response.ts`, `rule.ts` ni el schema de `packages/db`.
