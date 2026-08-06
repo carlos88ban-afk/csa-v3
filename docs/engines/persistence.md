@@ -274,6 +274,31 @@ export function isAnswered(value: AnswerValue | undefined, na: string | undefine
 
 `buildCsv` gana una columna `Comentario confidencial` (después de `Estado`) — vacía si no hay comentario. `formatAnswer` intercepta el caso N/A antes de formatear por tipo (ver arriba, "N/A" literal en vez del valor de `answers[elementId]`).
 
+## Botones Save/Cancel/Reset explícitos (VS-020)
+
+Gap 5 de `../analysis/csa-sp-global-comparison.md`: S&P tiene botones `#saveButton`/`#cancelButton`/`#resetButton` junto al autosave. **Decisión confirmada con el usuario**: `Cancel` y `Reset` tienen el mismo efecto en esta plataforma — ambos vuelven al último estado guardado en el servidor (no hay una noción separada de "vaciar la respuesta"). Se exponen como dos botones igual (mismos labels que S&P, menor fricción para quien ya conoce ese portal), pero comparten una sola implementación.
+
+Esto es **aditivo sobre el autosave existente, no lo reemplaza** — el debounce de 1500ms sigue funcionando igual; los tres botones son control explícito adicional, mismo criterio que el resto de este motor (nunca se quita una capacidad, se agrega encima).
+
+### Estado nuevo en cliente: última foto confirmada por el servidor
+
+Hoy `answersBySub` (estado local) mezcla, sin distinción, "lo que el evaluado está editando" y "lo que ya se guardó" — no hay forma de volver atrás. Se agrega `lastSavedBySub` (un `useRef<Record<subindicatorId, ResponseAnswers>>`, no `useState` — es una caché de lectura, no dispara render por sí sola):
+
+- Se inicializa en el mismo efecto que hidrata `answersBySub` desde `GET .../responses` (la foto del servidor al cargar la página).
+- Se actualiza cada vez que un autosave (automático o forzado por el botón Save) **confirma éxito** — el payload recién guardado pasa a ser la nueva "última foto".
+
+### Save
+
+Fuerza el autosave pendiente ya, sin esperar el debounce — cancela el `setTimeout` activo (si hay) y llama directo a la función de guardado con `answersBySub[activo]`. No cambia la forma de guardar (mismo `PUT`), solo el momento.
+
+### Cancel / Reset (misma función)
+
+Revierte `answersBySub[subindicatorActivo]` a `lastSavedBySub[subindicatorActivo]` (o `{}` si nunca se guardó nada para ese Subindicador) y cancela cualquier autosave pendiente — sin ese segundo paso, el debounce en curso sobreescribiría la reversión 1.5s después con el estado que se acaba de descartar. También limpia la marca de "Subindicador sucio" (`dirtySubRef`) para que el efecto de autosave no dispare un guardado redundante del estado recién revertido (ya es idéntico a lo que el servidor tiene).
+
+### UI
+
+Barra superior del Runtime (`.runtime-topbar`, junto al indicador de estado ya existente): tres botones — `Guardar` (deshabilitado si no hay cambios pendientes respecto a `lastSavedBySub`), `Cancelar` y `Restablecer` (ambos deshabilitados en el mismo caso, mismo criterio). "¿Hay cambios pendientes?" se calcula comparando `answersBySub[activo]` contra `lastSavedBySub[activo]` (comparación superficial de JSON — el tamaño del mapa de respuestas de un Subindicador es chico, no justifica una librería de diff).
+
 ## Testing
 
 Mismo patrón que VS-007/VS-009:

@@ -91,6 +91,11 @@ export default function PublicEvaluationPage({ params }: Props) {
   // ningún cambio local todavía, así el efecto de autosave no dispara al
   // hidratar `answersBySub` desde el GET inicial de respuestas guardadas.
   const dirtySubRef = useRef<string | null>(null);
+  // VS-020 (docs/engines/persistence.md, "Botones Save/Cancel/Reset"): última
+  // foto de `answers` confirmada por el servidor, por Subindicador — permite
+  // que Cancel/Reset vuelvan atrás sin recargar la página. Ref, no state: es
+  // una caché de lectura para los botones, no debe disparar un re-render.
+  const lastSavedBySub = useRef<Record<string, ResponseAnswers>>({});
 
   useEffect(() => {
     api
@@ -113,6 +118,7 @@ export default function PublicEvaluationPage({ params }: Props) {
         // ESTE fetch resuelva, un overwrite ciego perdería esa respuesta. Las
         // ediciones locales (ya en `prev`) son más recientes que la foto
         // guardada, así que ganan por sobre lo recién llegado del servidor.
+        lastSavedBySub.current = map;
         setAnswersBySub((prev) => {
           const merged: Record<string, ResponseAnswers> = { ...map };
           for (const [subId, localAnswers] of Object.entries(prev)) {
@@ -127,6 +133,12 @@ export default function PublicEvaluationPage({ params }: Props) {
   const flat = useMemo(() => (evaluation ? flatten(evaluation.snapshot) : []), [evaluation]);
   const activeIndex = flat.findIndex((f) => f.sub.id === activeId);
   const active = activeIndex >= 0 ? flat[activeIndex] : null;
+  // VS-020: "¿hay cambios pendientes?" — comparación superficial de JSON,
+  // el mapa de answers de un Subindicador es chico (no justifica una
+  // librería de diff). Gatea los tres botones Save/Cancel/Reset.
+  const dirty = active
+    ? JSON.stringify(answersBySub[active.sub.id] ?? {}) !== JSON.stringify(lastSavedBySub.current[active.sub.id] ?? {})
+    : false;
 
   const globalProgress = useMemo(() => {
     let answered = 0;
@@ -139,19 +151,55 @@ export default function PublicEvaluationPage({ params }: Props) {
     return total === 0 ? 0 : Math.round((answered / total) * 100);
   }, [flat, answersBySub]);
 
+  // VS-020: extraído de scheduleAutosave para que el botón "Guardar" pueda
+  // forzar el mismo guardado ya, sin esperar el debounce.
+  async function doSave(subindicatorId: string, answers: ResponseAnswers) {
+    setSaveStatus("saving");
+    setSaveError(null);
+    try {
+      await api.put(`/api/public/evaluations/${token}/responses/${subindicatorId}`, { answers });
+      lastSavedBySub.current[subindicatorId] = answers;
+      setSaveStatus("saved");
+    } catch (err) {
+      setSaveStatus("error");
+      setSaveError(err instanceof Error ? err.message : "No se pudo guardar");
+    }
+  }
+
   function scheduleAutosave(subindicatorId: string, answers: ResponseAnswers) {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    debounceTimer.current = setTimeout(async () => {
-      setSaveStatus("saving");
-      setSaveError(null);
-      try {
-        await api.put(`/api/public/evaluations/${token}/responses/${subindicatorId}`, { answers });
-        setSaveStatus("saved");
-      } catch (err) {
-        setSaveStatus("error");
-        setSaveError(err instanceof Error ? err.message : "No se pudo guardar");
-      }
+    debounceTimer.current = setTimeout(() => {
+      void doSave(subindicatorId, answers);
     }, 1500);
+  }
+
+  function handleSave() {
+    if (!active) return;
+    const subId = active.sub.id;
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
+    }
+    const answers = answersBySub[subId];
+    if (answers) void doSave(subId, answers);
+  }
+
+  // Cancel y Reset son el mismo botón conceptualmente (decisión confirmada
+  // con el usuario, ver docs/engines/persistence.md "Botones Save/Cancel/
+  // Reset VS-020") — ambos vuelven a la última foto confirmada por el
+  // servidor, descartando ediciones locales no guardadas.
+  function handleCancelOrReset() {
+    if (!active) return;
+    const subId = active.sub.id;
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
+    }
+    dirtySubRef.current = null;
+    const saved = lastSavedBySub.current[subId] ?? {};
+    setAnswersBySub((prev) => ({ ...prev, [subId]: saved }));
+    setSaveStatus("idle");
+    setSaveError(null);
   }
 
   // El updater de un setState NO se ejecuta de forma síncrona de manera
@@ -271,6 +319,20 @@ export default function PublicEvaluationPage({ params }: Props) {
             {saveStatus === "saving" && <Pill variant="accent">Guardando…</Pill>}
             {saveStatus === "saved" && <Pill variant="good">Guardado</Pill>}
             {saveStatus === "error" && <Pill variant="warn">Error al guardar</Pill>}
+          </div>
+          {/* VS-020 (docs/engines/persistence.md, "Botones Save/Cancel/Reset"):
+              aditivo sobre el autosave — no lo reemplaza. Cancelar y
+              Restablecer comparten la misma función a propósito. */}
+          <div className="runtime-topbar__actions">
+            <button type="button" className="btn btn--primary btn--sm" onClick={handleSave} disabled={!dirty}>
+              Guardar
+            </button>
+            <button type="button" className="btn btn--secondary btn--sm" onClick={handleCancelOrReset} disabled={!dirty}>
+              Cancelar
+            </button>
+            <button type="button" className="btn btn--secondary btn--sm" onClick={handleCancelOrReset} disabled={!dirty}>
+              Restablecer
+            </button>
           </div>
           <button
             type="button"
