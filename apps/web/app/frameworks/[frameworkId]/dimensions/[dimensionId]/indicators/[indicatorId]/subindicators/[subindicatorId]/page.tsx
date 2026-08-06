@@ -433,9 +433,17 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
                   <label className="field">
                     <span className="field__label">Unidades disponibles (separadas por coma)</span>
                     <input
-                      value={el.availableUnits?.join(", ") ?? ""}
+                      key={el.id}
+                      defaultValue={el.availableUnits?.join(", ") ?? ""}
                       placeholder="ej. MWh, GJ, kWh"
-                      onChange={(e) =>
+                      // onBlur, no onChange: si se parsea/recorta en cada
+                      // tecla, el re-render controlado borra la coma o el
+                      // espacio que el usuario acaba de escribir (split(",")
+                      // sobre un valor sin coma todavía da un solo token, y
+                      // el trim le come el separador antes de que pueda
+                      // completar el siguiente). Confirmado escribiendo a
+                      // mano en producción durante la verificación de VS-023.
+                      onBlur={(e) =>
                         updateElement(el.id, {
                           availableUnits:
                             e.target.value.trim() === ""
