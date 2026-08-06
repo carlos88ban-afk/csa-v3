@@ -42,7 +42,7 @@ organization({
 - **`access-control` custom / permisos granulares por recurso** (ej. "este editor solo puede tocar el Framework X") — ver "Decisión" arriba, v1 es organización-ancha, tres niveles.
 - **Transferencia de titularidad / múltiples `owner`** — el creador de la Organización es su único `owner` en v1.
 - **Envío de invitación por email** — mismo motivo que VS-003, sin proveedor decidido.
-- **Permisos sobre Evidencias/Respuestas del evaluado** — no aplica, esa ruta pública (`persistence.md`/`evidences.md`) no depende de sesión ni de `member.role` en absoluto, por diseño.
+- **Permisos sobre Evidencias/Respuestas del evaluado** — no aplica, esa ruta pública (`persistence.md`/`evidences.md`) no depende de sesión ni de `member.role` en absoluto, por diseño. Matizado en VS-018 (`persistence.md`, "Estado por pregunta + flujo Approved/Submitted"): sigue siendo cierto para la ruta pública en sí, pero la **revisión** (`Approved`/`Submitted`) es una acción nueva y autenticada que sí exige `requireWriteAccess` — no reabre este alcance, agrega una capa nueva al lado de la Organización.
 
 ## Contratos
 

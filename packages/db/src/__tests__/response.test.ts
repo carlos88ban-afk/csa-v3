@@ -6,7 +6,7 @@ import { auth } from "../auth.js";
 import { db } from "../client.js";
 import { createEvaluation, deleteEvaluation } from "../domain/evaluation-service.js";
 import { createDimension, createFramework, createIndicator, createSubindicator, updateSubindicator } from "../domain/service.js";
-import { listResponses, upsertResponse } from "../domain/response-service.js";
+import { getResponse, listResponses, setElementStatus, upsertResponse } from "../domain/response-service.js";
 import { organization, user } from "../schema/auth.js";
 import { dimension, framework, indicator, subindicator } from "../schema/domain.js";
 import { evaluation } from "../schema/evaluation.js";
@@ -113,5 +113,30 @@ describe("VS-010 — engine/persistence (contra Neon real)", () => {
     const all = await listResponses(ev.id);
     expect(all).toHaveLength(1);
     expect(all[0]!.answers).toEqual({ "el-1": refs });
+  });
+
+  it("getResponse devuelve null si no hay Respuesta todavía, y la fila una vez creada", async () => {
+    const { ev, subindicatorId } = await publishedEvaluationWithSubindicator("get-response");
+
+    expect(await getResponse(ev.id, subindicatorId)).toBeNull();
+
+    await upsertResponse(ev.id, subindicatorId, { "el-1": "algo" });
+    const row = await getResponse(ev.id, subindicatorId);
+    expect(row?.answers).toEqual({ "el-1": "algo" });
+  });
+
+  it("setElementStatus (VS-018) escribe la clave sintética ::status sin pisar el resto de answers, y null la borra", async () => {
+    const { ev, subindicatorId } = await publishedEvaluationWithSubindicator("status");
+
+    await upsertResponse(ev.id, subindicatorId, { "el-1": "una respuesta" });
+
+    const approved = await setElementStatus(ev.id, subindicatorId, "el-1", "approved");
+    expect(approved.answers).toEqual({ "el-1": "una respuesta", "el-1::status": "approved" });
+
+    const submitted = await setElementStatus(ev.id, subindicatorId, "el-1", "submitted");
+    expect(submitted.answers).toEqual({ "el-1": "una respuesta", "el-1::status": "submitted" });
+
+    const reverted = await setElementStatus(ev.id, subindicatorId, "el-1", null);
+    expect(reverted.answers).toEqual({ "el-1": "una respuesta" });
   });
 });

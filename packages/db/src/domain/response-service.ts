@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { ResponseAnswers } from "@plataforma-csa/sdk-core";
+import type { ElementStatus, ResponseAnswers } from "@plataforma-csa/sdk-core";
+import { statusKey } from "@plataforma-csa/sdk-core";
 import type { EvaluationSnapshot } from "@plataforma-csa/sdk-core";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../client.js";
 import { evaluation } from "../schema/evaluation.js";
 import { response } from "../schema/response.js";
@@ -40,4 +41,37 @@ export async function upsertResponse(evaluationId: string, subindicatorId: strin
 
 export async function listResponses(evaluationId: string) {
   return db.select().from(response).where(eq(response.evaluationId, evaluationId));
+}
+
+// VS-018 (ver docs/engines/persistence.md, "Estado por pregunta"). No existía
+// un lookup de una sola fila — solo listResponses (todas). Lo necesita la
+// ruta pública para tener el `current` que exige
+// assertPublicResponseUpdateAllowed, y setElementStatus para mergear sobre
+// los answers existentes sin pisarlos.
+export async function getResponse(evaluationId: string, subindicatorId: string) {
+  const [row] = await db
+    .select()
+    .from(response)
+    .where(and(eq(response.evaluationId, evaluationId), eq(response.subindicatorId, subindicatorId)));
+  return row ?? null;
+}
+
+// Solo la llama la ruta autenticada (owner/editor, ya de confianza vía
+// requireWriteAccess) — sin el resguardo de assertPublicResponseUpdateAllowed,
+// que es exclusivo del lado público sin sesión.
+export async function setElementStatus(
+  evaluationId: string,
+  subindicatorId: string,
+  elementId: string,
+  status: ElementStatus | null,
+) {
+  const current = await getResponse(evaluationId, subindicatorId);
+  const answers: ResponseAnswers = { ...(current?.answers as ResponseAnswers | undefined) };
+  const key = statusKey(elementId);
+  if (status === null) {
+    delete answers[key];
+  } else {
+    answers[key] = status;
+  }
+  return upsertResponse(evaluationId, subindicatorId, answers);
 }

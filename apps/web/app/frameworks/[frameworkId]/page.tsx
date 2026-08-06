@@ -122,6 +122,7 @@ export default function FrameworkDetailPage({ params }: Props) {
                   <a href={`/evaluations/${ev.token}`}>{`/evaluations/${ev.token}`}</a>
                 </span>
                 <span className="entry-list__actions">
+                  <a href={`/frameworks/${frameworkId}/evaluations/${ev.id}/review`}>Revisar</a>
                   <a href={`/api/evaluations/${ev.id}/export`}>Exportar CSV</a>
                   <Button type="button" variant="danger" size="sm" onClick={() => handleRevoke(ev.id)}>
                     Revocar

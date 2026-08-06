@@ -103,6 +103,128 @@ Reescritura de `apps/web/app/evaluations/[token]/page.tsx`. Deja de ser una sola
 - Elemento `banner`: renderizado con fondo `--accent-soft` (variant `info`) o `--warn-soft` (variant `warning`) — reusa tokens semánticos existentes, no agrega colores.
 - Estado vacío (`formSchema` null o sin elementos): mismo mensaje que hoy ("Este formulario todavía no tiene elementos"), pero dentro del panel de un solo Subindicador, no en un loop de toda la lista.
 
+## Estado por pregunta + flujo Approved/Submitted (VS-018)
+
+Gap 3 de `../analysis/csa-sp-global-comparison.md`. S&P tiene 5 estados por pregunta: `Not Started → In Progress → Completed → Approved → Submitted`. Los dos primeros ya existen de forma **implícita** (derivados de si hay respuesta o no); `Completed` es una acción explícita del evaluado; `Approved`/`Submitted` son una **revisión hecha por otra persona** — que es exactamente la tensión con la "Decisión central" de este documento (sin identidad de evaluado).
+
+**Resolución de la tensión** (decisión explícita, alcance completo pedido por el usuario — no la versión mínima): el lado del evaluado (enlace público, sin sesión) sigue exactamente igual que hoy — sin identidad, cualquiera con el link puede responder y marcar `Completed`. Pero `Approved`/`Submitted` **no se exponen ahí**: son una acción nueva que solo puede hacer un miembro **autenticado** de la Organización con permiso de escritura (`requireWriteAccess`, `owner`/`editor` — mismo gate que el resto del dominio desde `permission.md`, `evaluador` queda excluido por ser de solo lectura). Esto no inventa una identidad de evaluado — reutiliza 100% el RBAC ya construido en VS-014, tratando la aprobación como una acción de revisión del lado de la Organización, no del evaluado. Actualiza la nota "Fuera de alcance" de `permission.md` ("Permisos sobre Evidencias/Respuestas del evaluado — no aplica"): sigue siendo cierto para el lado público, pero ya no es cierto en general — la revisión (`Approved`/`Submitted`) sí depende de `member.role` desde VS-018.
+
+### Los 5 estados
+
+| Estado | Quién lo pone | Cómo se calcula |
+|---|---|---|
+| `not_started` | — | Derivado: no hay `answers[elementId]` y no hay estado explícito |
+| `in_progress` | — | Derivado: hay `answers[elementId]` (`hasAnswer`) y no hay estado explícito |
+| `completed` | Evaluado (público) | Explícito, guardado |
+| `approved` | Miembro autenticado (`owner`/`editor`) | Explícito, guardado |
+| `submitted` | Miembro autenticado (`owner`/`editor`) | Explícito, guardado |
+
+Solo los 3 últimos se persisten — `not_started`/`in_progress` nunca se escriben, se calculan siempre al leer (mismo criterio que el resto del motor: "claves ausentes = no respondido todavía"). Esto minimiza escrituras (no hay que guardar nada solo por que el evaluado tecleó una respuesta) y evita un estado explícito que pueda desincronizarse de si hay o no una respuesta real.
+
+### Persistencia: clave sintética, cero cambios de schema
+
+Mismo patrón que `form.md` (VS-016/VS-017): el estado de un elemento se guarda en el mismo mapa `answers` bajo la clave sintética `` `${elementId}::status` `` → `"completed" | "approved" | "submitted"` (string, ya soportado por `answerValue`). **Cero cambios en el schema de `packages/db`.** `packages/sdk-core/src/response.ts` gana:
+
+```ts
+export const elementStatus = z.enum(["completed", "approved", "submitted"]);
+export type ElementStatus = z.infer<typeof elementStatus>;
+
+export type DerivedStatus = "not_started" | "in_progress" | ElementStatus;
+
+export function statusKey(elementId: string): string {
+  return `${elementId}::status`;
+}
+
+export function deriveStatus(explicit: string | undefined, answered: boolean): DerivedStatus {
+  if (explicit === "completed" || explicit === "approved" || explicit === "submitted") return explicit;
+  return answered ? "in_progress" : "not_started";
+}
+```
+
+### Integridad: el lado público no puede fabricar una aprobación
+
+Como la ruta pública (`PUT .../responses/[subindicatorId]`) no depende de sesión, hoy acepta el mapa `answers` completo tal cual lo mande el cliente — sin este resguardo, cualquiera podría escribir `{"el-1::status": "submitted"}` a mano (sin pasar por la ruta autenticada) y falsificar una aprobación. Nuevo resguardo server-side, `packages/sdk-core/src/response.ts`:
+
+```ts
+export class LockedElementError extends Error {
+  constructor(public readonly elementId: string) {
+    super(`element_LOCKED:${elementId}`);
+    this.name = "LockedElementError";
+  }
+}
+
+// Se corre en la ruta pública, nunca en la autenticada (ese lado es de
+// confianza, mismo criterio que el resto de las rutas de escritura del
+// dominio). `current` = lo que ya hay en DB para ese Subindicador (o {} si
+// es la primera respuesta); `incoming` = el mapa completo que mandó el
+// cliente.
+export function assertPublicResponseUpdateAllowed(current: ResponseAnswers, incoming: ResponseAnswers): void {
+  for (const [key, value] of Object.entries(incoming)) {
+    if (!key.endsWith("::status")) continue;
+    const elementId = key.slice(0, -"::status".length);
+    const currentStatus = current[key];
+    // Regla A: un estado ya aprobado/enviado es de solo lectura desde el
+    // lado público — ni tocarlo ni "reafirmarlo" con otro valor distinto.
+    if ((currentStatus === "approved" || currentStatus === "submitted") && value !== currentStatus) {
+      throw new LockedElementError(elementId);
+    }
+    // Regla B: no se puede saltar directo a approved/submitted desde el
+    // lado público — esas dos transiciones solo las hace la ruta autenticada.
+    if ((value === "approved" || value === "submitted") && value !== currentStatus) {
+      throw new LockedElementError(elementId);
+    }
+    // Regla C: no se puede marcar completed sin una respuesta real.
+    if (value === "completed" && !hasAnswer(incoming[elementId])) {
+      throw new LockedElementError(elementId);
+    }
+  }
+  // Regla D: si un elemento está approved/submitted, su respuesta también
+  // queda congelada desde el lado público (evita invalidar en silencio una
+  // aprobación ya dada editando la respuesta debajo).
+  for (const [key, currentValue] of Object.entries(current)) {
+    if (!key.endsWith("::status")) continue;
+    if (currentValue !== "approved" && currentValue !== "submitted") continue;
+    const elementId = key.slice(0, -"::status".length);
+    if (elementId in incoming && JSON.stringify(incoming[elementId]) !== JSON.stringify(current[elementId])) {
+      throw new LockedElementError(elementId);
+    }
+  }
+}
+```
+
+`apps/web/lib/api-errors.ts` gana una rama: `LockedElementError` → 403 `{ error: "element_LOCKED", elementId }`.
+
+### Persistencia (`packages/db`)
+
+`response-service.ts` gana:
+
+- `getResponse(evaluationId, subindicatorId)`: lookup de una fila (o `null`) — no existía, solo `listResponses` (todas). Lo necesita la ruta pública para tener el `current` que exige `assertPublicResponseUpdateAllowed`, y la ruta de revisión para mergear el estado nuevo sobre los `answers` existentes sin pisarlos.
+- `setElementStatus(evaluationId, subindicatorId, elementId, status: ElementStatus | null)`: lee la Respuesta actual (`{}` si no existe todavía), aplica `status` (o borra la clave si `null` — revertir), llama a `upsertResponse` con el mapa resultante. Sin resguardo de `assertPublicResponseUpdateAllowed` — la llama únicamente la ruta autenticada, que ya es de confianza.
+
+### API
+
+- `PUT /api/public/evaluations/[token]/responses/[subindicatorId]` (existente, `persistence.md`): gana un paso antes del `upsertResponse` — `getResponse` para obtener `current`, luego `assertPublicResponseUpdateAllowed(current?.answers ?? {}, incoming)`. Si lanza `LockedElementError`, la ruta responde 403 vía `toErrorResponse`. Sin cambios de contrato (`upsertResponseInput` sigue igual) ni de status 200 en el camino feliz.
+- `PATCH /api/evaluations/[id]/responses/[subindicatorId]/status` (nueva, autenticada y tenant-scoped — mismo patrón que `evaluations/[id]/export`): `requireWriteAccess`, `getEvaluation(organizationId, id)` (ya existe, `export.md`) para confirmar que la Evaluación es de la Organización activa, body `setElementStatusInput = z.object({ elementId: z.string().min(1), status: elementStatus.nullable() })`, llama `setElementStatus`. 404 si la Evaluación no existe o no pertenece a la Organización. Un miembro `owner`/`editor` puede poner cualquiera de los 3 estados explícitos o `null` (revertir) — sin más restricción de orden que esa (mismo criterio ya documentado más arriba: "no está pedido" bloquear guardados por reglas de contenido; acá el actor ya es de confianza vía RBAC).
+
+### UI
+
+**Runtime (público, `apps/web/app/evaluations/[token]/page.tsx`)**:
+- Cada pregunta gana un botón "Marcar como completo" (visible solo si `hasAnswer` es true y el estado derivado actual es `not_started`/`in_progress`) que escribe `answers[statusKey(el.id)] = "completed"` por el mismo camino de autosave que cualquier respuesta — sin ruta nueva del lado del evaluado.
+- Editar la respuesta de una pregunta ya `completed` limpia su `::status` en el mismo commit (vuelve a quedar `in_progress`, derivado) — evita que quede una marca de "completo" sobre una respuesta que acaba de cambiar. Si el estado es `approved`/`submitted`, el control de respuesta se deshabilita (`disabled`/`readOnly`) — coherente con la Regla D del servidor, no solo una validación de UI.
+- `Pill` junto al label de la pregunta con el estado derivado cuando es `completed`/`approved`/`submitted` (no se muestra para `not_started`/`in_progress`, mismo criterio que el `Pill` de "obligatorio").
+
+**Revisión (nueva, autenticada, `apps/web/app/frameworks/[frameworkId]/evaluations/[evaluationId]/review/page.tsx`)**: página nueva bajo la jerarquía del Builder (no bajo `/evaluations/[token]`, que es la ruta pública — evita cualquier ambigüedad de ruteo). Recorre el snapshot igual que `export.md` (Dimensión → Indicador → Subindicador → Elementos tipo pregunta), una fila por pregunta con: label, respuesta actual (solo lectura), `Pill` de estado derivado, y botones **Aprobar** (habilitado si el estado derivado es `completed` o superior), **Enviar** (habilitado si es `approved`), **Revertir** (habilitado si es `completed`/`approved`/`submitted`, retrocede exactamente un nivel: `submitted→approved`, `approved→completed`, `completed→null`). La página de Framework (`export.md` → UI) gana un link "Revisar" junto a "Exportar CSV"/"Revocar" por cada Evaluación publicada.
+
+### Exportación (`export.md`)
+
+`buildCsv` gana una columna `Estado` (después de `Respuesta`) — `deriveStatus` aplicado igual que en Runtime/Revisión, mismo mapa `answers` ya disponible.
+
+### Fuera de alcance (explícito)
+
+- **Enforzar orden estricto en la ruta autenticada** (ej. no dejar `submitted` sin pasar por `approved` primero) — el actor ya es de confianza vía RBAC, mismo criterio que el resto de rutas de escritura del dominio (sin reglas de validación de contenido bloqueantes).
+- **Notificaciones** (avisar por email/UI cuando algo pasa a `approved`/`submitted`) — no hay proveedor de email decidido (mismo motivo que `organization-user.md`).
+- **Historial de quién aprobó/envió y cuándo** — v1 solo guarda el estado actual, no un log de auditoría. Aditivo si se pide (una tabla de eventos separada, no bloquea este slice).
+
 ## Testing
 
 Mismo patrón que VS-007/VS-009:

@@ -2,9 +2,11 @@
 
 import {
   componentRegistry,
+  deriveStatus,
   evaluateExpression,
   hasAnswer,
   isElementVisible,
+  statusKey,
   type AnswerValue,
   type Evaluation,
   type EvaluationSnapshot,
@@ -159,10 +161,18 @@ export default function PublicEvaluationPage({ params }: Props) {
     if (!active) return;
     const subId = active.sub.id;
     dirtySubRef.current = subId;
-    setAnswersBySub((prev) => ({
-      ...prev,
-      [subId]: { ...(prev[subId] ?? {}), [elementId]: value },
-    }));
+    setAnswersBySub((prev) => {
+      const subAnswers = prev[subId] ?? {};
+      const next: ResponseAnswers = { ...subAnswers, [elementId]: value };
+      // VS-018 (docs/engines/persistence.md, "Estado por pregunta"): editar
+      // la respuesta real de una pregunta ya "completed" la regresa a
+      // "in_progress" (derivado) — no aplica a claves sintéticas (sub-opciones
+      // VS-016, el propio ::status), esas nunca llevan "::" en un elementId real.
+      if (!elementId.includes("::") && subAnswers[statusKey(elementId)] === "completed") {
+        delete next[statusKey(elementId)];
+      }
+      return { ...prev, [subId]: next };
+    });
   }
 
   // Se dispara con cada commit de `answersBySub` — incluida la hidratación
@@ -326,11 +336,13 @@ function SubOptionsView({
   subOptions,
   value,
   onChange,
+  locked,
 }: {
   subKey: string;
   subOptions: { id: string; label: string }[];
   value: AnswerValue | undefined;
   onChange: (value: string[]) => void;
+  locked?: boolean;
 }) {
   const selected = Array.isArray(value) && typeof value[0] === "string" ? (value as string[]) : [];
   return (
@@ -339,6 +351,7 @@ function SubOptionsView({
         <label key={sub.id} className="field--checkbox">
           <input
             type="checkbox"
+            disabled={locked}
             checked={selected.includes(sub.id)}
             onChange={(e) => onChange(e.target.checked ? [...selected, sub.id] : selected.filter((id) => id !== sub.id))}
           />
@@ -364,12 +377,14 @@ function EvidenceView({
   element,
   value,
   onChange,
+  locked,
 }: {
   token: string;
   subindicatorId: string;
   element: Extract<FormElement, { type: "evidencia" }>;
   value: EvidenceRef[] | undefined;
   onChange: (value: EvidenceRef[]) => void;
+  locked?: boolean;
 }) {
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -442,7 +457,9 @@ function EvidenceView({
 
   return (
     <div className="runtime-evidence">
-      <input ref={inputRef} type="file" multiple={maxFiles > 1} accept={accept} onChange={(e) => void handleFiles(e.target.files)} />
+      {!locked && (
+        <input ref={inputRef} type="file" multiple={maxFiles > 1} accept={accept} onChange={(e) => void handleFiles(e.target.files)} />
+      )}
       {uploading && <p className="runtime-evidence__uploading">Subiendo {uploading}…</p>}
       {uploadError && (
         <p className="runtime-evidence__error" role="alert">
@@ -460,9 +477,11 @@ function EvidenceView({
               <button type="button" className="btn btn--secondary btn--sm" onClick={() => void downloadRef(ref)}>
                 Descargar
               </button>
-              <button type="button" className="btn btn--danger btn--sm" onClick={() => removeRef(ref.key)}>
-                Quitar
-              </button>
+              {!locked && (
+                <button type="button" className="btn btn--danger btn--sm" onClick={() => removeRef(ref.key)}>
+                  Quitar
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -521,16 +540,18 @@ function UrlPublicaView({
   element,
   value,
   onChange,
+  locked,
 }: {
   element: Extract<FormElement, { type: "url_publica" }>;
   value: string[] | undefined;
   onChange: (value: string[]) => void;
+  locked?: boolean;
 }) {
   const maxUrls = element.maxUrls ?? 3;
   const urls = Array.isArray(value) ? value : [];
   // Slots visibles = respuestas guardadas + un slot vacío extra para seguir
-  // agregando, acotado a maxUrls.
-  const slots = urls.length < maxUrls ? [...urls, ""] : urls;
+  // agregando, acotado a maxUrls. Bloqueado: sin slot extra, solo lectura.
+  const slots = !locked && urls.length < maxUrls ? [...urls, ""] : urls;
 
   function commit(nextSlots: string[]) {
     onChange(nextSlots.map((s) => s.trim()).filter(Boolean));
@@ -550,14 +571,51 @@ function UrlPublicaView({
     <div className="runtime-url-list">
       {slots.map((url, index) => (
         <div key={index} className="option-row">
-          <input type="url" value={url} placeholder="https://..." onChange={(e) => updateSlot(index, e.target.value)} />
-          {url !== "" && (
+          <input type="url" value={url} disabled={locked} placeholder="https://..." onChange={(e) => updateSlot(index, e.target.value)} />
+          {url !== "" && !locked && (
             <button type="button" className="btn btn--danger btn--sm" onClick={() => removeSlot(index)}>
               Quitar
             </button>
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+// VS-018 (docs/engines/persistence.md, "Estado por pregunta"): fila de
+// estado + acción "Marcar como completo", compartida por todos los tipos de
+// pregunta que capturan respuesta manual (no calculado/instruccion/banner).
+function StatusRow({
+  elementId,
+  derived,
+  canComplete,
+  onAnswerChange,
+}: {
+  elementId: string;
+  derived: ReturnType<typeof deriveStatus>;
+  canComplete: boolean;
+  onAnswerChange: (key: string, value: AnswerValue) => void;
+}) {
+  if (derived === "not_started" || derived === "in_progress") {
+    if (!canComplete) return null;
+    return (
+      <div className="runtime-question__status">
+        <button
+          type="button"
+          className="btn btn--secondary btn--sm"
+          onClick={() => onAnswerChange(statusKey(elementId), "completed")}
+        >
+          Marcar como completo
+        </button>
+      </div>
+    );
+  }
+  const label = derived === "completed" ? "Completado" : derived === "approved" ? "Aprobado" : "Enviado";
+  const variant = derived === "submitted" ? "good" : derived === "approved" ? "accent" : "neutral";
+  return (
+    <div className="runtime-question__status">
+      <Pill variant={variant}>{label}</Pill>
     </div>
   );
 }
@@ -575,6 +633,15 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
     return <CalculadoView element={element} answers={answers} onChange={(next) => onChange(next)} />;
   }
 
+  // Estado por pregunta (VS-018) — solo aplica a los tipos de arriba en
+  // adelante, que capturan una respuesta manual del evaluado.
+  const derived = deriveStatus(answers[statusKey(element.id)] as string | undefined, hasAnswer(value));
+  const locked = derived === "approved" || derived === "submitted";
+  const canComplete = hasAnswer(value) && (derived === "not_started" || derived === "in_progress");
+  const statusRow = (
+    <StatusRow elementId={element.id} derived={derived} canComplete={canComplete} onAnswerChange={onAnswerChange} />
+  );
+
   if (element.type === "url_publica") {
     const urls = Array.isArray(value) && (value.length === 0 || typeof value[0] === "string") ? (value as string[]) : [];
     return (
@@ -583,7 +650,8 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
           {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
         </legend>
         {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
-        <UrlPublicaView element={element} value={urls} onChange={(next) => onChange(next)} />
+        <UrlPublicaView element={element} value={urls} onChange={(next) => onChange(next)} locked={locked} />
+        {statusRow}
       </fieldset>
     );
   }
@@ -596,7 +664,15 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
           {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
         </legend>
         {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
-        <EvidenceView token={token} subindicatorId={subindicatorId} element={element} value={refs} onChange={(next) => onChange(next)} />
+        <EvidenceView
+          token={token}
+          subindicatorId={subindicatorId}
+          element={element}
+          value={refs}
+          onChange={(next) => onChange(next)}
+          locked={locked}
+        />
+        {statusRow}
       </fieldset>
     );
   }
@@ -612,7 +688,12 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
         {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
 
         {element.type === "texto_corto" && (
-          <input value={(value as string) ?? ""} maxLength={element.maxLength} onChange={(e) => onChange(e.target.value)} />
+          <input
+            value={(value as string) ?? ""}
+            maxLength={element.maxLength}
+            disabled={locked}
+            onChange={(e) => onChange(e.target.value)}
+          />
         )}
 
         {element.type === "texto_largo" && (
@@ -620,6 +701,7 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
             value={(value as string) ?? ""}
             maxLength={element.maxLength}
             rows={4}
+            disabled={locked}
             onChange={(e) => onChange(e.target.value)}
           />
         )}
@@ -630,9 +712,11 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
             value={value === undefined ? "" : (value as number)}
             min={element.min}
             max={element.max}
+            disabled={locked}
             onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
           />
         )}
+        {statusRow}
       </label>
     );
   }
@@ -651,7 +735,13 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
           {element.options.map((opt) => (
             <div key={opt.id} className="option-row-group">
               <label className="field--checkbox">
-                <input type="radio" name={element.id} checked={value === opt.id} onChange={() => onChange(opt.id)} />
+                <input
+                  type="radio"
+                  name={element.id}
+                  disabled={locked}
+                  checked={value === opt.id}
+                  onChange={() => onChange(opt.id)}
+                />
                 {opt.label}
               </label>
               {value === opt.id && opt.subOptions && opt.subOptions.length > 0 && (
@@ -660,6 +750,7 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
                   subOptions={opt.subOptions}
                   value={answers[`${element.id}::${opt.id}`]}
                   onChange={(next) => onAnswerChange(`${element.id}::${opt.id}`, next)}
+                  locked={locked}
                 />
               )}
             </div>
@@ -677,6 +768,7 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
                   <label className="field--checkbox">
                     <input
                       type="checkbox"
+                      disabled={locked}
                       checked={selected.includes(opt.id)}
                       onChange={(e) =>
                         onChange(e.target.checked ? [...selected, opt.id] : selected.filter((id) => id !== opt.id))
@@ -690,6 +782,7 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
                       subOptions={opt.subOptions}
                       value={answers[`${element.id}::${opt.id}`]}
                       onChange={(next) => onAnswerChange(`${element.id}::${opt.id}`, next)}
+                      locked={locked}
                     />
                   )}
                 </div>
@@ -697,6 +790,7 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
             </div>
           );
         })()}
+      {statusRow}
     </fieldset>
   );
 }

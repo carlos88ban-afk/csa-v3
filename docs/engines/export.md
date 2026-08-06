@@ -8,7 +8,7 @@ Exportación de resultados (`../architecture/overview.md`; `../OBJECTIVES.md` F5
 
 ## Alcance v1
 
-- Una fila por **Elemento tipo pregunta** (`isQuestion: true` en `component-registry.ts`) de cada Subindicador del snapshot de la Evaluación, con columnas: `Dimensión`, `Indicador`, `Subindicador`, `Elemento`, `Tipo`, `Respuesta`.
+- Una fila por **Elemento tipo pregunta** (`isQuestion: true` en `component-registry.ts`) de cada Subindicador del snapshot de la Evaluación, con columnas: `Dimensión`, `Indicador`, `Subindicador`, `Elemento`, `Tipo`, `Respuesta`, `Estado` (VS-018, ver `persistence.md` — `not_started`/`in_progress`/`completed`/`approved`/`submitted` vía `deriveStatus`).
 - Si el Subindicador no tiene Respuesta guardada todavía, la columna `Respuesta` queda vacía — el CSV siempre refleja la cobertura completa del formulario (todas las preguntas), no solo lo respondido, mismo criterio que el cálculo de progreso de `persistence.md`.
 - Formato de `Respuesta` por tipo: `texto_corto`/`texto_largo`/`numero` tal cual; `seleccion_unica` resuelve el `id` de la opción elegida a su `label` (`options` del propio elemento, ya viene en el snapshot); `seleccion_multiple` igual, opciones unidas con `"; "`; `evidencia` lista los `name` de los archivos adjuntos unidos con `"; "` (el binario no viaja en el CSV — se descarga aparte con el link ya existente de `evidences.md`, el CSV es para revisar contenido, no para respaldo de archivos); `url_publica` (VS-017) une las URLs literales con `"; "`, sin resolver nada (no hay `label` que resolver, son referencias externas).
 - CSV en **UTF-8 con BOM** (`﻿` al inicio) — sin el BOM, Excel en Windows interpreta tildes/ñ como caracteres corruptos; es el gotcha más común de exportar CSV con texto en español.

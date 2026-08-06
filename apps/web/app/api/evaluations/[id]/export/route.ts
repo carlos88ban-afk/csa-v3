@@ -1,7 +1,10 @@
 import { getEvaluation, listResponses, requireActiveMember } from "@plataforma-csa/db";
 import {
   componentRegistry,
+  deriveStatus,
+  hasAnswer,
   isElementVisible,
+  statusKey,
   type EvaluationSnapshot,
   type FormElement,
   type ResponseAnswers,
@@ -56,8 +59,19 @@ function formatAnswer(element: FormElement, value: unknown): string {
   return String(value);
 }
 
+// VS-018 (docs/engines/persistence.md, "Estado por pregunta"): mismo
+// deriveStatus que Runtime/Revisión, aplicado sobre el mismo mapa `answers`
+// ya disponible acá.
+const STATUS_LABEL: Record<ReturnType<typeof deriveStatus>, string> = {
+  not_started: "Sin iniciar",
+  in_progress: "En progreso",
+  completed: "Completado",
+  approved: "Aprobado",
+  submitted: "Enviado",
+};
+
 function buildCsv(snapshot: EvaluationSnapshot, answersBySub: Map<string, ResponseAnswers>): string {
-  const header = ["Dimensión", "Indicador", "Subindicador", "Elemento", "Tipo", "Respuesta"];
+  const header = ["Dimensión", "Indicador", "Subindicador", "Elemento", "Tipo", "Respuesta", "Estado"];
   const rows = [header];
 
   for (const dim of snapshot.dimensions) {
@@ -70,6 +84,7 @@ function buildCsv(snapshot: EvaluationSnapshot, answersBySub: Map<string, Respon
           (el) => isQuestion(el) && isElementVisible(el.visibleIf, answers),
         );
         for (const el of questions) {
+          const derived = deriveStatus(answers[statusKey(el.id)] as string | undefined, hasAnswer(answers[el.id]));
           rows.push([
             dim.title,
             ind.title,
@@ -77,6 +92,7 @@ function buildCsv(snapshot: EvaluationSnapshot, answersBySub: Map<string, Respon
             el.label || "(sin texto)",
             componentRegistry.find((c) => c.type === el.type)?.label ?? el.type,
             formatAnswer(el, answers[el.id]),
+            STATUS_LABEL[derived],
           ]);
         }
       }

@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { answerValue, evidenceRef, responseAnswers, upsertResponseInput } from "./response.js";
+import {
+  answerValue,
+  assertPublicResponseUpdateAllowed,
+  deriveStatus,
+  elementStatus,
+  evidenceRef,
+  LockedElementError,
+  responseAnswers,
+  statusKey,
+  upsertResponseInput,
+} from "./response.js";
 
 const sampleRef = { key: "evaluations/ev1/file-abc", name: "reporte.pdf", size: 1024, mimeType: "application/pdf" };
 
@@ -64,5 +74,95 @@ describe("upsertResponseInput", () => {
   it("rechaza un input sin la clave answers", () => {
     const result = upsertResponseInput.safeParse({});
     expect(result.success).toBe(false);
+  });
+});
+
+describe("elementStatus", () => {
+  it("acepta completed", () => {
+    expect(elementStatus.safeParse("completed").success).toBe(true);
+  });
+
+  it("acepta approved", () => {
+    expect(elementStatus.safeParse("approved").success).toBe(true);
+  });
+
+  it("acepta submitted", () => {
+    expect(elementStatus.safeParse("submitted").success).toBe(true);
+  });
+
+  it("rechaza pending", () => {
+    expect(elementStatus.safeParse("pending").success).toBe(false);
+  });
+});
+
+describe("deriveStatus", () => {
+  it("retorna not_started cuando no hay estado explícito ni respuesta", () => {
+    expect(deriveStatus(undefined, false)).toBe("not_started");
+  });
+
+  it("retorna in_progress cuando no hay estado explícito pero sí respuesta", () => {
+    expect(deriveStatus(undefined, true)).toBe("in_progress");
+  });
+
+  it("retorna completed cuando el estado explícito es completed", () => {
+    expect(deriveStatus("completed", true)).toBe("completed");
+  });
+
+  it("retorna approved cuando el estado explícito es approved aunque answered sea false", () => {
+    expect(deriveStatus("approved", false)).toBe("approved");
+  });
+
+  it("retorna submitted cuando el estado explícito es submitted", () => {
+    expect(deriveStatus("submitted", true)).toBe("submitted");
+  });
+});
+
+describe("statusKey", () => {
+  it("retorna la clave sintética con sufijo ::status", () => {
+    expect(statusKey("el-1")).toBe("el-1::status");
+  });
+});
+
+describe("assertPublicResponseUpdateAllowed", () => {
+  it("no lanza cuando current está vacío e incoming tiene respuesta y status completed", () => {
+    expect(() => {
+      assertPublicResponseUpdateAllowed({}, { "el-1": "si", "el-1::status": "completed" });
+    }).not.toThrow();
+  });
+
+  it("lanza LockedElementError cuando incoming intenta poner approved directo sin que current ya sea approved (Regla B)", () => {
+    expect(() => {
+      assertPublicResponseUpdateAllowed({}, { "el-1": "respuesta", "el-1::status": "approved" });
+    }).toThrow(LockedElementError);
+  });
+
+  it("lanza LockedElementError cuando current es approved e incoming intenta cambiarlo a completed (Regla A)", () => {
+    expect(() => {
+      assertPublicResponseUpdateAllowed(
+        { "el-1": "respuesta", "el-1::status": "approved" },
+        { "el-1": "respuesta", "el-1::status": "completed" }
+      );
+    }).toThrow(LockedElementError);
+  });
+
+  it("lanza LockedElementError cuando current es submitted y incoming modifica la respuesta (Regla D)", () => {
+    expect(() => {
+      assertPublicResponseUpdateAllowed(
+        { "el-1": "original", "el-1::status": "submitted" },
+        { "el-1": "modificada", "el-1::status": "submitted" }
+      );
+    }).toThrow(LockedElementError);
+  });
+
+  it("lanza LockedElementError cuando incoming intenta completed sin respuesta real (Regla C)", () => {
+    expect(() => {
+      assertPublicResponseUpdateAllowed({}, { "el-1": "", "el-1::status": "completed" });
+    }).toThrow(LockedElementError);
+  });
+
+  it("lanza LockedElementError cuando incoming intenta completed con respuesta ausente (Regla C)", () => {
+    expect(() => {
+      assertPublicResponseUpdateAllowed({}, { "el-1::status": "completed" });
+    }).toThrow(LockedElementError);
   });
 });
