@@ -169,6 +169,12 @@ describe("assertPublicResponseUpdateAllowed", () => {
       assertPublicResponseUpdateAllowed({}, { "el-1::status": "completed" });
     }).toThrow(LockedElementError);
   });
+
+  it("no lanza cuando incoming marca completed con N/A y sin respuesta real (Regla C + VS-019, bug real corregido)", () => {
+    expect(() => {
+      assertPublicResponseUpdateAllowed({}, { "el-1::na": "true", "el-1::status": "completed" });
+    }).not.toThrow();
+  });
 });
 
 describe("naKey", () => {

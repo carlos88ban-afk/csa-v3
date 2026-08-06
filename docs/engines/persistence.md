@@ -173,8 +173,9 @@ export function assertPublicResponseUpdateAllowed(current: ResponseAnswers, inco
     if ((value === "approved" || value === "submitted") && value !== currentStatus) {
       throw new LockedElementError(elementId);
     }
-    // Regla C: no se puede marcar completed sin una respuesta real.
-    if (value === "completed" && !hasAnswer(incoming[elementId])) {
+    // Regla C: no se puede marcar completed sin una respuesta real O N/A
+    // (ver VS-019 más abajo — una pregunta N/A cuenta como resuelta).
+    if (value === "completed" && !isAnswered(incoming[elementId], incoming[naKey(elementId)] as string | undefined)) {
       throw new LockedElementError(elementId);
     }
   }
@@ -228,6 +229,8 @@ export function assertPublicResponseUpdateAllowed(current: ResponseAnswers, inco
 ## N/A + comentario confidencial por pregunta (VS-019)
 
 Gap 4 de `../analysis/csa-sp-global-comparison.md`: en S&P, toda pregunta tiene una opción "Not applicable" y un textarea "Confidential additional comments" (máx. 5000 caracteres). A diferencia de `url_publica` (VS-017), esto **no es un tipo de Elemento nuevo** — es una capacidad universal de todo Elemento tipo pregunta (excepto `calculado`, que el Runtime escribe automáticamente y el evaluado no edita), sin config nueva en el Builder: S&P no hace esto configurable por pregunta, siempre está disponible.
+
+**Bug real encontrado y corregido durante la verificación en producción de este slice**: la Regla C de `assertPublicResponseUpdateAllowed` (VS-018, arriba) todavía usaba `hasAnswer` en vez de `isAnswered` — el Runtime permitía pulsar "Marcar como completo" sobre una pregunta N/A sin respuesta real, pero el servidor la rechazaba con `element_LOCKED` (403) porque no sabía de N/A. Corregido cambiando esa regla a `isAnswered` (ya reflejado en el bloque de código de la sección VS-018 más arriba) — mismo criterio en cliente y servidor.
 
 ### Persistencia: dos claves sintéticas más, mismo patrón que VS-016/VS-017/VS-018
 

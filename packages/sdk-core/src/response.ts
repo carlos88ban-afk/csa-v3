@@ -89,8 +89,10 @@ export function assertPublicResponseUpdateAllowed(current: ResponseAnswers, inco
     if ((value === "approved" || value === "submitted") && value !== currentStatus) {
       throw new LockedElementError(elementId);
     }
-    // Regla C: no se puede marcar completed sin una respuesta real.
-    if (value === "completed" && !hasAnswer(incoming[elementId])) {
+    // Regla C: no se puede marcar completed sin una respuesta real o N/A
+    // (VS-019, docs/engines/persistence.md — una pregunta N/A cuenta como
+    // resuelta para "completar", igual que para progreso).
+    if (value === "completed" && !isAnswered(incoming[elementId], incoming[naKey(elementId)] as string | undefined)) {
       throw new LockedElementError(elementId);
     }
   }
