@@ -4,7 +4,7 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Siguiente
 
-- [ ] (Opcional, menor) Banner expandible/colapsable, sub-opciones a 2 niveles, comentario confidencial rich text (Jodit), estado por nodo en el árbol, subindicadores directos bajo dimensión — ver "Segunda inspección" en `docs/analysis/csa-sp-global-comparison.md`
+- [ ] (Opcional, menor, evaluado y no priorizado el 2026-08-06 — ver `docs/project_notes/decisions.md`) Banner expandible/colapsable, sub-opciones a 2 niveles, comentario confidencial rich text (Jodit), estado por nodo en el árbol, subindicadores directos bajo dimensión — ver "Segunda inspección" en `docs/analysis/csa-sp-global-comparison.md`
 - [ ] Decidir proveedor de email/SMTP (ADR) si se necesita invitación automática por correo — hoy el link se comparte manualmente (ver `docs/domain/organization-user.md`)
 - [ ] Migrar a migraciones versionadas de Drizzle en vez de `db:push`, junto con provisionar una rama/proyecto Neon aislado para tests (`docs/TECH_DEBT.md` TD-001 + TD-002)
 - [ ] Si se necesita reconstruir el historial de una revisión de `formSchema` fuera del contexto de una publicación, construir una tabla de historial real (ver `docs/engines/publishing.md`, decisión de usar snapshot en vez de historial)

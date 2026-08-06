@@ -51,6 +51,23 @@ Las decisiones arquitectónicas formales del stack viven como ADRs en [`docs/adr
 - ✅ No se compromete la regla de seguridad por conveniencia de verificación.
 - ❌ Cualquier feature futura que dependa de multi-usuario real (RBAC, colaboración) tiene el mismo límite — el usuario humano es quien puede completar esa verificación específica si la necesita con certeza absoluta.
 
+### 2026-08-06 — Ítem opcional/menor de AN-001 2.ª inspección: no priorizado
+
+**Contexto:**
+- `docs/BACKLOG.md` tenía un ítem "(Opcional, menor)" agrupando 5 hallazgos de la 2.ª inspección del portal S&P que no eran gaps bloqueantes: banner expandible/colapsable, sub-opciones a 2 niveles, comentario confidencial rich text (Jodit), estado por nodo en el árbol, subindicadores directos bajo dimensión. El usuario pidió revisarlo y decidir si valía la pena.
+
+**Decisión:**
+- No se prioriza ninguno de los 5 por ahora. Evaluación caso por caso:
+  - **Banner expandible** — costo bajo, valor cosmético; sin banners largos reales en uso hoy que lo justifiquen.
+  - **Sub-opciones a 2 niveles** — un solo caso observado en todo el portal (declaración de 2.6.1); `subOptions` ya quedó diseñado como extensible (VS-016) si aparece un caso real futuro, no hace falta anticiparlo.
+  - **Comentario confidencial rich text (Jodit)** — exigiría una dependencia nueva de UI para una mejora cosmética sobre un campo que ya funciona (textarea); mismo criterio de "no dependencia sin justificar" (NFR-3) ya aplicado en `export.md` (CSV manual sin librería).
+  - **Estado por nodo en el árbol** — el progreso agregado ("% Done") + estado por pregunta (VS-018) ya cubre la necesidad a la escala real del proyecto (NFR-1, ~20 usuarios concurrentes); valor incierto frente al costo de calcular/renderizar estado agregado por rama en Builder y Runtime.
+  - **Subindicadores directos bajo dimensión** — el único de los 5 con costo real (cambio de schema en `packages/db`, Builder, numeración VS-021, Runtime). Sin necesidad observada: el framework que arma el usuario no requiere ese atajo estructural, un Indicador "envoltorio" con un solo Subindicador ya resuelve el caso si llegara a hacer falta.
+
+**Consecuencias:**
+- ✅ El esfuerzo de AN-001 2.ª inspección queda cerrado sin trabajo de bajo retorno pendiente.
+- ❌ Si en el futuro el usuario arma su propio framework y necesita específicamente colgar un Subindicador directo de una Dimensión (el único de los 5 con valor estructural real), habrá que reabrir ese ítem puntual — no bloqueante hoy.
+
 ### 2026-08-04 — Sistema de memoria en `docs/project_notes/` en vez de `memory/`
 
 **Contexto:**
