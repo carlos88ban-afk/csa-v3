@@ -4,6 +4,15 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-022+VS-023 — Select dropdown y unidad por campo numérico (2026-08-06)
+
+- Gaps 7 y 8 de AN-001 2.ª inspección (`docs/analysis/csa-sp-global-comparison.md`, "Segunda inspección" — recorrido completo del portal S&P que encontró 3 gaps nuevos no vistos en el análisis inicial). Ambos prerequisito del tercero (tabla de datos, `form-table`, sigue en `docs/BACKLOG.md` "Siguiente").
+- **VS-022 — `seleccion_desplegable`**: tipo de elemento nuevo, reusa `formOption` (mismo `{id, label, subOptions?}` que `seleccion_unica`) y la misma forma de respuesta (`string` = id elegido) — cero cambios en `response.ts`. Builder: mismo CRUD de opciones que `seleccion_unica`/`seleccion_multiple`, sin sub-opciones (no aplica en la práctica a un dropdown, documentado como fuera de alcance). Runtime: `<select>` nativo. Export CSV: misma resolución de label que `seleccion_unica`.
+- **VS-023 — `unit`/`availableUnits` en `numero`**: config aditiva (unidad fija o lista de unidades elegibles). La unidad elegida por el evaluado se guarda en clave sintética `unitKey(elementId)` dentro de `answers` (mismo patrón que `naKey`/`commentKey`), sin ensanchar `answerValue`. Runtime: `<select>` de unidad junto al input si hay `availableUnits`, texto fijo si solo hay `unit`. Export CSV: `formatAnswer` gana el parámetro `answers` para resolver la unidad (`"1234.5 kWh"`).
+- **Bug real encontrado y corregido durante la verificación en producción**: el input de `availableUnits` en el Builder (lista separada por coma) recalculaba y recortaba el array en cada tecla (`onChange`) — escribir una coma o un espacio se autocorregía de inmediato en el siguiente re-render controlado, porque `split(",")` sobre un valor sin coma todavía da un solo token y el `.trim()` se come el separador antes de terminar de escribir el siguiente (reproducido escribiendo a mano: "MWh, GJ, kWh" quedaba como "MWhGJkWh"). Corregido cambiando a `onBlur` (input no controlado con `defaultValue`) — se parsea una sola vez al salir del campo, no en cada tecla.
+- sdk-core (`form-schema.ts`, `component-registry.ts`, `response.ts`, con tests) y `apps/web` (Builder, Runtime, export) implementados directamente, sin delegar a OpenCode — cambios pequeños y acoplados entre archivos.
+- Verificado end-to-end en producción: framework de prueba con un Subindicador con dos Elementos — `seleccion_desplegable` "Moneda" (opciones USD/PEN) y `numero` "Consumo energético" (`availableUnits: MWh, GJ, kWh`). Runtime mostró el `<select>` de moneda y el input numérico con selector de unidad junto al `<input>`; se eligió "USD" y "1234.5 kWh", guardó, y persistió tras recargar. CSV exportado confirmó `"USD"` (label, no id) y `"1234.5 kWh"`. Datos de prueba limpiados (publicación revocada).
+
 ### VS-021 — Numeración automática de árbol y preguntas (2026-08-06)
 
 - Gap 6 de AN-001, último de los 6 gaps priorizados por el usuario — cierra el esfuerzo completo de AN-001 (ver `docs/analysis/csa-sp-global-comparison.md`).

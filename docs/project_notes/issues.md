@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-06 - VS-022+VS-023: Select dropdown y unidad por campo numérico
+- **Status**: Completed
+- **Description**: Gaps 7 y 8 de AN-001 2.ª inspección. `seleccion_desplegable` (tipo de elemento nuevo, mismo `formOption`/respuesta string que `seleccion_unica`) y `unit`/`availableUnits` en `numero` (unidad elegida vía clave sintética `unitKey`). Implementados juntos (mismos archivos, ambos prerequisito de la tabla de datos).
+- **Notes**: Bug real encontrado y corregido en producción — el input de `availableUnits` perdía comas/espacios al escribir por un re-render controlado que recortaba el array en cada tecla; corregido a `onBlur`. Verificado end-to-end en producción (Builder, Runtime, persistencia, export CSV). Automode del usuario: implementación directa, sin delegar a OpenCode (cambios pequeños y acoplados). Queda VS-024 (tabla de datos) como último gap de AN-001 2.ª inspección.
+
 ### 2026-08-06 - AN-001 (2.ª inspección): recorrido completo de Questionnaires CSA 2026
 - **Status**: Completed
 - **Description**: Segunda inspección en vivo del portal S&P (navegador automatizado, cuenta real del usuario, DOM directo). Esta vez árbol completo de Questionnaires: 34 ramas (6 dimensiones + 28 indicadores) y 161 sub-cuestionarios; sub-cuestionarios 0.1, 1.1.1 y 2.6.1 inspeccionados a nivel DOM.
