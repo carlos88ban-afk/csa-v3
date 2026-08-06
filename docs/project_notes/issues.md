@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-06 - VS-019: N/A + comentario confidencial por pregunta
+- **Status**: Completed
+- **Description**: Gap 4 de AN-001. Capacidad universal (no configurable) de todo Elemento tipo pregunta salvo `calculado`. Dos claves sintéticas más, `isAnswered` reemplaza `hasAnswer` en progreso/completar/export. "Confidencial" es etiqueta de UI (documentado explícitamente, no control de acceso) — se incluye en CSV por decisión del usuario.
+- **Notes**: Bug real encontrado en producción y corregido: la Regla C del resguardo de VS-018 no contemplaba N/A, rechazaba "Marcar como completo" con 403. sdk-core delegado a OpenCode, `apps/web` hecho directamente. Ver `docs/engines/persistence.md` sección "N/A + comentario confidencial por pregunta (VS-019)".
+
 ### 2026-08-05 - VS-018: Estado por pregunta + flujo Approved/Submitted
 - **Status**: Completed
 - **Description**: Gap 3 de AN-001, alcance completo (no versión mínima). 5 estados por pregunta (2 derivados, 3 explícitos con clave sintética `::status`). Approved/Submitted son una acción nueva autenticada (`requireWriteAccess`, reutiliza RBAC de VS-014) — el lado público sin sesión solo puede marcar `completed`, con resguardo server-side (`assertPublicResponseUpdateAllowed`) que bloquea fabricar aprobaciones incluso vía fetch directo.

@@ -4,6 +4,16 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-019 — N/A + comentario confidencial por pregunta (2026-08-06)
+
+- Gap 4 de AN-001. Capacidad universal de todo Elemento tipo pregunta (excepto `calculado`), sin config nueva en el Builder — S&P no lo hace configurable por pregunta. Dos claves sintéticas más (`${elementId}::na`, `${elementId}::comment`), cero cambios de schema — cuarta vez que este patrón extiende `engine/persistence`.
+- `isAnswered(value, na)` reemplaza a `hasAnswer` en progreso, "Marcar como completo" (VS-018) y exportación: una pregunta N/A cuenta como resuelta.
+- "Confidencial" documentado explícitamente como etiqueta de UI, no control de acceso real (`permission.md` ya excluye *access-control* granular por recurso de v1) — se incluye en el CSV igual que cualquier otra respuesta (alcance confirmado con el usuario).
+- Runtime: checkbox "No aplica" + textarea de comentario (`maxLength` 5000) en cada pregunta; marcar N/A deshabilita el control principal (mismo tratamiento que `approved`/`submitted`, motivo independiente). Revisión: `Pill` "N/A" + comentario visible. Export CSV: "N/A" literal en `Respuesta` cuando aplica, columna nueva `Comentario confidencial`.
+- **Bug real encontrado y corregido durante la verificación en producción**: la Regla C de `assertPublicResponseUpdateAllowed` (VS-018) seguía usando `hasAnswer` en vez de `isAnswered` — el Runtime dejaba pulsar "Marcar como completo" sobre una pregunta N/A sin respuesta real, pero el servidor la rechazaba con 403 `element_LOCKED` porque no sabía de N/A. Reproducido en producción, corregido, y cubierto con un test nuevo.
+- sdk-core (`naKey`, `commentKey`, `isAnswered`) delegado a OpenCode — contrato completo ya escrito en el doc. `apps/web` (Runtime, Revisión, export) hecho directamente.
+- Verificado end-to-end en producción: framework de prueba con una pregunta `texto_corto` — N/A marcado bloquea el input (confirmado que no acepta texto), comentario confidencial persiste tras recargar, "Marcar como completo" funciona con N/A tras el fix, CSV confirma `"N/A"` + `"Completado"` + comentario, página de Revisión muestra todo correctamente. Datos de prueba limpiados.
+
 ### VS-018 — Estado por pregunta + flujo Approved/Submitted (2026-08-05)
 
 - Gap 3 de AN-001. Alcance completo pedido por el usuario (no la versión mínima descartada en la decisión de diseño): 5 estados por pregunta — `not_started`/`in_progress` derivados (nunca se persisten), `completed`/`approved`/`submitted` explícitos con clave sintética `${elementId}::status` en el mismo mapa `answers` (cero cambios de schema en `packages/db`, mismo patrón que VS-016/VS-017).

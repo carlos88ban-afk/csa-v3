@@ -6,7 +6,6 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 Gaps AN-001 priorizados por el usuario 2026-08-05 (los 6 completos, doc-first cada uno en `docs/engines/form.md`/`persistence.md`, verificado en producción antes de cerrar):
 
-- [ ] VS-019 — N/A + comentarios confidenciales por pregunta
 - [ ] VS-020 — Botones Save/Cancel/Reset explícitos en Runtime
 - [ ] VS-021 — Numeración automática (árbol + preguntas)
 - [ ] Decidir proveedor de email/SMTP (ADR) si se necesita invitación automática por correo — hoy el link se comparte manualmente (ver `docs/domain/organization-user.md`)
@@ -15,6 +14,7 @@ Gaps AN-001 priorizados por el usuario 2026-08-05 (los 6 completos, doc-first ca
 
 ## Completado
 
+- [x] VS-019 — N/A + comentario confidencial por pregunta (gap 4 de AN-001, verificado en producción) — 2026-08-06
 - [x] VS-018 — Estado por pregunta + flujo Approved/Submitted (gap 3 de AN-001, verificado en producción) — 2026-08-05
 - [x] VS-017 — Campo URL pública, máx. N por pregunta (gap 2 de AN-001, verificado en producción) — 2026-08-05
 - [x] VS-016 — Opciones anidadas en selección única/múltiple (gap 1 de AN-001, verificado en producción) — 2026-08-05
