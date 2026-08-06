@@ -128,6 +128,19 @@ Hasta `maxUrls` (default 3) inputs de tipo `url`, con botón "Agregar URL" (desh
 
 `formatAnswer` gana una rama para `url_publica`: igual que `seleccion_multiple`, une el array con `"; "` (sin resolver labels, son URLs literales).
 
+## Numeración automática de preguntas (VS-021)
+
+Gap 6 de `../analysis/csa-sp-global-comparison.md` — ver `../domain/evaluation-hierarchy.md` ("Numeración automática VS-021") para la numeración del árbol Dimensión→Indicador→Subindicador; esta sección cubre solo las preguntas dentro de un Subindicador, que en S&P se numeran `0.1`, `0.2`... siempre reiniciando en cada Subindicador (no es un contador global del Framework).
+
+```ts
+// packages/sdk-core/src/component-registry.ts (o form-schema.ts)
+export function questionNumber(questionIndex: number): string {
+  return `0.${questionIndex + 1}`;
+}
+```
+
+`questionIndex` es la posición (0-based) del Elemento dentro de la lista **ya filtrada a solo preguntas** (`isQuestion: true` vía `component-registry.ts` — el mismo filtro que ya usan `progressOf`, `export.md` y la página de Revisión) y **ya filtrada por `visibleIf`** (`../engines/rule.md`) cuando corresponde al Runtime — un elemento oculto condicionalmente no ocupa número, mismo criterio que "no cuenta para el progreso". `instruccion`/`banner` no son preguntas (`isQuestion: false`) y no reciben número.
+
 ## Contratos (`packages/sdk-core`)
 
 Nuevo archivo `packages/sdk-core/src/form-schema.ts`, mismo patrón que `domain.ts` (zod + `z.infer`, exportado desde `index.ts`):

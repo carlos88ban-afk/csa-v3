@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createEvaluationInput, evaluationSnapshot } from "./evaluation.js";
+import {
+  createEvaluationInput,
+  dimensionNumber,
+  evaluationSnapshot,
+  indicatorNumber,
+  subindicatorNumber,
+} from "./evaluation.js";
 
 describe("createEvaluationInput", () => {
   it("acepta un frameworkId válido", () => {
@@ -84,5 +90,22 @@ describe("evaluationSnapshot", () => {
       ],
     };
     expect(evaluationSnapshot.safeParse(invalid).success).toBe(false);
+  });
+});
+
+describe("numeración automática (VS-021)", () => {
+  it("dimensionNumber es 1-based", () => {
+    expect(dimensionNumber(0)).toBe("1");
+    expect(dimensionNumber(2)).toBe("3");
+  });
+
+  it("indicatorNumber compone dimensión.indicador", () => {
+    expect(indicatorNumber(0, 0)).toBe("1.1");
+    expect(indicatorNumber(2, 4)).toBe("3.5");
+  });
+
+  it("subindicatorNumber compone dimensión.indicador.subindicador", () => {
+    expect(subindicatorNumber(0, 0, 0)).toBe("1.1.1");
+    expect(subindicatorNumber(1, 3, 2)).toBe("2.4.3");
   });
 });

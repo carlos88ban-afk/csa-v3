@@ -32,6 +32,14 @@ export const componentRegistry = [
   { type: "calculado", label: "Calculado", isQuestion: true, version: 1 },
 ] as const satisfies readonly ComponentDefinition[];
 
+// Numeración automática de preguntas (VS-021, ver docs/engines/form.md,
+// "Numeración automática de preguntas"). `questionIndex` = posición 0-based
+// dentro de la lista ya filtrada a isQuestion (y a visibleIf en el Runtime)
+// — reinicia en cada Subindicador, no es un contador global.
+export function questionNumber(questionIndex: number): string {
+  return `0.${questionIndex + 1}`;
+}
+
 // Chequeo de exhaustividad en compile-time: si FormElement["type"] gana o
 // pierde un tipo sin actualizar componentRegistry en el mismo cambio, esta
 // asignación deja de compilar (ambos conjuntos de tipos deben ser idénticos,

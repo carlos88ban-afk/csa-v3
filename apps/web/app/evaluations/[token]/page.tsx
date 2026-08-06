@@ -4,12 +4,16 @@ import {
   commentKey,
   componentRegistry,
   deriveStatus,
+  dimensionNumber,
   evaluateExpression,
   hasAnswer,
+  indicatorNumber,
   isAnswered,
   isElementVisible,
   naKey,
+  questionNumber,
   statusKey,
+  subindicatorNumber,
   type AnswerValue,
   type Evaluation,
   type EvaluationSnapshot,
@@ -32,8 +36,11 @@ type SnapshotSubindicator = EvaluationSnapshot["dimensions"][number]["indicators
 interface FlatSubindicator {
   dimId: string;
   dimTitle: string;
+  dimNumber: string;
   indId: string;
   indTitle: string;
+  indNumber: string;
+  subNumber: string;
   sub: SnapshotSubindicator;
 }
 
@@ -53,15 +60,26 @@ function isQuestion(el: FormElement): boolean {
   return QUESTION_TYPES.has(el.type as QuestionComponentType);
 }
 
+// VS-021 (docs/domain/evaluation-hierarchy.md, "Numeración automática"):
+// número = posición 0-based dentro del array ya ordenado de su nivel.
 function flatten(snapshot: EvaluationSnapshot): FlatSubindicator[] {
   const out: FlatSubindicator[] = [];
-  for (const dim of snapshot.dimensions) {
-    for (const ind of dim.indicators) {
-      for (const sub of ind.subindicators) {
-        out.push({ dimId: dim.id, dimTitle: dim.title, indId: ind.id, indTitle: ind.title, sub });
-      }
-    }
-  }
+  snapshot.dimensions.forEach((dim, dimIndex) => {
+    dim.indicators.forEach((ind, indIndex) => {
+      ind.subindicators.forEach((sub, subIndex) => {
+        out.push({
+          dimId: dim.id,
+          dimTitle: dim.title,
+          dimNumber: dimensionNumber(dimIndex),
+          indId: ind.id,
+          indTitle: ind.title,
+          indNumber: indicatorNumber(dimIndex, indIndex),
+          subNumber: subindicatorNumber(dimIndex, indIndex, subIndex),
+          sub,
+        });
+      });
+    });
+  });
   return out;
 }
 
@@ -267,23 +285,23 @@ export default function PublicEvaluationPage({ params }: Props) {
           <Pill variant="accent">{globalProgress}% completado</Pill>
         </div>
 
-        {snapshot.dimensions.map((dim) => (
+        {snapshot.dimensions.map((dim, dimIndex) => (
           <div key={dim.id} className="runtime-nav__dim">
             <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(dim.id)}>
               <span className="runtime-nav__caret">{collapsed.has(dim.id) ? "▸" : "▾"}</span>
-              {dim.title}
+              {dimensionNumber(dimIndex)} {dim.title}
             </button>
 
             {!collapsed.has(dim.id) &&
-              dim.indicators.map((ind) => (
+              dim.indicators.map((ind, indIndex) => (
                 <div key={ind.id} className="runtime-nav__ind">
                   <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(ind.id)}>
                     <span className="runtime-nav__caret">{collapsed.has(ind.id) ? "▸" : "▾"}</span>
-                    {ind.title}
+                    {indicatorNumber(dimIndex, indIndex)} {ind.title}
                   </button>
 
                   {!collapsed.has(ind.id) &&
-                    ind.subindicators.map((sub) => {
+                    ind.subindicators.map((sub, subIndex) => {
                       const p = progressOf(sub, answersBySub[sub.id]);
                       const state = p.total === 0 ? "" : p.answered === 0 ? "neutral" : p.answered === p.total ? "good" : "accent";
                       return (
@@ -294,7 +312,7 @@ export default function PublicEvaluationPage({ params }: Props) {
                           onClick={() => setActiveId(sub.id)}
                         >
                           <span className={`tree-dot${state ? ` tree-dot--${state}` : ""}`} />
-                          {sub.title}
+                          {subindicatorNumber(dimIndex, indIndex, subIndex)} {sub.title}
                         </button>
                       );
                     })}
@@ -350,29 +368,42 @@ export default function PublicEvaluationPage({ params }: Props) {
         )}
 
         <p className="runtime-breadcrumb-mini">
-          {active.dimTitle} › {active.indTitle}
+          {active.dimNumber} {active.dimTitle} › {active.indNumber} {active.indTitle}
         </p>
-        <h1>{active.sub.title}</h1>
+        <h1>
+          {active.subNumber} {active.sub.title}
+        </h1>
         {active.sub.description && <p>{active.sub.description}</p>}
 
         {!active.sub.formSchema || active.sub.formSchema.elements.length === 0 ? (
           <p className="empty">Este formulario todavía no tiene elementos.</p>
         ) : (
           <div className="runtime-elements">
-            {active.sub.formSchema.elements
-              .filter((el) => isElementVisible(el.visibleIf, answersBySub[active.sub.id] ?? {}))
-              .map((el) => (
-                <ElementView
-                  key={el.id}
-                  token={token}
-                  subindicatorId={active.sub.id}
-                  element={el}
-                  answers={answersBySub[active.sub.id] ?? {}}
-                  value={answersBySub[active.sub.id]?.[el.id]}
-                  onChange={(value) => setAnswer(el.id, value)}
-                  onAnswerChange={setAnswer}
-                />
-              ))}
+            {(() => {
+              // VS-021 (docs/engines/form.md, "Numeración automática de
+              // preguntas"): 0.N solo sobre elementos isQuestion, en el orden
+              // ya filtrado por visibleIf — reinicia en cada Subindicador.
+              const visibleElements = active.sub.formSchema.elements.filter((el) =>
+                isElementVisible(el.visibleIf, answersBySub[active.sub.id] ?? {}),
+              );
+              let qIndex = 0;
+              return visibleElements.map((el) => {
+                const number = isQuestion(el) ? questionNumber(qIndex++) : undefined;
+                return (
+                  <ElementView
+                    key={el.id}
+                    token={token}
+                    subindicatorId={active.sub.id}
+                    element={el}
+                    {...(number ? { number } : {})}
+                    answers={answersBySub[active.sub.id] ?? {}}
+                    value={answersBySub[active.sub.id]?.[el.id]}
+                    onChange={(value) => setAnswer(el.id, value)}
+                    onAnswerChange={setAnswer}
+                  />
+                );
+              });
+            })()}
           </div>
         )}
       </div>
@@ -384,6 +415,9 @@ interface ElementViewProps {
   token: string;
   subindicatorId: string;
   element: FormElement;
+  // VS-021 (docs/engines/form.md, "Numeración automática de preguntas"):
+  // "0.N" ya calculado por el padre (solo preguntas lo reciben).
+  number?: string;
   answers: ResponseAnswers;
   value: AnswerValue | undefined;
   onChange: (value: AnswerValue) => void;
@@ -564,10 +598,12 @@ function EvidenceView({
 // exactamente igual que una pregunta normal).
 function CalculadoView({
   element,
+  number,
   answers,
   onChange,
 }: {
   element: Extract<FormElement, { type: "calculado" }>;
+  number?: string;
   answers: ResponseAnswers;
   onChange: (value: number) => void;
 }) {
@@ -591,7 +627,10 @@ function CalculadoView({
 
   return (
     <label className="field runtime-question">
-      <span className="field__label">{element.label || <em>(sin texto)</em>}</span>
+      <span className="field__label">
+        {number && `${number} `}
+        {element.label || <em>(sin texto)</em>}
+      </span>
       {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
       <input value={display} disabled readOnly placeholder="(sin calcular)" />
     </label>
@@ -724,7 +763,7 @@ function NaCommentRow({
   );
 }
 
-function ElementView({ token, subindicatorId, element, answers, value, onChange, onAnswerChange }: ElementViewProps) {
+function ElementView({ token, subindicatorId, element, number, answers, value, onChange, onAnswerChange }: ElementViewProps) {
   if (element.type === "instruccion") {
     return <p className="runtime-instruction">{element.label}</p>;
   }
@@ -734,7 +773,9 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
   }
 
   if (element.type === "calculado") {
-    return <CalculadoView element={element} answers={answers} onChange={(next) => onChange(next)} />;
+    return (
+      <CalculadoView element={element} {...(number ? { number } : {})} answers={answers} onChange={(next) => onChange(next)} />
+    );
   }
 
   // Estado por pregunta (VS-018) + N/A (VS-019) — solo aplica a los tipos de
@@ -765,6 +806,7 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
     return (
       <fieldset className="field runtime-question">
         <legend className="field__label">
+          {number && `${number} `}
           {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
         </legend>
         {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
@@ -780,6 +822,7 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
     return (
       <fieldset className="field runtime-question">
         <legend className="field__label">
+          {number && `${number} `}
           {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
         </legend>
         {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
@@ -803,6 +846,7 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
     return (
       <label className="field runtime-question">
         <span className="field__label">
+          {number && `${number} `}
           {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
         </span>
         {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
@@ -847,7 +891,8 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
   return (
     <fieldset className="field runtime-question">
       <legend className="field__label">
-        {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
+        {number && `${number} `}
+          {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
       </legend>
       {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
 

@@ -49,3 +49,17 @@ export interface Evaluation {
   publishedAt: Date;
   createdAt: Date;
 }
+
+// Numeración automática del árbol (VS-021, ver
+// docs/domain/evaluation-hierarchy.md). Derivada de la posición (0-based)
+// dentro del array ya ordenado de su nivel — nunca persistida, reordenar
+// renumera solo.
+export function dimensionNumber(dimIndex: number): string {
+  return String(dimIndex + 1);
+}
+export function indicatorNumber(dimIndex: number, indIndex: number): string {
+  return `${dimensionNumber(dimIndex)}.${indIndex + 1}`;
+}
+export function subindicatorNumber(dimIndex: number, indIndex: number, subIndex: number): string {
+  return `${indicatorNumber(dimIndex, indIndex)}.${subIndex + 1}`;
+}

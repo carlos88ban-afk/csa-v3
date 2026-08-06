@@ -4,10 +4,14 @@ import {
   commentKey,
   componentRegistry,
   deriveStatus,
+  dimensionNumber,
+  indicatorNumber,
   isAnswered,
   isElementVisible,
   naKey,
+  questionNumber,
   statusKey,
+  subindicatorNumber,
   type DerivedStatus,
   type Evaluation,
   type FormElement,
@@ -110,13 +114,17 @@ export default function ReviewPage({ params }: Props) {
       <h1>Revisión — {evaluation.title}</h1>
       {actionError && <p className="alert" role="alert">{actionError}</p>}
 
-      {snapshot.dimensions.map((dim) => (
+      {snapshot.dimensions.map((dim, dimIndex) => (
         <div key={dim.id}>
-          <h2>{dim.title}</h2>
-          {dim.indicators.map((ind) => (
+          <h2>
+            {dimensionNumber(dimIndex)} {dim.title}
+          </h2>
+          {dim.indicators.map((ind, indIndex) => (
             <div key={ind.id}>
-              <h3>{ind.title}</h3>
-              {ind.subindicators.map((sub) => {
+              <h3>
+                {indicatorNumber(dimIndex, indIndex)} {ind.title}
+              </h3>
+              {ind.subindicators.map((sub, subIndex) => {
                 const answers = answersBySub[sub.id] ?? {};
                 const questions = (sub.formSchema?.elements ?? []).filter(
                   (el) => isQuestion(el) && isElementVisible(el.visibleIf, answers),
@@ -124,9 +132,11 @@ export default function ReviewPage({ params }: Props) {
                 if (questions.length === 0) return null;
                 return (
                   <Card key={sub.id}>
-                    <h4>{sub.title}</h4>
+                    <h4>
+                      {subindicatorNumber(dimIndex, indIndex, subIndex)} {sub.title}
+                    </h4>
                     <ul className="entry-list">
-                      {questions.map((el) => {
+                      {questions.map((el, qIndex) => {
                         const na = answers[naKey(el.id)] as string | undefined;
                         const markedNA = na === "true";
                         const comment = (answers[commentKey(el.id)] as string | undefined) ?? "";
@@ -140,7 +150,8 @@ export default function ReviewPage({ params }: Props) {
                         return (
                           <li key={el.id} className="entry-list__row">
                             <span className="entry-list__main">
-                              {el.label || "(sin texto)"} <Pill variant={statusVariant(derived)}>{STATUS_LABEL[derived]}</Pill>
+                              {questionNumber(qIndex)} {el.label || "(sin texto)"}{" "}
+                              <Pill variant={statusVariant(derived)}>{STATUS_LABEL[derived]}</Pill>
                               {markedNA && <Pill variant="warn">N/A</Pill>}
                               {comment && <p className="runtime-question__help">Comentario confidencial: {comment}</p>}
                             </span>

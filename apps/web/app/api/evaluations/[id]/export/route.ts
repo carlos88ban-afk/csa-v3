@@ -6,6 +6,7 @@ import {
   isAnswered,
   isElementVisible,
   naKey,
+  questionNumber,
   statusKey,
   type EvaluationSnapshot,
   type FormElement,
@@ -78,7 +79,7 @@ const STATUS_LABEL: Record<ReturnType<typeof deriveStatus>, string> = {
 };
 
 function buildCsv(snapshot: EvaluationSnapshot, answersBySub: Map<string, ResponseAnswers>): string {
-  const header = ["Dimensión", "Indicador", "Subindicador", "Elemento", "Tipo", "Respuesta", "Estado", "Comentario confidencial"];
+  const header = ["Dimensión", "Indicador", "Subindicador", "Número", "Elemento", "Tipo", "Respuesta", "Estado", "Comentario confidencial"];
   const rows = [header];
 
   for (const dim of snapshot.dimensions) {
@@ -90,7 +91,7 @@ function buildCsv(snapshot: EvaluationSnapshot, answersBySub: Map<string, Respon
         const questions = (sub.formSchema?.elements ?? []).filter(
           (el) => isQuestion(el) && isElementVisible(el.visibleIf, answers),
         );
-        for (const el of questions) {
+        questions.forEach((el, qIndex) => {
           const na = answers[naKey(el.id)] as string | undefined;
           const markedNA = na === "true";
           const derived = deriveStatus(answers[statusKey(el.id)] as string | undefined, isAnswered(answers[el.id], na));
@@ -98,13 +99,14 @@ function buildCsv(snapshot: EvaluationSnapshot, answersBySub: Map<string, Respon
             dim.title,
             ind.title,
             sub.title,
+            questionNumber(qIndex),
             el.label || "(sin texto)",
             componentRegistry.find((c) => c.type === el.type)?.label ?? el.type,
             formatAnswer(el, answers[el.id], markedNA),
             STATUS_LABEL[derived],
             (answers[commentKey(el.id)] as string | undefined) ?? "",
           ]);
-        }
+        });
       }
     }
   }
