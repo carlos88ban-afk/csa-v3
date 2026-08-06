@@ -4,6 +4,16 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-020 — Botones Save/Cancel/Reset explícitos en Runtime (2026-08-06)
+
+- Gap 5 de AN-001. Aditivo sobre el autosave existente (debounce 1500ms) — no lo reemplaza. Decisión confirmada con el usuario: `Cancel` y `Reset` tienen el mismo efecto (volver al último estado guardado en el servidor), se exponen como dos botones igual que S&P pero comparten una sola implementación (`handleCancelOrReset`).
+- `lastSavedBySub` (nuevo `useRef`, no `useState`): última foto de `answers` confirmada por el servidor por Subindicador — inicializada en la hidratación (`GET .../responses`), actualizada en cada autosave exitoso (automático o forzado).
+- `Guardar`: cancela el debounce pendiente y guarda ya mismo (mismo `PUT`, solo cambia el momento).
+- `Cancelar`/`Restablecer`: revierten el Subindicador activo a `lastSavedBySub` y cancelan cualquier autosave pendiente (para que no sobreescriba la reversión 1.5s después).
+- Los tres botones se deshabilitan cuando no hay cambios pendientes (comparación superficial de JSON contra `lastSavedBySub`). Sin cambios en sdk-core/`packages/db` — puramente estado de cliente.
+- **Incidente de infraestructura durante el despliegue** (no relacionado al código): el push del commit de código nunca generó un deployment en Vercel — ni siquiera como cancelado, confirmado en el dashboard — mientras que el resto de pushes de la sesión sí lo hicieron en segundos. Diagnosticado como una entrega de webhook GitHub→Vercel perdida para ese push puntual (el webhook en general seguía funcionando, confirmado con un commit vacío posterior que sí generó un deployment, aunque cancelado por el heurístico de "sin cambios en `apps/web`"). Resuelto con un "Redeploy" manual desde el dashboard sobre ese deployment cancelado, que sí reconstruyó el código real (mismo árbol de archivos). Documentado en CHECKPOINT por si se repite.
+- Verificado end-to-end en producción: framework de prueba con una pregunta `texto_corto` — botones deshabilitados sin cambios pendientes, escribir habilita los tres, `Cancelar` revierte al último valor guardado (probado escribiendo y cancelando antes de que corriera el autosave, confirmado con el valor previo intacto), `Restablecer` con el mismo comportamiento, `Guardar` dispara "Guardando…" de inmediato sin esperar el debounce y persiste tras recargar. Datos de prueba limpiados.
+
 ### VS-019 — N/A + comentario confidencial por pregunta (2026-08-06)
 
 - Gap 4 de AN-001. Capacidad universal de todo Elemento tipo pregunta (excepto `calculado`), sin config nueva en el Builder — S&P no lo hace configurable por pregunta. Dos claves sintéticas más (`${elementId}::na`, `${elementId}::comment`), cero cambios de schema — cuarta vez que este patrón extiende `engine/persistence`.

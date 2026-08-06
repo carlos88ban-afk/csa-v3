@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-06 - VS-020: Botones Save/Cancel/Reset explícitos en Runtime
+- **Status**: Completed
+- **Description**: Gap 5 de AN-001. Aditivo sobre el autosave existente. Cancel/Reset comparten implementación (decisión confirmada con el usuario: mismo efecto, volver al último guardado). `lastSavedBySub` (ref) trackea la última foto confirmada por el servidor para poder revertir sin recargar la página.
+- **Notes**: Sin cambios en sdk-core/db, puramente estado de cliente. Incidente de infra durante el deploy: un push no generó deployment en Vercel (webhook perdido, no relacionado al código) — diagnosticado navegando el dashboard con claude-in-chrome, resuelto con Redeploy manual. Ver `docs/engines/persistence.md` sección "Botones Save/Cancel/Reset explícitos (VS-020)" y CHECKPOINT para el detalle del incidente.
+
 ### 2026-08-06 - VS-019: N/A + comentario confidencial por pregunta
 - **Status**: Completed
 - **Description**: Gap 4 de AN-001. Capacidad universal (no configurable) de todo Elemento tipo pregunta salvo `calculado`. Dos claves sintéticas más, `isAnswered` reemplaza `hasAnswer` en progreso/completar/export. "Confidencial" es etiqueta de UI (documentado explícitamente, no control de acceso) — se incluye en CSV por decisión del usuario.
