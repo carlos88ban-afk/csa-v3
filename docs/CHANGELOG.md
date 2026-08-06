@@ -4,6 +4,18 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-024 — Tabla de datos `tabla_datos` (2026-08-06)
+
+- Gap 9 de AN-001 2.ª inspección, el más grande y complejo de los 9 gaps encontrados, y el último — equivalente a `table.form-table` del portal S&P (filas × columnas, tipo/unidad por celda). Requería `seleccion_desplegable` (VS-022) y `unit`/`availableUnits` (VS-023), ya cerrados.
+- **Decisión de diseño clave** (documentada en `docs/engines/form.md` antes de implementar): el tipo de celda se define **por fila**, no por celda individual — una fila es una métrica con una unidad (ej. "Total Scope 1"), las columnas son sus períodos (ej. años fiscales). Evita una config combinatoria filas × columnas sin caso de uso real observado en la inspección del portal S&P.
+- sdk-core: nueva rama `tabla_datos` en `form-schema.ts` (`columns: {id,label}[]`, `rows: {id,label,cellType,unit?,availableUnits?,options?,maxLength?}[]`). `response.ts` gana la **primera nueva variante de `AnswerValue` desde VS-007**: un mapa anidado `rowId → columnId → valor` (no un array de filas, mismo criterio de mapas keyed-por-id que el resto del motor: `answers`, claves sintéticas `::status`/`::na`/`::comment`/`::unit`). `hasAnswer` gana una rama para este shape de objeto. `component-registry.ts`: entrada nueva.
+- Builder: dos listas CRUD independientes — columnas (solo encabezados) y filas (label + selector de `cellType` + config condicional idéntica a la ya construida para `numero`/`seleccion_desplegable` sueltos, reutilizada a nivel de fila; mismo fix `onBlur` de VS-023 para `availableUnits` por fila).
+- Runtime: `<table>` real — primera vez que el motor usa una tabla HTML nativa en vez de `<fieldset>`/`<label>` (`<caption>` + `<th scope="col/row">` para accesibilidad). Celda editable según `cellType` de su fila; unidad seleccionable **por fila** (no por celda) vía `unitKey` con id compuesto `${element.id}::${row.id}`.
+- Export CSV: `formatAnswer` serializa una tabla como `"fila: col1=v1, col2=v2; fila2: col1=v3..."`, resolviendo labels de fila/columna/opción (no ids) y la unidad por fila — confirmado en producción con `"Total Scope 1: FY 2023=1200.5 met. ton. CO2e, FY 2024=980.2 met. ton. CO2e; Reportado en: FY 2023=USD, FY 2024=PEN"`.
+- Implementado directamente (sin delegar a OpenCode) — cambios grandes pero muy acoplados entre `form-schema.ts`/`response.ts`/Builder/Runtime/export, más fácil de mantener consistentes en un solo pase con contexto completo.
+- Verificado end-to-end en producción: framework de prueba con un Elemento `tabla_datos` "Emisiones GHG Scope 1" (columnas FY 2023/FY 2024; fila "Total Scope 1" tipo `numero` con unidad fija "met. ton. CO2e"; fila "Reportado en" tipo `seleccion_desplegable` con opciones USD/PEN). Builder mostró el selector de tipo de celda por fila y la config condicional correcta. Runtime renderizó una tabla real con inputs numéricos y selects por celda; se cargaron valores (1200.5/980.2, USD/PEN), guardaron y persistieron tras recargar. CSV exportado (descargado con autorización explícita del usuario, leído y borrado) confirmó la serialización exacta esperada. Publicación de prueba revocada al cerrar.
+- Con este slice se completan los 9 gaps de AN-001 2.ª inspección (VS-022/VS-023/VS-024); queda pendiente solo el ítem opcional/menor en `docs/BACKLOG.md`.
+
 ### VS-022+VS-023 — Select dropdown y unidad por campo numérico (2026-08-06)
 
 - Gaps 7 y 8 de AN-001 2.ª inspección (`docs/analysis/csa-sp-global-comparison.md`, "Segunda inspección" — recorrido completo del portal S&P que encontró 3 gaps nuevos no vistos en el análisis inicial). Ambos prerequisito del tercero (tabla de datos, `form-table`, sigue en `docs/BACKLOG.md` "Siguiente").

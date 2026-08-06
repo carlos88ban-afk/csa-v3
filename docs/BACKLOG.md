@@ -4,7 +4,6 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Siguiente
 
-- [ ] **AN-001 2.ª inspección — Elemento Tabla de datos** (`form-table`): filas × columnas con tipo de dato por celda (Float/Percent/Text/Select), unidad, unidades alternativas y maxlength/hint por celda. Es el elemento que compone los sub-cuestionarios cuantitativos tipo 2.6.1 (GHG Scope 1). Select dropdown y unidad por campo numérico (prerequisitos para paridad completa) ya cerrados — VS-022/VS-023. Requiere ensanchar `answerValue` (nuevo shape matriz). Referencia: `docs/analysis/csa-sp-global-comparison.md`, sección "Segunda inspección"
 - [ ] (Opcional, menor) Banner expandible/colapsable, sub-opciones a 2 niveles, comentario confidencial rich text (Jodit), estado por nodo en el árbol, subindicadores directos bajo dimensión — ver "Segunda inspección" en `docs/analysis/csa-sp-global-comparison.md`
 - [ ] Decidir proveedor de email/SMTP (ADR) si se necesita invitación automática por correo — hoy el link se comparte manualmente (ver `docs/domain/organization-user.md`)
 - [ ] Migrar a migraciones versionadas de Drizzle en vez de `db:push`, junto con provisionar una rama/proyecto Neon aislado para tests (`docs/TECH_DEBT.md` TD-001 + TD-002)
@@ -12,6 +11,7 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Completado
 
+- [x] VS-024 — Tabla de datos `tabla_datos` (gap 9 de AN-001 2.ª inspección, el más grande y último de los 9, verificado en producción) — 2026-08-06
 - [x] VS-023 — Unidad por campo numérico (`unit`/`availableUnits`, gap 8 de AN-001 2.ª inspección, verificado en producción) — 2026-08-06
 - [x] VS-022 — Select dropdown `seleccion_desplegable` (gap 7 de AN-001 2.ª inspección, verificado en producción) — 2026-08-06
 - [x] VS-021 — Numeración automática de árbol y preguntas (gap 6 de AN-001, último de los 6, verificado en producción) — 2026-08-06
