@@ -14,6 +14,7 @@ import {
   questionNumber,
   statusKey,
   subindicatorNumber,
+  unitKey,
   type AnswerValue,
   type Evaluation,
   type EvaluationSnapshot,
@@ -840,6 +841,31 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
     );
   }
 
+  // seleccion_desplegable: un solo control -> <label>, mismo grupo que
+  // texto_corto/texto_largo/numero (respuesta = un valor simple, no un
+  // grupo de controles como seleccion_unica/seleccion_multiple).
+  if (element.type === "seleccion_desplegable") {
+    return (
+      <label className="field runtime-question">
+        <span className="field__label">
+          {number && `${number} `}
+          {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
+        </span>
+        {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
+        <select value={(value as string) ?? ""} disabled={locked} onChange={(e) => onChange(e.target.value)}>
+          <option value="">Seleccionar…</option>
+          {element.options.map((opt) => (
+            <option key={opt.id} value={opt.id}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        {statusRow}
+        {naCommentRow}
+      </label>
+    );
+  }
+
   // texto_corto/texto_largo/numero: un solo control -> <label> (asocia el
   // nombre accesible directo al input, ver docs/architecture/accessibility.md).
   if (element.type === "texto_corto" || element.type === "texto_largo" || element.type === "numero") {
@@ -871,14 +897,31 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
         )}
 
         {element.type === "numero" && (
-          <input
-            type="number"
-            value={value === undefined ? "" : (value as number)}
-            min={element.min}
-            max={element.max}
-            disabled={locked}
-            onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
-          />
+          <span className="runtime-question__number-with-unit">
+            <input
+              type="number"
+              value={value === undefined ? "" : (value as number)}
+              min={element.min}
+              max={element.max}
+              disabled={locked}
+              onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+            />
+            {element.availableUnits && element.availableUnits.length > 0 ? (
+              <select
+                value={(answers[unitKey(element.id)] as string | undefined) ?? element.availableUnits[0]}
+                disabled={locked}
+                onChange={(e) => onAnswerChange(unitKey(element.id), e.target.value)}
+              >
+                {element.availableUnits.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              element.unit && <span className="runtime-question__unit">{element.unit}</span>
+            )}
+          </span>
         )}
         {statusRow}
         {naCommentRow}

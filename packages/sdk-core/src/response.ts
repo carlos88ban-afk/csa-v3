@@ -115,6 +115,12 @@ export function naKey(elementId: string): string {
 export function commentKey(elementId: string): string {
   return `${elementId}::comment`;
 }
+// Unidad elegida por el evaluado cuando `numero.availableUnits` está
+// presente (VS-023, docs/engines/form.md). Clave sintética, no ensancha
+// AnswerValue — mismo patrón que naKey/commentKey.
+export function unitKey(elementId: string): string {
+  return `${elementId}::unit`;
+}
 export function isAnswered(value: AnswerValue | undefined, na: string | undefined): boolean {
   return hasAnswer(value) || na === "true";
 }

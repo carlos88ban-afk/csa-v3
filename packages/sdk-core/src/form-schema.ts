@@ -53,6 +53,13 @@ export const formElement = z.discriminatedUnion("type", [
     type: z.literal("numero"),
     min: z.number().optional(),
     max: z.number().optional(),
+    // Unidad por campo numérico (VS-023): `unit` es la unidad fija mostrada;
+    // `availableUnits`, si está presente, hace que el evaluado elija entre
+    // varias (el Runtime muestra un <select> en vez de texto fijo). Ambos
+    // opcionales e independientes en el tipo — mutuamente excluyentes solo
+    // por convención de UI, no por regla de validación (ver docs/engines/form.md).
+    unit: z.string().min(1).optional(),
+    availableUnits: z.array(z.string().min(1)).min(1).optional(),
   }),
   z.object({
     ...questionBase,
@@ -65,6 +72,15 @@ export const formElement = z.discriminatedUnion("type", [
     options: z.array(formOption).min(1),
     minSelected: z.number().int().nonnegative().optional(),
     maxSelected: z.number().int().positive().optional(),
+  }),
+  // Select dropdown (VS-022): mismo `formOption` que seleccion_unica, misma
+  // forma de respuesta (string = id elegido). subOptions no se usa en la
+  // práctica en un dropdown (ver docs/engines/form.md) pero no se excluye
+  // del tipo por simplicidad de reuso de formOption.
+  z.object({
+    ...questionBase,
+    type: z.literal("seleccion_desplegable"),
+    options: z.array(formOption).min(1),
   }),
   z.object({
     ...formElementBase,

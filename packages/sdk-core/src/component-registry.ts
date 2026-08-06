@@ -25,6 +25,7 @@ export const componentRegistry = [
   { type: "numero", label: "Número", isQuestion: true, version: 1 },
   { type: "seleccion_unica", label: "Selección única", isQuestion: true, version: 1 },
   { type: "seleccion_multiple", label: "Selección múltiple", isQuestion: true, version: 1 },
+  { type: "seleccion_desplegable", label: "Selección desplegable", isQuestion: true, version: 1 },
   { type: "instruccion", label: "Instrucción", isQuestion: false, version: 1 },
   { type: "banner", label: "Banner", isQuestion: false, version: 1 },
   { type: "evidencia", label: "Evidencia", isQuestion: true, version: 1 },

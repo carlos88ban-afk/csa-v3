@@ -8,6 +8,7 @@ import {
   naKey,
   questionNumber,
   statusKey,
+  unitKey,
   type EvaluationSnapshot,
   type FormElement,
   type ResponseAnswers,
@@ -41,14 +42,14 @@ function csvCell(value: string): string {
   return value;
 }
 
-function formatAnswer(element: FormElement, value: unknown, markedNA: boolean): string {
+function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, answers: ResponseAnswers): string {
   // VS-019 (docs/engines/persistence.md, "N/A + comentario confidencial"):
   // N/A gana sobre cualquier valor residual de un intento anterior — el CSV
   // debe mostrar "N/A" explícito, no una celda vacía indistinguible de
   // "nunca se tocó".
   if (markedNA) return "N/A";
   if (value === undefined || value === null || value === "") return "";
-  if (element.type === "seleccion_unica") {
+  if (element.type === "seleccion_unica" || element.type === "seleccion_desplegable") {
     const opt = element.options.find((o) => o.id === value);
     return opt?.label ?? String(value);
   }
@@ -63,6 +64,13 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean): 
   if (element.type === "url_publica") {
     const urls = Array.isArray(value) ? value : [];
     return urls.map((url) => String(url)).join("; ");
+  }
+  // Unidad por campo numérico (VS-023, docs/engines/form.md): unidad elegida
+  // (clave sintética unitKey) si hay availableUnits + respuesta de unidad, si
+  // no la unidad fija `unit`, si no ninguna — mismo formato en los 3 casos.
+  if (element.type === "numero" && (element.unit || element.availableUnits)) {
+    const unit = (answers[unitKey(element.id)] as string | undefined) ?? element.availableUnits?.[0] ?? element.unit;
+    return unit ? `${String(value)} ${unit}` : String(value);
   }
   return String(value);
 }
@@ -102,7 +110,7 @@ function buildCsv(snapshot: EvaluationSnapshot, answersBySub: Map<string, Respon
             questionNumber(qIndex),
             el.label || "(sin texto)",
             componentRegistry.find((c) => c.type === el.type)?.label ?? el.type,
-            formatAnswer(el, answers[el.id], markedNA),
+            formatAnswer(el, answers[el.id], markedNA, answers),
             STATUS_LABEL[derived],
             (answers[commentKey(el.id)] as string | undefined) ?? "",
           ]);

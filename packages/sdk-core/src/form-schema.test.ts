@@ -6,6 +6,8 @@ describe("formElement", () => {
     { type: "texto_corto", id: "1", label: "Nombre" },
     { type: "texto_largo", id: "2", label: "Comentarios", maxLength: 500 },
     { type: "numero", id: "3", label: "Edad", min: 0, max: 120 },
+    { type: "numero", id: "3b", label: "Emisiones", unit: "met. ton. CO2e" },
+    { type: "numero", id: "3c", label: "Consumo", availableUnits: ["MWh", "GJ", "kWh"] },
     {
       type: "seleccion_unica",
       id: "4",
@@ -27,6 +29,12 @@ describe("formElement", () => {
     { type: "calculado", id: "10", label: "Total sin decimals", expression: "1 + 1" },
     { type: "url_publica", id: "url-1", label: "Referencias públicas", maxUrls: 3 },
     { type: "url_publica", id: "url-2", label: "Sin límite explícito" },
+    {
+      type: "seleccion_desplegable",
+      id: "dpd-1",
+      label: "Moneda",
+      options: [{ id: "usd", label: "USD" }, { id: "pen", label: "PEN" }],
+    },
     {
       type: "seleccion_unica",
       id: "11",
@@ -64,6 +72,16 @@ describe("formElement", () => {
 
   it("rechaza seleccion_unica sin options", () => {
     const result = formElement.safeParse({ id: "1", type: "seleccion_unica", label: "x", options: [] });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza seleccion_desplegable sin options", () => {
+    const result = formElement.safeParse({ id: "1", type: "seleccion_desplegable", label: "x", options: [] });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza numero con availableUnits vacío", () => {
+    const result = formElement.safeParse({ id: "1", type: "numero", label: "x", availableUnits: [] });
     expect(result.success).toBe(false);
   });
 

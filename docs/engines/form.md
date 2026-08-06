@@ -25,9 +25,10 @@ Subconjunto de `../domain/ubiquitous-language.md` (fila "Elemento") que no depen
 |---|---|---|
 | `texto_corto` | Pregunta de respuesta corta (input de una línea) | `maxLength?: number` |
 | `texto_largo` | Pregunta de respuesta larga (textarea) | `maxLength?: number` |
-| `numero` | Pregunta numérica | `min?: number`, `max?: number` |
+| `numero` | Pregunta numérica | `min?: number`, `max?: number`, `unit?: string`, `availableUnits?: string[]` — ver "Unidad por campo numérico" |
 | `seleccion_unica` | Pregunta de opción única (radio) | `options: {id, label, subOptions?}[]` — ver "Opciones anidadas" |
 | `seleccion_multiple` | Pregunta de opción múltiple (checkbox) | `options: {id, label, subOptions?}[]`, `minSelected?`, `maxSelected?` — ver "Opciones anidadas" |
+| `seleccion_desplegable` | Pregunta de opción única (dropdown) | `options: {id, label, subOptions?}[]` — ver "Select dropdown" |
 | `instruccion` | Texto informativo, no captura respuesta | — |
 | `banner` | Aviso destacado, no captura respuesta | `variant: "info" \| "warning"` |
 | `url_publica` | Pregunta de referencias URL públicas (máx. N) | `maxUrls?: number` — ver "Campo URL pública" |
@@ -140,6 +141,96 @@ export function questionNumber(questionIndex: number): string {
 ```
 
 `questionIndex` es la posición (0-based) del Elemento dentro de la lista **ya filtrada a solo preguntas** (`isQuestion: true` vía `component-registry.ts` — el mismo filtro que ya usan `progressOf`, `export.md` y la página de Revisión) y **ya filtrada por `visibleIf`** (`../engines/rule.md`) cuando corresponde al Runtime — un elemento oculto condicionalmente no ocupa número, mismo criterio que "no cuenta para el progreso". `instruccion`/`banner` no son preguntas (`isQuestion: false`) y no reciben número.
+
+## Select dropdown (VS-022)
+
+Gap 7 de `../analysis/csa-sp-global-comparison.md` (sección "Segunda inspección"): el portal S&P usa `div.sims-select` (`data-dpd-type="List"`) para listas cerradas (moneda, unidad, porcentaje) dentro y fuera de tablas. La plataforma hoy solo tiene `seleccion_unica` (radio). Se implementa como un tipo de Elemento nuevo, `seleccion_desplegable` — no una variante visual de `seleccion_unica` — porque el registry/exhaustividad y el Builder ya tratan cada `type` como una entrada independiente, y un dropdown con muchas opciones (ej. lista de monedas) es un caso de uso claramente distinto al radio (pocas opciones, todas visibles).
+
+```ts
+z.object({
+  ...questionBase,
+  type: z.literal("seleccion_desplegable"),
+  options: z.array(formOption).min(1),
+});
+```
+
+Reusa `formOption` sin cambios (mismo `{id, label, subOptions?}` que `seleccion_unica`/`seleccion_multiple`) — **`subOptions` no aplica en la práctica a un dropdown** (el portal S&P no lo usa así) pero no se excluye del tipo por simplicidad de reutilización; el Runtime de `seleccion_desplegable` simplemente no renderiza sub-opciones aunque estén presentes (fuera de alcance, ver abajo).
+
+**Respuesta**: `string` (id de la opción elegida) — forma idéntica a `seleccion_unica`, **cero cambios en `response.ts`**.
+
+### `packages/sdk-core/src/component-registry.ts`
+
+Nueva entrada `{ type: "seleccion_desplegable", label: "Selección desplegable", isQuestion: true, version: 1 }` — el chequeo de exhaustividad (`AssertSameSet`) obliga a agregarla en el mismo cambio que el tipo en `form-schema.ts`.
+
+### Builder
+
+Mismo bloque de config y mismo CRUD de opciones que `seleccion_unica` (`addOption`/`updateOption`/`removeOption`), sin el CRUD de `subOptions` (no aplica, ver arriba) — el guard de type-narrowing existente (`el.type !== "seleccion_unica" && el.type !== "seleccion_multiple"`) gana una tercera rama `el.type !== "seleccion_desplegable"` allí donde el dropdown comparte handler con los otros dos tipos de opciones.
+
+### Runtime
+
+`<select>` nativo con una `<option>` por `element.options[]` (label = texto visible, value = id) más una opción vacía inicial ("Seleccionar…") cuando no hay valor — mismo patrón de lectura/escritura que `seleccion_unica` (`onChange` con el id elegido), sin fieldset de radios.
+
+### Exportación (`export.md`)
+
+`formatAnswer` gana una rama idéntica a la de `seleccion_unica`: resuelve `value` contra `element.options` y exporta el `label`, no el id.
+
+### Fuera de alcance (explícito)
+
+- **`subOptions` en `seleccion_desplegable`** — el tipo lo permite (reuso de `formOption`) pero el Runtime no lo renderiza; si aparece un caso real, es aditivo.
+- **Búsqueda/autocomplete en el dropdown** — el portal S&P usa un `<select>` simple para las listas observadas (moneda, unidad, %); no se documentó un combobox con búsqueda. Si una lista muy larga (+50 opciones) lo requiere, es un cambio de UI, no de contrato.
+
+## Unidad por campo numérico (VS-023)
+
+Gap 8 de `../analysis/csa-sp-global-comparison.md`: en el portal S&P, un campo numérico dentro de un sub-cuestionario cuantitativo (ej. 2.6.1) lleva `data-dpd-unit` (unidad fija mostrada, ej. "met. ton. CO2e") y opcionalmente `data-dpd-available-units` (lista de unidades entre las que el evaluado puede elegir, ej. "MWh, GJ, kWh"). Se implementa como config aditiva de `numero`, no un tipo nuevo — el elemento sigue siendo una pregunta numérica, la unidad es metadata de presentación/config, igual que `min`/`max`.
+
+```ts
+z.object({
+  ...questionBase,
+  type: z.literal("numero"),
+  min: z.number().optional(),
+  max: z.number().optional(),
+  unit: z.string().min(1).optional(),                       // unidad fija mostrada (ej. "met. ton. CO2e", "%", "S/")
+  availableUnits: z.array(z.string().min(1)).min(1).optional(), // si está presente, el evaluado elige entre estas en vez de ver `unit` fija
+});
+```
+
+`unit` y `availableUnits` son independientes en el tipo (ambos opcionales) pero mutuamente excluyentes en la UI por convención del Builder (no una regla `superRefine` — no vale la pena la complejidad de validación cruzada para una regla de presentación): si `availableUnits` está presente, el Runtime muestra un `<select>` de unidad y `unit` se ignora como default visual (opcionalmente como valor preseleccionado si `availableUnits.includes(unit)`); si solo `unit` está presente, se muestra como texto fijo al lado del input (no editable).
+
+### Respuesta de la unidad elegida: clave sintética, sin cambios en `response.ts`
+
+El valor de `numero` no cambia de forma (`AnswerValue` sigue siendo `number` para este elemento). Cuando `availableUnits` está presente y el evaluado elige una unidad distinta a la default, se guarda bajo una **clave sintética** `` `${elementId}::unit` `` → `string` (una de `availableUnits`) en el mismo mapa `answers` — mismo patrón ya usado para `naKey`/`commentKey` (`persistence.md`) y para las sub-opciones anidadas (VS-016, `${elementId}::${optionId}`). **Cero cambios en `packages/sdk-core/src/response.ts`**: `responseAnswers` ya acepta cualquier clave string y `answerValue` ya incluye `string`.
+
+```ts
+// packages/sdk-core/src/response.ts — junto a naKey/commentKey existentes
+export function unitKey(elementId: string): string {
+  return `${elementId}::unit`;
+}
+```
+
+Si no hay entrada `unitKey(el.id)` en `answers`, el Runtime asume `availableUnits[0]` (o `unit`, si no hay `availableUnits`) como unidad implícita — no se persiste una unidad "por defecto no elegida", mismo criterio que el resto del motor (autosave guarda solo lo que el evaluado tocó).
+
+### `packages/sdk-core/src/component-registry.ts`
+
+Sin cambios — `numero` ya es una entrada existente, esta es una extensión de config, no un tipo nuevo (no dispara el chequeo de exhaustividad).
+
+### Builder
+
+Bloque de config de `numero` (junto a `min`/`max`) gana: campo de texto `Unidad` (`unit`) y campo de texto `Unidades disponibles (separadas por coma)` (`availableUnits`) — mismo patrón ya usado en este archivo para `acceptedTypes` de `evidencia` (input de texto libre, split por coma, filtrado de vacíos), no un CRUD de filas: no reusa `formOption` (`{id, label}`, pensado para opciones con identidad estable) porque aquí el string *es* el valor, no hay id que mapear.
+
+### Runtime
+
+El bloque agrupado `texto_corto|texto_largo|numero` (`ElementView`) gana, solo para `numero` con `unit` o `availableUnits` presentes, un elemento adicional junto al `<input type="number">`:
+- Si `availableUnits`: `<select>` que lee/escribe `answers[unitKey(element.id)]` vía `onAnswerChange` (no `onChange`, que es solo para el valor numérico del elemento).
+- Si solo `unit` (sin `availableUnits`): `<span>` de texto fijo, no interactivo.
+
+### Exportación (`export.md`)
+
+`formatAnswer` cambia de firma: hoy recibe `(element, value, markedNA)`; para resolver la unidad necesita también `answers` completo (para leer `answers[unitKey(element.id)]`) — se cambia a `(element, value, markedNA, answers)` en el mismo cambio, todos los call-sites se actualizan. Para `numero` con unidad configurada, el CSV exporta `"${value} ${unidad resuelta}"` (unidad elegida si hay `availableUnits` + respuesta, si no la `unit` fija, si no ninguna unidad y el formato queda igual que hoy). Para `numero` sin `unit`/`availableUnits`, comportamiento sin cambios (fallback `String(value)`).
+
+### Fuera de alcance (explícito)
+
+- **Conversión entre unidades** (ej. mostrar el mismo valor en MWh y GJ simultáneamente, o convertir automáticamente) — el motor solo persiste qué unidad eligió el evaluado, no hace matemática de conversión. Si se necesita, es `engine/formula` (M10), fuera de alcance de este slice.
+- **Validación de que la unidad elegida esté en `availableUnits`** en el servidor — igual criterio que el resto de "Validación de reglas de contenido al guardar" (`persistence.md`): el motor guarda lo que llega, no valida contra la config al escribir.
 
 ## Contratos (`packages/sdk-core`)
 

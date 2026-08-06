@@ -12,6 +12,7 @@ import {
   hasAnswer,
   isAnswered,
   naKey,
+  unitKey,
   upsertResponseInput,
 } from "./response.js";
 
@@ -186,6 +187,12 @@ describe("naKey", () => {
 describe("commentKey", () => {
   it("retorna la clave sintética con sufijo ::comment", () => {
     expect(commentKey("el-1")).toBe("el-1::comment");
+  });
+});
+
+describe("unitKey", () => {
+  it("retorna la clave sintética con sufijo ::unit", () => {
+    expect(unitKey("el-1")).toBe("el-1::unit");
   });
 });
 

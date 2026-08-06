@@ -54,6 +54,7 @@ function newElement(type: FormElement["type"]): FormElement {
       return { id, type, label: "", componentVersion };
     case "seleccion_unica":
     case "seleccion_multiple":
+    case "seleccion_desplegable":
       return {
         id,
         type,
@@ -159,7 +160,7 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
     commit(
       elements.map((el) => {
         if (el.id !== elementId) return el;
-        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple" && el.type !== "seleccion_desplegable") return el;
         return { ...el, options: [...el.options, { id: crypto.randomUUID(), label: "" }] };
       }),
     );
@@ -169,7 +170,7 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
     commit(
       elements.map((el) => {
         if (el.id !== elementId) return el;
-        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple" && el.type !== "seleccion_desplegable") return el;
         return {
           ...el,
           options: el.options.map((opt) => (opt.id === optionId ? { ...opt, label } : opt)),
@@ -182,7 +183,7 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
     commit(
       elements.map((el) => {
         if (el.id !== elementId) return el;
-        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple" && el.type !== "seleccion_desplegable") return el;
         if (el.options.length <= 1) return el;
         return { ...el, options: el.options.filter((opt) => opt.id !== optionId) };
       }),
@@ -421,6 +422,52 @@ export default function SubindicatorFormEditorPage({ params }: Props) {
                       }
                     />
                   </label>
+                  <label className="field">
+                    <span className="field__label">Unidad</span>
+                    <input
+                      value={el.unit ?? ""}
+                      placeholder="ej. met. ton. CO2e, %, S/"
+                      onChange={(e) => updateElement(el.id, { unit: e.target.value === "" ? undefined : e.target.value })}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field__label">Unidades disponibles (separadas por coma)</span>
+                    <input
+                      value={el.availableUnits?.join(", ") ?? ""}
+                      placeholder="ej. MWh, GJ, kWh"
+                      onChange={(e) =>
+                        updateElement(el.id, {
+                          availableUnits:
+                            e.target.value.trim() === ""
+                              ? undefined
+                              : e.target.value.split(",").map((s) => s.trim()).filter((s) => s.length > 0),
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+              )}
+
+              {el.type === "seleccion_desplegable" && (
+                <div className="options">
+                  <span className="options__label">Opciones</span>
+                  {el.options.map((opt) => (
+                    <div className="option-row" key={opt.id}>
+                      <input value={opt.label} onChange={(e) => updateOption(el.id, opt.id, e.target.value)} />
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="sm"
+                        onClick={() => removeOption(el.id, opt.id)}
+                        disabled={el.options.length <= 1}
+                      >
+                        Quitar
+                      </Button>
+                    </div>
+                  ))}
+                  <Button type="button" size="sm" onClick={() => addOption(el.id)}>
+                    Agregar opción
+                  </Button>
                 </div>
               )}
 
