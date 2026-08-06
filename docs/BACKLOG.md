@@ -4,12 +4,20 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Siguiente
 
+Gaps AN-001 priorizados por el usuario 2026-08-05 (los 6 completos, doc-first cada uno en `docs/engines/form.md`/`persistence.md`, verificado en producción antes de cerrar):
+
+- [ ] VS-017 — Campo URL pública (máx. N por pregunta)
+- [ ] VS-018 — Estado por pregunta + flujo Approved/Submitted
+- [ ] VS-019 — N/A + comentarios confidenciales por pregunta
+- [ ] VS-020 — Botones Save/Cancel/Reset explícitos en Runtime
+- [ ] VS-021 — Numeración automática (árbol + preguntas)
 - [ ] Decidir proveedor de email/SMTP (ADR) si se necesita invitación automática por correo — hoy el link se comparte manualmente (ver `docs/domain/organization-user.md`)
 - [ ] Migrar a migraciones versionadas de Drizzle en vez de `db:push`, junto con provisionar una rama/proyecto Neon aislado para tests (`docs/TECH_DEBT.md` TD-001 + TD-002)
 - [ ] Si se necesita reconstruir el historial de una revisión de `formSchema` fuera del contexto de una publicación, construir una tabla de historial real (ver `docs/engines/publishing.md`, decisión de usar snapshot en vez de historial)
 
 ## Completado
 
+- [x] VS-016 — Opciones anidadas en selección única/múltiple (gap 1 de AN-001, verificado en producción) — 2026-08-05
 - [x] VS-001 — Scaffold monorepo (pnpm + Turborepo + TS strict + Vitest + CI) — 2026-08-04
 - [x] VS-002 — Gobernanza + Checkpoint Manager — 2026-08-04
 - [x] VS-003 — Auth + Organización (Better Auth + plugin organization, Neon real, 6 tests) — 2026-08-04

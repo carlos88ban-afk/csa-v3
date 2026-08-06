@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-05 - VS-016: Opciones anidadas en selección única/múltiple
+- **Status**: Completed
+- **Description**: Gap 1 de AN-001. `formOption` gana `subOptions?` (un solo nivel). Sub-opciones marcadas se guardan con clave sintética `${elementId}::${optionId}` en el mismo mapa `answers` — sin cambios en `response.ts`/`rule.ts`/schema DB. Builder con CRUD de sub-opciones, Runtime revela sub-checklist al seleccionar la opción padre.
+- **Notes**: sdk-core delegado a OpenCode (mecánico, doc ya escrito), UI hecha directamente. Verificado end-to-end en producción con framework de prueba (limpiado después). Ver `docs/engines/form.md` sección "Opciones anidadas (VS-016)".
+
 ### 2026-08-05 - AN-001: Comparación con el portal S&P Global CSA 2026
 - **Status**: Completed
 - **Description**: Análisis comparativo (no slice) documentado en `docs/analysis/csa-sp-global-comparison.md`. Inspección en vivo del portal S&P (login Okta con cuenta real del usuario, CSA 2026 → Questionnaires → sub-cuestionario 1.1.1 a nivel DOM). Conclusión: la estructura S&P Dimensión→Criterio→Sub-criterio ya está replicada (Dimensión→Indicador→Subindicador); gaps son aditivos sobre `engine/form`.

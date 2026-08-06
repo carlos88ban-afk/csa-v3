@@ -4,6 +4,14 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-016 — Opciones anidadas en selección única/múltiple (2026-08-05)
+
+- Gap 1 de AN-001. `docs/engines/form.md`, sección "Opciones anidadas (VS-016)": `formOption` gana `subOptions?` opcional (un solo nivel, sin recursión — no se observó un tercer nivel en el portal S&P). Respuesta de sub-opciones marcadas usa clave sintética `` `${elementId}::${optionId}` `` en el mismo mapa `answers` — cero cambios en `response.ts`, `rule.ts` ni el schema de `packages/db`.
+- `packages/sdk-core/src/form-schema.ts`: `formOption.subOptions` (zod). Implementado por un subagente de OpenCode (contrato mecánico ya especificado en el doc); tests nuevos en `form-schema.test.ts` verdes a la primera.
+- Builder (`SubindicatorFormEditorPage`): CRUD de sub-opciones por opción (`addSubOption`/`updateSubOption`/`removeSubOption`), mismo patrón visual que las opciones de primer nivel, sangrado con borde izquierdo.
+- Runtime (`ElementView`): `SubOptionsView` revela un sub-checklist (siempre multi-selección) bajo la opción actualmente seleccionada/marcada que tenga `subOptions`, leyendo/escribiendo la clave sintética vía un nuevo prop `onAnswerChange` (generaliza `setAnswer` para escribir claves distintas a la del elemento).
+- Verificado end-to-end en producción (`https://csa-v3-web.vercel.app`): framework de prueba con una pregunta `seleccion_unica` cuya opción "Sí" tiene 2 sub-opciones — Builder guarda y autoguarda (rev. incrementa), Runtime revela el sub-checklist solo cuando la opción padre está seleccionada, marcar una sub-opción autoguarda ("Guardado"), recargar la página confirma persistencia real (no solo estado en memoria) de ambas respuestas. Progreso global correcto (la sub-selección no cuenta como pregunta aparte). Datos de prueba limpiados (evaluación revocada, framework borrado).
+
 ### AN-001 — Comparación con el portal S&P Global CSA 2026 (2026-08-05)
 
 - `docs/analysis/csa-sp-global-comparison.md`: análisis comparativo (no slice). Inspección en vivo del portal S&P (sesión real del usuario, sección Questionnaires del CSA 2026, sub-cuestionario 1.1.1 documentado a nivel DOM).
