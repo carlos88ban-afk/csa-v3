@@ -1,10 +1,12 @@
 "use client";
 
 import {
+  commentKey,
   componentRegistry,
   deriveStatus,
-  hasAnswer,
+  isAnswered,
   isElementVisible,
+  naKey,
   statusKey,
   type DerivedStatus,
   type Evaluation,
@@ -125,7 +127,10 @@ export default function ReviewPage({ params }: Props) {
                     <h4>{sub.title}</h4>
                     <ul className="entry-list">
                       {questions.map((el) => {
-                        const derived = deriveStatus(answers[statusKey(el.id)] as string | undefined, hasAnswer(answers[el.id]));
+                        const na = answers[naKey(el.id)] as string | undefined;
+                        const markedNA = na === "true";
+                        const comment = (answers[commentKey(el.id)] as string | undefined) ?? "";
+                        const derived = deriveStatus(answers[statusKey(el.id)] as string | undefined, isAnswered(answers[el.id], na));
                         const actionKey = `${sub.id}:${el.id}`;
                         const busy = pending === actionKey;
                         const canApprove = derived === "completed";
@@ -136,6 +141,8 @@ export default function ReviewPage({ params }: Props) {
                           <li key={el.id} className="entry-list__row">
                             <span className="entry-list__main">
                               {el.label || "(sin texto)"} <Pill variant={statusVariant(derived)}>{STATUS_LABEL[derived]}</Pill>
+                              {markedNA && <Pill variant="warn">N/A</Pill>}
+                              {comment && <p className="runtime-question__help">Comentario confidencial: {comment}</p>}
                             </span>
                             <span className="entry-list__actions">
                               <Button

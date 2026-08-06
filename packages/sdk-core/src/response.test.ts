@@ -8,6 +8,10 @@ import {
   LockedElementError,
   responseAnswers,
   statusKey,
+  commentKey,
+  hasAnswer,
+  isAnswered,
+  naKey,
   upsertResponseInput,
 } from "./response.js";
 
@@ -164,5 +168,39 @@ describe("assertPublicResponseUpdateAllowed", () => {
     expect(() => {
       assertPublicResponseUpdateAllowed({}, { "el-1::status": "completed" });
     }).toThrow(LockedElementError);
+  });
+});
+
+describe("naKey", () => {
+  it("retorna la clave sintética con sufijo ::na", () => {
+    expect(naKey("el-1")).toBe("el-1::na");
+  });
+});
+
+describe("commentKey", () => {
+  it("retorna la clave sintética con sufijo ::comment", () => {
+    expect(commentKey("el-1")).toBe("el-1::comment");
+  });
+});
+
+describe("isAnswered", () => {
+  it("retorna false cuando no hay respuesta ni marcado N/A", () => {
+    expect(isAnswered(undefined, undefined)).toBe(false);
+  });
+
+  it("retorna true cuando hay respuesta real", () => {
+    expect(isAnswered("algo", undefined)).toBe(true);
+  });
+
+  it("retorna true cuando está marcado N/A sin respuesta", () => {
+    expect(isAnswered(undefined, "true")).toBe(true);
+  });
+
+  it("retorna true cuando hay N/A aunque el valor sea string vacío", () => {
+    expect(isAnswered("", "true")).toBe(true);
+  });
+
+  it("retorna false cuando na es 'false'", () => {
+    expect(isAnswered(undefined, "false")).toBe(false);
   });
 });

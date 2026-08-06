@@ -225,6 +225,52 @@ export function assertPublicResponseUpdateAllowed(current: ResponseAnswers, inco
 - **Notificaciones** (avisar por email/UI cuando algo pasa a `approved`/`submitted`) — no hay proveedor de email decidido (mismo motivo que `organization-user.md`).
 - **Historial de quién aprobó/envió y cuándo** — v1 solo guarda el estado actual, no un log de auditoría. Aditivo si se pide (una tabla de eventos separada, no bloquea este slice).
 
+## N/A + comentario confidencial por pregunta (VS-019)
+
+Gap 4 de `../analysis/csa-sp-global-comparison.md`: en S&P, toda pregunta tiene una opción "Not applicable" y un textarea "Confidential additional comments" (máx. 5000 caracteres). A diferencia de `url_publica` (VS-017), esto **no es un tipo de Elemento nuevo** — es una capacidad universal de todo Elemento tipo pregunta (excepto `calculado`, que el Runtime escribe automáticamente y el evaluado no edita), sin config nueva en el Builder: S&P no hace esto configurable por pregunta, siempre está disponible.
+
+### Persistencia: dos claves sintéticas más, mismo patrón que VS-016/VS-017/VS-018
+
+```ts
+export function naKey(elementId: string): string {
+  return `${elementId}::na`;
+}
+export function commentKey(elementId: string): string {
+  return `${elementId}::comment`;
+}
+// "¿Cuenta como resuelta para progreso/Completar?" — una pregunta marcada
+// N/A cuenta como resuelta aunque answers[elementId] esté vacío/ausente.
+export function isAnswered(value: AnswerValue | undefined, na: string | undefined): boolean {
+  return hasAnswer(value) || na === "true";
+}
+```
+
+- `${elementId}::na` → `"true"` (string, ya soportado por `answerValue`) cuando está marcada; **ausente** = no marcada (mismo criterio "claves ausentes = no respondido" — nunca se escribe `"false"`, desmarcar borra la clave).
+- `${elementId}::comment` → `string` (ya soportado), sin límite de forma en el servidor (mismo criterio que el resto del motor: no hay reglas de contenido bloqueantes); el Runtime limita a 5000 caracteres con `maxLength` nativo del `<textarea>`, igual que `maxLength` en `texto_largo`.
+- Cero cambios de schema en `packages/db` — tercera vez que este patrón extiende `engine/persistence` sin tocarlo (VS-016/VS-017/VS-018 ya lo establecieron).
+
+### Integración con progreso, "Completar" (VS-018) y exportación
+
+`isAnswered` (arriba) reemplaza a `hasAnswer` en los tres lugares donde "¿esta pregunta ya está resuelta?" importa:
+
+- **Progreso** (`progressOf` en el Runtime): una pregunta N/A cuenta como respondida — es una resolución válida, no una pendiente.
+- **"Marcar como completo" (VS-018)**: `canComplete` pasa a depender de `isAnswered(value, na)`, no solo de `hasAnswer(value)` — se puede completar una pregunta marcada N/A sin haber escrito una respuesta.
+- **Exportación CSV**: si la pregunta está marcada N/A, la columna `Respuesta` muestra literalmente `"N/A"` (sin importar si además hay un valor en `answers[elementId]` de un intento anterior) — un evaluador revisando el CSV necesita ver "N/A" explícito, no una celda vacía indistinguible de "nunca se tocó".
+
+### Confidencialidad: aclaración de alcance (no es control de acceso)
+
+**"Confidencial" es una etiqueta/convención de UI, no una restricción de acceso real** — decisión explícita, no un descuido. La plataforma no tiene niveles de visibilidad distintos sobre una Respuesta: el lado público (`persistence.md`, "Decisión central") ya es una sesión compartida sin identidad, y del lado autenticado cualquier rol con lectura (incluido `evaluador`, `permission.md`) ya puede ver todas las Respuestas vía la página de Revisión (VS-018) y exportar CSV. Ocultar el comentario de ciertos roles sería un control de acceso granular por campo que `permission.md` excluye explícitamente de v1 ("Fuera de alcance": *access-control* custom/granular por recurso). El comentario se incluye en el CSV (decisión confirmada con el usuario) exactamente igual que cualquier otra respuesta.
+
+### UI
+
+**Runtime (público)**: cada Elemento tipo pregunta (excepto `calculado`) gana, debajo de su control principal: checkbox "No aplica" (escribe `naKey(element.id)`, autosave por el mismo camino de siempre) y `<textarea maxLength={5000}>` "Comentario confidencial" (escribe `commentKey(element.id)`). Marcar "No aplica" deshabilita el control principal (mismo tratamiento visual que `locked` en VS-018, aunque es un estado independiente — un elemento puede estar N/A sin estar `approved`/`submitted`) sin borrar el valor ya escrito, por si se desmarca.
+
+**Revisión (autenticada, VS-018)**: cada fila de pregunta muestra un `Pill` "N/A" cuando aplica, y el comentario confidencial visible en un bloque de solo lectura debajo del label (mismo criterio de "sin niveles de acceso" de arriba).
+
+### Exportación (`export.md`)
+
+`buildCsv` gana una columna `Comentario confidencial` (después de `Estado`) — vacía si no hay comentario. `formatAnswer` intercepta el caso N/A antes de formatear por tipo (ver arriba, "N/A" literal en vez del valor de `answers[elementId]`).
+
 ## Testing
 
 Mismo patrón que VS-007/VS-009:

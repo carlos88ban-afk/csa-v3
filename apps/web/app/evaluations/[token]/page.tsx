@@ -1,11 +1,14 @@
 "use client";
 
 import {
+  commentKey,
   componentRegistry,
   deriveStatus,
   evaluateExpression,
   hasAnswer,
+  isAnswered,
   isElementVisible,
+  naKey,
   statusKey,
   type AnswerValue,
   type Evaluation,
@@ -67,7 +70,9 @@ function flatten(snapshot: EvaluationSnapshot): FlatSubindicator[] {
 function progressOf(sub: SnapshotSubindicator, answers: ResponseAnswers | undefined) {
   const a = answers ?? {};
   const questions = (sub.formSchema?.elements ?? []).filter((el) => isQuestion(el) && isElementVisible(el.visibleIf, a));
-  const answered = questions.filter((q) => hasAnswer(a[q.id])).length;
+  // VS-019 (docs/engines/persistence.md, "N/A + comentario confidencial"):
+  // una pregunta marcada N/A cuenta como resuelta para el progreso.
+  const answered = questions.filter((q) => isAnswered(a[q.id], a[naKey(q.id)] as string | undefined)).length;
   return { answered, total: questions.length };
 }
 
@@ -620,6 +625,43 @@ function StatusRow({
   );
 }
 
+// N/A + comentario confidencial (VS-019, docs/engines/persistence.md):
+// universales a todo tipo de pregunta, sin config nueva en el Builder.
+// "Confidencial" es una etiqueta de UI, no control de acceso — ver doc.
+function NaCommentRow({
+  elementId,
+  markedNA,
+  comment,
+  onAnswerChange,
+}: {
+  elementId: string;
+  markedNA: boolean;
+  comment: string;
+  onAnswerChange: (key: string, value: AnswerValue) => void;
+}) {
+  return (
+    <div className="runtime-question__na">
+      <label className="field--checkbox">
+        <input
+          type="checkbox"
+          checked={markedNA}
+          onChange={(e) => onAnswerChange(naKey(elementId), e.target.checked ? "true" : "")}
+        />
+        No aplica
+      </label>
+      <label className="field">
+        <span className="field__label">Comentario confidencial</span>
+        <textarea
+          value={comment}
+          maxLength={5000}
+          rows={2}
+          onChange={(e) => onAnswerChange(commentKey(elementId), e.target.value)}
+        />
+      </label>
+    </div>
+  );
+}
+
 function ElementView({ token, subindicatorId, element, answers, value, onChange, onAnswerChange }: ElementViewProps) {
   if (element.type === "instruccion") {
     return <p className="runtime-instruction">{element.label}</p>;
@@ -633,13 +675,27 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
     return <CalculadoView element={element} answers={answers} onChange={(next) => onChange(next)} />;
   }
 
-  // Estado por pregunta (VS-018) — solo aplica a los tipos de arriba en
-  // adelante, que capturan una respuesta manual del evaluado.
-  const derived = deriveStatus(answers[statusKey(element.id)] as string | undefined, hasAnswer(value));
-  const locked = derived === "approved" || derived === "submitted";
-  const canComplete = hasAnswer(value) && (derived === "not_started" || derived === "in_progress");
+  // Estado por pregunta (VS-018) + N/A (VS-019) — solo aplica a los tipos de
+  // arriba en adelante, que capturan una respuesta manual del evaluado.
+  const na = answers[naKey(element.id)] as string | undefined;
+  const markedNA = na === "true";
+  const answeredOrNA = isAnswered(value, na);
+  const derived = deriveStatus(answers[statusKey(element.id)] as string | undefined, answeredOrNA);
+  // N/A deshabilita el control principal igual que approved/submitted —
+  // son dos motivos independientes para el mismo bloqueo de edición (un
+  // elemento puede estar N/A sin estar aprobado/enviado, y viceversa).
+  const locked = derived === "approved" || derived === "submitted" || markedNA;
+  const canComplete = answeredOrNA && (derived === "not_started" || derived === "in_progress");
   const statusRow = (
     <StatusRow elementId={element.id} derived={derived} canComplete={canComplete} onAnswerChange={onAnswerChange} />
+  );
+  const naCommentRow = (
+    <NaCommentRow
+      elementId={element.id}
+      markedNA={markedNA}
+      comment={(answers[commentKey(element.id)] as string | undefined) ?? ""}
+      onAnswerChange={onAnswerChange}
+    />
   );
 
   if (element.type === "url_publica") {
@@ -652,6 +708,7 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
         {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
         <UrlPublicaView element={element} value={urls} onChange={(next) => onChange(next)} locked={locked} />
         {statusRow}
+        {naCommentRow}
       </fieldset>
     );
   }
@@ -673,6 +730,7 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
           locked={locked}
         />
         {statusRow}
+        {naCommentRow}
       </fieldset>
     );
   }
@@ -717,6 +775,7 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
           />
         )}
         {statusRow}
+        {naCommentRow}
       </label>
     );
   }
@@ -791,6 +850,7 @@ function ElementView({ token, subindicatorId, element, answers, value, onChange,
           );
         })()}
       {statusRow}
+      {naCommentRow}
     </fieldset>
   );
 }

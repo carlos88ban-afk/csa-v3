@@ -1,9 +1,11 @@
 import { getEvaluation, listResponses, requireActiveMember } from "@plataforma-csa/db";
 import {
+  commentKey,
   componentRegistry,
   deriveStatus,
-  hasAnswer,
+  isAnswered,
   isElementVisible,
+  naKey,
   statusKey,
   type EvaluationSnapshot,
   type FormElement,
@@ -38,7 +40,12 @@ function csvCell(value: string): string {
   return value;
 }
 
-function formatAnswer(element: FormElement, value: unknown): string {
+function formatAnswer(element: FormElement, value: unknown, markedNA: boolean): string {
+  // VS-019 (docs/engines/persistence.md, "N/A + comentario confidencial"):
+  // N/A gana sobre cualquier valor residual de un intento anterior — el CSV
+  // debe mostrar "N/A" explícito, no una celda vacía indistinguible de
+  // "nunca se tocó".
+  if (markedNA) return "N/A";
   if (value === undefined || value === null || value === "") return "";
   if (element.type === "seleccion_unica") {
     const opt = element.options.find((o) => o.id === value);
@@ -71,7 +78,7 @@ const STATUS_LABEL: Record<ReturnType<typeof deriveStatus>, string> = {
 };
 
 function buildCsv(snapshot: EvaluationSnapshot, answersBySub: Map<string, ResponseAnswers>): string {
-  const header = ["Dimensión", "Indicador", "Subindicador", "Elemento", "Tipo", "Respuesta", "Estado"];
+  const header = ["Dimensión", "Indicador", "Subindicador", "Elemento", "Tipo", "Respuesta", "Estado", "Comentario confidencial"];
   const rows = [header];
 
   for (const dim of snapshot.dimensions) {
@@ -84,15 +91,18 @@ function buildCsv(snapshot: EvaluationSnapshot, answersBySub: Map<string, Respon
           (el) => isQuestion(el) && isElementVisible(el.visibleIf, answers),
         );
         for (const el of questions) {
-          const derived = deriveStatus(answers[statusKey(el.id)] as string | undefined, hasAnswer(answers[el.id]));
+          const na = answers[naKey(el.id)] as string | undefined;
+          const markedNA = na === "true";
+          const derived = deriveStatus(answers[statusKey(el.id)] as string | undefined, isAnswered(answers[el.id], na));
           rows.push([
             dim.title,
             ind.title,
             sub.title,
             el.label || "(sin texto)",
             componentRegistry.find((c) => c.type === el.type)?.label ?? el.type,
-            formatAnswer(el, answers[el.id]),
+            formatAnswer(el, answers[el.id], markedNA),
             STATUS_LABEL[derived],
+            (answers[commentKey(el.id)] as string | undefined) ?? "",
           ]);
         }
       }

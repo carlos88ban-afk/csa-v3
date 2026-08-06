@@ -106,3 +106,13 @@ export function assertPublicResponseUpdateAllowed(current: ResponseAnswers, inco
     }
   }
 }
+
+export function naKey(elementId: string): string {
+  return `${elementId}::na`;
+}
+export function commentKey(elementId: string): string {
+  return `${elementId}::comment`;
+}
+export function isAnswered(value: AnswerValue | undefined, na: string | undefined): boolean {
+  return hasAnswer(value) || na === "true";
+}
