@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-06 - VS-025 a VS-028: Ítems menores de AN-001 2.ª inspección
+- **Status**: Completed
+- **Description**: El usuario revirtió la decisión de no-priorización del agente (registrada y superada en `docs/project_notes/decisions.md`) y pidió implementar los 5 ítems menores. Estos 4: banner expandible/colapsable, sub-opciones a 2 niveles (fijo, no recursión genérica), estado por nodo en el árbol (progreso agregado derivado), comentario confidencial con formato (markdown-lite propio, decisión explícita de no agregar dependencia de UI nueva).
+- **Notes**: VS-026 (Builder+Runtime) delegado a OpenCode con el contrato ya escrito, revisado con `git diff` y verificado antes de aceptar. Los otros 3 implementados directamente. Verificado end-to-end en producción (los 4 juntos, un solo framework de prueba). Queda VS-029 (subindicadores directos bajo Dimensión) como último ítem, el único con cambio de schema — spec ya escrita en `docs/domain/evaluation-hierarchy.md`.
+
 ### 2026-08-06 - VS-024: Tabla de datos (tabla_datos)
 - **Status**: Completed
 - **Description**: Gap 9 de AN-001 2.ª inspección, el más grande y último de los 9. Tipo de celda definido por fila (no por celda individual) — decisión de diseño documentada antes de implementar. Primera nueva variante de `AnswerValue` desde VS-007 (mapa anidado rowId->columnId->valor). Primera vez que el motor usa `<table>` HTML nativa en Runtime.

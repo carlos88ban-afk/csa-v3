@@ -4,17 +4,17 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Siguiente
 
-- [ ] **AN-001 2.ª inspección (menores) — Banner expandible/colapsable**: `banner` gana estado colapsado/expandido con triángulo, igual que `banner-expandable` del portal S&P. Referencia: `docs/analysis/csa-sp-global-comparison.md`, "Segunda inspección"
-- [ ] **AN-001 2.ª inspección (menores) — Sub-opciones a 2 niveles**: `subOptions` (VS-016) gana un segundo nivel recursivo opcional (`subOptions[].subOptions?`)
-- [ ] **AN-001 2.ª inspección (menores) — Comentario confidencial rich text**: el textarea de comentario confidencial (VS-019) gana formato enriquecido (negrita/lista/etc.), equivalente a Jodit del portal S&P
-- [ ] **AN-001 2.ª inspección (menores) — Estado por nodo en el árbol**: el árbol de navegación (Runtime/Builder) muestra estado agregado por Dimensión/Indicador (no solo % global y estado por pregunta), igual que el portal S&P
-- [ ] **AN-001 2.ª inspección (menores) — Subindicadores directos bajo Dimensión**: permite crear un Subindicador colgando directo de una Dimensión sin Indicador intermedio (hallazgo estructural: 0.1, 5.x en el portal S&P) — el único de los 5 con cambio de schema
+- [ ] **AN-001 2.ª inspección (menores) — Subindicadores directos bajo Dimensión**: permite crear un Subindicador colgando directo de una Dimensión sin Indicador intermedio (hallazgo estructural: 0.1, 5.x en el portal S&P) — el único de los 5 con cambio de schema. Especificación ya escrita en `docs/domain/evaluation-hierarchy.md`, "Subindicadores directos bajo Dimensión (VS-029)"
 - [ ] Decidir proveedor de email/SMTP (ADR) si se necesita invitación automática por correo — hoy el link se comparte manualmente (ver `docs/domain/organization-user.md`)
 - [ ] Migrar a migraciones versionadas de Drizzle en vez de `db:push`, junto con provisionar una rama/proyecto Neon aislado para tests (`docs/TECH_DEBT.md` TD-001 + TD-002)
 - [ ] Si se necesita reconstruir el historial de una revisión de `formSchema` fuera del contexto de una publicación, construir una tabla de historial real (ver `docs/engines/publishing.md`, decisión de usar snapshot en vez de historial)
 
 ## Completado
 
+- [x] VS-028 — Comentario confidencial con formato (markdown-lite sin dependencia nueva, ítem menor de AN-001 2.ª inspección, verificado en producción) — 2026-08-06
+- [x] VS-027 — Estado por nodo en el árbol (progreso agregado Dimensión/Indicador, ítem menor de AN-001 2.ª inspección, verificado en producción) — 2026-08-06
+- [x] VS-026 — Sub-opciones a 2 niveles (ítem menor de AN-001 2.ª inspección, verificado en producción) — 2026-08-06
+- [x] VS-025 — Banner expandible/colapsable (ítem menor de AN-001 2.ª inspección, verificado en producción) — 2026-08-06
 - [x] VS-024 — Tabla de datos `tabla_datos` (gap 9 de AN-001 2.ª inspección, el más grande y último de los 9, verificado en producción) — 2026-08-06
 - [x] VS-023 — Unidad por campo numérico (`unit`/`availableUnits`, gap 8 de AN-001 2.ª inspección, verificado en producción) — 2026-08-06
 - [x] VS-022 — Select dropdown `seleccion_desplegable` (gap 7 de AN-001 2.ª inspección, verificado en producción) — 2026-08-06

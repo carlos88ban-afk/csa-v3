@@ -4,6 +4,15 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-025 a VS-028 — Ítems menores de AN-001 2.ª inspección (2026-08-06)
+
+- El usuario revirtió la decisión inicial de no priorizar el ítem "opcional/menor" (registrada y superada en `docs/project_notes/decisions.md`) y pidió implementarlos. Estos 4 primeros; VS-029 (subindicadores directos bajo Dimensión) sigue en `docs/BACKLOG.md` por ser el único con cambio de schema.
+- **VS-025 — Banner expandible/colapsable**: `banner` gana `expandable?: boolean`. Runtime: arranca colapsado (una línea, clamp CSS) con botón caret ▸/▾; estado local no persistido.
+- **VS-026 — Sub-opciones a 2 niveles**: `formOption.subOptions` gana un 2do nivel fijo (no recursión genérica — `subSubOption` no tiene su propio `subOptions`). Mismo patrón CRUD y de clave sintética que VS-016 (`${elementId}::${optionId}::${subOptionId}`), un nivel más adentro. `SubOptionsView` (Runtime) se vuelve auto-referencial una vez. Builder + Runtime delegados a OpenCode con el contrato exacto ya escrito en el doc; revisado (`git diff`) y verificado en producción antes de aceptar.
+- **VS-027 — Estado por nodo en el árbol**: progreso agregado (derivado, no persistido) por Indicador/Dimensión — suma de `answered`/`total` de sus descendientes, mismo `tree-dot` de 3 colores que ya usaban los Subindicadores.
+- **VS-028 — Comentario confidencial con formato**: decisión documentada de NO agregar dependencia de UI nueva (Jodit/TipTap/etc., precedente NFR-3 de `export.md`) — markdown-lite hecho a mano (`apps/web/lib/lite-markdown.ts`, negrita/itálica/lista únicamente). 3 botones de formato sobre el `<textarea>` existente (sin `contentEditable`); renderizado formateado solo en la página de Revisión (lectura administrativa); export CSV despoja la sintaxis antes de escribir la celda.
+- Verificado end-to-end en producción: banner colapsado→expandido con texto completo; radio "Sí" → checkbox "Evidencia disponible" (nivel 1) → checkbox "Verificada por terceros" (nivel 2), los 3 niveles persistieron tras recargar; `tree-dot` de Dimensión/Indicador pasó de gris a azul (accent) al responder una pregunta; comentario `**importante**` se renderizó en negrita en Revisión y como `importante` (sin asteriscos) en el CSV exportado (descarga autorizada explícitamente por el usuario para esta verificación puntual). Datos de prueba limpiados (publicación revocada).
+
 ### VS-024 — Tabla de datos `tabla_datos` (2026-08-06)
 
 - Gap 9 de AN-001 2.ª inspección, el más grande y complejo de los 9 gaps encontrados, y el último — equivalente a `table.form-table` del portal S&P (filas × columnas, tipo/unidad por celda). Requería `seleccion_desplegable` (VS-022) y `unit`/`availableUnits` (VS-023), ya cerrados.
