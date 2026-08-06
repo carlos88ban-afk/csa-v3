@@ -4,7 +4,11 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Siguiente
 
-- [ ] (Opcional, menor, evaluado y no priorizado el 2026-08-06 — ver `docs/project_notes/decisions.md`) Banner expandible/colapsable, sub-opciones a 2 niveles, comentario confidencial rich text (Jodit), estado por nodo en el árbol, subindicadores directos bajo dimensión — ver "Segunda inspección" en `docs/analysis/csa-sp-global-comparison.md`
+- [ ] **AN-001 2.ª inspección (menores) — Banner expandible/colapsable**: `banner` gana estado colapsado/expandido con triángulo, igual que `banner-expandable` del portal S&P. Referencia: `docs/analysis/csa-sp-global-comparison.md`, "Segunda inspección"
+- [ ] **AN-001 2.ª inspección (menores) — Sub-opciones a 2 niveles**: `subOptions` (VS-016) gana un segundo nivel recursivo opcional (`subOptions[].subOptions?`)
+- [ ] **AN-001 2.ª inspección (menores) — Comentario confidencial rich text**: el textarea de comentario confidencial (VS-019) gana formato enriquecido (negrita/lista/etc.), equivalente a Jodit del portal S&P
+- [ ] **AN-001 2.ª inspección (menores) — Estado por nodo en el árbol**: el árbol de navegación (Runtime/Builder) muestra estado agregado por Dimensión/Indicador (no solo % global y estado por pregunta), igual que el portal S&P
+- [ ] **AN-001 2.ª inspección (menores) — Subindicadores directos bajo Dimensión**: permite crear un Subindicador colgando directo de una Dimensión sin Indicador intermedio (hallazgo estructural: 0.1, 5.x en el portal S&P) — el único de los 5 con cambio de schema
 - [ ] Decidir proveedor de email/SMTP (ADR) si se necesita invitación automática por correo — hoy el link se comparte manualmente (ver `docs/domain/organization-user.md`)
 - [ ] Migrar a migraciones versionadas de Drizzle en vez de `db:push`, junto con provisionar una rama/proyecto Neon aislado para tests (`docs/TECH_DEBT.md` TD-001 + TD-002)
 - [ ] Si se necesita reconstruir el historial de una revisión de `formSchema` fuera del contexto de una publicación, construir una tabla de historial real (ver `docs/engines/publishing.md`, decisión de usar snapshot en vez de historial)

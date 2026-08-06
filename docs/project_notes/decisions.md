@@ -68,6 +68,8 @@ Las decisiones arquitectónicas formales del stack viven como ADRs en [`docs/adr
 - ✅ El esfuerzo de AN-001 2.ª inspección queda cerrado sin trabajo de bajo retorno pendiente.
 - ❌ Si en el futuro el usuario arma su propio framework y necesita específicamente colgar un Subindicador directo de una Dimensión (el único de los 5 con valor estructural real), habrá que reabrir ese ítem puntual — no bloqueante hoy.
 
+**Superada el 2026-08-06 (mismo día, sesión continuada):** el usuario revisó esta evaluación de costo/beneficio y decidió explícitamente que los 5 ítems sí valen la pena — prioridad del usuario sobre el análisis costo/beneficio del agente. Se ingresan como VS-025 a VS-029 en `docs/BACKLOG.md`, cada uno con especificación doc-first antes de implementar (regla rectora), mismo criterio que el resto del proyecto.
+
 ### 2026-08-04 — Sistema de memoria en `docs/project_notes/` en vez de `memory/`
 
 **Contexto:**
