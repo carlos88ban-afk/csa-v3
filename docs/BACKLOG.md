@@ -4,15 +4,13 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Siguiente
 
-Gaps AN-001 priorizados por el usuario 2026-08-05 (los 6 completos, doc-first cada uno en `docs/engines/form.md`/`persistence.md`, verificado en producción antes de cerrar):
-
-- [ ] VS-021 — Numeración automática (árbol + preguntas)
 - [ ] Decidir proveedor de email/SMTP (ADR) si se necesita invitación automática por correo — hoy el link se comparte manualmente (ver `docs/domain/organization-user.md`)
 - [ ] Migrar a migraciones versionadas de Drizzle en vez de `db:push`, junto con provisionar una rama/proyecto Neon aislado para tests (`docs/TECH_DEBT.md` TD-001 + TD-002)
 - [ ] Si se necesita reconstruir el historial de una revisión de `formSchema` fuera del contexto de una publicación, construir una tabla de historial real (ver `docs/engines/publishing.md`, decisión de usar snapshot en vez de historial)
 
 ## Completado
 
+- [x] VS-021 — Numeración automática de árbol y preguntas (gap 6 de AN-001, último de los 6, verificado en producción) — 2026-08-06
 - [x] VS-020 — Botones Save/Cancel/Reset explícitos en Runtime (gap 5 de AN-001, verificado en producción) — 2026-08-06
 - [x] VS-019 — N/A + comentario confidencial por pregunta (gap 4 de AN-001, verificado en producción) — 2026-08-06
 - [x] VS-018 — Estado por pregunta + flujo Approved/Submitted (gap 3 de AN-001, verificado en producción) — 2026-08-05

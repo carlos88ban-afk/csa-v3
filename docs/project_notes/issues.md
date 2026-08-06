@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-06 - VS-021: Numeración automática (árbol + preguntas)
+- **Status**: Completed
+- **Description**: Gap 6 de AN-001, último gap — cierra los 6 priorizados por el usuario. Numeración derivada por posición de array, no persistida (`dimensionNumber`/`indicatorNumber`/`subindicatorNumber` en `evaluation.ts`, `questionNumber` en `component-registry.ts`, reinicia por Subindicador, `instruccion`/`banner` nunca numeran).
+- **Notes**: Fuera de alcance el Builder (documentado): cada página solo carga su propio nodo + hijos directos, numerar exigiría fetches en cascada. sdk-core delegado a OpenCode, `apps/web` (Runtime, Revisión, export CSV) hecho directamente. Verificado end-to-end en producción (árbol, breadcrumb, preguntas, Revisión y CSV todos con la numeración correcta). Datos de prueba limpiados. Ver `docs/domain/evaluation-hierarchy.md` y `docs/engines/form.md` sección "Numeración automática (VS-021)".
+
 ### 2026-08-06 - VS-020: Botones Save/Cancel/Reset explícitos en Runtime
 - **Status**: Completed
 - **Description**: Gap 5 de AN-001. Aditivo sobre el autosave existente. Cancel/Reset comparten implementación (decisión confirmada con el usuario: mismo efecto, volver al último guardado). `lastSavedBySub` (ref) trackea la última foto confirmada por el servidor para poder revertir sin recargar la página.

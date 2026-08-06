@@ -1,52 +1,64 @@
-checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000013
+checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000014
 fecha: 2026-08-06
-estado: en_progreso
-slice_actual: ninguno — VS-020 cerrado, siguiente y último es VS-021 (numeración automática)
+estado: completo
+slice_actual: ninguno — VS-021 cerrado, los 6 gaps de AN-001 quedan resueltos
 
-slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020]
+slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021]
 
 decisiones_del_dia:
-  - VS-020 (Save/Cancel/Reset) cerrado, quinto de los 6 gaps de AN-001. Usuario confirmó antes de diseñar: Cancel y Reset tienen el mismo efecto (volver al último guardado) — se implementaron como una sola función (`handleCancelOrReset`) expuesta en dos botones, evitando duplicar lógica sin necesidad.
-  - Diseño: `lastSavedBySub` (useRef, no useState — caché de lectura para los botones, no debe re-renderizar por sí sola) trackea la última foto de `answers` confirmada por el servidor por Subindicador. `Guardar` fuerza el autosave pendiente ya (cancela el debounce, llama el mismo PUT). `Cancelar`/`Restablecer` revierten el Subindicador activo a esa foto y cancelan cualquier autosave pendiente para que no la sobreescriba. Sin cambios en sdk-core/packages/db — puramente estado de cliente, el slice más simple de los 6 gaps en superficie de código.
-
-  - **Incidente real de infraestructura durante el despliegue de este slice** (documentado en detalle porque puede repetirse):
-    - El push del commit de código de VS-020 (`7a7e4d8`) llegó correctamente a GitHub (confirmado con `git fetch` + `git log origin/main`) pero **nunca generó un deployment en Vercel** — ni siquiera con estado "Canceled" (se revisó con los 7 estados de filtro visibles en el dashboard). Todos los pushes anteriores de la sesión habían disparado un build en segundos.
-    - Diagnóstico paso a paso: (1) confirmado que el repo seguía conectado en Settings→Git (`carlos88ban-afk/csa-v3`, conectado hace 2 días); (2) confirmado Root Directory = `apps/web` con "Include files outside the root directory" habilitado y "Skip deployments when no changes to root directory or dependencies" habilitado — un heurístico legítimo del proyecto, no la causa (el commit sí tocaba `apps/web`); (3) un primer intento de "Redeploy" desde el dashboard solo reconstruyó el commit VIEJO (el redeploy re-ejecuta un deployment ya existente, no apunta al HEAD real de la rama); (4) se hizo `git commit --allow-empty` + push para forzar un evento nuevo — este SÍ generó un deployment (confirma que el webhook en general funcionaba), pero quedó en estado "Canceled" porque un commit vacío no toca `apps/web` (el heurístico de "skip" actuó correctamente sobre ESE commit); (5) usando el botón "Redeploy" sobre ESE deployment cancelado (mismo árbol de archivos que el HEAD real, ya que un commit vacío no cambia el árbol), se generó un build real que sí compiló y quedó `READY` como el deployment de producción activo.
-    - Causa raíz más probable: pérdida puntual de la entrega del webhook de GitHub→Vercel para un solo push (no un problema de configuración persistente — el mismo mecanismo funcionó normalmente antes y después). No se encontró una causa determinística más profunda accesible desde las herramientas disponibles (sin CLI de Vercel/GitHub instalado en este entorno; los MCP no exponen los webhook deliveries de GitHub ni logs internos de Vercel más allá de la lista de deployments).
-    - Diagnóstico hecho navegando el dashboard real de Vercel con claude-in-chrome (Settings→Git, Settings→Build and Deployment, Deployments con filtro de estados) a pedido explícito del usuario, ya que las herramientas MCP de Vercel no exponen esta información.
-    - Si se repite: no asumir que es un problema del código. Revisar primero si el commit aparece en la lista de Deployments con CUALQUIER estado (incluido Canceled, que por defecto viene oculto en el filtro). Si no aparece en absoluto, es un push cuyo webhook no llegó — la solución que funcionó fue: commit vacío para generar un nuevo evento (aunque quede Canceled por el heurístico de "sin cambios"), luego "Redeploy" manual sobre ESE deployment cancelado (su árbol de archivos es el HEAD real).
-  - Verificado end-to-end en producción con framework de prueba ("VS-020 Test", Org VS-010): los tres botones deshabilitados sin cambios pendientes; escribir los habilita; `Cancelar` revierte al último valor guardado (probado escribiendo y cancelando ANTES de que corriera el autosave de 1.5s, con doble intento para superar la latencia de las herramientas de automatización); `Restablecer` con el mismo comportamiento; `Guardar` dispara "Guardando…" de inmediato (sin esperar el debounce) y persiste tras recargar. Datos de prueba limpiados.
+  - VS-021 (Numeración automática) cerrado, sexto y último de los 6 gaps de AN-001 priorizados por el usuario el 2026-08-05/06. Con este slice se completa el esfuerzo de cierre de gaps iniciado al comienzo de la sesión.
+  - Diseño: numeración **derivada, no persistida** — calculada en tiempo de render a partir del índice del array (mismo criterio que el resto del proyecto: "el índice del array ya es el orden", sin columna `order` redundante). `dimensionNumber`/`indicatorNumber`/`subindicatorNumber` en `packages/sdk-core/src/evaluation.ts`; `questionNumber` en `packages/sdk-core/src/component-registry.ts` (reinicia por Subindicador, solo cuenta Elementos `isQuestion` visibles según `visibleIf`; `instruccion`/`banner` nunca numeran). Cero cambios en `packages/db`.
+  - Decisión de alcance explícita: el Builder NO muestra numeración (documentado en `docs/domain/evaluation-hierarchy.md`, sección "Fuera de alcance") — cada página del Builder solo carga su propio nodo + hijos directos, no hermanos/ancestros; numerar ahí exigiría fetches en cascada para un valor bajo.
+  - sdk-core delegado a OpenCode (mecánico, contrato ya escrito en el doc antes de delegar); `apps/web` (Runtime público, página de Revisión, export CSV) hecho directamente.
+  - Verificado end-to-end en producción con framework de prueba ("VS-021 Test"): 2 Dimensiones (cada una 1 Indicador + 1 Subindicador) y un Subindicador con 3 Elementos (`texto_corto`, `instruccion`, `texto_corto`) diseñado para confirmar que las instrucciones no consumen número y que la numeración de preguntas reinicia por Subindicador.
+    - Runtime: árbol de navegación mostró "1 Dim A → 1.1 Ind A1 → 1.1.1 Sub A1a" y "2 Dim B → 2.1 Ind B1 → 2.1.1 Sub B1a"; dentro de Sub B1a, "0.1 Primera pregunta" / instrucción sin número / "0.2 Segunda pregunta".
+    - Página de Revisión: mismo árbol y numeración de preguntas confirmados por screenshot.
+    - Export CSV: columna "Número" con valores "0.1"/"0.2" correctos para las dos preguntas de Sub B1a.
+    - Datos de prueba limpiados (evaluación revocada/eliminada, framework "VS-021 Test" eliminado vía `DELETE /api/frameworks/{id}`).
+  - Documento de análisis `docs/analysis/csa-sp-global-comparison.md` actualizado: los 6 gaps de la tabla de mapeo marcados ✅ resueltos con referencia a su slice (VS-016 a VS-021), sección "Veredicto" y "Siguientes pasos" reescritas para reflejar el cierre completo.
 
 archivos_modificados:
-  - docs/engines/persistence.md (spec doc-first "Botones Save/Cancel/Reset explícitos VS-020")
-  - apps/web/app/evaluations/[token]/page.tsx (lastSavedBySub, doSave extraído, handleSave, handleCancelOrReset, dirty)
-  - apps/web/app/globals.css (.runtime-topbar__actions)
+  - docs/domain/evaluation-hierarchy.md (spec doc-first "Numeración automática (VS-021)" + sección "Fuera de alcance" para el Builder)
+  - docs/engines/form.md (sección "Numeración automática de preguntas (VS-021)")
+  - packages/sdk-core/src/evaluation.ts (dimensionNumber, indicatorNumber, subindicatorNumber)
+  - packages/sdk-core/src/component-registry.ts (questionNumber)
+  - packages/sdk-core/src/evaluation.test.ts, component-registry.test.ts (tests nuevos)
+  - apps/web/app/evaluations/[token]/page.tsx (árbol de navegación, breadcrumb-mini, h1, labels de pregunta con prefijo de número)
+  - apps/web/app/frameworks/[frameworkId]/evaluations/[evaluationId]/review/page.tsx (numeración en h2/h3/h4 y lista de preguntas)
+  - apps/web/app/api/evaluations/[id]/export/route.ts (columna "Número" en CSV)
   - docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md
+  - docs/analysis/csa-sp-global-comparison.md (los 6 gaps marcados resueltos)
 
 proximos_pasos:
-  - Siguiente y último: VS-021 — numeración automática (árbol + preguntas), gap 6 de AN-001 y cierre de los 6 gaps priorizados por el usuario. Numeración derivada por posición (Dimensión=1,2,3; Indicador=1.1,1.2; Subindicador=1.1.1; preguntas dentro=0.1,0.2 según el doc de análisis) — NO persistida, calculada en Builder y Runtime a partir del orden del array (mismo criterio que el resto del proyecto: "sin campo `order` redundante", el índice del array ya es el orden). Diseñar doc-first en docs/domain/evaluation-hierarchy.md y docs/engines/form.md antes de tocar código.
-  - Al cerrar VS-021 se completan los 6 gaps de AN-001 (docs/analysis/csa-sp-global-comparison.md) — actualizar también ese documento marcando los 6 como resueltos, no solo el CHANGELOG/BACKLOG habituales.
-  - Pendiente no bloqueante, sigue en BACKLOG.md: TD-001+TD-002 (migraciones versionadas + rama Neon de test), proveedor de email (ADR), tabla de historial de revisiones de formSchema si se necesita.
+  - Ninguno relacionado a AN-001 — los 6 gaps quedan cerrados y verificados en producción (https://csa-v3-web.vercel.app).
+  - Pendiente no bloqueante, sigue en BACKLOG.md ("Siguiente"): proveedor de email/SMTP (ADR) para invitación automática; TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada); tabla de historial de revisiones de `formSchema` si se necesita reconstruir historial fuera de una publicación.
+  - Al retomar trabajo sin un pedido específico del usuario, revisar `docs/ROADMAP.md` y `docs/BACKLOG.md` para el siguiente ítem por prioridad.
 
 bloqueos: []
 
 contexto_para_continuar: |
-  AN-001 (análisis S&P) identificó 6 gaps aditivos sobre engine/form; el
-  usuario los priorizó completos el 2026-08-05/06. VS-016 a VS-020 cerrados
-  y verificados en producción (https://csa-v3-web.vercel.app). Queda SOLO
-  VS-021 (numeración automática) para completar los 6 gaps.
-  Mismo proceso: doc-first → código (OpenCode si es mecánico, directo si
-  es de mayor juicio) → verificar en producción con claude-in-chrome →
-  limpiar datos de prueba → cerrar (CHANGELOG/issues/CHECKPOINT/BACKLOG).
-  Notas operativas acumuladas esta sesión:
+  AN-001 (análisis S&P Global CSA 2026, docs/analysis/csa-sp-global-comparison.md)
+  identificó 6 gaps aditivos sobre engine/form; el usuario los priorizó completos
+  el 2026-08-05/06 con la directiva explícita de implementar todo lo necesario
+  para cada gap, sin recortes ni versiones mínimas. VS-016 a VS-021 cerrados,
+  verificados en producción (https://csa-v3-web.vercel.app) y documentados
+  (CHANGELOG/issues/BACKLOG/análisis AN-001 actualizado). No queda trabajo
+  pendiente de este esfuerzo.
+
+  Notas operativas acumuladas durante la sesión (útiles si se repiten):
   - Si claude-in-chrome no conecta, verificar que `claude.exe
     --chrome-native-host` siga vivo antes de escalar (reinicio de Chrome
     suele bastar).
-  - Si un push no genera deployment en Vercel (ni "Canceled"), ver el
-    incidente detallado arriba — commit vacío + Redeploy manual sobre ese
-    commit vacío resuelve.
-  Para retomar: leer este archivo, luego docs/BACKLOG.md ("Siguiente"),
-  empezar VS-021 con docs/analysis/csa-sp-global-comparison.md como
-  referencia del gap. Al cerrarlo, marcar los 6 gaps de AN-001 como
-  resueltos en ese documento también.
+  - Si un push no genera deployment en Vercel (ni "Canceled" en el dashboard),
+    ver el incidente detallado en el CHANGELOG de VS-020 — commit vacío +
+    "Redeploy" manual sobre ESE commit vacío resuelve.
+  - Al copiar tokens/URLs desde la UI para navegar con claude-in-chrome,
+    extraer el valor exacto vía `javascript_tool`
+    (`[...document.querySelectorAll('a')].map(a => a.href)`) en vez de
+    transcribir desde un screenshot — evita errores de OCR visual en
+    caracteres ambiguos (I/l, 0/O).
+
+  Para retomar sin un pedido específico: leer este archivo, luego
+  docs/BACKLOG.md ("Siguiente") y docs/ROADMAP.md para el siguiente ítem
+  por prioridad.
   Comando de verificación: pnpm install && pnpm slice:close.

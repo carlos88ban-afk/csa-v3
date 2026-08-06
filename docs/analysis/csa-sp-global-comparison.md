@@ -2,6 +2,8 @@
 
 Fecha: 2026-08-05. Tipo: análisis comparativo (no especificación de implementación). Resultado: **la estructura de evaluación del portal S&P Global CSA es replicable con el modelo actual; los gaps están en tipos de elemento/features, no en la arquitectura.**
 
+**Actualización 2026-08-06: los 6 gaps identificados fueron priorizados completos por el usuario e implementados como VS-016 a VS-021 — ver tabla de mapeo abajo, todas las filas quedaron en ✅. Detalle de cada slice en `docs/CHANGELOG.md` y `docs/project_notes/issues.md`.**
+
 ## Método
 
 Inspección en vivo del portal (`https://portal.s1.spglobal.com/survey/ui`, sesión real del usuario, cuenta `fernando.ruiz@intercorpretail.pe`): login Okta → dashboard → participación CSA 2026 → tab **Questionnaires** → sub-cuestionario 1.1.1 "Sustainability Reporting Boundaries" (DOM inspeccionado: clases `question-entry`, `banner`, `branch`, `status0..4`, inputs reales). Solo se documenta la sección Questionnaires (Confirmation/Documents fuera de alcance, pedido del usuario).
@@ -42,30 +44,30 @@ Jerarquía exacta: **Dimensión → Criterio (indicador) → Sub-criterio (cuest
 | Banner de requisito / guía | Elemento `banner` (`variant: info/warning`) | ✅ (falta expandible/colapsable) |
 | Radio / checkbox / texto / textarea / número | `seleccion_unica`, `seleccion_multiple`, `texto_corto`, `texto_largo`, `numero` | ✅ |
 | Ramas condicionales (`branch`) | `visibleIf` en cualquier Elemento (VS-013) | ✅ |
-| Evidencias: URL públicas (máx. 3) | Elemento `evidencia` (archivos → R2, VS-011) | ⚠️ archivos, no URLs |
+| Evidencias: URL públicas (máx. 3) | Elemento `url_publica` (`maxUrls?`, VS-017), complementario a `evidencia` (archivos) | ✅ resuelto (VS-017) |
 | Árbol lateral + Prev/Next + % de progreso | Runtime VS-010 (misma referencia visual declarada) | ✅ |
-| Autosave | ✅ debounce 1500ms | ✅ (sin botón Save explícito) |
-| Estado por pregunta (Not Started→Submitted) | Progreso % por Subindicador (derivado) | ⚠️ granularidad distinta, sin Approved |
-| Opciones anidadas (padre → sub-checklist) | Opciones planas `{id, label}[]` | ❌ gap principal |
-| Opción "Not applicable" por pregunta | — | ❌ |
-| "Confidential additional comments" por pregunta | — | ❌ |
-| Numeración automática (1.1, 1.1.1, 0.1) | — | ❌ (solo título libre) |
-| Multi-respondiente por empresa (flujo Approved/Submit) | Una sesión compartida por enlace (VS-010, decisión explícita) | ⚠️ no existe identidad/roles de evaluado |
+| Autosave | ✅ debounce 1500ms + botones Save/Cancel/Reset explícitos (VS-020) | ✅ resuelto (VS-020) |
+| Estado por pregunta (Not Started→Submitted) | 5 estados por pregunta + flujo Approved/Submitted autenticado, RBAC owner/editor (VS-018) | ✅ resuelto (VS-018) |
+| Opciones anidadas (padre → sub-checklist) | `formOption.subOptions` (un nivel), clave sintética por sub-opción (VS-016) | ✅ resuelto (VS-016) |
+| Opción "Not applicable" por pregunta | Checkbox N/A universal por pregunta, cuenta como resuelta (VS-019) | ✅ resuelto (VS-019) |
+| "Confidential additional comments" por pregunta | Textarea de comentario confidencial por pregunta, incluido en export CSV (VS-019) | ✅ resuelto (VS-019) |
+| Numeración automática (1.1, 1.1.1, 0.1) | `dimensionNumber`/`indicatorNumber`/`subindicatorNumber`/`questionNumber`, derivada por posición (VS-021) | ✅ resuelto (VS-021) |
+| Multi-respondiente por empresa (flujo Approved/Submit) | Una sesión compartida por enlace (VS-010, decisión explícita); Approved/Submitted resuelto vía RBAC autenticado en vez de identidad de evaluado (VS-018) | ✅ resuelto (VS-018, sin romper la decisión de "sin identidad de evaluado") |
 | Tabs Confirmation/Questionnaires/Documents | — | N/A: gestión de participación del portal, no estructura de evaluación (fuera de pedido) |
 
 ## Veredicto
 
 **Sí se puede construir una evaluación igual de estructurada hoy.** La idea del usuario (admin crea Dimensión → Indicadores con descripción → Subindicadores que son formularios independientes con banners, preguntas y guardado) es exactamente el modelo `Framework → Dimensión → Indicador → Subindicador` ya implementado (VS-004/VS-006/VS-007), y el Runtime ya navega como el portal S&P (árbol colapsable, Prev/Next, puntos de progreso) por referencia visual explícita (VS-010).
 
-Los gaps para igualar la experiencia S&P son **aditivos sobre `engine/form`** (nuevos tipos de Elemento + config), no requieren rediseño de la jerarquía ni de la persistencia:
+Los gaps para igualar la experiencia S&P eran **aditivos sobre `engine/form`** (nuevos tipos de Elemento + config), sin requerir rediseño de la jerarquía ni de la persistencia. Los 6 quedaron resueltos el 2026-08-06:
 
-1. **Opciones anidadas** — ampliar `seleccion_unica`/`seleccion_multiple` para soportar sub-opciones (gap estructural de mayor impacto visual).
-2. **Campo URL pública con límite (max N)** — tipo `url` con lista de referencias; complementa a `evidencia` (archivos).
-3. **Estado por pregunta + flujo Approved/Submitted** — hoy el progreso es % por Subindicador derivado en cliente; falta el estado por pregunta y el flujo de revisión/aprobación.
-4. **Opción "Not applicable" y "Confidential additional comments"** por pregunta — conceptos nuevos de Elemento/config.
-5. **Botones Save/Cancel/Reset** — hoy todo es autosave silencioso; faltan acciones explícitas (Cancel = descartar cambios locales, Reset = restaurar última respuesta guardada).
-6. **Numeración automática** del árbol y de las preguntas.
+1. **Opciones anidadas** — ✅ VS-016. `seleccion_unica`/`seleccion_multiple` ganan `subOptions?` (un nivel).
+2. **Campo URL pública con límite (max N)** — ✅ VS-017. Tipo `url_publica` con lista de referencias; complementa a `evidencia` (archivos).
+3. **Estado por pregunta + flujo Approved/Submitted** — ✅ VS-018. 5 estados por pregunta; Approved/Submitted como acción nueva autenticada (RBAC owner/editor), no identidad de evaluado.
+4. **Opción "Not applicable" y "Confidential additional comments"** por pregunta — ✅ VS-019.
+5. **Botones Save/Cancel/Reset** — ✅ VS-020. Aditivo sobre el autosave existente (no lo reemplaza).
+6. **Numeración automática** del árbol y de las preguntas — ✅ VS-021. Derivada por posición de array, no persistida; no incluye las páginas del Builder (fuera de alcance documentado en `docs/domain/evaluation-hierarchy.md`).
 
-## Siguientes pasos propuestos (candidatos, no comprometidos)
+## Siguientes pasos
 
-Diseño doc-first (`docs/engines/form.md` + `sdk-core`) de los gaps 1, 2 y 3 por prioridad; registrar en BACKLOG.md si el usuario los prioriza. El orden sugerido: opciones anidadas → campo URL → estado por pregunta.
+Ninguno pendiente de este análisis — los 6 gaps identificados están cerrados y verificados en producción. Ver `docs/CHANGELOG.md` (entradas VS-016 a VS-021) para el detalle de implementación de cada uno.

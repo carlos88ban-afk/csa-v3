@@ -4,6 +4,17 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-021 — Numeración automática de árbol y preguntas (2026-08-06)
+
+- Gap 6 de AN-001, último de los 6 gaps priorizados por el usuario — cierra el esfuerzo completo de AN-001 (ver `docs/analysis/csa-sp-global-comparison.md`).
+- Numeración **derivada, no persistida**: calculada en tiempo de render a partir de la posición en el array (mismo criterio ya usado en el proyecto — "el índice del array ya es el orden", sin campo `order` redundante). Cero cambios en `packages/db`.
+- `packages/sdk-core/src/evaluation.ts`: `dimensionNumber(dimIndex)` → `"1"`, `indicatorNumber(dimIndex, indIndex)` → `"1.1"`, `subindicatorNumber(dimIndex, indIndex, subIndex)` → `"1.1.1"` (1-based, compuestos por posición en el árbol).
+- `packages/sdk-core/src/component-registry.ts`: `questionNumber(questionIndex)` → `"0.1"`, `"0.2"`... — 0-based en el sentido de "no es parte del árbol de Dimensión/Indicador/Subindicador", reinicia en cada Subindicador; solo cuenta Elementos `isQuestion` visibles (`visibleIf`), `instruccion`/`banner` nunca reciben número.
+- Runtime público (`apps/web/app/evaluations/[token]/page.tsx`): árbol de navegación, breadcrumb-mini, `<h1>` y cada label de pregunta ganan el prefijo de número correspondiente. Página de Revisión (`.../review/page.tsx`) y export CSV (columna nueva "Número") replican el mismo cálculo.
+- Fuera de alcance, documentado explícitamente en `docs/domain/evaluation-hierarchy.md`: las páginas del Builder NO muestran numeración — cada página del Builder solo carga su propio nodo + hijos directos, no hermanos/ancestros, por lo que numerar ahí exigiría fetches en cascada para un valor bajo.
+- sdk-core (`dimensionNumber`/`indicatorNumber`/`subindicatorNumber`/`questionNumber`, con tests) delegado a OpenCode — contrato completo ya escrito en el doc antes de delegar. `apps/web` (Runtime, Revisión, export) hecho directamente.
+- Verificado end-to-end en producción: framework de prueba con 2 Dimensiones (cada una con 1 Indicador y 1 Subindicador) y un Subindicador con 3 Elementos (`texto_corto`, `instruccion`, `texto_corto`) diseñado específicamente para confirmar que las instrucciones no consumen número y que la numeración de preguntas reinicia por Subindicador. Runtime mostró "1 Dim A → 1.1 Ind A1 → 1.1.1 Sub A1a" / "2 Dim B → 2.1 Ind B1 → 2.1.1 Sub B1a" y, dentro de Sub B1a, "0.1 Primera pregunta" / (instrucción sin número) / "0.2 Segunda pregunta". Página de Revisión y CSV exportado confirmaron la misma numeración. Datos de prueba limpiados.
+
 ### VS-020 — Botones Save/Cancel/Reset explícitos en Runtime (2026-08-06)
 
 - Gap 5 de AN-001. Aditivo sobre el autosave existente (debounce 1500ms) — no lo reemplaza. Decisión confirmada con el usuario: `Cancel` y `Reset` tienen el mismo efecto (volver al último estado guardado en el servidor), se exponen como dos botones igual que S&P pero comparten una sola implementación (`handleCancelOrReset`).
