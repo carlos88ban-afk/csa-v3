@@ -10,6 +10,7 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Completado
 
+- [x] VS-030 — Editor WYSIWYG (TipTap) para comentario confidencial (reemplaza markdown-lite de VS-028, ver ADR 0006 — trabajo nuevo pedido por el usuario, no gap de AN-001; bug real de foco corregido en el camino, ver CHANGELOG) — 2026-08-07
 - [x] VS-029 — Subindicadores directos bajo Dimensión (único de los 5 ítems menores de AN-001 2.ª inspección con cambio de schema — `dimensionId` nullable alternativo + CHECK XOR en `packages/db`, verificado en producción) — 2026-08-06
 - [x] VS-028 — Comentario confidencial con formato (markdown-lite sin dependencia nueva, ítem menor de AN-001 2.ª inspección, verificado en producción) — 2026-08-06
 - [x] VS-027 — Estado por nodo en el árbol (progreso agregado Dimensión/Indicador, ítem menor de AN-001 2.ª inspección, verificado en producción) — 2026-08-06

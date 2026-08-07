@@ -4,6 +4,17 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-030 — Editor WYSIWYG (TipTap) para comentario confidencial (2026-08-07)
+
+- Trabajo nuevo, no gap de AN-001 (AN-001 ya estaba cerrado por completo desde VS-029). El usuario pidió revertir la decisión de VS-028 ("markdown-lite sin dependencia nueva") para lograr paridad visual/de comportamiento con el editor rich text (Jodit) del portal S&P Global CSA 2026. Ver `docs/adr/0006-editor-wysiwyg-comentario-confidencial.md` para el razonamiento completo (por qué TipTap y no Jodit literal).
+- `packages/sdk-core/src/rich-text.ts` (nuevo): `sanitizeCommentHtml`/`stripCommentHtml` (`sanitize-html`, allowlist mínima `strong`/`em`/`p`/`br`/`ul`/`li`, sin atributos) — reemplaza `apps/web/lib/lite-markdown.ts` (eliminado). Cero cambio de contrato en `packages/sdk-core/src/response.ts`: `commentKey` sigue guardando `string`, ahora HTML sanitizado en vez de markdown-lite.
+- Runtime (`apps/web/app/evaluations/[token]/page.tsx`, `NaCommentRow`): editor `@tiptap/react` (`StarterKit` reducido a párrafo/negrita/itálica/lista + `CharacterCount` para el límite de 5000 chars) reemplaza el `<textarea>`. Toolbar ejecuta comandos TipTap (`editor.chain().focus().toggleBold().run()`) en vez de manipular `selectionStart`/`selectionEnd`; refleja estado activo vía `aria-pressed`.
+- **Bug real encontrado y corregido durante la implementación**: el `<label>` que envolvía la pregunta completa (`texto_corto`/`texto_largo`/`numero`/`seleccion_desplegable`) redirigía el foco/activación a su input asociado ante cualquier click dentro de él — comportamiento nativo del navegador para `<label>`, no un bug de React. Un `<textarea>` (control de formulario nativo) interceptaba ese click y no se veía afectado; un `contentEditable` no lo es, así que el editor WYSIWYG perdía el foco justo después de ganarlo. Corregido restructurando esas 4 ramas: el `<label>` ahora envuelve **solo** su propio control; `naCommentRow`/`statusRow` quedan como hermanos fuera de él, dentro de un `<div className="field runtime-question">`. De paso resuelve una ambigüedad de accesibilidad preexistente (el input principal y el comentario compartían accessible name).
+- Página de Revisión y export CSV actualizados a `sanitizeCommentHtml`/`stripCommentHtml` (antes `renderLiteMarkdown`/`stripLiteMarkdown`).
+- Test e2e nuevo en `apps/web/e2e/public-runtime.spec.ts` (cobertura que no existía para el campo). 13 tests unitarios nuevos en `packages/sdk-core/src/rich-text.test.ts`, incluyendo intentos de XSS (`<script>`, `onerror`, `javascript:`).
+- Sin migración de datos: corte limpio, no había comentarios reales en producción con el formato markdown-lite viejo al momento del cambio (confirmado con el usuario antes de implementar).
+- Verificado end-to-end en producción: framework de prueba con una pregunta `texto_corto`, comentario escrito en negrita vía el editor, autoguardado, persistencia confirmada tras recargar (`GET` trae el HTML guardado, TipTap lo renderiza formateado); página de Revisión mostró el comentario en negrita; export CSV confirmó la celda en texto plano sin tags (`fetch` autorizado explícitamente, sin descarga). Datos de prueba limpiados (framework, organización y usuario de prueba borrados).
+
 ### VS-029 — Subindicadores directos bajo Dimensión (2026-08-06)
 
 - Último de los 5 ítems menores de AN-001 2.ª inspección, el único con cambio de schema. Un Subindicador ahora puede colgar directo de una Dimensión sin Indicador intermedio (hallazgo del portal S&P: `0.1`, `5.x`).

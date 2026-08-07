@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-07 - VS-030: Editor WYSIWYG (TipTap) para comentario confidencial
+- **Status**: Completed
+- **Description**: Trabajo nuevo (no gap de AN-001, que ya estaba cerrado desde VS-029). El usuario pidió revertir la decisión de VS-028 y adoptar un editor WYSIWYG real para paridad con el portal S&P (Jodit). Se eligió TipTap en su lugar (ver ADR 0006) — mejor integración React que Jodit literal. `commentKey` sigue guardando `string` (ahora HTML sanitizado en vez de markdown-lite), cero cambio de contrato.
+- **Notes**: Bug real encontrado en el camino (no en producción, durante el propio desarrollo): el `<label>` que envolvía toda la pregunta redirigía el foco a su input asociado en cualquier click dentro de él — comportamiento nativo de `<label>`, invisible con el `<textarea>` anterior porque los controles de formulario nativos interceptan ese click. Corregido restructurando el markup de 4 tipos de elemento (texto_corto/texto_largo/numero/seleccion_desplegable). Verificado end-to-end en producción (editor, autosave, persistencia, Revisión, export CSV). Datos de prueba limpiados.
+
 ### 2026-08-06 - VS-029: Subindicadores directos bajo Dimensión
 - **Status**: Completed
 - **Description**: Último ítem de AN-001 2.ª inspección, el único de los 5 menores con cambio de schema. Un Subindicador puede colgar directo de una Dimensión sin Indicador intermedio — `dimensionId` nullable alternativo a `indicatorId`, CHECK XOR en Postgres. Nueva ruta Builder, árbol Runtime, Revisión y export CSV actualizados.
