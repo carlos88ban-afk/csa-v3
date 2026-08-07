@@ -13,6 +13,7 @@ import {
   isElementVisible,
   naKey,
   questionNumber,
+  sanitizeCommentHtml,
   statusKey,
   subindicatorNumber,
   unitKey,
@@ -25,8 +26,13 @@ import {
   type TableValue,
 } from "@plataforma-csa/sdk-core";
 import { use, useEffect, useMemo, useRef, useState } from "react";
+import { EditorContent, useEditor } from "@tiptap/react";
+import CharacterCount from "@tiptap/extension-character-count";
+import StarterKit from "@tiptap/starter-kit";
 import { api } from "@/lib/api-client";
 import { Pill } from "@/components/ui";
+
+const COMMENT_MAX_CHARS = 5000;
 
 interface Props {
   params: Promise<{ token: string }>;
@@ -967,45 +973,74 @@ function StatusRow({
 // N/A + comentario confidencial (VS-019, docs/engines/persistence.md):
 // universales a todo tipo de pregunta, sin config nueva en el Builder.
 // "Confidencial" es una etiqueta de UI, no control de acceso — ver doc.
-// Comentario confidencial con formato (VS-028, docs/engines/form.md): el
-// campo sigue siendo un <textarea> plano (sin contentEditable, sin
-// dependencia de editor rico) — los 3 botones envuelven/prefijan la
-// selección actual con la sintaxis mínima reconocida por
-// `renderLiteMarkdown` (negrita/itálica/lista), que se renderiza formateada
-// solo en la página de Revisión (lectura administrativa).
+// Comentario confidencial con formato (VS-030, docs/adr/0006, sucesor de
+// VS-028/markdown-lite, ver docs/engines/form.md): editor WYSIWYG real
+// (TipTap/ProseMirror, contentEditable) en vez del <textarea> con sintaxis
+// manual. `commentKey` sigue guardando `string` — ahora HTML sanitizado
+// (`sanitizeCommentHtml`) en vez de markdown-lite. StarterKit reducido a
+// solo negrita/itálica/lista/párrafo (mismo alcance mínimo que antes), más
+// CharacterCount para el límite de 5000 caracteres (antes `maxLength` del
+// textarea nativo).
 function NaCommentRow({
   elementId,
   markedNA,
   comment,
+  locked,
   onAnswerChange,
 }: {
   elementId: string;
   markedNA: boolean;
   comment: string;
+  locked: boolean;
   onAnswerChange: (key: string, value: AnswerValue) => void;
 }) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editor = useEditor({
+    // Next.js App Router hace SSR del árbol — evita el mismatch de hidratación
+    // documentado por TipTap para editores que no deben renderizar en el server.
+    immediatelyRender: false,
+    editable: !locked,
+    content: comment,
+    extensions: [
+      StarterKit.configure({
+        heading: false,
+        blockquote: false,
+        codeBlock: false,
+        code: false,
+        horizontalRule: false,
+        strike: false,
+        orderedList: false,
+      }),
+      CharacterCount.configure({ limit: COMMENT_MAX_CHARS }),
+    ],
+    editorProps: {
+      attributes: {
+        "aria-label": "Comentario confidencial",
+        class: "comment-editor__content",
+      },
+    },
+    onUpdate: ({ editor: e }) => {
+      onAnswerChange(commentKey(elementId), sanitizeCommentHtml(e.getHTML()));
+    },
+  });
 
-  function wrapSelection(marker: string) {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const next = comment.slice(0, start) + marker + comment.slice(start, end) + marker + comment.slice(end);
-    onAnswerChange(commentKey(elementId), next);
-    requestAnimationFrame(() => {
-      ta.focus();
-      ta.setSelectionRange(start + marker.length, end + marker.length);
-    });
-  }
+  // Sincroniza el editor cuando `comment` cambia por una razón EXTERNA al
+  // propio editor (Cancel/Reset restaura una foto anterior, VS-020) — no en
+  // cada tecleo: `onUpdate` ya escribió `comment` de vuelta con el mismo HTML
+  // que `editor.getHTML()`, así que la comparación evita un loop de reset
+  // que le comería el cursor al evaluado mientras escribe.
+  useEffect(() => {
+    if (!editor) return;
+    if (comment !== editor.getHTML()) {
+      editor.commands.setContent(comment || "", { emitUpdate: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor, comment]);
 
-  function prefixLine() {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const lineStart = comment.lastIndexOf("\n", start - 1) + 1;
-    onAnswerChange(commentKey(elementId), comment.slice(0, lineStart) + "- " + comment.slice(lineStart));
-  }
+  useEffect(() => {
+    editor?.setEditable(!locked);
+  }, [editor, locked]);
+
+  const chars = editor?.storage.characterCount.characters() ?? comment.length;
 
   return (
     <div className="runtime-question__na">
@@ -1020,23 +1055,58 @@ function NaCommentRow({
       <div className="field">
         <span className="field__label">Comentario confidencial</span>
         <div className="rich-toolbar" role="toolbar" aria-label="Formato del comentario">
-          <button type="button" onClick={() => wrapSelection("**")} aria-label="Negrita">
+          {/* onMouseDown={preventDefault} en los 3 botones: sin esto, el mousedown
+              del botón le roba el foco/selección al contentEditable ANTES de que
+              corra el onClick, y ProseMirror pierde de dónde partir — patrón
+              documentado de TipTap para toolbars fuera del editor. */}
+          <button
+            type="button"
+            aria-pressed={editor?.isActive("bold") ?? false}
+            disabled={locked}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor?.chain().focus().toggleBold().run()}
+            aria-label="Negrita"
+          >
             <strong>B</strong>
           </button>
-          <button type="button" onClick={() => wrapSelection("*")} aria-label="Itálica">
+          <button
+            type="button"
+            aria-pressed={editor?.isActive("italic") ?? false}
+            disabled={locked}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor?.chain().focus().toggleItalic().run()}
+            aria-label="Itálica"
+          >
             <em>I</em>
           </button>
-          <button type="button" onClick={prefixLine} aria-label="Lista">
+          <button
+            type="button"
+            aria-pressed={editor?.isActive("bulletList") ?? false}
+            disabled={locked}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor?.chain().focus().toggleBulletList().run()}
+            aria-label="Lista"
+          >
             •
           </button>
         </div>
-        <textarea
-          ref={textareaRef}
-          value={comment}
-          maxLength={5000}
-          rows={2}
-          onChange={(e) => onAnswerChange(commentKey(elementId), e.target.value)}
-        />
+        {/* onClick={preventDefault}: NaCommentRow vive dentro del <label
+            className="field runtime-question"> de la pregunta (texto_corto/
+            numero/etc.) o del <fieldset> (seleccion_unica/múltiple) — un
+            <label> redirige el foco a su control asociado (el input/textarea
+            principal de la pregunta) en CUALQUIER click dentro de él, salvo
+            que el target ya sea un elemento de formulario nativo que
+            intercepta su propio click (input/textarea/select). Un div
+            contentEditable NO es un elemento de formulario nativo, así que
+            sin este preventDefault el navegador le robaba el foco al editor
+            justo después de mousedown+focus (bug real, reproducido en
+            producción, no solo en tests — ver git blame de esta línea).
+            No rompe la escritura: ProseMirror ya maneja su propia selección
+            en mousedown, antes de que el evento click llegue aquí. */}
+        <EditorContent editor={editor} className="comment-editor" onClick={(e) => e.preventDefault()} />
+        <span className="comment-editor__count" aria-live="polite">
+          {chars}/{COMMENT_MAX_CHARS}
+        </span>
       </div>
     </div>
   );
@@ -1076,6 +1146,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
       elementId={element.id}
       markedNA={markedNA}
       comment={(answers[commentKey(element.id)] as string | undefined) ?? ""}
+      locked={locked}
       onAnswerChange={onAnswerChange}
     />
   );
@@ -1142,91 +1213,106 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
     );
   }
 
-  // seleccion_desplegable: un solo control -> <label>, mismo grupo que
-  // texto_corto/texto_largo/numero (respuesta = un valor simple, no un
-  // grupo de controles como seleccion_unica/seleccion_multiple).
+  // seleccion_desplegable: un solo control -> <label> (mismo grupo que
+  // texto_corto/texto_largo/numero: respuesta = un valor simple, no un
+  // grupo de controles como seleccion_unica/seleccion_multiple). El <label>
+  // envuelve SOLO su propio control — no naCommentRow/statusRow (VS-030): un
+  // <label> redirige el foco/activación a su control asociado ante CUALQUIER
+  // click dentro de él salvo que el target ya sea otro control de formulario
+  // nativo (input/textarea/select/button); un contentEditable no lo es, así
+  // que el editor WYSIWYG del comentario perdía el foco si vivía dentro de
+  // este mismo <label>. Wrapper exterior pasa de <label> a <div> con la
+  // misma clase (`.field`/`.runtime-question` son selectores de clase, no
+  // dependen del tag — ver globals.css) para no romper el layout.
   if (element.type === "seleccion_desplegable") {
     return (
-      <label className="field runtime-question">
-        <span className="field__label">
-          {number && `${number} `}
-          {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
-        </span>
-        {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
-        <select value={(value as string) ?? ""} disabled={locked} onChange={(e) => onChange(e.target.value)}>
-          <option value="">Seleccionar…</option>
-          {element.options.map((opt) => (
-            <option key={opt.id} value={opt.id}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+      <div className="field runtime-question">
+        <label className="field">
+          <span className="field__label">
+            {number && `${number} `}
+            {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
+          </span>
+          {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
+          <select value={(value as string) ?? ""} disabled={locked} onChange={(e) => onChange(e.target.value)}>
+            <option value="">Seleccionar…</option>
+            {element.options.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
         {statusRow}
         {naCommentRow}
-      </label>
+      </div>
     );
   }
 
   // texto_corto/texto_largo/numero: un solo control -> <label> (asocia el
   // nombre accesible directo al input, ver docs/architecture/accessibility.md).
+  // El <label> envuelve SOLO el input/textarea/número — ver nota de
+  // seleccion_desplegable arriba sobre por qué naCommentRow/statusRow viven
+  // fuera de él (VS-030).
   if (element.type === "texto_corto" || element.type === "texto_largo" || element.type === "numero") {
     return (
-      <label className="field runtime-question">
-        <span className="field__label">
-          {number && `${number} `}
-          {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
-        </span>
-        {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
-
-        {element.type === "texto_corto" && (
-          <input
-            value={(value as string) ?? ""}
-            maxLength={element.maxLength}
-            disabled={locked}
-            onChange={(e) => onChange(e.target.value)}
-          />
-        )}
-
-        {element.type === "texto_largo" && (
-          <textarea
-            value={(value as string) ?? ""}
-            maxLength={element.maxLength}
-            rows={4}
-            disabled={locked}
-            onChange={(e) => onChange(e.target.value)}
-          />
-        )}
-
-        {element.type === "numero" && (
-          <span className="runtime-question__number-with-unit">
-            <input
-              type="number"
-              value={value === undefined ? "" : (value as number)}
-              min={element.min}
-              max={element.max}
-              disabled={locked}
-              onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
-            />
-            {element.availableUnits && element.availableUnits.length > 0 ? (
-              <select
-                value={(answers[unitKey(element.id)] as string | undefined) ?? element.availableUnits[0]}
-                disabled={locked}
-                onChange={(e) => onAnswerChange(unitKey(element.id), e.target.value)}
-              >
-                {element.availableUnits.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              element.unit && <span className="runtime-question__unit">{element.unit}</span>
-            )}
+      <div className="field runtime-question">
+        <label className="field">
+          <span className="field__label">
+            {number && `${number} `}
+            {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
           </span>
-        )}
+          {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
+
+          {element.type === "texto_corto" && (
+            <input
+              value={(value as string) ?? ""}
+              maxLength={element.maxLength}
+              disabled={locked}
+              onChange={(e) => onChange(e.target.value)}
+            />
+          )}
+
+          {element.type === "texto_largo" && (
+            <textarea
+              value={(value as string) ?? ""}
+              maxLength={element.maxLength}
+              rows={4}
+              disabled={locked}
+              onChange={(e) => onChange(e.target.value)}
+            />
+          )}
+
+          {element.type === "numero" && (
+            <span className="runtime-question__number-with-unit">
+              <input
+                type="number"
+                value={value === undefined ? "" : (value as number)}
+                min={element.min}
+                max={element.max}
+                disabled={locked}
+                onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+              />
+              {element.availableUnits && element.availableUnits.length > 0 ? (
+                <select
+                  value={(answers[unitKey(element.id)] as string | undefined) ?? element.availableUnits[0]}
+                  disabled={locked}
+                  onChange={(e) => onAnswerChange(unitKey(element.id), e.target.value)}
+                >
+                  {element.availableUnits.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                element.unit && <span className="runtime-question__unit">{element.unit}</span>
+              )}
+            </span>
+          )}
+        </label>
         {statusRow}
         {naCommentRow}
-      </label>
+      </div>
     );
   }
 

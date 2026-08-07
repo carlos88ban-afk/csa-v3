@@ -6,6 +6,8 @@ Fecha: 2026-08-05. Tipo: análisis comparativo (no especificación de implementa
 
 **Actualización 2026-08-06 (2.ª inspección en vivo, sesión nueva):** se re-inspeccionó el portal con la cuenta real del usuario, esta vez recorriendo la estructura completa de Questionnaires (árbol completo + sub-cuestionarios 0.1 "Denominator - Revenues", 1.1.1 y 2.6.1 "Direct GHG Emissions Scope 1" a nivel DOM). Confirmó los 6 gaps cerrados y **descubrió 3 tipos de elemento que el análisis del 05-08 no había visto** (solo se había inspeccionado el sub-cuestionario 1.1.1): **tabla de datos numéricos (`form-table`)**, **select dropdown (`sims-select`)** y **unidad configurable por celda numérica**. Ver "Segunda inspección (2026-08-06)" abajo.
 
+**Actualización 2026-08-06 (3.ª inspección en vivo, sesión posterior):** los 3 gaps adicionales y los 5 ítems menores ya están **implementados y verificados en producción** (VS-022 `seleccion_desplegable`, VS-023 `unit`/`availableUnits` en `numero` y tablas, VS-024 `tabla_datos`, VS-025 banner expandible, VS-026 sub-opciones a 2 niveles, VS-027, VS-028 editor markdown-lite, VS-029 subindicadores directos bajo Dimensión). AN-001 quedó cerrado por completo — el apartado "Siguientes pasos" abajo fue corregido para reflejarlo. El árbol de la participación CSA 2026 vuelve a verificarse idéntico: 6 dimensiones / 34 ramas / 161 sub-cuestionarios, y el sub-cuestionario 1.1.1 inspeccionado de nuevo a nivel DOM (radios con sub-opciones, dropdown select, URLs públicas max 3, editores rich text Jodit, banners expandibles, Save/Cancel/Reset).
+
 ## Método
 
 Inspección en vivo del portal (`https://portal.s1.spglobal.com/survey/ui`, sesión real del usuario, cuenta `fernando.ruiz@intercorpretail.pe`): login Okta → dashboard → participación CSA 2026 → tab **Questionnaires** → sub-cuestionario 1.1.1 "Sustainability Reporting Boundaries" (DOM inspeccionado: clases `question-entry`, `banner`, `branch`, `status0..4`, inputs reales). Solo se documenta la sección Questionnaires (Confirmation/Documents fuera de alcance, pedido del usuario).
@@ -91,7 +93,7 @@ Recorrido completo del tab Questionnaires de la participación CSA 2026 de InRet
 2. **Select dropdown (`sims-select`)** — no existe tipo `seleccion_desplegable` (solo radio/checkbox). Se usa para moneda, unidades, porcentajes, dentro y fuera de tablas.
 3. **Unidad por campo numérico** — `numero` no tiene `unit` ni lista de unidades alternativas; el CSA las usa de forma ubicua (met. ton. CO2e, %, moneda, MWh...).
 
-Ajustes menores observados (no bloqueantes): el banner actual no es expandible/colapsable (el CSA sí: `banner-expandable` con triángulo); las sub-opciones de la plataforma son 1 nivel y el CSA usa 2 niveles en casos puntuales; el comentario confidencial del CSA es rich text (Jodit) vs textarea plano actual; en el árbol, el CSA marca estado por *nodo* (ramas incluidas) mientras la plataforma marca estado por pregunta y progreso por subindicador.
+Ajustes menores observados (no bloqueantes): el banner actual ya es expandible (VS-025, `banner-expandable`); las sub-opciones de la plataforma son 2 niveles (VS-026, el máximo usado por el CSA); el comentario confidencial del CSA es rich text (Jodit) vs editor markdown-lite actual (VS-028) — ver "Siguientes pasos"; en el árbol, la plataforma marca estado/progreso por nodo y por pregunta, cubriendo el patrón del CSA.
 
 ## Veredicto
 
@@ -108,6 +110,12 @@ Los gaps para igualar la experiencia S&P eran **aditivos sobre `engine/form`** (
 
 ## Siguientes pasos
 
-La segunda inspección (2026-08-06) confirma que la **arquitectura** (Dimensión → Indicador → Subindicador = formulario) ya está replicada y que los 6 gaps originales están cerrados. Los 3 gaps adicionales (tabla de datos, select dropdown, unidad por celda) son **aditivos sobre `engine/form`** y **fueron priorizados por el usuario e ingresados a `docs/BACKLOG.md` ("Siguiente") el 2026-08-06** — pendientes de especificación doc-first al iniciar su slice (regla rectora). El flujo de login/gestión de participación del portal (Okta, Confirmation, Documents) sigue fuera de alcance: es gestión de participación, no estructura de evaluación.
+**Corregido el 2026-08-06 (3.ª inspección): el párrafo anterior de esta sección quedó obsoleto.** Los 3 gaps adicionales (tabla de datos, select dropdown, unidad por celda) ya NO están pendientes: se implementaron como **VS-022 (select dropdown), VS-023 (unidad) y VS-024 (tabla de datos)** y los 5 ítems menores como **VS-025 a VS-029**, todos verificados en producción el 2026-08-06. AN-001 (análisis S&P CSA 2026) está cerrado en su totalidad.
 
-Para paridad con un sub-cuestionario cuantitativo típico se necesitan los 3 elementos nuevos + banner expandible (menor); con solo los 2 primeros (tabla + select) ya se cubre la mayoría del terreno.
+Lo que queda por paridad es cosmético o fuera de alcance acordado:
+
+- **Editor rich text (Jodit) en comentario confidencial**: la plataforma usa editor markdown-lite con toolbar B/I/listas (VS-028), no un editor WYSIWYG completo. Funcionalmente equivalente para el caso de uso; si se quiere paridad visual exacta, es un ítem menor aditivo (reemplazo del textarea rich por Jodit o similar).
+- **Granularidad de tipo por celda**: S&P marca `data-dpd-type` por celda; la plataforma define `cellType` por fila (que es el caso real del CSA: columnas = años, tipo definido por la métrica). Mapeado 1:1 para el patrón observado, sin ítem pendiente.
+- **Gestión de participación (tabs Confirmation/Documents, ventanas de participación, flujo multi-respondiente)**: fuera de alcance por decisión del usuario (solo sección Questionnaires; multi-respondiente se resuelve con una sesión compartida por enlace + RBAC autenticado).
+
+Para futuras inspecciones del portal, el flujo de login documentado: `portal.s1.spglobal.com/survey/ui` → "Proceed to log in" → Okta (identifier + Password factor) → dashboard → participación CSA 2026 → tab Questionnaires → sub-cuestionario (enlace `a[data-aspectid]`, SPA sin cambio de URL). El árbol de la participación tiene 34 ramas y 161 sub-cuestionarios con estados status0..status4 por nodo.

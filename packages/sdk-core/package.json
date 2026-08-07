@@ -12,9 +12,11 @@
     "lint": "echo \"no lint configured yet\""
   },
   "dependencies": {
+    "sanitize-html": "^2.17.6",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/sanitize-html": "^2.16.1",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0"
   }

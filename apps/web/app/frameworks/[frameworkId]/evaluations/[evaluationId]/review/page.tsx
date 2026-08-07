@@ -11,6 +11,7 @@ import {
   isElementVisible,
   naKey,
   questionNumber,
+  sanitizeCommentHtml,
   statusKey,
   subindicatorNumber,
   type DerivedStatus,
@@ -20,7 +21,6 @@ import {
   type ResponseAnswers,
 } from "@plataforma-csa/sdk-core";
 import { use, useEffect, useState } from "react";
-import { renderLiteMarkdown } from "@/lib/lite-markdown";
 import { api } from "@/lib/api-client";
 import { Breadcrumb, Button, Card, Pill } from "@/components/ui";
 
@@ -102,7 +102,7 @@ function SubindicatorReviewCard({
                 {markedNA && <Pill variant="warn">N/A</Pill>}
                 {comment && (
                   <p className="comment-preview">
-                    Comentario confidencial: <span dangerouslySetInnerHTML={{ __html: renderLiteMarkdown(comment) }} />
+                    Comentario confidencial: <span dangerouslySetInnerHTML={{ __html: sanitizeCommentHtml(comment) }} />
                   </p>
                 )}
               </span>

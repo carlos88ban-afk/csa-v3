@@ -8,13 +8,13 @@ import {
   naKey,
   questionNumber,
   statusKey,
+  stripCommentHtml,
   unitKey,
   type EvaluationSnapshot,
   type FormElement,
   type ResponseAnswers,
 } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
-import { stripLiteMarkdown } from "@/lib/lite-markdown";
 
 // Motor engine/export v1 (ver docs/engines/export.md). Autenticado y
 // tenant-scoped (a diferencia de persistence.md/evidences.md): exportar es
@@ -141,7 +141,7 @@ function subindicatorRows(
       componentRegistry.find((c) => c.type === el.type)?.label ?? el.type,
       formatAnswer(el, answers[el.id], markedNA, answers),
       STATUS_LABEL[derived],
-      stripLiteMarkdown((answers[commentKey(el.id)] as string | undefined) ?? ""),
+      stripCommentHtml((answers[commentKey(el.id)] as string | undefined) ?? ""),
     ];
   });
 }

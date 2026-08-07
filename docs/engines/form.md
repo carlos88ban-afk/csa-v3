@@ -399,34 +399,28 @@ Config de `banner` (junto al selector de `variant`) gana un checkbox `Expandible
 - **Contenido de resumen vs. detalle separados** — el gap observado en S&P no distingue un texto corto colapsado de uno largo expandido, solo colapsa/expande el mismo texto. Si aparece ese caso real, es aditivo (`summary?: string` adicional a `label`), no rediseño.
 - **Persistir el estado expandido/colapsado** — es preferencia de lectura efímera, no una respuesta del evaluado; se resetea a colapsado en cada carga de página, igual criterio que `collapsed` del árbol de navegación (VS-010, tampoco persiste).
 
-## Comentario confidencial con formato (VS-028)
+## Comentario confidencial con formato (VS-028, actualizado en VS-030)
 
-Ajuste menor de `../analysis/csa-sp-global-comparison.md`: el portal S&P usa un editor rich text (Jodit) para el comentario confidencial (VS-019, `commentKey`, hoy `<textarea>` plano). El proyecto no tiene ninguna dependencia de UI de edición de texto instalada (`apps/web/package.json` confirmado) y tiene precedente explícito de evitar dependencias nuevas sin justificar (`../engines/export.md`, CSV manual sin librería). Un editor WYSIWYG real (Jodit/TipTap/Slate) es una dependencia no trivial (bundle, accesibilidad de un `contentEditable`, mantenimiento) para un campo que **no es visible para el evaluado que lo escribe en ningún renderizado especial** — solo se lee de vuelta en la página de Revisión y en el CSV, ambos de solo-lectura administrativa.
+> **Actualizado en VS-030 (2026-08-06, `docs/adr/0006-editor-wysiwyg-comentario-confidencial.md`):** la decisión "markdown-lite sin dependencia nueva" de VS-028 fue revertida a pedido del usuario — el campo ahora usa un editor WYSIWYG real (TipTap). El resto de esta sección se conserva como registro histórico de la decisión original; ver la ADR 0006 para el razonamiento del cambio y `### VS-030` más abajo para el estado actual.
 
-**Decisión: markdown-lite hecho a mano, sin dependencia nueva.** `commentKey` sigue guardando `string` — **cero cambios de forma en `response.ts`/`AnswerValue`** — pero ese string ahora puede contener una sintaxis mínima (`**negrita**`, `*itálica*`, líneas que empiezan con `- ` como lista) que el Runtime ofrece escribir vía 3 botones de la barra de herramientas (envuelven/prefijan la selección del `<textarea>`, no reemplazan el textarea por un editor) y que la página de Revisión renderiza formateado con un parser propio de pocas líneas (negrita/itálica/listas únicamente, no un parser de markdown completo — mismo criterio de alcance mínimo que el resto del motor).
+Ajuste menor de `../analysis/csa-sp-global-comparison.md`: el portal S&P usa un editor rich text (Jodit) para el comentario confidencial (VS-019, `commentKey`, antes `<textarea>` plano). El proyecto no tenía ninguna dependencia de UI de edición de texto instalada y tenía precedente explícito de evitar dependencias nuevas sin justificar (`../engines/export.md`, CSV manual sin librería). Un editor WYSIWYG real (Jodit/TipTap/Slate) es una dependencia no trivial (bundle, accesibilidad de un `contentEditable`, mantenimiento) para un campo que **no es visible para el evaluado que lo escribe en ningún renderizado especial** — solo se lee de vuelta en la página de Revisión y en el CSV, ambos de solo-lectura administrativa.
 
-```ts
-// apps/web/app/evaluations/[token]/page.tsx (o un módulo compartido si Revisión también lo usa)
-// Subconjunto deliberadamente mínimo: negrita, itálica, listas — no tablas,
-// no links, no headings. Si se necesita más, es aditivo.
-function renderLiteMarkdown(text: string): string { /* … */ }
-```
+**Decisión original (VS-028, superada): markdown-lite hecho a mano, sin dependencia nueva.** `commentKey` seguía guardando `string` y ese string podía contener una sintaxis mínima (`**negrita**`, `*itálica*`, líneas que empiezan con `- ` como lista) escrita vía 3 botones que envolvían/prefijaban la selección del `<textarea>`.
 
-### Runtime
+### VS-030 — Editor WYSIWYG real (TipTap)
 
-`NaCommentRow` (VS-019) gana una barra de 3 botones (`B`/`I`/`•`) sobre el `<textarea>` existente, que envuelven la selección actual del textarea con `**`/`*` o prefijan la línea con `- `, sin cambiar el tipo de control (sigue siendo un `<textarea>` nativo, no `contentEditable` — mismo criterio de accesibilidad/simplicidad que el resto del Builder/Runtime, que no usa ningún editor rico en ningún otro campo).
+`commentKey` **sigue guardando `string`** — cero cambio de forma en `response.ts`/`AnswerValue`, tal como VS-028 ya anticipaba en su sección "Fuera de alcance" — pero ese string ahora es **HTML sanitizado** en vez de markdown-lite. Ver ADR 0006 para el razonamiento completo (por qué TipTap y no Jodit literal, alternativas descartadas, riesgos).
 
-### Página de Revisión (`apps/web/app/frameworks/[frameworkId]/evaluations/[evaluationId]/review/page.tsx`)
-
-El comentario confidencial, hoy mostrado como texto plano (línea `{comment}`), se renderiza con `renderLiteMarkdown` (vía `dangerouslySetInnerHTML` acotado — el parser propio solo emite `<strong>`/`<em>`/`<ul><li>`, nunca HTML arbitrario del usuario, así que no hay superficie de XSS: el texto de entrada nunca se inserta crudo, solo los 3 patrones reconocidos generan tags fijos).
-
-### Exportación (`export.md`)
-
-`formatAnswer`/el export de `Comentario confidencial` en `buildCsv` despoja la sintaxis (`**`/`*`/`- ` al inicio de línea) antes de escribir la celda CSV — un CSV es texto plano, no debe mostrar asteriscos de marcado que el usuario no escribió con intención literal.
+- **Sanitización** (`packages/sdk-core/src/rich-text.ts`, nuevo): `sanitizeCommentHtml`/`stripCommentHtml`, allowlist mínima (`strong`/`em`/`p`/`br`/`ul`/`li`, sin atributos) vía `sanitize-html` — mismo alcance mínimo que el markdown-lite anterior, ahora con cobertura de tests unitarios (`packages/sdk-core/src/rich-text.test.ts`, incluyendo intentos de XSS).
+- **Runtime** (`apps/web/app/evaluations/[token]/page.tsx`, `NaCommentRow`): editor TipTap (`@tiptap/react`, `StarterKit` reducido a párrafo/negrita/itálica/lista + `CharacterCount` para el límite de 5000 chars) reemplaza al `<textarea>`. Toolbar de 3 botones (`B`/`I`/`•`) ejecuta comandos TipTap en vez de manipular `selectionStart`/`selectionEnd`; refleja estado activo vía `aria-pressed`. Sincroniza contenido externo (Cancel/Reset, VS-020) comparando `comment` contra `editor.getHTML()` para no interrumpir al evaluado mientras escribe.
+- **Página de Revisión**: `dangerouslySetInnerHTML={{ __html: sanitizeCommentHtml(comment) }}` (antes `renderLiteMarkdown`) — sanitiza de nuevo en el borde de lectura (defensa en profundidad) aunque el HTML ya se sanitizó al guardar.
+- **Exportación** (`export.md`): `stripCommentHtml` (antes `stripLiteMarkdown`) despoja todo tag HTML a texto plano para la celda CSV, preservando saltos de línea entre bloques/items de lista.
+- **Sin migración de datos**: corte limpio, no había comentarios reales en producción con la sintaxis markdown-lite vieja al momento del cambio (confirmado con el usuario antes de implementar).
 
 ### Fuera de alcance (explícito)
 
-- **Editor WYSIWYG real (Jodit/TipTap/etc.)** — ver "Decisión" arriba. Si el equipo decide más adelante que vale la dependencia, es un cambio de implementación (cómo se escribe el string), no de contrato (`commentKey` sigue siendo `string`).
+- **Paridad literal con Jodit** — se adoptó TipTap en su lugar (ver ADR 0006, "Alternativas descartadas").
+- **Migración/compatibilidad con el formato markdown-lite anterior** — no aplicaba, sin datos reales que migrar.
 - **Sintaxis markdown completa** (links, headings, tablas, código) — alcance mínimo deliberado (negrita/itálica/lista), aditivo si se pide más.
 - **Renderizado con formato en el propio Runtime mientras se escribe (preview en vivo)** — el evaluado escribe en el `<textarea>` plano con los 3 botones de ayuda; el renderizado formateado solo aplica en Revisión (lectura administrativa), no hay preview WYSIWYG en tiempo real — evita la complejidad de un split-view sin aportar al caso de uso (el evaluado no necesita ver el resultado formateado, solo el administrador que revisa).
 

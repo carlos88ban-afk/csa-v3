@@ -40,3 +40,32 @@ test("un token inexistente muestra el mensaje de enlace no disponible", async ({
   await page.goto("/evaluations/token-que-nunca-existio");
   await expect(page.getByText("Este enlace no existe o ya no está disponible.")).toBeVisible();
 });
+
+// VS-030 (docs/adr/0006): editor WYSIWYG (TipTap) del comentario
+// confidencial — cobertura que no existía para el <textarea> markdown-lite
+// anterior (VS-028). Cada pregunta tiene su propio comentario confidencial
+// (uno por elemento, VS-019); el fixture de esta spec tiene 2 preguntas, así
+// que hay que acotar a la de "Nombre del responsable" con `.runtime-question`.
+//
+// Se usa `.comment-editor__content` en vez de `getByLabel("Comentario
+// confidencial")` por costumbre/estabilidad del locator, no por ambigüedad:
+// naCommentRow ya no vive dentro del <label> del control principal (ver
+// comentario en page.tsx sobre por qué — un <label> redirige el foco a su
+// control asociado en cualquier click dentro de él, y un contentEditable no
+// es un control de formulario nativo que lo intercepte).
+test("el comentario confidencial se escribe con formato, autoguarda y persiste tras recargar", async ({ page }) => {
+  const { evaluationToken } = loadFixtures();
+
+  await page.goto(`/evaluations/${evaluationToken}`);
+  const question = page.locator(".runtime-question", { hasText: "Nombre del responsable" });
+  const comment = question.locator(".comment-editor__content");
+  await comment.click();
+  await question.getByRole("button", { name: "Negrita" }).click();
+  await page.keyboard.type("Texto en negrita");
+
+  await expect(page.getByText("Guardado", { exact: true })).toBeVisible();
+
+  await page.reload();
+  const commentAfterReload = page.locator(".runtime-question", { hasText: "Nombre del responsable" }).locator(".comment-editor__content");
+  await expect(commentAfterReload.locator("strong")).toHaveText("Texto en negrita");
+});

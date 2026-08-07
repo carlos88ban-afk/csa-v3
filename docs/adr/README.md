@@ -11,6 +11,7 @@ Formato Nygard. Una ADR nunca se edita tras ser aceptada — si la decisión cam
 | [0003](0003-object-storage-cloudflare-r2.md) | Almacenamiento de archivos: Cloudflare R2 | Proposed |
 | [0004](0004-auth-better-auth.md) | Autenticación: Better Auth | Proposed |
 | [0005](0005-tooling-monorepo.md) | Tooling: pnpm + Turborepo + TypeScript strict | Proposed |
+| [0006](0006-editor-wysiwyg-comentario-confidencial.md) | Editor WYSIWYG (TipTap) para el comentario confidencial | Accepted |
 
 ## Plantilla
 
