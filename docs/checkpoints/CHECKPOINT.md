@@ -32,10 +32,10 @@ archivos_modificados:
   - docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md, docs/project_notes/bugs.md
 
 proximos_pasos:
-  - **Réplica de prueba del árbol CSA 2026** (6 dimensiones, 34 ramas, 161 subindicadores) quedó acordada con el usuario pero SIN INICIAR — la sesión se desvió por completo hacia VS-030 y su depuración. Si se retoma: el plan ya está en `D:\Usuarios\PM75161698\.claude\plans\luminous-moseying-narwhal.md` (Parte 2) — script standalone que llama directo a `packages/db/src/domain/service.ts` (mismo patrón que `packages/db/src/__tests__/domain.test.ts`), dry-run por defecto, framework nombrado `"CSA 2026 — Réplica QA"`, confirmación explícita antes de escribir. Delegar la generación de datos (no la escritura) a un subagente OpenCode fue parte del plan original, sin ejecutar todavía.
+  - **Réplica de prueba del árbol CSA 2026 completada** (6 dimensiones, 34 ramas, 161 subindicadores, 584 elementos) — ver plan en `D:\Usuarios\PM75161698\.claude\plans\luminous-moseying-narwhal.md` (Parte 2) y detalle en `docs/project_notes/issues.md`. Framework `"CSA 2026 — Réplica QA"` publicado en producción y **dejado visible a pedido explícito del usuario** (no revocado — a diferencia del patrón habitual de limpiar datos de prueba al cerrar). Scripts (`scripts/csa-2026-replica-data.ts`, `packages/db/scripts/csa-2026-replica.mts`) quedan commiteados como utilidad reusable.
   - Pendiente no bloqueante, sigue en BACKLOG.md ("Siguiente"): proveedor de email/SMTP (ADR); TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada); tabla de historial de revisiones de `formSchema`.
   - Hallazgo incidental sin resolver (documentado, no bloqueante): `apps/web/e2e/builder-publish.spec.ts` falla con `getByLabel('Título')` ambiguo (2 matches) — pre-existente, no introducido por VS-030 (confirmado por `git diff` antes de tocar nada). No investigado a fondo esta sesión.
-  - Al retomar sin un pedido específico: revisar `docs/BACKLOG.md` y `docs/ROADMAP.md` para el siguiente ítem por prioridad, o retomar la réplica de árbol CSA 2026 si el usuario la sigue queriendo.
+  - Al retomar sin un pedido específico: revisar `docs/BACKLOG.md` y `docs/ROADMAP.md` para el siguiente ítem por prioridad.
 
 bloqueos: []
 
@@ -51,9 +51,10 @@ contexto_para_continuar: |
   decisiones_del_dia). El reporte se verificó contra los docs antes de
   actuar, y resultó preciso.
 
-  Queda pendiente, acordada con el usuario pero sin iniciar: una réplica de
-  prueba del árbol completo del CSA 2026 (161 subindicadores) para estresar
-  el Builder/Runtime a escala real — plan ya escrito, ver "próximos pasos".
+  También se completó la réplica de prueba del árbol completo del CSA 2026
+  (161 subindicadores) para estresar el Builder/Runtime a escala real —
+  publicada en producción y dejada visible a pedido del usuario, ver
+  "próximos pasos" y `docs/project_notes/issues.md`.
 
   Notas operativas nuevas de esta sesión (además de las ya acumuladas en
   checkpoints anteriores):
@@ -89,6 +90,17 @@ contexto_para_continuar: |
     `document.activeElement` con `javascript_tool` es mucho más rápido y
     concluyente que interpretar screenshots o reintentar con distintos
     tiempos de espera.
+  - **Delegar a un subagente `opencode` la generación de UN SOLO archivo
+    grande (161 objetos estructurados) en una sola respuesta es poco
+    fiable** — dos intentos fallaron (uno por error de infraestructura del
+    modelo gratuito a mitad de stream, otro por fricción con heredocs de
+    bash en el entorno). Funcionó mejor pedir un GENERADOR PROGRAMÁTICO
+    corto (bucles + word banks) en vez de pedir la enumeración completa a
+    mano — mismo principio que ya valía para código: preferir que la
+    "tarea mecánica" la haga código, no prosa/literales generados por un
+    LLM. Aun así, terminé completando el archivo a mano tras el segundo
+    intento parcial — para trabajo de este volumen, considerar escribirlo
+    directamente en vez de delegar, o delegar en pedazos más chicos.
   - `npm install -g` puede colgarse indefinidamente en Windows por el
     límite de ruta (MAX_PATH) en paquetes con árboles de dependencias
     profundos — usar `pnpm add -g` en su lugar (content-addressable store,

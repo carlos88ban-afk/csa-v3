@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-07 - Réplica de prueba del árbol CSA 2026 (161 subindicadores)
+- **Status**: Completed (herramienta, no un slice de producto — sin ADR, sin tests automatizados)
+- **Description**: Poblada una réplica de prueba de la estructura real del portal S&P Global CSA 2026 (6 dimensiones, 34 ramas, 161 subindicadores, 584 elementos de formulario) para estresar el Builder/Runtime a escala real, a pedido del usuario. Framework `"CSA 2026 — Réplica QA"` publicado en producción, dejado visible a pedido explícito del usuario (no revocado).
+- **Notes**: `scripts/csa-2026-replica-data.ts` (generador programático standalone, PRNG determinista `mulberry32`, autocontenido sin imports externos — dos intentos previos de delegar la generación completa a un subagente `opencode` fallaron por límites de infraestructura del modelo gratuito vía OmniRoute; el segundo intento sí dejó una base útil — tipos + word banks — completada a mano) y `packages/db/scripts/csa-2026-replica.mts` (script de ejecución: dry-run por defecto valida cada `formSchema` contra el zod real antes de escribir nada; `--write` requiere el flag explícito, usado solo tras confirmación del usuario en el chat). Verificado end-to-end en producción real: árbol completo navegable de punta a punta, numeración jerárquica correcta incluyendo subindicadores directos bajo Dimensión (VS-029), `tabla_datos` renderiza columnas/filas, autosave confirmado, editor de comentario (VS-030) presente en cada nodo. Ambos scripts quedan en el repo como utilidad reusable para futuros stress-tests del Builder.
+
 ### 2026-08-07 - VS-030: Editor WYSIWYG (TipTap) para comentario confidencial
 - **Status**: Completed
 - **Description**: Trabajo nuevo (no gap de AN-001, que ya estaba cerrado desde VS-029). El usuario pidió revertir la decisión de VS-028 y adoptar un editor WYSIWYG real para paridad con el portal S&P (Jodit). Se eligió TipTap en su lugar (ver ADR 0006) — mejor integración React que Jodit literal. `commentKey` sigue guardando `string` (ahora HTML sanitizado en vez de markdown-lite), cero cambio de contrato.
