@@ -14,9 +14,15 @@ import { NotFoundError } from "./service.js";
 // evaluation-service.ts) — la Respuesta se ata a la Evaluación, no a una
 // sesión ni a una identidad de evaluado.
 
+// Subindicadores directos bajo Dimensión (VS-029, docs/domain/evaluation-hierarchy.md):
+// bug real encontrado en producción durante la verificación de este slice
+// — esta función no miraba dim.subindicators (directos), así que guardar
+// una respuesta de un Subindicador directo fallaba con subindicator_NOT_FOUND.
 function snapshotHasSubindicator(snapshot: EvaluationSnapshot, subindicatorId: string): boolean {
-  return snapshot.dimensions.some((dim) =>
-    dim.indicators.some((ind) => ind.subindicators.some((sub) => sub.id === subindicatorId)),
+  return snapshot.dimensions.some(
+    (dim) =>
+      dim.indicators.some((ind) => ind.subindicators.some((sub) => sub.id === subindicatorId)) ||
+      dim.subindicators.some((sub) => sub.id === subindicatorId),
   );
 }
 

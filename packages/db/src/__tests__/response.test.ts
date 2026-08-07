@@ -52,6 +52,19 @@ async function publishedEvaluationWithSubindicator(label: string) {
   return { organizationId, ev, subindicatorId: sub.id };
 }
 
+// Subindicadores directos bajo Dimensión (VS-029, docs/domain/evaluation-hierarchy.md).
+async function publishedEvaluationWithDirectSubindicator(label: string) {
+  const { organizationId } = await makeOrgWithOwner(label);
+  const fw = await createFramework(organizationId, { name: `Framework ${label}` });
+  const dim = await createDimension(organizationId, { frameworkId: fw.id, title: "Dim" });
+  const sub = await createSubindicator(organizationId, { dimensionId: dim.id, title: "Sub directo" });
+  await updateSubindicator(organizationId, sub.id, {
+    formSchema: { schemaVersion: 1, elements: [{ id: "el-1", type: "texto_corto", label: "Nombre" }] },
+  });
+  const ev = await createEvaluation(organizationId, { frameworkId: fw.id });
+  return { organizationId, ev, subindicatorId: sub.id };
+}
+
 afterAll(async () => {
   for (const organizationId of createdOrgIds) {
     await db.delete(evaluation).where(eq(evaluation.organizationId, organizationId));
@@ -88,6 +101,17 @@ describe("VS-010 — engine/persistence (contra Neon real)", () => {
     await expect(upsertResponse(ev.id, "subindicator-que-no-existe", { "el-1": "x" })).rejects.toThrow(
       "subindicator_NOT_FOUND",
     );
+  });
+
+  it("VS-029 — upsertResponse acepta un Subindicador directo bajo Dimensión (sin Indicador intermedio)", async () => {
+    // Bug real encontrado en producción durante la verificación de VS-029:
+    // snapshotHasSubindicator solo miraba dim.indicators[].subindicators, no
+    // dim.subindicators (directos) — guardar una respuesta de un
+    // Subindicador directo fallaba con subindicator_NOT_FOUND.
+    const { ev, subindicatorId } = await publishedEvaluationWithDirectSubindicator("directo");
+
+    const created = await upsertResponse(ev.id, subindicatorId, { "el-1": "Respuesta en subindicador directo" });
+    expect(created.answers).toEqual({ "el-1": "Respuesta en subindicador directo" });
   });
 
   it("borrar la Evaluación borra en cascada sus Respuestas", async () => {

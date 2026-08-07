@@ -8,6 +8,9 @@ import type { EvaluationSnapshot, FormElement } from "@plataforma-csa/sdk-core";
 
 type SnapshotSubindicator = EvaluationSnapshot["dimensions"][number]["indicators"][number]["subindicators"][number];
 
+// Subindicadores directos bajo Dimensión (VS-029, docs/domain/evaluation-hierarchy.md):
+// mismo bug encontrado en response-service.ts — también hay que mirar
+// dim.subindicators (directos), no solo dim.indicators[].subindicators.
 export function findSnapshotSubindicator(
   snapshot: EvaluationSnapshot,
   subindicatorId: string,
@@ -17,6 +20,8 @@ export function findSnapshotSubindicator(
       const sub = ind.subindicators.find((s) => s.id === subindicatorId);
       if (sub) return sub;
     }
+    const direct = dim.subindicators.find((s) => s.id === subindicatorId);
+    if (direct) return direct;
   }
   return null;
 }
