@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-06 - VS-029: Subindicadores directos bajo Dimensión
+- **Status**: Completed
+- **Description**: Último ítem de AN-001 2.ª inspección, el único de los 5 menores con cambio de schema. Un Subindicador puede colgar directo de una Dimensión sin Indicador intermedio — `dimensionId` nullable alternativo a `indicatorId`, CHECK XOR en Postgres. Nueva ruta Builder, árbol Runtime, Revisión y export CSV actualizados.
+- **Notes**: Cambio de schema aplicado a Neon (producción) vía `db:push` con autorización explícita del usuario. Bug real encontrado y corregido en producción: guardar respuesta en un Subindicador directo fallaba (`subindicator_NOT_FOUND`) porque dos funciones de búsqueda en el snapshot no miraban `dim.subindicators` — ver `docs/project_notes/bugs.md`. Verificado end-to-end en producción. Con este slice cierra el esfuerzo completo de AN-001 (9 gaps + 5 ítems menores).
+
 ### 2026-08-06 - VS-025 a VS-028: Ítems menores de AN-001 2.ª inspección
 - **Status**: Completed
 - **Description**: El usuario revirtió la decisión de no-priorización del agente (registrada y superada en `docs/project_notes/decisions.md`) y pidió implementar los 5 ítems menores. Estos 4: banner expandible/colapsable, sub-opciones a 2 niveles (fijo, no recursión genérica), estado por nodo en el árbol (progreso agregado derivado), comentario confidencial con formato (markdown-lite propio, decisión explícita de no agregar dependencia de UI nueva).

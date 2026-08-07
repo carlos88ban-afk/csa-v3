@@ -12,6 +12,12 @@ Registro cronológico de bugs y su solución. Entradas breves. Limpiar entradas 
 - **Prevention**: cómo evitarlo (opcional)
 ```
 
+### 2026-08-06 - Guardar respuesta en un Subindicador directo (VS-029) falla con `subindicator_NOT_FOUND`
+- **Issue**: Al implementar subindicadores directos bajo Dimensión (sin Indicador intermedio), guardar una respuesta del evaluado en uno de ellos fallaba con `Error al guardar: subindicator_NOT_FOUND`, reproducido a mano en producción.
+- **Root Cause**: `snapshotHasSubindicator` (`packages/db/src/domain/response-service.ts`) y `findSnapshotSubindicator` (`apps/web/lib/evidence-validation.ts`) recorren el snapshot buscando el Subindicador solo dentro de `dim.indicators[].subindicators` — ninguna de las dos miraba `dim.subindicators` (los directos, agregados en VS-029). Dos funciones con la misma búsqueda duplicada, ambas con el mismo gap.
+- **Solution**: Ambas funciones ahora también revisan `dim.subindicators`. Cubierto con un test de integración nuevo contra Neon real (`packages/db/src/__tests__/response.test.ts`).
+- **Prevention**: Cualquier función que recorra `EvaluationSnapshot` buscando un Subindicador por id debe considerar ambos orígenes (`indicator.subindicators` y `dimension.subindicators`) desde VS-029 en adelante — grep por `.subindicators.find(` / `.subindicators.some(` antes de dar por cerrada una feature que toque el snapshot.
+
 ### 2026-08-04 - Build de Vercel falla con "DATABASE_URL is not set" pese a estar configurada en el proyecto
 - **Issue**: Al desplegar `apps/web` en Vercel (primer despliegue, adelantado antes de VS-009), `turbo run build` falla en `/api/dimensions/[id]` con `DATABASE_URL is not set`, aunque la variable sí estaba puesta en Settings → Environment Variables de Vercel.
 - **Root Cause**: Turborepo 2.x sólo pasa a cada task las variables de entorno declaradas explícitamente en `turbo.json` (`env`/`globalEnv`); el resto se bloquea aunque existan en el entorno del build, aun cuando la app las usa correctamente en local (ahí `dotenv-cli` las carga directo del `.env`, sin pasar por Turbo). El propio log de Vercel lo advierte como `WARNING`, no como error, así que es fácil pasarlo por alto.

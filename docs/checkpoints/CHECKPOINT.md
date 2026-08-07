@@ -1,49 +1,53 @@
-checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000017
+checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000018
 fecha: 2026-08-06
 estado: completo
-slice_actual: ninguno — VS-025 a VS-028 cerrados. Queda VS-029 (subindicadores directos bajo Dimensión) como último ítem de AN-001 2.ª inspección, sin slice abierto — el único con cambio de schema.
+slice_actual: ninguno — VS-029 cerrado. Completa los 5 ítems menores de AN-001 2.ª inspección (VS-025 a VS-029) y, con ellos, el esfuerzo completo de AN-001 (9 gaps + 5 menores, 13 slices en total: VS-016 a VS-029 salvo numeración ya usada).
 
-slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028]
+slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029]
 
 decisiones_del_dia:
-  - **El usuario revirtió la decisión de no-priorización del agente**: tras evaluar los 5 ítems menores de AN-001 2.ª inspección con un análisis costo/beneficio (registrado en `docs/project_notes/decisions.md`), el usuario dijo explícitamente que sí valían la pena y pidió continuar el cierre de gaps usando skills + OpenCode + verificación en producción. La decisión anterior se marcó como "Superada" en decisions.md, no se borró — mismo criterio que ADRs superadas.
-  - Los 5 ítems se desglosaron como VS-025 a VS-029 en `docs/BACKLOG.md`, orden decidido por costo/riesgo creciente: banner (025), sub-opciones 2 niveles (026), estado por nodo (027), comentario rich text (028), subindicadores directos bajo dimensión (029, el único con cambio de schema, al final).
-  - **VS-025 banner expandible**: `expandable?: boolean` aditivo, sin campo de contenido nuevo — colapsa/expande el mismo `label` (no hay evidencia de un campo "resumen" separado en la inspección del portal).
-  - **VS-026 sub-opciones a 2 niveles**: tope FIJO en 2, no recursión genérica (`subSubOption` no tiene su propio `subOptions`) — sin caso observado de un 3er nivel, criterio YAGNI ya usado en el proyecto. Builder + Runtime delegados a OpenCode con el contrato exacto ya escrito en el doc; revisado con `git diff` línea por línea antes de aceptar (coincidió exactamente con el patrón pedido).
-  - **VS-027 estado por nodo**: agregación derivada (no persistida) de `progressOf` ya existente — mismo criterio que la numeración VS-021 ("derivada, no persistida"). Cero cambios en `packages/db`.
-  - **VS-028 comentario confidencial con formato — decisión explícita de NO agregar dependencia de UI nueva** (Jodit/TipTap/etc.): markdown-lite hecho a mano (`apps/web/lib/lite-markdown.ts`, negrita/itálica/lista únicamente, ~40 líneas), justificado por el mismo precedente NFR-3 que ya usa el CSV manual sin librería (`export.md`). `commentKey` sigue siendo `string` — cero cambios de contrato.
-  - Todos verificados juntos en un solo pase de producción (mismo framework de prueba reutilizado de VS-022/023/024) para eficiencia — banner colapsa/expande, 3 niveles de sub-opciones en cascada, `tree-dot` de Dimensión/Indicador cambia de color con progreso, comentario en negrita en Revisión y sin sintaxis en el CSV.
-  - Descarga de CSV autorizada explícitamente por el usuario de nuevo (el fetch en página funcionó esta vez, sin bloqueo del filtro de seguridad — inconsistente entre sesiones, no asumir que siempre funciona).
+  - **VS-029 (el más grande y riesgoso de la sesión)**: único de los 5 ítems menores con cambio de schema real. Diseño: `dimensionId` nullable alternativo a `indicatorId` en `subindicator` (no "Indicador opcional en el medio siempre" — cambiaría la semántica de Indicador en todos los casos existentes), con `CHECK subindicator_parent_xor` en Postgres como fuente de verdad del invariante (no solo zod en el borde de la API) — mismo criterio que el resto del dominio (tenant-scoping, cascade delete viven en el schema).
+  - **Antes de correr `pnpm db:push` contra Neon (producción, sin rama de test aislada — TD-002 sigue pendiente), se pidió confirmación explícita al usuario** dado que es un cambio de schema real sobre la misma base que usa producción, distinto en categoría de riesgo a las escrituras normales de la app ya autorizadas de forma general. Usuario confirmó. Cambio aditivo (nullable + FK + CHECK), verificado con una query directa a `information_schema`/`pg_constraint` después de aplicar.
+  - Numeración de subindicadores directos: conveción deliberada "después de todos los Indicadores de la Dimensión", sin caso mixto observado en el portal S&P — documentado como simplificación YAGNI, no como limitación descubierta a posteriori.
+  - Nueva ruta Builder (`.../dimensions/[dimensionId]/subindicators/[subindicatorId]`) delegada a OpenCode como copia mecánica de la ruta existente bajo Indicador con 3 cambios puntuales (Props, desestructuración, breadcrumb) — el agente la generó con LF en vez de CRLF (inconsistente con el resto del repo en Windows); al intentar normalizar line-endings con PowerShell se vació el archivo por error propio (mala interacción `Get-Content -LiteralPath` con rutas con corchetes `[...]`); reconstruido de inmediato con el contenido exacto ya verificado antes del incidente, sin pérdida real de trabajo. Nota para la próxima vez: preferir recrear el archivo con la herramienta de escritura antes que scripts de shell para operaciones de encoding en archivos con corchetes en la ruta (rutas de Next.js dynamic segments).
+  - **Bug real encontrado en producción**: guardar una respuesta en un Subindicador directo fallaba con `subindicator_NOT_FOUND` — dos funciones distintas (`snapshotHasSubindicator` en `response-service.ts`, `findSnapshotSubindicator` en `evidence-validation.ts`) buscaban un Subindicador en el snapshot sin mirar `dim.subindicators` (directos), solo `dim.indicators[].subindicators`. Corregido en ambas, con test de integración nuevo contra Neon real. Registrado en `docs/project_notes/bugs.md`.
+  - Verificado end-to-end en producción (mismo framework de prueba reutilizado de sesiones anteriores): Builder (nueva sección + ruta + breadcrumb sin "Indicador"), Runtime (árbol con el directo como hermano del Indicador, numeración "1.2", guardado tras el fix), Revisión (tarjeta al mismo nivel), export CSV (columna "Indicador" vacía). Publicación de prueba revocada al cerrar.
 
 archivos_modificados:
-  - docs/engines/form.md (secciones doc-first "Banner expandible/colapsable (VS-025)", "Sub-opciones a 2 niveles (VS-026)", "Comentario confidencial con formato (VS-028)")
-  - docs/engines/persistence.md (sección doc-first "Estado por nodo en el árbol (VS-027)")
-  - docs/domain/evaluation-hierarchy.md (sección doc-first "Subindicadores directos bajo Dimensión (VS-029)" — spec lista, implementación pendiente)
-  - packages/sdk-core/src/form-schema.ts (banner.expandable, formOption.subOptions con 2do nivel)
-  - packages/sdk-core/src/form-schema.test.ts (tests nuevos)
-  - apps/web/app/frameworks/.../subindicators/[subindicatorId]/page.tsx (Builder: checkbox expandible, CRUD addSubSubOption/updateSubSubOption/removeSubSubOption)
-  - apps/web/app/evaluations/[token]/page.tsx (Runtime: BannerView, SubOptionsView recursivo, indicatorProgress/dimensionProgress/progressState, NaCommentRow con toolbar)
-  - apps/web/app/frameworks/[frameworkId]/evaluations/[evaluationId]/review/page.tsx (comentario renderizado con renderLiteMarkdown)
-  - apps/web/app/api/evaluations/[id]/export/route.ts (comentario despojado con stripLiteMarkdown)
-  - apps/web/lib/lite-markdown.ts (nuevo — renderLiteMarkdown/stripLiteMarkdown)
-  - apps/web/app/globals.css (.runtime-banner--expandable, .rich-toolbar, .comment-preview)
-  - docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md, docs/project_notes/decisions.md
+  - docs/domain/evaluation-hierarchy.md (spec doc-first "Subindicadores directos bajo Dimensión (VS-029)", ya escrita en el checkpoint anterior)
+  - packages/db/src/schema/domain.ts (indicatorId nullable, dimensionId nuevo, CHECK XOR, relations)
+  - packages/db/src/domain/service.ts (createSubindicator con padre alternativo, listDirectSubindicators)
+  - packages/db/src/domain/evaluation-service.ts (buildSnapshot con 4ta query por Dimensión, toSnapshotSubindicator extraído)
+  - packages/db/src/domain/response-service.ts (fix: snapshotHasSubindicator mira dim.subindicators)
+  - packages/db/src/__tests__/domain.test.ts, response.test.ts (tests de integración nuevos contra Neon real)
+  - packages/sdk-core/src/domain.ts (createSubindicatorInput XOR, Subindicator nullable)
+  - packages/sdk-core/src/domain.test.ts (nuevo)
+  - packages/sdk-core/src/evaluation.ts (dimension.subindicators en EvaluationSnapshot, directSubindicatorNumber)
+  - packages/sdk-core/src/evaluation.test.ts (tests nuevos)
+  - apps/web/lib/evidence-validation.ts (fix: findSnapshotSubindicator mira dim.subindicators)
+  - apps/web/app/api/subindicators/route.ts (GET acepta dimensionId o indicatorId)
+  - apps/web/app/frameworks/[frameworkId]/dimensions/[dimensionId]/page.tsx (sección "Subindicadores directos")
+  - apps/web/app/frameworks/[frameworkId]/dimensions/[dimensionId]/subindicators/[subindicatorId]/page.tsx (nuevo, Form Editor)
+  - apps/web/app/evaluations/[token]/page.tsx (flatten/árbol/dimensionProgress con directos)
+  - apps/web/app/frameworks/[frameworkId]/evaluations/[evaluationId]/review/page.tsx (SubindicatorReviewCard extraído, directos)
+  - apps/web/app/api/evaluations/[id]/export/route.ts (subindicatorRows extraído, directos)
+  - docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md, docs/project_notes/bugs.md
 
 proximos_pasos:
-  - VS-029 (subindicadores directos bajo Dimensión) es el último ítem de AN-001 2.ª inspección — especificación ya completa en `docs/domain/evaluation-hierarchy.md`. Requiere: `packages/db/src/schema/domain.ts` (`indicatorId` nullable + `dimensionId` nullable alternativo + CHECK XOR), `createSubindicatorInput` (sdk-core, superRefine XOR), `EvaluationSnapshot` (dimension.subindicators nuevo), `buildSnapshot` (evaluation-service.ts, 4ta query), numeración `directSubindicatorNumber`, API routes, nueva ruta Builder bajo Dimensión, Runtime (flatten/nav/dimensionProgress), Revisión, export CSV. Es el único de los 5 con cambio de schema — mayor riesgo, sin slice abierto todavía.
-  - Pendiente no bloqueante, sigue en BACKLOG.md ("Siguiente"): proveedor de email/SMTP (ADR); TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada); tabla de historial de revisiones de `formSchema`.
+  - AN-001 2.ª inspección queda completa: 9 gaps (VS-016 a VS-024) + 5 ítems menores (VS-025 a VS-029). No queda ningún ítem de este esfuerzo pendiente en el backlog.
+  - Pendiente no bloqueante, sigue en BACKLOG.md ("Siguiente"): proveedor de email/SMTP (ADR); TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada — hubiera evitado la pregunta de confirmación de esta sesión al aplicar el schema de VS-029); tabla de historial de revisiones de `formSchema`.
+  - Al retomar sin un pedido específico: revisar `docs/BACKLOG.md` y `docs/ROADMAP.md` para el siguiente ítem por prioridad — no hay nada urgente pendiente de esta sesión.
 
 bloqueos: []
 
 contexto_para_continuar: |
-  AN-001 2.ª inspección: de los 5 ítems menores repriorizados por el usuario
-  el 2026-08-06 (tras revertir la no-priorización inicial del agente), 4
-  están cerrados y verificados en producción (VS-025 a VS-028). Queda
-  VS-029 (subindicadores directos bajo Dimensión) — el más grande de los 5,
-  único con cambio de schema en packages/db. Especificación doc-first ya
-  completa en docs/domain/evaluation-hierarchy.md, sección "Subindicadores
-  directos bajo Dimensión (VS-029)" — leerla antes de implementar, tiene el
-  diseño completo (CHECK XOR, numeración, todos los call-sites afectados).
+  AN-001 (análisis S&P Global CSA 2026) queda completamente cerrado: los 9
+  gaps de la 2.ª inspección (VS-016 a VS-024) y los 5 ítems menores que el
+  usuario repriorizó tras revisar el análisis costo/beneficio del agente
+  (VS-025 a VS-029). Todo verificado en producción
+  (https://csa-v3-web.vercel.app). No queda trabajo pendiente de este
+  esfuerzo — el BACKLOG.md solo tiene pendientes no relacionados (email/SMTP,
+  migraciones Drizzle, historial de formSchema).
 
   Notas operativas acumuladas durante la sesión (útiles si se repiten):
   - Si claude-in-chrome no conecta, verificar que `claude.exe
@@ -56,11 +60,10 @@ contexto_para_continuar: |
     extraer el valor exacto vía `javascript_tool`
     (`[...document.querySelectorAll('a')].map(a => a.href)`) en vez de
     transcribir desde un screenshot. Mismo truco para leer un CSV export sin
-    descargar: `await fetch(href).then(r => r.text())` — pero este fetch a
-    veces queda bloqueado por el filtro de seguridad del navegador ("Cookie/
-    query string data"), inconsistente entre sesiones; si pasa, pedir
-    permiso explícito y descargar normalmente (leer con Read, borrar con
-    Bash después).
+    descargar: `await fetch(href).then(r => r.text())` — a veces queda
+    bloqueado por el filtro de seguridad del navegador ("Cookie/query string
+    data"), inconsistente entre sesiones; si pasa, pedir permiso explícito y
+    descargar normalmente.
   - Los `<select>` nativos del Builder no responden a clicks por coordenada
     en las `<option>` — usar teclado (`Down`/`Up` + `Return`) tras hacer foco.
   - Inputs de "lista separada por coma" controlados (`onChange` que hace
@@ -68,14 +71,30 @@ contexto_para_continuar: |
     `onBlur` con `defaultValue` (no controlado), no `onChange`.
   - Publicar un Framework de nuevo tras revocar genera un token/id de
     Evaluación NUEVO — al reverificar tras revocar, volver a extraer el
-    link publicado.
+    link publicado (el `id` para `/api/evaluations/{id}/export` también
+    cambia, no solo el token público).
   - Tras editar `packages/sdk-core`, correr `pnpm build` ahí (no solo
     `typecheck`) antes de typecheckear `apps/web`, o aparecen errores de
     tipo falsos por el dist/*.d.ts desactualizado.
   - Delegar a OpenCode funciona bien para extensiones mecánicas de un patrón
-    ya existente (ej. VS-026: mismo CRUD un nivel más adentro) cuando se le
-    da el contrato exacto ya escrito en el doc — revisar el resultado con
-    `git diff` antes de confiar en el reporte del agente.
+    ya existente cuando se le da el contrato exacto ya escrito en el doc —
+    revisar el resultado con `git diff`/lectura directa antes de confiar en
+    el reporte del agente. Si el agente genera un archivo nuevo, verificar
+    line-endings (LF vs CRLF del resto del repo) — y para corregirlos, mejor
+    recrear el archivo completo con la herramienta de escritura que usar
+    scripts de PowerShell/Node sobre una ruta con corchetes (`[param]` de
+    Next.js), que rompe con `Get-Content`/`-LiteralPath` de formas no obvias.
+  - Cambios de schema en `packages/db` van directo a Neon (producción) vía
+    `db:push`, sin rama de test aislada (TD-002 pendiente) — pedir
+    confirmación explícita al usuario antes de correrlo, aunque el cambio
+    sea aditivo/de bajo riesgo, distinto en categoría de las escrituras
+    normales de la app que ya están autorizadas de forma general.
+  - Buscar bugs de "no considera el nuevo caso" después de un cambio
+    estructural (como VS-029): grep por el patrón de acceso antiguo
+    (`.subindicators.find(`/`.some(` sin pasar por el nuevo campo) en todo
+    el repo, no solo en los archivos que se tocaron a propósito — dos
+    funciones de búsqueda duplicadas tenían el mismo gap en sitios
+    distintos.
 
   Para retomar sin un pedido específico: leer este archivo, luego
   docs/BACKLOG.md ("Siguiente") y docs/ROADMAP.md para el siguiente ítem

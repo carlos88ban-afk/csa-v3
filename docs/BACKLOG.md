@@ -4,13 +4,13 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Siguiente
 
-- [ ] **AN-001 2.ª inspección (menores) — Subindicadores directos bajo Dimensión**: permite crear un Subindicador colgando directo de una Dimensión sin Indicador intermedio (hallazgo estructural: 0.1, 5.x en el portal S&P) — el único de los 5 con cambio de schema. Especificación ya escrita en `docs/domain/evaluation-hierarchy.md`, "Subindicadores directos bajo Dimensión (VS-029)"
 - [ ] Decidir proveedor de email/SMTP (ADR) si se necesita invitación automática por correo — hoy el link se comparte manualmente (ver `docs/domain/organization-user.md`)
 - [ ] Migrar a migraciones versionadas de Drizzle en vez de `db:push`, junto con provisionar una rama/proyecto Neon aislado para tests (`docs/TECH_DEBT.md` TD-001 + TD-002)
 - [ ] Si se necesita reconstruir el historial de una revisión de `formSchema` fuera del contexto de una publicación, construir una tabla de historial real (ver `docs/engines/publishing.md`, decisión de usar snapshot en vez de historial)
 
 ## Completado
 
+- [x] VS-029 — Subindicadores directos bajo Dimensión (único de los 5 ítems menores de AN-001 2.ª inspección con cambio de schema — `dimensionId` nullable alternativo + CHECK XOR en `packages/db`, verificado en producción) — 2026-08-06
 - [x] VS-028 — Comentario confidencial con formato (markdown-lite sin dependencia nueva, ítem menor de AN-001 2.ª inspección, verificado en producción) — 2026-08-06
 - [x] VS-027 — Estado por nodo en el árbol (progreso agregado Dimensión/Indicador, ítem menor de AN-001 2.ª inspección, verificado en producción) — 2026-08-06
 - [x] VS-026 — Sub-opciones a 2 niveles (ítem menor de AN-001 2.ª inspección, verificado en producción) — 2026-08-06

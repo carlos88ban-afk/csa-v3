@@ -4,6 +4,17 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-029 — Subindicadores directos bajo Dimensión (2026-08-06)
+
+- Último de los 5 ítems menores de AN-001 2.ª inspección, el único con cambio de schema. Un Subindicador ahora puede colgar directo de una Dimensión sin Indicador intermedio (hallazgo del portal S&P: `0.1`, `5.x`).
+- `packages/db/src/schema/domain.ts`: `subindicator.indicatorId` pasa a nullable, nuevo `dimensionId` nullable alternativo, `CHECK subindicator_parent_xor` — el invariante "exactamente uno de los dos" vive en Postgres, no solo en zod. Aplicado a Neon (producción) vía `db:push` con autorización explícita del usuario — cambio aditivo, sin pérdida de columnas ni filas.
+- sdk-core: `createSubindicatorInput` con `superRefine` XOR, `Subindicator` con ambos campos nullable, `EvaluationSnapshot` gana `dimension.subindicators`, `directSubindicatorNumber` (numera después de los Indicadores de la misma Dimensión — convención deliberada, sin caso mixto observado en el portal S&P).
+- `packages/db`: `createSubindicator`/`listDirectSubindicators`, `buildSnapshot` con una 4ta query por Dimensión.
+- `apps/web`: nueva ruta Builder `.../dimensions/[dimensionId]/subindicators/[subindicatorId]` (mismo Form Editor que la ruta bajo Indicador) + sección "Subindicadores directos" en la página de Dimensión. Runtime (árbol de navegación, `dimensionProgress`), Revisión (`SubindicatorReviewCard` extraído y reusado) y export CSV actualizados para iterar también los directos (columna "Indicador" vacía en el CSV para esas filas).
+- **Bug real encontrado y corregido durante la verificación en producción**: guardar una respuesta en un Subindicador directo fallaba con `subindicator_NOT_FOUND` — `snapshotHasSubindicator` (`response-service.ts`) y `findSnapshotSubindicator` (`evidence-validation.ts`) solo buscaban en `dim.indicators[].subindicators`, nunca en `dim.subindicators`. Corregido en ambas funciones, cubierto con un test de integración nuevo contra Neon real. Detalle en `docs/project_notes/bugs.md`.
+- Verificado end-to-end en producción: framework de prueba con un Subindicador directo "Denominator - Revenues" bajo la Dimensión (sin Indicador). Builder mostró la nueva sección y el breadcrumb sin el eslabón "Indicador"; Runtime mostró "1.2 Denominator - Revenues" como hermano de "1.1 Ind 1" en el árbol, con su propio `tree-dot`; tras el fix del bug, guardar la respuesta funcionó y persistió tras recargar; Revisión mostró la tarjeta al mismo nivel que los Subindicadores bajo Indicador; CSV confirmó la fila con columna "Indicador" vacía y el valor guardado. Publicación de prueba revocada al cerrar.
+- Con este slice se completan los 5 ítems menores de AN-001 2.ª inspección (VS-025 a VS-029) y, con ellos, el esfuerzo completo de AN-001 (los 9 gaps + los 5 menores).
+
 ### VS-025 a VS-028 — Ítems menores de AN-001 2.ª inspección (2026-08-06)
 
 - El usuario revirtió la decisión inicial de no priorizar el ítem "opcional/menor" (registrada y superada en `docs/project_notes/decisions.md`) y pidió implementarlos. Estos 4 primeros; VS-029 (subindicadores directos bajo Dimensión) sigue en `docs/BACKLOG.md` por ser el único con cambio de schema.
