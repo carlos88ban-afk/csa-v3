@@ -1,15 +1,27 @@
-import { createSubindicator, listSubindicators, requireActiveMember, requireWriteAccess } from "@plataforma-csa/db";
+import {
+  createSubindicator,
+  listDirectSubindicators,
+  listSubindicators,
+  requireActiveMember,
+  requireWriteAccess,
+} from "@plataforma-csa/db";
 import { createSubindicatorInput } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
+// Subindicadores directos bajo Dimensión (VS-029, docs/domain/evaluation-hierarchy.md):
+// acepta indicatorId (caso tradicional) o dimensionId (directo), uno de los dos.
 export async function GET(request: Request) {
   try {
     const { organizationId } = await requireActiveMember(request.headers);
-    const indicatorId = new URL(request.url).searchParams.get("indicatorId");
-    if (!indicatorId) {
-      return Response.json({ error: "indicatorId_QUERY_PARAM_REQUIRED" }, { status: 400 });
+    const params = new URL(request.url).searchParams;
+    const indicatorId = params.get("indicatorId");
+    const dimensionId = params.get("dimensionId");
+    if (!indicatorId && !dimensionId) {
+      return Response.json({ error: "indicatorId_or_dimensionId_QUERY_PARAM_REQUIRED" }, { status: 400 });
     }
-    const rows = await listSubindicators(organizationId, indicatorId);
+    const rows = indicatorId
+      ? await listSubindicators(organizationId, indicatorId)
+      : await listDirectSubindicators(organizationId, dimensionId!);
     return Response.json({ subindicators: rows });
   } catch (error) {
     return toErrorResponse(error);

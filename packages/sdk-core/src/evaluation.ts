@@ -30,6 +30,9 @@ const evaluationSnapshotDimension = z.object({
   title: z.string(),
   description: z.string().nullable(),
   indicators: z.array(evaluationSnapshotIndicator),
+  // Subindicadores directos (VS-029, docs/domain/evaluation-hierarchy.md):
+  // sin Indicador intermedio — hallazgo del portal S&P (0.1, 5.x).
+  subindicators: z.array(evaluationSnapshotSubindicator),
 });
 
 export const evaluationSnapshot = z.object({
@@ -62,4 +65,12 @@ export function indicatorNumber(dimIndex: number, indIndex: number): string {
 }
 export function subindicatorNumber(dimIndex: number, indIndex: number, subIndex: number): string {
   return `${indicatorNumber(dimIndex, indIndex)}.${subIndex + 1}`;
+}
+
+// Subindicadores directos bajo Dimensión (VS-029). Convención deliberada,
+// sin caso mixto observado (ver docs/domain/evaluation-hierarchy.md): se
+// numeran DESPUÉS de todos los Indicadores de la misma Dimensión, no
+// intercalados por orden de creación.
+export function directSubindicatorNumber(dimIndex: number, indicatorCount: number, subIndex: number): string {
+  return `${dimensionNumber(dimIndex)}.${indicatorCount + subIndex + 1}`;
 }

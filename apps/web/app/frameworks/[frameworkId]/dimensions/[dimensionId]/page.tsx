@@ -1,6 +1,6 @@
 "use client";
 
-import type { Dimension, Indicator } from "@plataforma-csa/sdk-core";
+import type { Dimension, Indicator, Subindicator } from "@plataforma-csa/sdk-core";
 import { use, useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
 import { Breadcrumb, Button, Card } from "@/components/ui";
@@ -17,11 +17,22 @@ export default function DimensionDetailPage({ params }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Subindicadores directos (VS-029, docs/domain/evaluation-hierarchy.md):
+  // cuelgan de la Dimensión sin Indicador intermedio — sección paralela a
+  // "Indicadores", mismo patrón CRUD simple.
+  const [directSubs, setDirectSubs] = useState<Subindicator[] | null>(null);
+  const [directTitle, setDirectTitle] = useState("");
+  const [directError, setDirectError] = useState<string | null>(null);
+  const [directSubmitting, setDirectSubmitting] = useState(false);
+
   useEffect(() => {
     api.get<{ dimension: Dimension }>(`/api/dimensions/${dimensionId}`).then((res) => setDimension(res.dimension));
     api
       .get<{ indicators: Indicator[] }>(`/api/indicators?dimensionId=${dimensionId}`)
       .then((res) => setIndicators(res.indicators));
+    api
+      .get<{ subindicators: Subindicator[] }>(`/api/subindicators?dimensionId=${dimensionId}`)
+      .then((res) => setDirectSubs(res.subindicators));
   }, [dimensionId]);
 
   async function handleCreate(event: React.FormEvent) {
@@ -42,7 +53,25 @@ export default function DimensionDetailPage({ params }: Props) {
     }
   }
 
-  if (!dimension || indicators === null) return <main className="loading">Cargando...</main>;
+  async function handleCreateDirectSub(event: React.FormEvent) {
+    event.preventDefault();
+    setDirectError(null);
+    setDirectSubmitting(true);
+    try {
+      const { subindicator } = await api.post<{ subindicator: Subindicator }>("/api/subindicators", {
+        dimensionId,
+        title: directTitle,
+      });
+      setDirectSubs((prev) => [...(prev ?? []), subindicator]);
+      setDirectTitle("");
+    } catch (err) {
+      setDirectError(err instanceof Error ? err.message : "No se pudo crear el subindicador");
+    } finally {
+      setDirectSubmitting(false);
+    }
+  }
+
+  if (!dimension || indicators === null || directSubs === null) return <main className="loading">Cargando...</main>;
 
   return (
     <main className="page">
@@ -88,6 +117,40 @@ export default function DimensionDetailPage({ params }: Props) {
           </Button>
         </form>
         {error && <p className="alert" role="alert">{error}</p>}
+      </Card>
+
+      <h2>Subindicadores directos</h2>
+      <Card>
+        {directSubs.length === 0 ? (
+          <p className="empty">Todavía no hay subindicadores directos.</p>
+        ) : (
+          <ul className="entry-list">
+            {directSubs.map((sub) => (
+              <li key={sub.id} className="entry-list__row">
+                <a
+                  className="entry-list__title"
+                  href={`/frameworks/${frameworkId}/dimensions/${dimensionId}/subindicators/${sub.id}`}
+                >
+                  {sub.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <h3>Nuevo subindicador directo</h3>
+      <Card>
+        <form className="form form--row" onSubmit={handleCreateDirectSub}>
+          <label className="field">
+            <span className="field__label">Título</span>
+            <input value={directTitle} onChange={(e) => setDirectTitle(e.target.value)} required />
+          </label>
+          <Button type="submit" variant="primary" disabled={directSubmitting || directTitle.trim().length === 0}>
+            {directSubmitting ? "Creando..." : "Crear"}
+          </Button>
+        </form>
+        {directError && <p className="alert" role="alert">{directError}</p>}
       </Card>
     </main>
   );

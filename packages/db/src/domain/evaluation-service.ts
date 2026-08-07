@@ -13,6 +13,18 @@ import { getFramework, NotFoundError } from "./service.js";
 // getEvaluationByToken es la única función del dominio sin `organizationId`:
 // la seguridad depende del token, no de una sesión.
 
+type SnapshotSubindicator = EvaluationSnapshot["dimensions"][number]["indicators"][number]["subindicators"][number];
+
+function toSnapshotSubindicator(sub: typeof subindicator.$inferSelect): SnapshotSubindicator {
+  return {
+    id: sub.id,
+    title: sub.title,
+    description: sub.description,
+    formSchema: sub.formSchema as SnapshotSubindicator["formSchema"],
+    revisionNumber: sub.revisionNumber,
+  };
+}
+
 async function buildSnapshot(
   organizationId: string,
   frameworkId: string,
@@ -43,18 +55,26 @@ async function buildSnapshot(
             id: ind.id,
             title: ind.title,
             description: ind.description,
-            subindicators: subindicators.map((sub) => ({
-              id: sub.id,
-              title: sub.title,
-              description: sub.description,
-              formSchema: sub.formSchema as EvaluationSnapshot["dimensions"][number]["indicators"][number]["subindicators"][number]["formSchema"],
-              revisionNumber: sub.revisionNumber,
-            })),
+            subindicators: subindicators.map(toSnapshotSubindicator),
           };
         }),
       );
 
-      return { id: dim.id, title: dim.title, description: dim.description, indicators: snapshotIndicators };
+      // Subindicadores directos (VS-029, docs/domain/evaluation-hierarchy.md):
+      // sin Indicador intermedio — cuarta query por Dimensión, análoga a la
+      // de Indicador→Subindicador de arriba.
+      const directSubindicators = await db
+        .select()
+        .from(subindicator)
+        .where(and(eq(subindicator.dimensionId, dim.id), eq(subindicator.organizationId, organizationId)));
+
+      return {
+        id: dim.id,
+        title: dim.title,
+        description: dim.description,
+        indicators: snapshotIndicators,
+        subindicators: directSubindicators.map(toSnapshotSubindicator),
+      };
     }),
   );
 

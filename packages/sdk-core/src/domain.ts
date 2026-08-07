@@ -43,11 +43,26 @@ export const updateIndicatorInput = z.object({
 });
 export type UpdateIndicatorInput = z.infer<typeof updateIndicatorInput>;
 
-export const createSubindicatorInput = z.object({
-  indicatorId: z.string().min(1),
-  title: z.string().min(1),
-  description: z.string().optional(),
-});
+// Subindicadores directos bajo Dimensión (VS-029, docs/domain/evaluation-hierarchy.md):
+// indicatorId/dimensionId son alternativos — exactamente uno debe estar
+// presente. El CHECK en packages/db es la fuente de verdad del invariante;
+// este superRefine da el mismo error temprano, en el borde de la API.
+export const createSubindicatorInput = z
+  .object({
+    indicatorId: z.string().min(1).optional(),
+    dimensionId: z.string().min(1).optional(),
+    title: z.string().min(1),
+    description: z.string().optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (!!val.indicatorId === !!val.dimensionId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Debe especificar exactamente uno de indicatorId o dimensionId",
+        path: ["indicatorId"],
+      });
+    }
+  });
 export type CreateSubindicatorInput = z.infer<typeof createSubindicatorInput>;
 
 export const updateSubindicatorInput = z.object({
@@ -89,7 +104,8 @@ export interface Indicator {
 export interface Subindicator {
   id: string;
   organizationId: string;
-  indicatorId: string;
+  indicatorId: string | null;
+  dimensionId: string | null;
   title: string;
   description: string | null;
   formSchema: FormSchema | null;

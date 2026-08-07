@@ -5,6 +5,7 @@ import {
   componentRegistry,
   deriveStatus,
   dimensionNumber,
+  directSubindicatorNumber,
   indicatorNumber,
   isAnswered,
   isElementVisible,
@@ -14,6 +15,7 @@ import {
   subindicatorNumber,
   type DerivedStatus,
   type Evaluation,
+  type EvaluationSnapshot,
   type FormElement,
   type ResponseAnswers,
 } from "@plataforma-csa/sdk-core";
@@ -53,6 +55,92 @@ function statusVariant(status: DerivedStatus): "neutral" | "accent" | "good" | "
   if (status === "submitted") return "good";
   if (status === "approved") return "accent";
   return "neutral";
+}
+
+type SnapshotSubindicator = EvaluationSnapshot["dimensions"][number]["indicators"][number]["subindicators"][number];
+
+// Extraído para reusarse en dos sitios: Subindicadores bajo Indicador y
+// Subindicadores directos bajo Dimensión (VS-029, docs/domain/evaluation-hierarchy.md)
+// — mismo contenido de tarjeta, solo cambia de dónde cuelga en el árbol.
+function SubindicatorReviewCard({
+  sub,
+  subNumber,
+  answers,
+  pending,
+  setStatus,
+}: {
+  sub: SnapshotSubindicator;
+  subNumber: string;
+  answers: ResponseAnswers;
+  pending: string | null;
+  setStatus: (subindicatorId: string, elementId: string, status: "completed" | "approved" | "submitted" | null) => void;
+}) {
+  const questions = (sub.formSchema?.elements ?? []).filter((el) => isQuestion(el) && isElementVisible(el.visibleIf, answers));
+  if (questions.length === 0) return null;
+  return (
+    <Card>
+      <h4>
+        {subNumber} {sub.title}
+      </h4>
+      <ul className="entry-list">
+        {questions.map((el, qIndex) => {
+          const na = answers[naKey(el.id)] as string | undefined;
+          const markedNA = na === "true";
+          const comment = (answers[commentKey(el.id)] as string | undefined) ?? "";
+          const derived = deriveStatus(answers[statusKey(el.id)] as string | undefined, isAnswered(answers[el.id], na));
+          const actionKey = `${sub.id}:${el.id}`;
+          const busy = pending === actionKey;
+          const canApprove = derived === "completed";
+          const canSubmit = derived === "approved";
+          const canRevert = derived === "completed" || derived === "approved" || derived === "submitted";
+          const revertTo = derived === "submitted" ? "approved" : derived === "approved" ? "completed" : null;
+          return (
+            <li key={el.id} className="entry-list__row">
+              <span className="entry-list__main">
+                {questionNumber(qIndex)} {el.label || "(sin texto)"}{" "}
+                <Pill variant={statusVariant(derived)}>{STATUS_LABEL[derived]}</Pill>
+                {markedNA && <Pill variant="warn">N/A</Pill>}
+                {comment && (
+                  <p className="comment-preview">
+                    Comentario confidencial: <span dangerouslySetInnerHTML={{ __html: renderLiteMarkdown(comment) }} />
+                  </p>
+                )}
+              </span>
+              <span className="entry-list__actions">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  disabled={!canApprove || busy}
+                  onClick={() => void setStatus(sub.id, el.id, "approved")}
+                >
+                  Aprobar
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  disabled={!canSubmit || busy}
+                  onClick={() => void setStatus(sub.id, el.id, "submitted")}
+                >
+                  Enviar
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={!canRevert || busy}
+                  onClick={() => void setStatus(sub.id, el.id, revertTo)}
+                >
+                  Revertir
+                </Button>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
 }
 
 export default function ReviewPage({ params }: Props) {
@@ -125,79 +213,29 @@ export default function ReviewPage({ params }: Props) {
               <h3>
                 {indicatorNumber(dimIndex, indIndex)} {ind.title}
               </h3>
-              {ind.subindicators.map((sub, subIndex) => {
-                const answers = answersBySub[sub.id] ?? {};
-                const questions = (sub.formSchema?.elements ?? []).filter(
-                  (el) => isQuestion(el) && isElementVisible(el.visibleIf, answers),
-                );
-                if (questions.length === 0) return null;
-                return (
-                  <Card key={sub.id}>
-                    <h4>
-                      {subindicatorNumber(dimIndex, indIndex, subIndex)} {sub.title}
-                    </h4>
-                    <ul className="entry-list">
-                      {questions.map((el, qIndex) => {
-                        const na = answers[naKey(el.id)] as string | undefined;
-                        const markedNA = na === "true";
-                        const comment = (answers[commentKey(el.id)] as string | undefined) ?? "";
-                        const derived = deriveStatus(answers[statusKey(el.id)] as string | undefined, isAnswered(answers[el.id], na));
-                        const actionKey = `${sub.id}:${el.id}`;
-                        const busy = pending === actionKey;
-                        const canApprove = derived === "completed";
-                        const canSubmit = derived === "approved";
-                        const canRevert = derived === "completed" || derived === "approved" || derived === "submitted";
-                        const revertTo = derived === "submitted" ? "approved" : derived === "approved" ? "completed" : null;
-                        return (
-                          <li key={el.id} className="entry-list__row">
-                            <span className="entry-list__main">
-                              {questionNumber(qIndex)} {el.label || "(sin texto)"}{" "}
-                              <Pill variant={statusVariant(derived)}>{STATUS_LABEL[derived]}</Pill>
-                              {markedNA && <Pill variant="warn">N/A</Pill>}
-                              {comment && (
-                                <p className="comment-preview">
-                                  Comentario confidencial:{" "}
-                                  <span dangerouslySetInnerHTML={{ __html: renderLiteMarkdown(comment) }} />
-                                </p>
-                              )}
-                            </span>
-                            <span className="entry-list__actions">
-                              <Button
-                                type="button"
-                                variant="primary"
-                                size="sm"
-                                disabled={!canApprove || busy}
-                                onClick={() => void setStatus(sub.id, el.id, "approved")}
-                              >
-                                Aprobar
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="primary"
-                                size="sm"
-                                disabled={!canSubmit || busy}
-                                onClick={() => void setStatus(sub.id, el.id, "submitted")}
-                              >
-                                Enviar
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                disabled={!canRevert || busy}
-                                onClick={() => void setStatus(sub.id, el.id, revertTo)}
-                              >
-                                Revertir
-                              </Button>
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </Card>
-                );
-              })}
+              {ind.subindicators.map((sub, subIndex) => (
+                <SubindicatorReviewCard
+                  key={sub.id}
+                  sub={sub}
+                  subNumber={subindicatorNumber(dimIndex, indIndex, subIndex)}
+                  answers={answersBySub[sub.id] ?? {}}
+                  pending={pending}
+                  setStatus={setStatus}
+                />
+              ))}
             </div>
+          ))}
+          {/* Subindicadores directos (VS-029): sin Indicador intermedio,
+              numerados después de todos los Indicadores de la Dimensión. */}
+          {dim.subindicators.map((sub, subIndex) => (
+            <SubindicatorReviewCard
+              key={sub.id}
+              sub={sub}
+              subNumber={directSubindicatorNumber(dimIndex, dim.indicators.length, subIndex)}
+              answers={answersBySub[sub.id] ?? {}}
+              pending={pending}
+              setStatus={setStatus}
+            />
           ))}
         </div>
       ))}

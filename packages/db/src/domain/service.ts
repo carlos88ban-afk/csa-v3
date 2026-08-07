@@ -182,16 +182,25 @@ export async function deleteIndicator(organizationId: string, id: string) {
 // es M4), pero el servicio ya soporta actualizarlo y versionar la revisión
 // para que VS-007 no tenga que rediseñar esta capa — ver evaluation-hierarchy.md.
 
+// Subindicadores directos bajo Dimensión (VS-029, docs/domain/evaluation-hierarchy.md):
+// indicatorId/dimensionId son alternativos — createSubindicatorInput (sdk-core)
+// ya valida XOR, acá solo queda validar tenant-scoping del padre que vino.
 export async function createSubindicator(organizationId: string, input: CreateSubindicatorInput) {
-  const parent = await getIndicator(organizationId, input.indicatorId);
-  if (!parent) throw new NotFoundError("indicator");
+  if (input.indicatorId) {
+    const parent = await getIndicator(organizationId, input.indicatorId);
+    if (!parent) throw new NotFoundError("indicator");
+  } else if (input.dimensionId) {
+    const parent = await getDimension(organizationId, input.dimensionId);
+    if (!parent) throw new NotFoundError("dimension");
+  }
 
   const rows = await db
     .insert(subindicator)
     .values({
       id: randomUUID(),
       organizationId,
-      indicatorId: input.indicatorId,
+      indicatorId: input.indicatorId ?? null,
+      dimensionId: input.dimensionId ?? null,
       title: input.title,
       description: input.description ?? null,
     })
@@ -212,6 +221,15 @@ export async function listSubindicators(organizationId: string, indicatorId: str
     .select()
     .from(subindicator)
     .where(and(eq(subindicator.indicatorId, indicatorId), eq(subindicator.organizationId, organizationId)));
+}
+
+// Subindicadores directos bajo Dimensión (VS-029) — misma forma que
+// listSubindicators, filtra por dimensionId en vez de indicatorId.
+export async function listDirectSubindicators(organizationId: string, dimensionId: string) {
+  return db
+    .select()
+    .from(subindicator)
+    .where(and(eq(subindicator.dimensionId, dimensionId), eq(subindicator.organizationId, organizationId)));
 }
 
 export interface UpdateSubindicatorServiceInput {

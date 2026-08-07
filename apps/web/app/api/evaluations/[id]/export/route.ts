@@ -113,38 +113,55 @@ const STATUS_LABEL: Record<ReturnType<typeof deriveStatus>, string> = {
   submitted: "Enviado",
 };
 
+type SnapshotSubindicator = EvaluationSnapshot["dimensions"][number]["indicators"][number]["subindicators"][number];
+
+// Extraído para reusarse en dos sitios: Subindicadores bajo Indicador y
+// Subindicadores directos bajo Dimensión (VS-029, docs/domain/evaluation-hierarchy.md)
+// — "Indicador" queda "" para los directos, una celda vacía ya comunica "no
+// aplica" sin ambigüedad, mismo criterio que el resto del CSV.
+function subindicatorRows(
+  dimTitle: string,
+  indTitle: string,
+  sub: SnapshotSubindicator,
+  answers: ResponseAnswers,
+): string[][] {
+  // Elementos ocultos por visibleIf (docs/engines/rule.md) no se exportan —
+  // nunca se le pidieron al evaluado.
+  const questions = (sub.formSchema?.elements ?? []).filter((el) => isQuestion(el) && isElementVisible(el.visibleIf, answers));
+  return questions.map((el, qIndex) => {
+    const na = answers[naKey(el.id)] as string | undefined;
+    const markedNA = na === "true";
+    const derived = deriveStatus(answers[statusKey(el.id)] as string | undefined, isAnswered(answers[el.id], na));
+    return [
+      dimTitle,
+      indTitle,
+      sub.title,
+      questionNumber(qIndex),
+      el.label || "(sin texto)",
+      componentRegistry.find((c) => c.type === el.type)?.label ?? el.type,
+      formatAnswer(el, answers[el.id], markedNA, answers),
+      STATUS_LABEL[derived],
+      stripLiteMarkdown((answers[commentKey(el.id)] as string | undefined) ?? ""),
+    ];
+  });
+}
+
 function buildCsv(snapshot: EvaluationSnapshot, answersBySub: Map<string, ResponseAnswers>): string {
   const header = ["Dimensión", "Indicador", "Subindicador", "Número", "Elemento", "Tipo", "Respuesta", "Estado", "Comentario confidencial"];
   const rows = [header];
 
-  for (const dim of snapshot.dimensions) {
-    for (const ind of dim.indicators) {
-      for (const sub of ind.subindicators) {
-        const answers = answersBySub.get(sub.id) ?? {};
-        // Elementos ocultos por visibleIf (docs/engines/rule.md) no se
-        // exportan — nunca se le pidieron al evaluado.
-        const questions = (sub.formSchema?.elements ?? []).filter(
-          (el) => isQuestion(el) && isElementVisible(el.visibleIf, answers),
-        );
-        questions.forEach((el, qIndex) => {
-          const na = answers[naKey(el.id)] as string | undefined;
-          const markedNA = na === "true";
-          const derived = deriveStatus(answers[statusKey(el.id)] as string | undefined, isAnswered(answers[el.id], na));
-          rows.push([
-            dim.title,
-            ind.title,
-            sub.title,
-            questionNumber(qIndex),
-            el.label || "(sin texto)",
-            componentRegistry.find((c) => c.type === el.type)?.label ?? el.type,
-            formatAnswer(el, answers[el.id], markedNA, answers),
-            STATUS_LABEL[derived],
-            stripLiteMarkdown((answers[commentKey(el.id)] as string | undefined) ?? ""),
-          ]);
-        });
-      }
-    }
-  }
+  snapshot.dimensions.forEach((dim) => {
+    dim.indicators.forEach((ind) => {
+      ind.subindicators.forEach((sub) => {
+        rows.push(...subindicatorRows(dim.title, ind.title, sub, answersBySub.get(sub.id) ?? {}));
+      });
+    });
+    // Subindicadores directos (VS-029): sin Indicador intermedio, columna
+    // "Indicador" vacía.
+    dim.subindicators.forEach((sub) => {
+      rows.push(...subindicatorRows(dim.title, "", sub, answersBySub.get(sub.id) ?? {}));
+    });
+  });
 
   const body = rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
   return `﻿${body}`;

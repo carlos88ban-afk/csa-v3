@@ -15,6 +15,7 @@ import {
   getFramework,
   getIndicator,
   getSubindicator,
+  listDirectSubindicators,
   listFrameworks,
   NotFoundError,
   updateFramework,
@@ -100,6 +101,41 @@ describe("VS-004 — dominio core (Framework→Dimensión→Indicador→Subindic
     expect(await getDimension(organizationId, dim.id)).toBeNull();
     expect(await getIndicator(organizationId, ind.id)).toBeNull();
     expect(await getSubindicator(organizationId, sub.id)).toBeNull();
+  });
+
+  it("VS-029 — crea un Subindicador directo bajo Dimensión (sin Indicador) y hace cascada al borrar la Dimensión", async () => {
+    const { organizationId } = await makeOrgWithOwner("direct-sub");
+
+    const fw = await createFramework(organizationId, { name: "Framework Directo" });
+    const dim = await createDimension(organizationId, { frameworkId: fw.id, title: "Dim 0" });
+    const sub = await createSubindicator(organizationId, { dimensionId: dim.id, title: "Sub directo 0.1" });
+
+    expect(sub.indicatorId).toBeNull();
+    expect(sub.dimensionId).toBe(dim.id);
+
+    const listed = await listDirectSubindicators(organizationId, dim.id);
+    expect(listed.some((s) => s.id === sub.id)).toBe(true);
+
+    await deleteFramework(organizationId, fw.id);
+    expect(await getSubindicator(organizationId, sub.id)).toBeNull();
+  });
+
+  it("VS-029 — rechaza crear un Subindicador sin indicatorId ni dimensionId, y con ambos a la vez", async () => {
+    const { organizationId } = await makeOrgWithOwner("direct-sub-xor");
+    const fw = await createFramework(organizationId, { name: "Framework XOR" });
+    const dim = await createDimension(organizationId, { frameworkId: fw.id, title: "Dim" });
+    const ind = await createIndicator(organizationId, { dimensionId: dim.id, title: "Ind" });
+
+    // Sin indicatorId ni dimensionId: el tipo lo permite (ambos opcionales,
+    // la validación XOR de createSubindicatorInput es un superRefine de
+    // zod, no afecta el tipo TS estático) — el CHECK de packages/db es la
+    // última línea de defensa si algo se cuela sin pasar por
+    // createSubindicatorInput.parse (sdk-core) en el borde de la API.
+    await expect(createSubindicator(organizationId, { title: "Sin padre" })).rejects.toThrow();
+
+    await expect(
+      createSubindicator(organizationId, { indicatorId: ind.id, dimensionId: dim.id, title: "Ambos padres" }),
+    ).rejects.toThrow();
   });
 
   it("no se puede crear un hijo referenciando un padre de otra organización", async () => {

@@ -5,6 +5,7 @@ import {
   componentRegistry,
   deriveStatus,
   dimensionNumber,
+  directSubindicatorNumber,
   evaluateExpression,
   hasAnswer,
   indicatorNumber,
@@ -41,9 +42,11 @@ interface FlatSubindicator {
   dimId: string;
   dimTitle: string;
   dimNumber: string;
-  indId: string;
-  indTitle: string;
-  indNumber: string;
+  // Subindicadores directos (VS-029, docs/domain/evaluation-hierarchy.md):
+  // sin Indicador intermedio — indId/indTitle/indNumber ausentes en ese caso.
+  indId?: string;
+  indTitle?: string;
+  indNumber?: string;
   subNumber: string;
   sub: SnapshotSubindicator;
 }
@@ -83,6 +86,17 @@ function flatten(snapshot: EvaluationSnapshot): FlatSubindicator[] {
         });
       });
     });
+    // Subindicadores directos (VS-029): sin Indicador intermedio, numerados
+    // después de todos los Indicadores de la Dimensión (ver evaluation.ts).
+    dim.subindicators.forEach((sub, subIndex) => {
+      out.push({
+        dimId: dim.id,
+        dimTitle: dim.title,
+        dimNumber: dimensionNumber(dimIndex),
+        subNumber: directSubindicatorNumber(dimIndex, dim.indicators.length, subIndex),
+        sub,
+      });
+    });
   });
   return out;
 }
@@ -113,13 +127,18 @@ function indicatorProgress(ind: SnapshotIndicator, answersBySub: Record<string, 
 }
 
 function dimensionProgress(dim: SnapshotDimension, answersBySub: Record<string, ResponseAnswers>) {
-  return dim.indicators.reduce(
+  const fromIndicators = dim.indicators.reduce(
     (acc, ind) => {
       const p = indicatorProgress(ind, answersBySub);
       return { answered: acc.answered + p.answered, total: acc.total + p.total };
     },
     { answered: 0, total: 0 },
   );
+  // Subindicadores directos (VS-029) suman al mismo total agregado de la Dimensión.
+  return dim.subindicators.reduce((acc, sub) => {
+    const p = progressOf(sub, answersBySub[sub.id]);
+    return { answered: acc.answered + p.answered, total: acc.total + p.total };
+  }, fromIndicators);
 }
 
 function progressState(p: { answered: number; total: number }): "" | "neutral" | "accent" | "good" {
@@ -359,6 +378,25 @@ export default function PublicEvaluationPage({ params }: Props) {
                     </div>
                   );
                 })}
+
+              {/* Subindicadores directos (VS-029, docs/domain/evaluation-hierarchy.md):
+                  sin Indicador intermedio, mismo nivel visual que un Subindicador
+                  normal pero sin agrupador de por medio. */}
+              {!collapsed.has(dim.id) &&
+                dim.subindicators.map((sub, subIndex) => {
+                  const state = progressState(progressOf(sub, answersBySub[sub.id]));
+                  return (
+                    <button
+                      key={sub.id}
+                      type="button"
+                      className={`runtime-nav__sub${sub.id === activeId ? " runtime-nav__sub--active" : ""}`}
+                      onClick={() => setActiveId(sub.id)}
+                    >
+                      <span className={`tree-dot${state ? ` tree-dot--${state}` : ""}`} />
+                      {directSubindicatorNumber(dimIndex, dim.indicators.length, subIndex)} {sub.title}
+                    </button>
+                  );
+                })}
             </div>
           );
         })}
@@ -410,7 +448,14 @@ export default function PublicEvaluationPage({ params }: Props) {
         )}
 
         <p className="runtime-breadcrumb-mini">
-          {active.dimNumber} {active.dimTitle} › {active.indNumber} {active.indTitle}
+          {active.dimNumber} {active.dimTitle}
+          {/* Subindicadores directos (VS-029) no tienen Indicador intermedio que mostrar. */}
+          {active.indNumber && (
+            <>
+              {" "}
+              › {active.indNumber} {active.indTitle}
+            </>
+          )}
         </p>
         <h1>
           {active.subNumber} {active.sub.title}
