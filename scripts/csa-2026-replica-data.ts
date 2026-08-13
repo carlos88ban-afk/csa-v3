@@ -808,22 +808,31 @@ function getFirstOptionId(el: FormElementData): string | undefined {
   }
 }
 
+function isQuestionType(type: ElementTypeName): boolean {
+  return ELEMENT_TYPE_POOL.find((entry) => entry.type === type)?.isQuestion ?? false;
+}
+
 // visibleIf (docs/engines/rule.md): condición válida solo si referencia un
 // elemento distinto del propio — nunca generamos la autorreferencia que
-// rechaza el superRefine del zod.
+// rechaza el superRefine del zod. Adicionalmente, la referencia debe ser a
+// una PREGUNTA del mismo Subindicador: un `instruccion`/`banner` no captura
+// respuesta, y un `isAnswered` contra él ocultaría el elemento para siempre
+// (bug 2026-08-11, visto en 2.1.3 de la réplica publicada). Se condiciona
+// sobre la última pregunta anterior; sin pregunta previa, siempre visible.
 function applyVisibleIf(
   elements: readonly FormElementData[],
   index: number,
   rand: () => number,
   built: FormElementData,
 ): FormElementData {
-  const first = elements[0];
-  if (!first || index === 0 || rand() >= 0.35) return built;
-  const optionId = getFirstOptionId(first);
+  if (index === 0 || rand() >= 0.35) return built;
+  const target = [...elements].reverse().find((el) => isQuestionType(el.type));
+  if (!target) return built;
+  const optionId = getFirstOptionId(target);
   const cond: VisibleIfCondition =
     optionId !== undefined
-      ? { elementId: first.id, operator: "equals", value: optionId }
-      : { elementId: first.id, operator: "isAnswered" };
+      ? { elementId: target.id, operator: "equals", value: optionId }
+      : { elementId: target.id, operator: "isAnswered" };
   return { ...built, visibleIf: cond };
 }
 
