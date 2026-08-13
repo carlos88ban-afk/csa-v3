@@ -120,6 +120,12 @@ export default function BuilderPage() {
   const [confirmingDelete, setConfirmingDelete] = useState<DeleteConfirmState | null>(null);
   const [treeMessage, setTreeMessage] = useState<string | null>(null);
 
+  // VS-032 contrato 6: buscador local del árbol + asistente de creación de 4
+  // pasos para frameworks (o dimensión única recién creada) sin contenido.
+  const [query, setQuery] = useState("");
+  const [wizardStep, setWizardStep] = useState(0);
+  const [wizardSession, setWizardSession] = useState(true);
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -182,6 +188,50 @@ export default function BuilderPage() {
     [dims],
   );
 
+  // Resultados de búsqueda: nodos cuyo título coincide, con su path humano.
+  // Filtro local sobre `dims` (no API) — ver VS-032 contrato 6.
+  type SearchResultItem = { id: string; title: string; path: string; kind: "dimension" | "indicator" | "sub" };
+  const searchResults = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q || !dims) return null;
+    const out: SearchResultItem[] = [];
+    for (let di = 0; di < dims.length; di++) {
+      const d = dims[di]!;
+      if (d.dimension.title.toLowerCase().includes(q)) {
+        out.push({ id: d.dimension.id, title: d.dimension.title, path: `Dimensión ${dimensionNumber(di)}`, kind: "dimension" });
+      }
+      d.indicators.forEach((ind, ii) => {
+        if (ind.indicator.title.toLowerCase().includes(q)) {
+          out.push({ id: ind.indicator.id, title: ind.indicator.title, path: `${indicatorNumber(di, ii)} · ${d.dimension.title}`, kind: "indicator" });
+        }
+        ind.subs.forEach((s, si) => {
+          if (s.title.toLowerCase().includes(q)) {
+            out.push({ id: s.id, title: s.title, path: `${subindicatorNumber(di, ii, si)} · ${d.dimension.title} · ${ind.indicator.title}`, kind: "sub" });
+          }
+        });
+      });
+      d.directSubs.forEach((s, si) => {
+        if (s.title.toLowerCase().includes(q)) {
+          out.push({ id: s.id, title: s.title, path: `${directSubindicatorNumber(di, d.indicators.length, si)} · ${d.dimension.title}`, kind: "sub" });
+        }
+      });
+    }
+    return out;
+  }, [dims, query]);
+
+  // El asistente avanza automáticamente al completarse cada alta (los forms
+  // inline del árbol ya reportan en treeMessage).
+  useEffect(() => {
+    if (!treeMessage) return;
+    if (treeMessage.startsWith("Dimensión")) setWizardStep((s) => Math.max(s, 1));
+    if (treeMessage.startsWith("Indicador")) setWizardStep((s) => Math.max(s, 2));
+    if (treeMessage.startsWith("Subindicador")) setWizardStep((s) => Math.max(s, 3));
+  }, [treeMessage]);
+
+  useEffect(() => {
+    if (!!dims && dims.length > 1) setWizardSession(false);
+  }, [dims]);
+
   const activeIndex = useMemo(() => flat.findIndex((s) => s.id === selectedId), [flat, selectedId]);
 
   function activePath(): string | null {
@@ -227,6 +277,23 @@ export default function BuilderPage() {
     setSelectedId(id);
     setFocusId(id);
     setTreeOpen(false);
+    setWizardSession(false);
+  }
+
+  // Resultado de búsqueda que no es subindicador: foco central (dimensión/
+  // indicador vacío muestra su EmptyState con los CTAs de alta).
+  // La propiedad kind no se re-narrowéa dentro de closures onClick; este
+  // helper centraliza la navegación desde un resultado de búsqueda.
+  function pickSearchResult(r: SearchResultItem) {
+    if (r.kind === "sub") selectSub(r.id);
+    else selectResult(r.kind, r.id);
+  }
+
+  function selectResult(kind: "dimension" | "indicator", id: string) {
+    setSelectedId(id);
+    setFocusId(id);
+    setTreeOpen(false);
+    window.history.replaceState(null, "", `?s=${id}`);
   }
 
   function openCreate(initial: Partial<CreateFormState> & { kind: CreateFormState["kind"] }) {
@@ -301,7 +368,10 @@ export default function BuilderPage() {
         });
         setTreeMessage(`Subindicador ${subindicator.title} creado`);
         setCreating(null);
-        selectSub(subindicator.id);
+        // Con el asistente activo (VS-032) la selección NO salta al editor:
+        // el paso 4 del wizard guía al primer elemento y deja decidir el
+        // momento de "Empezar a editar".
+        if (!wizardSession) selectSub(subindicator.id);
       } else if (c.kind === "directSub" && c.dimensionId) {
         const { subindicator } = await api.post<{ subindicator: { id: string; title: string } }>("/api/subindicators", {
           dimensionId: c.dimensionId,
@@ -320,7 +390,7 @@ export default function BuilderPage() {
         });
         setTreeMessage(`Subindicador ${subindicator.title} creado`);
         setCreating(null);
-        selectSub(subindicator.id);
+        if (!wizardSession) selectSub(subindicator.id);
       }
     } catch (err) {
       setCreating((prev) =>
@@ -433,30 +503,160 @@ export default function BuilderPage() {
     }
   }
 
+  // Mini-asistente de 4 pasos para frameworks sin contenido (VS-032 contrato
+  // 6): 1. Dimensión → 2. Indicador (opcional, "Saltar") → 3. Subindicador →
+  // 4. Primer elemento. Usa los mismos forms inline del árbol; avanza solo.
+  function FrameworkWizard() {
+    if (!dims || !wizardSession) return null;
+    const firstDim = dims[0] ?? null;
+    const firstIndicator = firstDim?.indicators[0] ?? null;
+    const firstSub = flat[0] ?? null;
+    const finalStep = wizardStep >= 3;
+
+    const WIZARD = [
+      {
+        title: "Dimensión",
+        text: "Agrupá sus preguntas por área temática, ej. “Ambiental”, “Social” o “Gobernanza”. Es el nivel más alto de la estructura.",
+        optional: false,
+      },
+      {
+        title: "Indicador",
+        text: "Opcional: agrupa preguntas dentro de una dimensión, ej. “Emisiones”. ¿No lo necesitás? Saltalo.",
+        optional: true,
+      },
+      {
+        title: "Subindicador",
+        text: "Un subindicador es un formulario de preguntas, ej. “Huella de carbono total”.",
+        optional: false,
+      },
+    ];
+
+    return (
+      <div className="runtime-content">
+        <h1>Editor</h1>
+        <div className="builder-wizard">
+          <h2 className="builder-wizard__title">Creá tu formulario en 4 pasos</h2>
+          <ol className="builder-wizard__steps">
+            {WIZARD.map((w, i) => {
+              const done = wizardStep > i;
+              const active = wizardStep === i;
+              return (
+                <li
+                  key={w.title}
+                  className={`builder-wizard__step${done ? " builder-wizard__step--done" : ""}${active ? " builder-wizard__step--active" : ""}`}
+                >
+                  <span className="builder-wizard__badge">{done ? "✓" : i + 1}</span>
+                  <span>
+                    <strong>{w.title}</strong>
+                    {w.optional && <span className="builder-wizard__note"> opcional</span>}
+                    {done && <span className="builder-wizard__note"> — listo</span>}
+                  </span>
+                </li>
+              );
+            })}
+            <li className={`builder-wizard__step${finalStep ? " builder-wizard__step--active" : ""}`}>
+              <span className="builder-wizard__badge">{finalStep ? "✓" : 4}</span>
+              <strong>Primer elemento</strong>
+              {!finalStep && <span className="builder-wizard__note"> pendiente</span>}
+            </li>
+          </ol>
+
+          <div className="builder-wizard__panel">
+            {wizardStep === 0 && (
+              <>
+                <p className="empty">{WIZARD[0]!.text}</p>
+                <div className="runtime-topbar__actions">
+                  <Button type="button" variant="primary" size="sm" onClick={() => openCreate({ kind: "dimension" })}>
+                    Crear dimensión
+                  </Button>
+                </div>
+              </>
+            )}
+            {wizardStep === 1 && firstDim && (
+              <>
+                <p className="empty">{WIZARD[1]!.text}</p>
+                <div className="runtime-topbar__actions">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    onClick={() => openCreate({ kind: "indicator", dimensionId: firstDim.dimension.id })}
+                  >
+                    Crear indicador
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => setWizardStep(2)}>
+                    Saltar
+                  </Button>
+                </div>
+              </>
+            )}
+            {wizardStep === 2 && firstDim && (
+              <>
+                <p className="empty">{WIZARD[2]!.text}</p>
+                <div className="runtime-topbar__actions">
+                  {firstIndicator ? (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      onClick={() => openCreate({ kind: "sub", indicatorId: firstIndicator.indicator.id })}
+                    >
+                      Crear subindicador
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      onClick={() => openCreate({ kind: "directSub", dimensionId: firstDim.dimension.id })}
+                    >
+                      Crear subindicador directo
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
+            {finalStep && (
+              <>
+                <p className="empty">
+                  {firstSub ? (
+                    <>
+                      Tu primer formulario <strong>{firstSub.title}</strong> está listo. Agregá sus preguntas con las
+                      plantillas <strong>Texto</strong>, <strong>Número</strong>, <strong>Elección</strong> o{" "}
+                      <strong>Tabla</strong> del editor.
+                    </>
+                  ) : (
+                    "Estructura creada. Elegí un subindicador en el árbol para empezar a editar."
+                  )}
+                </p>
+                <div className="runtime-topbar__actions">
+                  {firstSub && (
+                    <Button type="button" variant="primary" size="sm" onClick={() => selectSub(firstSub.id)}>
+                      Empezar a editar
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Estado central cuando la selección no es un subindicador editable: si el
   // foco (?s=) apunta a una dimensión/indicador vacío, ofrece el alta directa
   // (mismos forms inline del árbol).
   function EmptyState() {
     if (!dims) return null;
+    // Asistente activo mientras el framework recién creado no supera la
+    // primera dimensión y todavía nadie eligió "Empezar a editar".
+    if (wizardSession && dims.length <= 1) return <FrameworkWizard />;
     // El foco puede venir de la URL (?s=dim/ind vacío → resolveFocus devolvió
     // null y selectedId quedó sin selección).
     const focus = selectedId ?? focusId;
     const targetDim = dims.find((d) => d.dimension.id === focus) ?? null;
     const targetInd = dims.flatMap((d) => d.indicators).find((i) => i.indicator.id === focus) ?? null;
-
-    if (dims.length === 0) {
-      return (
-        <div className="runtime-content">
-          <h1>Editor</h1>
-          <p className="empty">Crea tu primera dimensión para empezar a estructurar el formulario.</p>
-          <div className="runtime-topbar__actions">
-            <Button type="button" variant="primary" size="sm" onClick={() => openCreate({ kind: "dimension" })}>
-              Crear dimensión
-            </Button>
-          </div>
-        </div>
-      );
-    }
 
     if (targetDim && focus === targetDim.dimension.id) {
       return (
@@ -556,6 +756,14 @@ export default function BuilderPage() {
                   ＋
                 </button>
               </div>
+              <input
+                type="search"
+                className="builder-nav__search"
+                placeholder="Buscar…"
+                aria-label="Buscar en la estructura"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
             </div>
 
             {creating?.kind === "dimension" && (
@@ -588,9 +796,31 @@ export default function BuilderPage() {
               </form>
             )}
 
-            {dims.length === 0 && !creating && (
-              <p className="builder-nav__empty">Todavía no hay dimensiones. Creá la primera con ＋.</p>
-            )}
+            {searchResults ? (
+              <div className="builder-nav__results" role="group" aria-label="Resultados de búsqueda">
+                <p className="builder-nav__empty">
+                  {searchResults.length === 0
+                    ? "Sin resultados."
+                    : `${searchResults.length} ${searchResults.length === 1 ? "resultado" : "resultados"}.`}
+                </p>
+                {searchResults.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    className="runtime-nav__sub"
+                    onClick={() => pickSearchResult(r)}
+                  >
+                    <span aria-hidden="true">{r.kind === "sub" ? "●" : r.kind === "indicator" ? "▸" : "▾"}</span>
+                    <span className="builder-nav__label">{r.title}</span>
+                    <span className="builder-nav__result-path">{r.path}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <>
+                {dims.length === 0 && !creating && (
+                  <p className="builder-nav__empty">Todavía no hay dimensiones. Creá la primera con ＋.</p>
+                )}
 
             {dims.map((d, di) => {
               const dimOpen = !collapsedDims.has(di);
@@ -1040,6 +1270,8 @@ export default function BuilderPage() {
                 </div>
               );
             })}
+              </>
+            )}
           </nav>
 
           <section className="builder-panel" aria-label="Panel de edición">
