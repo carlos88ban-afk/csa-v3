@@ -17,15 +17,16 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   reporter: "list",
-  // 15s (no los 5s por default): Turbopack compila cada ruta on-demand la
+  // 30s (no los 5s por default): Turbopack compila cada ruta on-demand la
   // primera vez que se pide en `next dev` — la primera visita a una ruta
-  // nunca antes compilada puede tardar más que el timeout por default.
-  expect: { timeout: 15_000 },
-  // 120s (no los 30s por default): flujos largos como builder-publish.spec.ts
+  // nunca antes compilada puede tardar más que el timeout por default
+  // (medido en frío: >15s en Windows al arrancar el webServer de la corrida).
+  expect: { timeout: 30_000 },
+  // 180s (no los 30s por default): flujos largos como builder-publish.spec.ts
   // encadenan 8+ pasos de crear+navegar; en `next dev` cada request puede
   // tardar 1-6s (Turbopack + Strict Mode duplicando efectos + latencia de
   // Neon), y esa latencia se acumula por todo el flujo.
-  timeout: 120_000,
+  timeout: 180_000,
   use: {
     baseURL: "http://localhost:3000",
     trace: "retain-on-failure",

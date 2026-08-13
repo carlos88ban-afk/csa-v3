@@ -82,7 +82,7 @@ export default function FrameworkDetailPage({ params }: Props) {
           <ul className="entry-list">
             {dimensions.map((dim) => (
               <li key={dim.id} className="entry-list__row">
-                <a className="entry-list__title" href={`/frameworks/${frameworkId}/dimensions/${dim.id}`}>
+                <a className="entry-list__title" href={`/frameworks/${frameworkId}/builder?s=${dim.id}`}>
                   {dim.title}
                 </a>
               </li>
@@ -103,6 +103,18 @@ export default function FrameworkDetailPage({ params }: Props) {
           </Button>
         </form>
         {error && <p className="alert" role="alert">{error}</p>}
+      </Card>
+
+      {/* Workspace split-view del Builder (VS-031, docs/slices/VS-031.md):
+          árbol de estructura + editor en un solo lugar. */}
+      <h2>Editor</h2>
+      <Card>
+        <p className="runtime-instruction">
+          Workspace con el árbol del framework a la izquierda y el formulario del subindicador seleccionado a la derecha.
+        </p>
+        <a className="btn btn--primary" href={`/frameworks/${frameworkId}/builder`}>
+          Abrir editor
+        </a>
       </Card>
 
       <h2>Publicación</h2>

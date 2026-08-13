@@ -1061,6 +1061,240 @@ input[type="checkbox"] {
   }
 }
 
+/* --- Builder workspace (VS-031, docs/slices/VS-031.md) -------------------- */
+/* Split-view del editor: árbol de estructura a la izquierda (mismo lenguaje
+   visual que .runtime-nav) + formulario del subindicador seleccionado a la
+   derecha. Colapsable por dimensión/indicador; CRUD inline en hover;
+   en móvil el árbol es un drawer deslizante con backdrop. */
+
+.builder-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-6);
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-2) 0 var(--space-6);
+}
+
+.builder-nav {
+  flex: 0 0 280px;
+  position: sticky;
+  top: var(--space-2);
+  max-height: calc(100vh - var(--space-8));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+}
+
+.builder-nav__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-1) var(--space-3);
+  margin-bottom: var(--space-1);
+  border-bottom: 1px solid var(--border);
+}
+
+.builder-nav__head strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.builder-nav__head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+/* Fila por nodo del árbol: toggle/nombre + acciones de CRUD inline. El hover
+   de la fila revela las acciones (opacity), que también se muestran con
+   focus-within (teclado) y siempre en pantallas táctiles (hover inexistente). */
+.builder-nav__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius);
+}
+
+.builder-nav__row:hover,
+.builder-nav__row:focus-within {
+  background: var(--surface-muted);
+}
+
+.builder-nav__row .runtime-nav__toggle {
+  flex: 1;
+  min-width: 0;
+}
+
+.builder-nav__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.builder-nav__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.builder-nav__row:hover .builder-nav__actions,
+.builder-nav__row:focus-within .builder-nav__actions {
+  opacity: 1;
+}
+
+.builder-nav__action {
+  min-width: 1.6em;
+  height: 1.6em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.builder-nav__action:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.builder-nav__action--always {
+  opacity: 1;
+}
+
+.builder-nav__action--danger:hover {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+/* Subindicadores: el botón runtime-nav__sub ya trae su indentación propia
+   (margin-left), la fila no agrega otra. */
+.builder-nav__row--sub {
+  padding-right: var(--space-1);
+}
+
+.builder-nav__row--sub .runtime-nav__sub {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Formularios inline de crear/renombrar y confirmación de borrado. */
+.builder-nav__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 var(--space-1) var(--space-3);
+  padding: var(--space-2);
+  background: var(--surface-muted);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius);
+}
+
+.builder-nav__form .field__label {
+  font-size: var(--text-xs);
+}
+
+.builder-nav__confirm {
+  margin: var(--space-1) 0 var(--space-1) var(--space-3);
+  padding: var(--space-2);
+  background: var(--warn-soft);
+  border-radius: var(--radius);
+  font-size: var(--text-xs);
+}
+
+.builder-nav__confirm p {
+  margin: 0 0 var(--space-2);
+}
+
+.builder-nav__empty {
+  margin: var(--space-1) 0 var(--space-1) var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.builder-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.builder-backdrop {
+  display: none;
+}
+
+.builder-nav-toggle {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .builder-layout {
+    flex-direction: column;
+    padding: var(--space-2) 0 var(--space-6);
+  }
+
+  .builder-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(320px, 85vw);
+    max-height: none;
+    margin: 0;
+    border: none;
+    border-right: 1px solid var(--border);
+    border-radius: 0;
+    z-index: 50;
+    transform: translateX(-105%);
+    visibility: hidden;
+    transition: transform 180ms ease, visibility 180ms;
+  }
+
+  .builder-nav--open {
+    transform: translateX(0);
+    visibility: visible;
+  }
+
+  .builder-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 40;
+  }
+
+  .builder-nav-toggle {
+    display: inline-flex;
+  }
+}
+
+@media (hover: none) {
+  .builder-nav__actions {
+    opacity: 1;
+  }
+}
+
 /* --- Overflow guard ------------------------------------------------------ */
 
 .overflow-x {
