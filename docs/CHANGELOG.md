@@ -4,6 +4,12 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-032 — Builder amigable: gestor visual de formularios con asistente guiado y vista previa (2026-08-13)
+
+- En curso — ver `docs/slices/VS-032.md`. Implementación principal commiteada (paleta visual de tipos, plantillas rápidas Texto/Número/Elección/Tabla, campos en lenguaje natural — condición `Pregunta 0.1 — …` con operadores humanos, chips de fórmula, sin UUIDs visibles — secciones colapsables por card, preview "Ver como evaluado" en drawer con toggle "Mostrar todos").
+- **Bug encontrado y corregido durante la verificación del preview**: con el toggle "Mostrar todos (ignorar condiciones)" activo, la numeración (`questionNumber`) usaba `visibleIf` sin contemplar el toggle — la pregunta condicional aparecía sin número y el siguiente elemento (calculado) tomaba su número (0.3 en vez de 0.4). Corregido en `apps/web/components/form-preview.tsx` aplicando el mismo predicado del filtro al contador. Detalle en `docs/project_notes/bugs.md`.
+- Verificación en producción pendiente (parte de la aceptación del slice).
+
 ### VS-030 — Editor WYSIWYG (TipTap) para comentario confidencial (2026-08-07)
 
 - Trabajo nuevo, no gap de AN-001 (AN-001 ya estaba cerrado por completo desde VS-029). El usuario pidió revertir la decisión de VS-028 ("markdown-lite sin dependencia nueva") para lograr paridad visual/de comportamiento con el editor rich text (Jodit) del portal S&P Global CSA 2026. Ver `docs/adr/0006-editor-wysiwyg-comentario-confidencial.md` para el razonamiento completo (por qué TipTap y no Jodit literal).

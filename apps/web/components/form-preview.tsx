@@ -68,7 +68,7 @@ export function FormPreview({ elements }: Props) {
   let questionIndex = 0;
 
   function numbered(el: FormElement): string | undefined {
-    if (!isQuestion(el) || !isElementVisible(el.visibleIf, answers)) return undefined;
+    if (!isQuestion(el) || (!showAll && !isElementVisible(el.visibleIf, answers))) return undefined;
     const number = questionNumber(questionIndex);
     questionIndex += 1;
     return number;
