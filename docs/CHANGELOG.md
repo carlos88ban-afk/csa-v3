@@ -15,6 +15,8 @@ Formato: por slice, no por commit individual.
 - **Export CSV** (`route.ts`): la tabla embebida se serializa igual que `tabla_datos` (`fila: col1=v1, col2=v2; …`) y se anexa a la celda `Respuesta` como `Tabla: …` — sigue siendo una fila por Elemento.
 - Verificado: `pnpm typecheck`/`build`/`test` en verde.
 
+**Verificación en producción (mismo día)**: commit `65dcf10` + push a `main`, deploy a Vercel (READY). Verificado contra `https://csa-v3-web.vercel.app` con framework temporal "VS-042 verificación producción" (creado con confirmación implícita del flujo de verificación, borrado al terminar con confirmación explícita del usuario): Builder (botón "Agregar tabla" por sub-opción + editor completo de columnas/filas/tipos/unidad), preview "Ver como evaluado" (tabla embebida visible al marcar la sub-opción), Runtime público (radio "Sí, la empresa informa" → sub-opción "SISTEMA DE UN SOLO NIVEL" → tabla con input numérico "Número de miembros"), persistencia real confirmada recargando el Runtime desde cero (radio + sub-opción + valor `12` conservados), y export CSV con `Tabla: Directores: Número de miembros=12` en la celda Respuesta.
+
 ### VS-041 — Ajustes UX en referencias de URL (2026-08-14)
 
 - El usuario probó VS-039/VS-040 en producción y reportó dos problemas de UX (sin cambio de schema): (1) el bloque de referencias (URL) se renderizaba antes que las sub-opciones anidadas cuando una sub-opción tenía ambas — corregido a sub-opciones primero, referencias al final; (2) los campos de URL crecían automáticamente al escribir en el último slot, sin botón explícito — corregido a arrancar en 1 slot con botón "Agregar URL" hasta `maxUrls`.

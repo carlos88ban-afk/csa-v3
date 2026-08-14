@@ -18,7 +18,8 @@ decisiones_del_dia:
   - **Builder**: `TableConfigEditor` extraído del JSX inline de `tabla_datos` (refactor puro para el Elemento — misma UI) y reutilizado en sub-opciones con botones "Agregar tabla"/"Quitar tabla". Helpers viejos de filas/columnas eliminados, nuevos `addSubOptionTable`/`removeSubOptionTable`/`updateSubOptionTable`.
   - **Runtime**: `FormTableView` gana `label`/`unitKeyPrefix` (reutilizable) y se renderiza en `SubOptionsView` entre `field` y las referencias (orden: field → table → subOptions → references). **Preview**: `PreviewTableView` extraído con el mismo patrón.
   - **Respuesta/export CSV**: clave sintética `` `${elementId}::${optionId}::${subOptionId}::table` `` → `TableValue` (mismo mapa rowId→colId→valor), unidades por fila con `unitKey("${subOptionKey}::table::${row.id}")`. Export: la tabla se serializa igual que `tabla_datos` (`fila: col1=v1, col2=v2; …`) con prefijo `Tabla: `, anexada a la celda `Respuesta` — una fila por Elemento sigue.
-  - **9 tests nuevos** en `form-schema.test.ts` (tabla válida en `it.each`, compat sin tabla, tabla completa, field+table juntos, rechaza sin columns, rechaza sin rows, rechaza cellType desconocido, subOptions en opción de fila OK por strip). `pnpm typecheck`/`build`/`test` en verde (224 sdk-core + 28 db). Sin verificación en navegador todavía — pendiente al cerrar el commit (local primero, producción tras deploy).
+  - **9 tests nuevos** en `form-schema.test.ts` (tabla válida en `it.each`, compat sin tabla, tabla completa, field+table juntos, rechaza sin columns, rechaza sin rows, rechaza cellType desconocido, subOptions en opción de fila OK por strip). `pnpm typecheck`/`build`/`test` en verde (224 sdk-core + 28 db).
+  - **Verificación en producción (completada)**: commit `65dcf10` + push a `main`, deploy Vercel READY. Framework temporal "VS-042 verificación producción" creado en producción (dimensión → subindicador directo → Selección única 0.1 con opción "Sí, la empresa informa" → sub-opción "SISTEMA DE UN SOLO NIVEL" → tabla 1 columna "Número de miembros" × 1 fila "Directores" tipo Número; 2.ª opción "No, la empresa no informa"). Publicada la evaluación (token `v5PjrpX-YrT0lI6Cow7gqfS4BuGvA3bG`). Verificado: (1) Builder con "Agregar tabla" por sub-opción y editor completo; (2) preview "Ver como evaluado" muestra la tabla embebida al marcar la sub-opción; (3) Runtime público renderiza la tabla con input numérico; (4) **persistencia real**: se cargó el Runtime desde cero y radio + sub-opción + valor `12` aparecieron exactamente iguales; (5) export CSV: `"Sí, la empresa informa — SISTEMA DE UN SOLO NIVEL (Tabla: Directores: Número de miembros=12)"`. Framework temporal borrado con confirmación explícita del usuario (`DELETE /api/frameworks/faddbc1c...` → 200, confirmado con GET). La DB quedó con los 3 frameworks previos: "VS-039 verificación producción", "VS-041b posición URL" y "CSA 2026 — Réplica QA".
 
 archivos_modificados:
   - packages/sdk-core/src/form-schema.ts (VS-042: formOptionBase + subOption.table + tipos exportados FormTableColumn/FormTableRow/TablaDatosConfig)
@@ -32,7 +33,6 @@ archivos_modificados:
   - docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md
 
 proximos_pasos:
-  - **VS-042: commit + push a main, luego verificación en navegador (local y producción tras deploy)** — `pnpm slice:close` ya en verde (typecheck/build/test). Preferiblemente con confirmación del usuario antes del push.
   - **VS-044 — Tipo de celda mixto dentro de una fila (siguiente)**: `formTableRow.cells?: {columnId, cellType, config...}[]` — override por celda gana sobre `cellType` legacy; `.superRefine()` exige al menos uno presente; resolución `row.cells?.find(c => c.columnId === column.id) ?? row.cellType` en Runtime/preview/export; UI por celda en `TableConfigEditor`; tests. Spec en `docs/engines/form.md`.
   - **VS-043 — Fila de fórmula dentro de `tabla_datos` (después de VS-044)**: `formTableCellType` gana `"calculado"` con `expression` (`{rowId}` = fila completa en columna activa, `{rowId.columnId}` = celda); celdas readonly recalculadas en vivo; persiste como `TableValue` con autosave (patrón `CalculadoView`); fuera de alcance SUM/AVG y refs a otros Elementos. Falta evaluador con resolver en `formula.ts` (tokenizador ya acepta `{rowId.columnId}`).
   - Warning de SSL de Postgres (`sslmode=require` → deprecation warning de `pg`) visible en runtime logs de Vercel desde 2026-08-05 — no bloqueante, pendiente de decisión explícita del usuario antes de tocar `DATABASE_URL` en producción.
@@ -43,19 +43,17 @@ proximos_pasos:
 bloqueos: []
 
 contexto_para_continuar: |
-  Sesión de VS-042 (tabla embebida dentro de una sub-opción), implementado
-  de punta a punta pero NO desplegado todavía: schema, Builder, Runtime,
-  preview y export CSV listos con 9 tests nuevos, `pnpm slice:close` en
-  verde (typecheck/build/test: 224 sdk-core + 28 db). Pendiente: commit +
-  push a main, deploy a Vercel y verificación en navegador (local primero,
-  producción tras deploy) — cuando el usuario lo pida. La verificación
-  manual aún no se hizo.
+  VS-042 (tabla embebida dentro de una sub-opción) está CERRADO: commit
+  `65dcf10` pusheado a main, deploy a Vercel READY, verificado de punta a
+  punta en producción (Builder, preview, Runtime público con persistencia
+  real confirmada, export CSV) y framework temporal borrado con
+  confirmación explícita. `pnpm slice:close` en verde.
 
   Los slices VS-042/VS-043/VS-044 vienen de la 5.ª inspección AN-001
   (HTML real de `COG_BoardType_Selection` pegado por el usuario en
   `docs/analysis/csa-sp-global-comparison.md`): radio → sub-radio →
-  tabla anidada con fila de fórmula. VS-042 (tabla en sub-opción) ya está
-  implementado. VS-044 (tipo de celda mixto por fila) es el siguiente, y
+  tabla anidada con fila de fórmula. VS-042 (tabla en sub-opción) está
+  cerrado. VS-044 (tipo de celda mixto por fila) es el siguiente, y
   VS-043 (fila de fórmula `cellType: "calculado"`) después — specs
   doc-first ya en `docs/engines/form.md`, entradas en `docs/BACKLOG.md`.
 
