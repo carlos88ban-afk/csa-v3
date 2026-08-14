@@ -23,8 +23,8 @@ describe("formElement", () => {
       maxSelected: 3,
     },
     { type: "instruccion", id: "6", label: "Lea con atención" },
-    { type: "banner", id: "7", label: "Aviso importante", variant: "warning" },
-    { type: "banner", id: "7b", label: "Aviso largo", variant: "info", expandable: true },
+    { type: "banner", id: "7", label: "Aviso importante", content: "Detalle del aviso", variant: "warning" },
+    { type: "banner", id: "7b", label: "Aviso largo", content: "Detalle largo del aviso", variant: "info", startCollapsed: true },
     { type: "evidencia", id: "8", label: "Adjunte su certificado", maxFiles: 3, maxSizeMb: 10, acceptedTypes: ["pdf", "png"] },
     { type: "calculado", id: "9", label: "Total", expression: "{el-1} + {el-2}", decimals: 2 },
     { type: "calculado", id: "10", label: "Total sin decimals", expression: "1 + 1" },
@@ -87,6 +87,7 @@ describe("formElement", () => {
       id: "1",
       type: "banner",
       label: "Solo si aplica",
+      content: "Detalle",
       variant: "info",
       visibleIf: { elementId: "otro", operator: "equals", value: "si" },
     });
@@ -147,7 +148,12 @@ describe("formElement", () => {
   });
 
   it("rechaza banner sin variant", () => {
-    const result = formElement.safeParse({ id: "1", type: "banner", label: "x" });
+    const result = formElement.safeParse({ id: "1", type: "banner", label: "x", content: "y" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza banner sin content", () => {
+    const result = formElement.safeParse({ id: "1", type: "banner", label: "x", variant: "info" });
     expect(result.success).toBe(false);
   });
 

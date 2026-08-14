@@ -747,25 +747,21 @@ function CalculadoView({
   );
 }
 
-// Banner expandible/colapsable (VS-025, docs/engines/form.md): arranca
-// colapsado (una línea, clamp por CSS) cuando expandable es true. Estado
-// local, no persistido — es preferencia de lectura de la sesión, mismo
-// criterio que `collapsed` del árbol de navegación.
+// Título/contenido separados + estado inicial (VS-037, docs/engines/form.md,
+// supersede VS-025): siempre contraíble/expandible por el evaluado — el
+// admin solo define con qué estado arranca (startCollapsed). Estado local,
+// no persistido — preferencia de lectura de la sesión, mismo criterio que
+// `collapsed` del árbol de navegación.
 function BannerView({ element }: { element: Extract<FormElement, { type: "banner" }> }) {
-  const [expanded, setExpanded] = useState(!element.expandable);
-  if (!element.expandable) {
-    return <p className={`runtime-banner runtime-banner--${element.variant}`}>{element.label}</p>;
-  }
+  const [expanded, setExpanded] = useState(!element.startCollapsed);
   return (
-    <button
-      type="button"
-      className={`runtime-banner runtime-banner--${element.variant} runtime-banner--expandable`}
-      aria-expanded={expanded}
-      onClick={() => setExpanded((e) => !e)}
-    >
-      <span className="runtime-banner__caret">{expanded ? "▾" : "▸"}</span>
-      <span className={expanded ? undefined : "runtime-banner__text--clamped"}>{element.label}</span>
-    </button>
+    <div className={`runtime-banner runtime-banner--${element.variant}`}>
+      <button type="button" className="runtime-banner__toggle" aria-expanded={expanded} onClick={() => setExpanded((e) => !e)}>
+        <span className="runtime-banner__caret">{expanded ? "▾" : "▸"}</span>
+        <span>{element.label}</span>
+      </button>
+      {expanded && <p className="runtime-banner__content">{element.content}</p>}
+    </div>
   );
 }
 

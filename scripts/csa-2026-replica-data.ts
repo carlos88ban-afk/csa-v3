@@ -104,8 +104,9 @@ export interface InstruccionElementData extends FormElementBaseData {
 export interface BannerElementData extends FormElementBaseData {
   type: "banner";
   label: string;
+  content: string;
   variant: "info" | "warning";
-  expandable?: boolean;
+  startCollapsed?: boolean;
 }
 
 export interface EvidenciaElementData extends QuestionElementBaseData {
@@ -638,11 +639,12 @@ function buildBanner(rand: () => number, elId: string): BannerElementData {
     componentVersion: 1,
     type: "banner",
     variant,
-    label:
+    label: variant === "info" ? "Public information requirement" : "Additional guidance",
+    content:
       variant === "info"
         ? "Requirement: This question requires publicly available information."
         : "Additional information and question guidance.",
-    ...(rand() < 0.6 ? { expandable: true } : {}),
+    ...(rand() < 0.6 ? { startCollapsed: true } : {}),
   };
 }
 

@@ -4,6 +4,17 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-037 — Banner: título/contenido separados + estado inicial configurable (2026-08-14)
+
+- Pedido explícito del usuario: el banner necesitaba un título (visible siempre, incluso contraído) y un contenido separado (visible solo expandido) — VS-025 asumía que el mismo texto se colapsaba/expandía sin distinguir resumen de detalle, y lo dejó fuera de alcance. Además, el admin ahora puede configurar el estado INICIAL del banner (contraído o expandido); el evaluado siempre retiene la decisión de expandir/contraer por su cuenta, sin importar el estado inicial — ya no existe un banner "no expandible" sin toggle.
+- `packages/sdk-core/src/form-schema.ts`: `banner` gana `content: z.string()` (requerido, mismo criterio que `label` — vacío permitido mientras se edita un borrador) y `startCollapsed?: boolean` reemplaza `expandable?: boolean`.
+- Runtime (`apps/web/app/evaluations/[token]/page.tsx`, `BannerView`) y preview (`apps/web/components/form-preview.tsx`, `PreviewBanner`): ya no hay rama "no expandible" — todo banner renderiza un toggle (caret + título) más contenido condicional al expandir. Estado inicial sembrado desde `!startCollapsed`; a partir de ahí, 100% interacción del evaluado (no persiste entre cargas, igual criterio que VS-025).
+- Builder (`apps/web/components/subindicator-editor.tsx` y el editor legado de subindicadores directos): sección "Textos" gana el campo `Contenido`; sección "Avanzado" cambia el checkbox `Expandible/colapsable` por un select `Estado inicial: Expandido | Contraído`.
+- `apps/web/app/globals.css`: `.runtime-banner--expandable`/`.runtime-banner__text--clamped` (clamp por CSS del mismo texto) reemplazadas por `.runtime-banner__toggle` (header clickeable) + `.runtime-banner__content` (bloque de texto normal, ya no hay truncado — título y contenido son campos separados, no hace falta recortar nada).
+- **Migración de datos**: 10 banners reales en la réplica de prueba de producción (`subindicator.form_schema`) + 9 dentro del snapshot congelado de la única evaluación ya publicada (`evaluation.snapshot`, estructura independiente — migrar `form_schema` no la toca) migrados con scripts puntuales dry-run/`--write` (mismo patrón que `csa-2026-replica.mts`): `content = label` viejo (preserva el texto completo), `startCollapsed = (expandable === true)`, campo `expandable` eliminado. Verificado 19/19 correctos tras la migración.
+- `scripts/csa-2026-replica-data.ts` (generador de la réplica) actualizado al nuevo modelo para futuras regeneraciones.
+- Verificado: `pnpm typecheck`/`build`/`test` en verde (incluye 2 tests nuevos en `form-schema.test.ts` para `content` requerido).
+
 ### Limpieza de base de datos de producción + 2 bugs reales del builder corregidos (2026-08-14)
 
 - Pedido explícito del usuario: la base acumulaba datos de verificación de slices y un leftover de un e2e interrumpido (orgs/usuarios `test-eval-c08b5d27-*` sin limpiar). Se redujo a exactamente 1 usuario (`carlos88ban@gmail.com`, la cuenta real, agregada como owner), 1 organización y 1 framework (`CSA 2026 — Réplica QA`, con su estructura de 4 dimensiones y su evaluación publicada intactas) — 6 organizaciones, 1 framework vacío y 11 usuarios de prueba borrados. Inspección y borrado hechos con scripts standalone temporales (prefijo `_`, borrados al terminar, mismo patrón que `csa-2026-replica.mts`) tras confirmar con el usuario qué usuario/framework conservar.

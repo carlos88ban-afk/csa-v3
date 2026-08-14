@@ -952,16 +952,23 @@ input[type="checkbox"] {
   color: var(--warn);
 }
 
-/* Banner expandible/colapsable (docs/engines/form.md, VS-025). El banner
-   expandible es un <button>, resetea estilos nativos para verse igual que
-   el <p> de un banner no expandible + el caret. */
-.runtime-banner--expandable {
+/* Título/contenido separados + estado inicial (docs/engines/form.md, VS-037,
+   supersede VS-025). .runtime-banner es el contenedor (color/fondo del
+   variant); adentro, .runtime-banner__toggle es el <button> que alterna
+   (título + caret, siempre presente — todo banner es contraíble/expandible
+   por el evaluado) y .runtime-banner__content es el texto que solo se
+   muestra expandido. */
+.runtime-banner__toggle {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
   width: 100%;
+  padding: 0;
+  background: none;
   border: none;
   font: inherit;
+  font-weight: 600;
+  color: inherit;
   text-align: left;
   cursor: pointer;
 }
@@ -970,11 +977,9 @@ input[type="checkbox"] {
   flex-shrink: 0;
 }
 
-.runtime-banner__text--clamped {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: block;
+.runtime-banner__content {
+  margin: var(--space-2) 0 0;
+  font-weight: 400;
 }
 
 .runtime-question {

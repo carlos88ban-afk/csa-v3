@@ -123,11 +123,15 @@ export const formElement = z.discriminatedUnion("type", [
   z.object({
     ...formElementBase,
     type: z.literal("banner"),
-    label: z.string(),
+    label: z.string(), // Título — visible siempre, incluso contraído.
+    // Título/contenido separados + estado inicial (VS-037, docs/engines/form.md,
+    // supersede VS-025). content: visible solo si el banner está expandido.
+    content: z.string(),
     variant: z.enum(["info", "warning"]),
-    // Banner expandible/colapsable (VS-025, docs/engines/form.md): default
-    // false — banners existentes sin el campo siguen mostrándose completos.
-    expandable: z.boolean().optional(),
+    // Reemplaza expandable (VS-025): todo banner ahora es contraíble/expandible
+    // por el evaluado — esto solo define el estado inicial (default false =
+    // arranca expandido).
+    startCollapsed: z.boolean().optional(),
   }),
   z.object({
     ...questionBase,

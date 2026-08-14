@@ -89,7 +89,10 @@ describe("VS-009 — engine/publishing (contra Neon real)", () => {
 
     await updateSubindicator(organizationId, sub.id, { title: "Sub Editado Después de Publicar" });
     await updateSubindicator(organizationId, sub.id, {
-      formSchema: { schemaVersion: 1, elements: [{ id: "el-x", type: "banner", label: "Nuevo", variant: "info" }] },
+      formSchema: {
+        schemaVersion: 1,
+        elements: [{ id: "el-x", type: "banner", label: "Nuevo", content: "Contenido", variant: "info" }],
+      },
     });
 
     const [reloaded] = await listEvaluations(organizationId, fw.id);

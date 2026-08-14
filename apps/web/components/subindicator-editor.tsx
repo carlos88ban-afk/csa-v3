@@ -98,7 +98,7 @@ function newElement(type: FormElement["type"]): FormElement {
         componentVersion,
       };
     case "banner":
-      return { id, type, label: "", variant: "info", componentVersion };
+      return { id, type, label: "", content: "", variant: "info", componentVersion };
     case "tabla_datos":
       return {
         id,
@@ -671,7 +671,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                   <div className="element-section__body">
                     <label className="field">
                       <span className="field__label">
-                        {isQuestion(el) ? "Texto de la pregunta" : "Texto"}
+                        {isQuestion(el) ? "Texto de la pregunta" : el.type === "banner" ? "Título" : "Texto"}
                       </span>
                       <input
                         id={`element-label-${el.id}`}
@@ -682,6 +682,12 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                         }}
                       />
                     </label>
+                    {el.type === "banner" && (
+                      <label className="field">
+                        <span className="field__label">Contenido</span>
+                        <textarea value={el.content} onChange={(e) => updateElement(el.id, { content: e.target.value })} />
+                      </label>
+                    )}
                     {isQuestion(el) && (
                       <div className="field-grid">
                         <label className="field">
@@ -1232,13 +1238,17 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                               <option value="warning">Advertencia</option>
                             </select>
                           </label>
-                          <label className="field--checkbox">
-                            <input
-                              type="checkbox"
-                              checked={el.expandable ?? false}
-                              onChange={(e) => updateElement(el.id, { expandable: e.target.checked || undefined })}
-                            />
-                            Expandible/colapsable
+                          <label className="field">
+                            <span className="field__label">Estado inicial</span>
+                            <select
+                              value={el.startCollapsed ? "collapsed" : "expanded"}
+                              onChange={(e) =>
+                                updateElement(el.id, { startCollapsed: e.target.value === "collapsed" || undefined })
+                              }
+                            >
+                              <option value="expanded">Expandido</option>
+                              <option value="collapsed">Contraído</option>
+                            </select>
                           </label>
                         </div>
                       )}

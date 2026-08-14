@@ -30,7 +30,7 @@ Subconjunto de `../domain/ubiquitous-language.md` (fila "Elemento") que no depen
 | `seleccion_multiple` | Pregunta de opción múltiple (checkbox) | `options: {id, label, subOptions?}[]`, `minSelected?`, `maxSelected?` — ver "Opciones anidadas" |
 | `seleccion_desplegable` | Pregunta de opción única (dropdown) | `options: {id, label, subOptions?}[]` — ver "Select dropdown" |
 | `instruccion` | Texto informativo, no captura respuesta | — |
-| `banner` | Aviso destacado, no captura respuesta | `variant: "info" \| "warning"`, `expandable?: boolean` — ver "Banner expandible" |
+| `banner` | Aviso destacado, no captura respuesta | `variant: "info" \| "warning"`, `content: string`, `startCollapsed?: boolean` — ver "Banner: título/contenido y estado inicial" |
 | `url_publica` | Pregunta de referencias URL públicas (máx. N) | `maxUrls?: number` — ver "Campo URL pública" |
 | `tabla_datos` | Pregunta de tabla filas × columnas (tipo/unidad por fila) | `columns: {id, label}[]`, `rows: {id, label, cellType, unit?, availableUnits?, options?, maxLength?}[]` — ver "Tabla de datos" |
 
@@ -38,7 +38,7 @@ Campos base compartidos por todo elemento:
 
 - `id: string` — UUID generado en cliente al crear el elemento. Estable entre ediciones; el Runtime futuro (M7) lo usará para mapear respuestas a elementos, por eso no se recicla ni se basa en el índice del array.
 - `type: <tabla anterior>`
-- `label: string` — texto de la pregunta/instrucción/banner. **Permite vacío a propósito**: el autosave guarda el formulario mientras se edita (un elemento recién agregado empieza con `label: ""`), no solo su estado terminado. Que todo elemento tenga label no-vacío es una validación de "¿está listo para publicarse?" que pertenece a `engine/publishing` (M6), no una condición para poder guardar un borrador.
+- `label: string` — texto de la pregunta/instrucción, **título** del banner (VS-037, ver "Banner: título/contenido y estado inicial" — es lo único visible cuando el banner está contraído). **Permite vacío a propósito**: el autosave guarda el formulario mientras se edita (un elemento recién agregado empieza con `label: ""`), no solo su estado terminado. Que todo elemento tenga label no-vacío es una validación de "¿está listo para publicarse?" que pertenece a `engine/publishing` (M6), no una condición para poder guardar un borrador.
 - `helpText?: string` — solo aplica a tipos "pregunta" (no a `instruccion`/`banner`).
 - `required?: boolean` — solo aplica a tipos "pregunta".
 
@@ -372,32 +372,44 @@ Una tabla no cabe en una sola celda CSV como texto plano legible sin estructura 
 - **`visibleIf` a nivel de fila o columna** — las condiciones siguen operando solo sobre Elementos completos, no sobre partes internas de una tabla (mismo alcance ya excluido para sub-opciones en VS-016).
 - **maxlength/hint por celda individual** (mencionado en la inspección DOM del portal) — `maxLength` se modela por fila (aplica a `texto`), igual criterio de "por fila no por celda" que el resto de este gap; un hint de ayuda por fila puede reusar `helpText` del Elemento completo si se necesita, no se agrega un campo nuevo.
 
-## Banner expandible/colapsable (VS-025)
+## Banner: título/contenido y estado inicial (VS-037, supersede VS-025)
 
-Ajuste menor de `../analysis/csa-sp-global-comparison.md` ("Segunda inspección"): el portal S&P usa `banner-expandable` con un triángulo — el banner arranca colapsado (una línea) y se expande al click para mostrar el texto completo. Config aditiva sobre `banner`, sin tipo nuevo ni campo de contenido nuevo (no hay evidencia en la inspección de un campo "resumen" separado del texto completo — se colapsa/expande el mismo `label`).
+> **Actualizado en VS-037 (2026-08-14):** VS-025 asumía que el gap de S&P no distinguía un resumen colapsado de un detalle expandido ("se colapsa/expande el mismo `label`") y lo dejó fuera de alcance explícitamente. El usuario pidió exactamente ese caso: el banner necesita un **título** (visible siempre, incluso contraído) y un **contenido** separado (visible solo expandido) — no el mismo texto recortado por CSS. Esta sección reemplaza la spec de VS-025; el registro de esa decisión queda como historial más abajo, no se borra.
 
 ```ts
 z.object({
   ...formElementBase,
   type: z.literal("banner"),
-  label: z.string(),
+  label: z.string(),   // Título — visible siempre, incluso contraído.
+  content: z.string(), // Contenido — visible solo si el banner está expandido.
   variant: z.enum(["info", "warning"]),
-  expandable: z.boolean().optional(), // default false — banners existentes sin el campo siguen mostrándose completos, sin caret
+  // Reemplaza expandable (VS-025): TODO banner ahora es contraíble/expandible
+  // por el evaluado (ver Runtime) — esto solo define el estado en el que
+  // arranca al cargar la página, no si puede o no expandirse.
+  startCollapsed: z.boolean().optional(), // default false (arranca expandido)
 });
 ```
 
 ### Builder
 
-Config de `banner` (junto al selector de `variant`) gana un checkbox `Expandible/colapsable`.
+Sección "Textos" de `banner` gana un segundo campo `Contenido` (textarea, junto al campo `Título` que ya existía como `label`). Sección "Avanzado" (junto al selector `Tipo de aviso`) cambia el checkbox `Expandible/colapsable` por un select `Estado inicial: Contraído | Expandido` (`startCollapsed`).
 
 ### Runtime
 
-`ElementView`, rama `banner`: si `expandable` es `true`, el banner arranca **colapsado** (una sola línea, `text-overflow: ellipsis` vía CSS, sin truncar el dato guardado — es solo presentación) con un botón caret (▸/▾, mismo patrón visual que el árbol de navegación) que alterna a texto completo. Estado de expandido/colapsado es local al componente (`useState` por elemento, no persistido — es preferencia de lectura de esa sesión, no una respuesta). Si `expandable` es `false`/ausente, comportamiento sin cambios (banner siempre completo, como hoy).
+`BannerView`: siempre renderiza un botón con caret (▸/▾) — ya no hay una rama "no expandible" sin toggle, porque el evaluado siempre puede contraer/expandir por su cuenta (esa es la parte central del pedido: la elección de lectura es del evaluado, el admin solo define con qué estado arranca). Contraído muestra solo el título (`label`); expandido muestra título + `content`. El estado inicial (`expanded` en `useState`) se siembra desde `!startCollapsed`; a partir de ahí es 100% interacción del evaluado, igual que antes — no persiste entre cargas de página (ver "Fuera de alcance").
+
+### Migración de datos (VS-037)
+
+Había 10 banners reales en la réplica de prueba de producción (`CSA 2026 — Réplica QA`) con el `label` viejo (texto completo) y sin `content`. Migrados con un script puntual (mismo patrón dry-run/`--write` que `csa-2026-replica.mts`): `content = label` viejo (preserva el texto completo como el nuevo contenido expandido — el admin puede acortar el título después a mano), `startCollapsed = (expandable === true)` (mapeo 1:1 del estado inicial: antes "expandable: true" arrancaba colapsado, ahora es explícito). Campo `expandable` eliminado de esas filas.
 
 ### Fuera de alcance (explícito)
 
-- **Contenido de resumen vs. detalle separados** — el gap observado en S&P no distingue un texto corto colapsado de uno largo expandido, solo colapsa/expande el mismo texto. Si aparece ese caso real, es aditivo (`summary?: string` adicional a `label`), no rediseño.
-- **Persistir el estado expandido/colapsado** — es preferencia de lectura efímera, no una respuesta del evaluado; se resetea a colapsado en cada carga de página, igual criterio que `collapsed` del árbol de navegación (VS-010, tampoco persiste).
+- **Persistir el estado expandido/colapsado que elige el evaluado** — sigue siendo preferencia de lectura efímera, no una respuesta; se resetea al estado inicial configurado por el admin en cada carga de página, igual criterio que `collapsed` del árbol de navegación (VS-010, tampoco persiste).
+- **Un banner que NO se pueda expandir/contraer en absoluto** — el pedido explícito del usuario es que el evaluado siempre retenga esa decisión; si se necesita un aviso verdaderamente estático en el futuro, es un tipo de elemento distinto (`instruccion` ya cubre "texto informativo sin ningún control"), no una config nueva sobre `banner`.
+
+### Historial: spec original (VS-025, superada)
+
+Ajuste menor de `../analysis/csa-sp-global-comparison.md` ("Segunda inspección"): el portal S&P usa `banner-expandable` con un triángulo — el banner arrancaba colapsado (una línea) y se expandía al click para mostrar el texto completo, colapsando/expandiendo el mismo `label` (sin campo de contenido separado). Config original: `expandable?: boolean` (default `false`, sin caret ni toggle si estaba ausente).
 
 ## Comentario confidencial con formato (VS-028, actualizado en VS-030)
 

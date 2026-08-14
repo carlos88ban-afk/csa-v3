@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-14 - VS-037: Banner título/contenido + estado inicial configurable
+- **Status**: Completed
+- **Description**: Pedido explícito del usuario, supersede VS-025 (que había dejado "resumen vs. detalle separados" fuera de alcance). `banner` gana `content` (requerido, texto expandido) separado de `label` (título, siempre visible); `expandable` reemplazado por `startCollapsed` (estado inicial que configura el admin — el evaluado siempre retiene el toggle, sin importar el estado inicial).
+- **Notes**: Migración de datos real: 10 banners en `subindicator.form_schema` + 9 en el `snapshot` congelado de la única evaluación publicada (estructura independiente, hubo que migrar ambas). Actualizados 2 editores (el builder principal VS-032 y el editor legado de subindicadores directos bajo Dimensión) + Runtime + preview, todos con la misma lógica duplicada. `pnpm typecheck`/`build`/`test` en verde.
+
 ### 2026-08-14 - Limpieza de DB de producción + 2 bugs reales del builder corregidos
 - **Status**: Completed
 - **Description**: Pedido explícito del usuario: reducir la base de producción a 1 usuario (`carlos88ban@gmail.com`)/1 organización/1 framework, borrando datos de verificación de slices y un leftover de e2e interrumpido. Verificación end-to-end posterior encontró y corrigió 2 bugs reales en el builder (`resolveFocus()` y sincronización de `wizardStep`, ver `bugs.md`) que el hallazgo incidental de la sesión anterior (VS-033..036) había dejado sin investigar a fondo.
