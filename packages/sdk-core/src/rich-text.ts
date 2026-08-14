@@ -6,6 +6,12 @@ import sanitizeHtml from "sanitize-html";
 // markdown-lite. Alcance mínimo deliberado: negrita/itálica/lista, igual que
 // el markdown-lite que reemplaza — no todo el vocabulario que TipTap podría
 // producir.
+//
+// Reusado también por el contenido del banner (VS-038, docs/engines/form.md
+// "Banner: contenido con formato") — el nombre quedó atado al caso de uso
+// original (comentario confidencial), pero la función es genérica: cualquier
+// campo `string` que use el mismo `RichTextEditor` (apps/web/components/
+// rich-text-editor.tsx) sanitiza con este mismo motor, sin allowlist nueva.
 
 const ALLOWED_TAGS = ["strong", "em", "p", "br", "ul", "li"];
 

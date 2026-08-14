@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-14 - VS-038: Banner con contenido con formato (rich text)
+- **Status**: Completed
+- **Description**: Continúa VS-037. `content` del banner pasa de texto plano a HTML sanitizado (mismo motor que el comentario confidencial, VS-030) — pegar texto con formato ya no lo aplana.
+- **Notes**: Nuevo componente compartido `RichTextEditor` (evita triplicar la config de TipTap entre `NaCommentRow`, el builder principal y el editor legado). `NaCommentRow` sin cambios. Sin migración de datos ni cambio de schema.
+
 ### 2026-08-14 - VS-037: Banner título/contenido + estado inicial configurable
 - **Status**: Completed
 - **Description**: Pedido explícito del usuario, supersede VS-025 (que había dejado "resumen vs. detalle separados" fuera de alcance). `banner` gana `content` (requerido, texto expandido) separado de `label` (título, siempre visible); `expandable` reemplazado por `startCollapsed` (estado inicial que configura el admin — el evaluado siempre retiene el toggle, sin importar el estado inicial).

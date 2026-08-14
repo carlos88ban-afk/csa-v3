@@ -10,6 +10,7 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Completado
 
+- [x] VS-038 — Banner: contenido con formato (RichTextEditor compartido, mismo motor que el comentario confidencial) — 2026-08-14
 - [x] VS-037 — Banner: título/contenido separados + estado inicial contraído/expandido configurable (supersede VS-025, pedido explícito del usuario) — 2026-08-14
 - [x] VS-036 — Conteo de miembros por organización (`authClient.organization.listMembers` en paralelo, sin ruta propia) + cierre del arco VS-033..VS-036 — 2026-08-14
 - [x] VS-035 — Conteo de ítems (indicadores + subindicadores directos) por dimensión, doble join con COUNT(DISTINCT) independiente por columna — 2026-08-14

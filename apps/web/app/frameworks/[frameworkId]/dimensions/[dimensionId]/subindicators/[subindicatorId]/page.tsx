@@ -11,6 +11,7 @@ import {
 import { use, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
 import { Breadcrumb, Button, Pill } from "@/components/ui";
+import { RichTextEditor } from "@/components/rich-text-editor";
 
 interface Props {
   params: Promise<{
@@ -482,10 +483,12 @@ export default function DirectSubindicatorFormEditorPage({ params }: Props) {
               </label>
 
               {el.type === "banner" && (
-                <label className="field">
-                  <span className="field__label">Contenido</span>
-                  <textarea value={el.content} onChange={(e) => updateElement(el.id, { content: e.target.value })} />
-                </label>
+                <RichTextEditor
+                  value={el.content}
+                  onChange={(html) => updateElement(el.id, { content: html })}
+                  label="Contenido"
+                  ariaLabel="Contenido del banner"
+                />
               )}
 
               <div className="field-grid">

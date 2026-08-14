@@ -982,6 +982,25 @@ input[type="checkbox"] {
   font-weight: 400;
 }
 
+/* Contenido con formato (VS-038) — HTML de sanitizeCommentHtml (strong/em/
+   p/br/ul/li), mismo criterio de espaciado que .comment-editor__content. */
+.runtime-banner__content p {
+  margin: 0 0 var(--space-2);
+}
+
+.runtime-banner__content p:last-child {
+  margin-bottom: 0;
+}
+
+.runtime-banner__content ul {
+  margin: 0 0 var(--space-2);
+  padding-left: var(--space-4);
+}
+
+.runtime-banner__content ul:last-child {
+  margin-bottom: 0;
+}
+
 .runtime-question {
   padding: var(--space-4);
   background: var(--surface-muted);

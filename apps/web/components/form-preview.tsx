@@ -5,6 +5,7 @@ import {
   evaluateExpression,
   isElementVisible,
   questionNumber,
+  sanitizeCommentHtml,
   type AnswerValue,
   type EvidenceRef,
   type FormElement,
@@ -423,7 +424,9 @@ function PreviewBanner({ element }: { element: Extract<FormElement, { type: "ban
         <span className="runtime-banner__caret">{expanded ? "▾" : "▸"}</span>
         <span>{element.label}</span>
       </button>
-      {expanded && <p className="runtime-banner__content">{element.content}</p>}
+      {expanded && (
+        <div className="runtime-banner__content" dangerouslySetInnerHTML={{ __html: sanitizeCommentHtml(element.content) }} />
+      )}
     </div>
   );
 }

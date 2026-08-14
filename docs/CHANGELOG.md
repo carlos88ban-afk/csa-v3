@@ -4,6 +4,16 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-038 — Banner: contenido con formato (2026-08-14)
+
+- Pedido explícito del usuario, continúa VS-037: `content` del banner era texto plano (`<textarea>`) — pegar texto con formato real (negrita, párrafos, listas, ej. copiado de un portal externo) lo aplanaba, perdiendo la estructura.
+- `content` pasa a ser HTML sanitizado con el mismo motor que el comentario confidencial (VS-030): `packages/sdk-core/src/rich-text.ts` (`sanitizeCommentHtml`/`stripCommentHtml`, allowlist `strong`/`em`/`p`/`br`/`ul`/`li`) — reusado tal cual, sin allowlist nueva. Sin cambio de schema (`content` sigue siendo `z.string()`).
+- Nuevo `apps/web/components/rich-text-editor.tsx` (`RichTextEditor`): extrae la config de TipTap + toolbar de `NaCommentRow` a un componente compartido, para no triplicar esa configuración al agregarla en **dos** builders (`subindicator-editor.tsx` y el editor legado de subindicadores directos bajo Dimensión). `NaCommentRow` no se tocó.
+- Runtime (`BannerView`) y preview (`PreviewBanner`) renderizan `content` con `dangerouslySetInnerHTML` + re-sanitización en el borde de lectura (mismo criterio que la página de Revisión).
+- El título (`label`) del banner sigue siendo texto plano — sin cambios, solo el contenido acepta formato.
+- Sin migración de datos: los 10 banners migrados en VS-037 tienen `content` en texto plano sin tags, HTML válido igual.
+- Verificado: `pnpm typecheck`/`build`/`test` en verde.
+
 ### VS-037 — Banner: título/contenido separados + estado inicial configurable (2026-08-14)
 
 - Pedido explícito del usuario: el banner necesitaba un título (visible siempre, incluso contraído) y un contenido separado (visible solo expandido) — VS-025 asumía que el mismo texto se colapsaba/expandía sin distinguir resumen de detalle, y lo dejó fuera de alcance. Además, el admin ahora puede configurar el estado INICIAL del banner (contraído o expandido); el evaluado siempre retiene la decisión de expandir/contraer por su cuenta, sin importar el estado inicial — ya no existe un banner "no expandible" sin toggle.

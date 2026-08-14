@@ -751,7 +751,10 @@ function CalculadoView({
 // supersede VS-025): siempre contraíble/expandible por el evaluado — el
 // admin solo define con qué estado arranca (startCollapsed). Estado local,
 // no persistido — preferencia de lectura de la sesión, mismo criterio que
-// `collapsed` del árbol de navegación.
+// `collapsed` del árbol de navegación. `content` es HTML con formato
+// (VS-038, mismo motor que el comentario confidencial) — se re-sanitiza acá
+// (defensa en profundidad, mismo criterio que la página de Revisión) aunque
+// ya se sanitizó al guardar en el Builder.
 function BannerView({ element }: { element: Extract<FormElement, { type: "banner" }> }) {
   const [expanded, setExpanded] = useState(!element.startCollapsed);
   return (
@@ -760,7 +763,9 @@ function BannerView({ element }: { element: Extract<FormElement, { type: "banner
         <span className="runtime-banner__caret">{expanded ? "▾" : "▸"}</span>
         <span>{element.label}</span>
       </button>
-      {expanded && <p className="runtime-banner__content">{element.content}</p>}
+      {expanded && (
+        <div className="runtime-banner__content" dangerouslySetInnerHTML={{ __html: sanitizeCommentHtml(element.content) }} />
+      )}
     </div>
   );
 }
