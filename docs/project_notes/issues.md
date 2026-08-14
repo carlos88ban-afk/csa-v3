@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-14 - VS-033..VS-036: Pivote visual completo — dashboard empresarial ancho
+- **Status**: Completed (arco de 4 slices)
+- **Description**: Pedido explícito del usuario tras auditar espacio desaprovechado (columna ~840px dejaba ~38% del ancho vacío en 1366px). VS-033: sidebar izquierdo persistente (`AppShell`/`AppSidebar`, reemplaza `AppHeader`), `--content-width` 840→1180px, `.page--wide` 960→1280px. VS-034/035/036: `DataTable` genérico + conteos reales (dimensiones por framework, ítems por dimensión, miembros por organización) reemplazando `.entry-list` en las 3 listas administrativas principales.
+- **Notes**: Doc-first (`design-system.md` reescrito antes del código). Validado con un mockup en Stitch (paleta real del proyecto) antes de tocar CSS. `pnpm build`/`test`/`typecheck` en verde para el arco completo, más un test nuevo de integración para los conteos (incluyendo el caso crítico del doble join sin inflar resultados). E2E corrido dos veces; los 2 fallos que aparecen se confirmaron pre-existentes (no introducidos por este trabajo) reproduciéndolos contra `main` sin estos cambios — uno ya documentado en `bugs.md`, el otro (wizard del builder no reconoce una Dimensión recién creada) es un hallazgo nuevo, documentado pero no arreglado en este arco (fuera de alcance: es un bug de VS-032, no del pivote de layout). Auth pages y runtime público de evaluado quedan sin sidebar automáticamente (mismo gate `useSession()` que ya tenía `AppHeader`).
+
 ### 2026-08-07 - Réplica de prueba del árbol CSA 2026 (161 subindicadores)
 - **Status**: Completed (herramienta, no un slice de producto — sin ADR, sin tests automatizados)
 - **Description**: Poblada una réplica de prueba de la estructura real del portal S&P Global CSA 2026 (6 dimensiones, 34 ramas, 161 subindicadores, 584 elementos de formulario) para estresar el Builder/Runtime a escala real, a pedido del usuario. Framework `"CSA 2026 — Réplica QA"` publicado en producción, dejado visible a pedido explícito del usuario (no revocado).

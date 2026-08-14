@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
 import { authClient } from "@/lib/auth-client";
 import { Button, Card } from "@/components/ui";
+import { DataTable, type DataTableColumn } from "@/components/data-table";
 
 export default function FrameworksPage() {
   const router = useRouter();
@@ -39,8 +40,12 @@ export default function FrameworksPage() {
     setError(null);
     setSubmitting(true);
     try {
-      const { framework } = await api.post<{ framework: Framework }>("/api/frameworks", { name });
-      setFrameworks((prev) => [...(prev ?? []), framework]);
+      // createFramework() en el backend no calcula dimensionCount (solo listFrameworks lo
+      // agrega vía join) — un framework recién creado siempre empieza en 0 dimensiones.
+      const { framework } = await api.post<{ framework: Omit<Framework, "dimensionCount"> }>("/api/frameworks", {
+        name,
+      });
+      setFrameworks((prev) => [...(prev ?? []), { ...framework, dimensionCount: 0 }]);
       setName("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo crear el framework");
@@ -51,6 +56,24 @@ export default function FrameworksPage() {
 
   if (sessionPending || orgPending || !activeOrganization) return <main className="loading">Cargando...</main>;
 
+  const columns: DataTableColumn<Framework>[] = [
+    {
+      key: "name",
+      header: "Nombre",
+      render: (fw) => (
+        <a className="entry-list__title" href={`/frameworks/${fw.id}`}>
+          {fw.name}
+        </a>
+      ),
+    },
+    {
+      key: "dimensionCount",
+      header: "Dimensiones",
+      numeric: true,
+      render: (fw) => fw.dimensionCount,
+    },
+  ];
+
   return (
     <main className="page">
       <h1>Frameworks — {activeOrganization.name}</h1>
@@ -58,18 +81,8 @@ export default function FrameworksPage() {
       <Card>
         {frameworks === null ? (
           <p className="empty">Cargando frameworks...</p>
-        ) : frameworks.length === 0 ? (
-          <p className="empty">Todavía no hay frameworks.</p>
         ) : (
-          <ul className="entry-list">
-            {frameworks.map((fw) => (
-              <li key={fw.id} className="entry-list__row">
-                <a className="entry-list__title" href={`/frameworks/${fw.id}`}>
-                  {fw.name}
-                </a>
-              </li>
-            ))}
-          </ul>
+          <DataTable columns={columns} rows={frameworks} rowKey={(fw) => fw.id} emptyLabel="Todavía no hay frameworks." />
         )}
       </Card>
 

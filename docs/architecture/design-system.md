@@ -37,8 +37,52 @@ Escala: `--text-xs` 12px, `--text-sm` 14px (default en formularios), `--text-bas
 
 ## Layout
 
-Barra superior persistente (marca + organización activa + usuario) + **breadcrumb** que refleja la jerarquía real del dominio (Framework › Dimensión › Indicador › Subindicador) en vez de un solo link "← Volver" — la jerarquía es el modelo mental central del producto, la navegación debe mostrarla completa, no un paso a la vez. Contenido en una columna centrada de ancho máximo ~840px, agrupado en tarjetas (`.card`) con listas de hairlines en vez de viñetas. Estado (guardado/guardando/error, revisión, tipo de elemento) se codifica también en forma — un `Pill`, no solo texto — para que se lea de un vistazo.
+**Actualizado (VS-033) — pivote a dashboard empresarial ancho.** La versión anterior de esta
+sección documentaba una columna centrada de ancho máximo ~840px ("estilo ledger", razonada como
+"se escanea y se opera, no se lee de corrido, no es un dashboard"). Esa decisión queda superada
+por pedido explícito del usuario: con más pantallas de tipo lista (organizaciones, frameworks,
+dimensiones, evaluaciones) la columna angosta desaprovechaba una porción grande de cualquier
+monitor real (~38% del ancho vacío medido en un viewport de 1366px). El principio de fondo
+("se escanea, no se lee de corrido") se mantiene, pero ahora se aplica al nivel de la fila de
+tabla, no al ancho total de la página — el mismo espíritu "ledger" en un lienzo más ancho, como
+Salesforce/Workday.
+
+**Shell**: sidebar izquierdo persistente (`.app-shell__sidebar`, `--sidebar-width: 260px`) con
+marca, navegación principal (Frameworks, Organizaciones) y, al fondo, la organización activa +
+sesión + botón de salir — reemplaza la barra superior (`AppHeader`) que antes concentraba lo
+mismo en una fila horizontal. El sidebar se oculta automáticamente sin sesión (login/signup/
+runtime público de evaluado), igual que antes hacía `AppHeader`. Se colapsa a barra horizontal
+no fija en `@media (max-width: 860px)`, el único breakpoint del sistema.
+
+**Ancho de contenido**: `--content-width` sube de `840px` a **`1180px`** — con el sidebar de
+260px más el padding del shell, llena un laptop de 1366px (el caso más común de los ~20 usuarios
+internos) sin llegar a ancho completo de pantalla, evitando tablas imposibles de escanear en
+monitores ultra anchos. `.page--wide` sube de `960px` a `1280px`, para finalmente igualar el
+ancho que ya asumía internamente `.builder-layout` (antes recortado en silencio por el padre más
+angosto). `.page--narrow` (420px, formularios de auth) **no cambia** — angosto sigue siendo
+correcto ahí incluso en un dashboard empresarial.
+
+**Tablas de datos**: las listas administrativas (organizaciones, frameworks, dimensiones) pasan
+de listas de viñetas con hairlines (`.entry-list`) a tablas densas (`.data-table`): encabezados
+en mayúscula pequeña gris, cebra sutil (`--surface-muted`), hover, columnas numéricas en
+`--font-mono` alineadas a la derecha (mismo criterio que ya usaban `revisionNumber`/tokens/IDs).
+`.entry-list` no se elimina — sigue siendo el patrón correcto para listas de acciones por fila
+que no son tabulares (gestión de roles de miembros, lista de evaluaciones publicadas con Pill +
+botones mixtos).
+
+**Excepción deliberada**: `/evaluations/[token]` (runtime público, de cara al evaluado externo,
+no personal interno) mantiene su `.runtime-layout` bespoke sin sidebar ni chrome de dashboard
+administrativo — es una superficie distinta, no una pantalla de trabajo interno.
+
+Se conserva el **breadcrumb** que refleja la jerarquía real del dominio (Framework › Dimensión ›
+Indicador › Subindicador) en vez de un solo link "← Volver" — la jerarquía sigue siendo el
+modelo mental central del producto. Estado (guardado/guardando/error, revisión, tipo de
+elemento) se sigue codificando en forma — un `Pill`, no solo texto.
 
 ## Componentes compartidos
 
 `apps/web/components/ui.tsx`: `Button` (variantes primary/secondary/danger), `Card`, `Pill` (variantes neutral/good/warn/accent), `Breadcrumb`. Sin librería de iconos — texto y símbolos tipográficos simples (`›`, `✓`) donde hacen falta.
+
+`apps/web/components/app-shell.tsx` + `app-sidebar.tsx` (VS-033, reemplazan `app-header.tsx`): shell de dos columnas (sidebar + `<main id="main-content">`), auto-oculta el sidebar sin sesión.
+
+`apps/web/components/data-table.tsx` (VS-034): tabla genérica `DataTable<T>({columns, rows, rowKey, emptyLabel})` para las listas administrativas densas.

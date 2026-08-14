@@ -4,6 +4,7 @@ import type { Dimension, Evaluation, Framework } from "@plataforma-csa/sdk-core"
 import { use, useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
 import { Breadcrumb, Button, Card, Pill } from "@/components/ui";
+import { DataTable, type DataTableColumn } from "@/components/data-table";
 
 interface Props {
   params: Promise<{ frameworkId: string }>;
@@ -53,11 +54,13 @@ export default function FrameworkDetailPage({ params }: Props) {
     setError(null);
     setSubmitting(true);
     try {
-      const { dimension } = await api.post<{ dimension: Dimension }>("/api/dimensions", {
-        frameworkId,
-        title,
-      });
-      setDimensions((prev) => [...(prev ?? []), dimension]);
+      // createDimension() en el backend no calcula los conteos (solo listDimensions los
+      // agrega vía join) — una dimensión recién creada siempre empieza en 0 ítems.
+      const { dimension } = await api.post<{ dimension: Omit<Dimension, "indicatorCount" | "directSubindicatorCount"> }>(
+        "/api/dimensions",
+        { frameworkId, title },
+      );
+      setDimensions((prev) => [...(prev ?? []), { ...dimension, indicatorCount: 0, directSubindicatorCount: 0 }]);
       setTitle("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo crear la dimensión");
@@ -68,6 +71,24 @@ export default function FrameworkDetailPage({ params }: Props) {
 
   if (!framework || dimensions === null || evaluations === null) return <main className="loading">Cargando...</main>;
 
+  const dimensionColumns: DataTableColumn<Dimension>[] = [
+    {
+      key: "title",
+      header: "Título",
+      render: (dim) => (
+        <a className="entry-list__title" href={`/frameworks/${frameworkId}/builder?s=${dim.id}`}>
+          {dim.title}
+        </a>
+      ),
+    },
+    {
+      key: "items",
+      header: "Ítems",
+      numeric: true,
+      render: (dim) => dim.indicatorCount + dim.directSubindicatorCount,
+    },
+  ];
+
   return (
     <main className="page">
       <Breadcrumb items={[{ label: "Frameworks", href: "/frameworks" }, { label: framework.name }]} />
@@ -76,19 +97,12 @@ export default function FrameworkDetailPage({ params }: Props) {
 
       <h2>Dimensiones</h2>
       <Card>
-        {dimensions.length === 0 ? (
-          <p className="empty">Todavía no hay dimensiones.</p>
-        ) : (
-          <ul className="entry-list">
-            {dimensions.map((dim) => (
-              <li key={dim.id} className="entry-list__row">
-                <a className="entry-list__title" href={`/frameworks/${frameworkId}/builder?s=${dim.id}`}>
-                  {dim.title}
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
+        <DataTable
+          columns={dimensionColumns}
+          rows={dimensions}
+          rowKey={(dim) => dim.id}
+          emptyLabel="Todavía no hay dimensiones."
+        />
       </Card>
 
       <h3>Nueva dimensión</h3>

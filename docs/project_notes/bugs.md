@@ -12,6 +12,13 @@ Registro cronológico de bugs y su solución. Entradas breves. Limpiar entradas 
 - **Prevention**: cómo evitarlo (opcional)
 ```
 
+### 2026-08-14 - E2E `builder-publish.spec.ts`: wizard del builder no reconoce una Dimensión recién creada como seleccionada
+
+- **Issue**: al correr el e2e completo (Framework → Dimensión → Builder → Indicador → ...), tras crear una Dimensión y navegar a `/builder?s=<dimId>` (URL correcta, confirmada), el panel derecho muestra el asistente de 4 pasos (VS-032) todavía en el paso 1 "Dimensión" con el botón "Crear dimensión" — nunca aparece el botón "Crear indicador" que el test espera para una dimensión ya creada y seleccionada, aunque el árbol de la izquierda sí muestra la dimensión correctamente expandida con "Sin indicadores todavía".
+- **Root Cause**: no investigado a fondo todavía — hallazgo incidental durante la verificación de VS-033 (pivote de layout). **Confirmado que es pre-existente**: se reprodujo de forma idéntica corriendo el mismo test contra `main` sin los cambios de VS-033/034/035 (`git stash` + re-run), mismo punto de falla exacto. No relacionado con el pivote de layout ni con los cambios de conteo del backend.
+- **Solution**: pendiente — sospecha inicial: el estado `wizardStep`/`wizardSession` en `apps/web/app/frameworks/[frameworkId]/builder/page.tsx` no se resetea/avanza al cambiar `selectedId` vía navegación directa con `?s=`, quedando desincronizado del nodo real seleccionado.
+- **Prevention**: agregar este flujo a la lista de verificación manual explícita antes de cerrar cualquier slice futura del builder (VS-032 seguía con "verificación en producción pendiente" en el CHANGELOG al momento de este hallazgo).
+
 ### 2026-08-14 - Builder (VS-032) roto en producción: `ReferenceError: window is not defined` en SSR
 
 - **Issue**: usuario reportó que las actualizaciones de VS-032 no se veían en producción. La página `/frameworks/[frameworkId]/builder` fallaba en el render de servidor (confirmado vía `mcp__plugin_vercel_vercel__get_runtime_errors`: 11 ocurrencias desde el deploy del commit `c285c50`/VS-032, todas contra el deployment vigente). El deploy en sí estaba correcto (alias de producción apuntaba al commit `9e016a4`, `state: READY`) — el bug era puramente de código.

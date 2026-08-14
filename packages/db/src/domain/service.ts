@@ -45,8 +45,25 @@ export async function getFramework(organizationId: string, id: string) {
   return row ?? null;
 }
 
+// dimensionCount (VS-034, docs/architecture/design-system.md "Layout"): join +
+// COUNT(DISTINCT ...) porque el join multiplica filas por dimensión — un
+// count(dimension.id) sin DISTINCT quedaría inflado si un framework tuviera
+// más de una fila unida por otra razón en el futuro.
 export async function listFrameworks(organizationId: string) {
-  return db.select().from(framework).where(eq(framework.organizationId, organizationId));
+  return db
+    .select({
+      id: framework.id,
+      organizationId: framework.organizationId,
+      name: framework.name,
+      description: framework.description,
+      createdAt: framework.createdAt,
+      updatedAt: framework.updatedAt,
+      dimensionCount: sql<number>`count(distinct ${dimension.id})::int`,
+    })
+    .from(framework)
+    .leftJoin(dimension, eq(dimension.frameworkId, framework.id))
+    .where(eq(framework.organizationId, organizationId))
+    .groupBy(framework.id);
 }
 
 export async function updateFramework(organizationId: string, id: string, input: UpdateFrameworkInput) {
@@ -96,11 +113,31 @@ export async function getDimension(organizationId: string, id: string) {
   return row ?? null;
 }
 
+// indicatorCount/directSubindicatorCount (VS-035, docs/architecture/design-system.md
+// "Layout"): DOS leftJoin a la vez multiplican filas entre sí (una dimensión con
+// 2 indicadores y 3 subs directos produciría 6 filas unidas) — cada count()
+// debe ser DISTINCT de forma independiente por columna, o el conteo queda
+// inflado por el fan-out del otro join. No se suman en SQL: quedan separados
+// porque son datos independientes (un indicador NO es lo mismo que un
+// subindicador directo) y el llamador decide cómo combinarlos para mostrar.
 export async function listDimensions(organizationId: string, frameworkId: string) {
   return db
-    .select()
+    .select({
+      id: dimension.id,
+      organizationId: dimension.organizationId,
+      frameworkId: dimension.frameworkId,
+      title: dimension.title,
+      description: dimension.description,
+      createdAt: dimension.createdAt,
+      updatedAt: dimension.updatedAt,
+      indicatorCount: sql<number>`count(distinct ${indicator.id})::int`,
+      directSubindicatorCount: sql<number>`count(distinct ${subindicator.id})::int`,
+    })
     .from(dimension)
-    .where(and(eq(dimension.frameworkId, frameworkId), eq(dimension.organizationId, organizationId)));
+    .leftJoin(indicator, eq(indicator.dimensionId, dimension.id))
+    .leftJoin(subindicator, eq(subindicator.dimensionId, dimension.id))
+    .where(and(eq(dimension.frameworkId, frameworkId), eq(dimension.organizationId, organizationId)))
+    .groupBy(dimension.id);
 }
 
 export async function updateDimension(organizationId: string, id: string, input: UpdateDimensionInput) {

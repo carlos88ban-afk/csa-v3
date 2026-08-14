@@ -1,117 +1,84 @@
-checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000019
-fecha: 2026-08-07
+checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000020
+fecha: 2026-08-14
 estado: completo
-slice_actual: ninguno — VS-030 cerrado (editor WYSIWYG para comentario confidencial). Trabajo nuevo pedido por el usuario, no gap de AN-001 (AN-001 ya estaba cerrado por completo desde VS-029, sesión anterior).
+slice_actual: ninguno — arco VS-033..VS-036 cerrado (pivote visual a dashboard empresarial ancho). Trabajo nuevo pedido por el usuario, no gap de AN-001.
 
-slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030]
+slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030, VS-031, VS-032, VS-033, VS-034, VS-035, VS-036]
 
 decisiones_del_dia:
-  - **Punto de partida de la sesión**: un subagente corrido vía OmniRoute (herramienta de routing de LLMs instalada en esta misma sesión, ver más abajo) entregó un reporte diciendo que AN-001 estaba cerrado y sugiriendo dos posibles siguientes pasos (editor Jodit, réplica de árbol CSA 2026). Antes de actuar, se verificó contra `docs/BACKLOG.md`/`CHECKPOINT.md` que el reporte era preciso — AN-001 sí estaba cerrado, sin gaps pendientes. Se confirmó con el usuario cuál de los dos "siguientes pasos" priorizar (Plan Mode, `AskUserQuestion`) antes de tocar código: eligió el editor WYSIWYG; la réplica de árbol quedó pendiente, sin iniciar (ver "próximos pasos").
-  - **Librería: TipTap, no Jodit literal** (que es lo que usa el portal S&P). Jodit es vanilla-JS con wrapper React poco mantenido; TipTap es React-idiomático (ProseMirror), mejor accesibilidad de `contentEditable`, bundle modular (solo se cargan Bold/Italic/BulletList/CharacterCount, no `StarterKit` completo). Documentado en `docs/adr/0006-editor-wysiwyg-comentario-confidencial.md` (primera ADR formal de este repo desde la 0005 — VS-028 nunca tuvo una, solo estaba documentada en `docs/engines/form.md`).
-  - **Corte limpio, sin migración de datos**: confirmado con el usuario que no había comentarios reales en producción con la sintaxis markdown-lite vieja (VS-028) — se evitó agregar lógica de detección/compatibilidad de formato.
-  - **`commentKey` sigue siendo `string`** (ahora HTML sanitizado en vez de markdown-lite) — cero cambio de schema/contrato en `packages/sdk-core/src/response.ts`, tal como ya anticipaba la sección "Fuera de alcance" de VS-028 en `docs/engines/form.md`.
-  - **Bug real encontrado durante el desarrollo (no en producción — la sesión anterior sí tuvo bugs reproducidos en producción, esta vez se atrapó antes)**: el `<label>` que envolvía la pregunta completa redirige el foco a su input asociado en cualquier click dentro de él (comportamiento nativo de `<label>`, no un bug de React) — un `<textarea>` (control nativo) queda exento de esa redirección, un `contentEditable` no. Diagnosticado con instrumentación temporal (`console.log` en el editor + listeners de `mousedown`/`focus`/`blur` vía `javascript_tool`) tras descartar varias hipótesis previas (Strict Mode de React, timing de Playwright, sanitización de HTML). Corregido restructurando el markup de 4 tipos de elemento — el `<label>` ahora envuelve solo su propio control. Registrado en `docs/project_notes/bugs.md`.
-  - **Verificación en producción en vez de local, a pedido explícito del usuario** ("todas las pruebas hazlas en producción, no es necesario hacer pruebas locales, ya que en producción se ven los errores reales") — la reproducción del bug de foco había sido inconsistente en local (`next dev`, Playwright) por razones ambientales (Turbopack Fast Refresh, servidores de dev reiniciados muchas veces en la misma sesión de depuración), lo que agregó ruido a la investigación. Verificado end-to-end contra `https://csa-v3-web.vercel.app` real tras el push a `main`: editor, autosave, persistencia tras recargar, Revisión, export CSV — los 3 puntos que tocó el slice, uno por uno.
-  - Instalada y configurada en esta sesión la herramienta **OmniRoute** (router de LLMs local, `npm i -g omniroute` — en realidad instalado vía `pnpm` porque `npm` colgó por el límite de ruta de Windows) para que el usuario pueda seguir trabajando con modelos gratuitos si se agota la cuota de Claude. Conectado a OpenRouter (modelos `:free`). No forma parte del código del repo — es una herramienta del entorno del usuario, sin archivos versionados en `plataforma-v3`.
+  - **Nota de continuidad**: este CHECKPOINT no se actualizó tras VS-031 (workspace split-view del builder) ni VS-032 (editor amigable) — ambos ya estaban cerrados y en producción al empezar esta sesión (confirmado por `git log` y `docs/CHANGELOG.md`), simplemente el checkpoint anterior (2026-08-07) quedó desactualizado. No se reconstruye retroactivamente esa sesión aquí; `docs/CHANGELOG.md` y `docs/BACKLOG.md` sí tienen el detalle completo de VS-031/032.
+  - **Punto de partida de esta sesión**: bug en producción encontrado al pedir una revisión general — `ReferenceError: window is not defined` en SSR de `/frameworks/[frameworkId]/builder` (un `useState(() => window.matchMedia(...))` corría durante el render de servidor pese a ser un componente `"use client"`). Diagnosticado con `mcp__plugin_vercel_vercel__get_runtime_errors` (no solo `list_deployments` — el deployment estaba "READY" pero la ruta seguía rota en runtime). Corregido, commiteado (`a8e7fec`) y verificado en producción antes de seguir con el resto de la sesión.
+  - **Pivote de diseño (VS-033..VS-036)**: el usuario pidió mejorar la calidad visual de toda la plataforma "basado en diseño de plataformas empresariales" y verificar espacio desaprovechado. Auditoría con capturas reales confirmó que `.page` (840px centrado) dejaba ~38% del ancho vacío en un viewport de 1366px. Se determinó que esa columna angosta era una **decisión ya documentada deliberadamente** en `docs/architecture/design-system.md` ("estilo ledger", no dashboard) — no un descuido. Se presentó la disyuntiva al usuario (`AskUserQuestion`): mantener la columna y densificar contenido, vs. pivotar a dashboard ancho tipo Salesforce/Workday. Eligió el pivote, y dentro de él, explícitamente: (a) agregar sidebar izquierdo persistente (no solo ensanchar contenido), (b) incluir conteos reales en las tablas nuevas desde el inicio (no diferirlos a un backlog futuro).
+  - Por el tamaño del cambio (toca el shell global, backend con nuevas queries de conteo, y contradice una decisión de diseño ya documentada), se usó **Plan Mode** antes de tocar código — 2 subagentes Explore (inventario de layout de las 14 páginas + qué datos ya existían sin tocar backend) y 1 subagente Plan (diseño detallado de las 4 slices) antes de escribir el plan final. Plan guardado en `D:\Usuarios\PM75161698\.claude\plans\memoized-squishing-shell.md`.
+  - **Stitch MCP usado deliberadamente una sola vez**: mockup de la vista Frameworks (sidebar + tabla) con la paleta real del proyecto, para validar `--sidebar-width`/`--content-width` antes de comprometerlos en CSS — no se repitió por página (una vez validado el patrón, las demás son reaplicaciones mecánicas del mismo componente).
+  - **Verificación e2e con hallazgo importante sobre servidores de dev obsoletos**: la primera corrida completa del e2e tuvo 4 fallos, incluyendo 2 que parecían nuevos (textos no encontrados en `/evaluations/[token]`). Investigado: un `next dev` de una sesión ANTERIOR seguía escuchando en el puerto 3000 y Playwright lo reutilizó (`reuseExistingServer: true`) sirviendo código desactualizado. Matado el proceso viejo (`taskkill`) y recorrido con un servidor fresco: esos 2 fallos desaparecieron. **Lección**: si un e2e falla de forma que no tiene sentido con el diff, verificar primero si hay un `next dev` viejo en el puerto antes de sospechar del código nuevo.
+  - **Confirmación rigurosa de que los 2 fallos restantes son pre-existentes**: en vez de asumirlo, se hizo `git stash` de todos los cambios de la sesión (moviendo aparte los 3 archivos nuevos sin trackear) y se corrió el mismo test contra `main` tal cual estaba publicado — mismos 2 fallos, mismo punto exacto de falla. Confirmado no-regresión con evidencia, no con suposición. Uno ya estaba documentado en `bugs.md` (autosave del comentario TipTap); el otro (wizard del builder no reconoce una Dimensión recién creada como seleccionada) es un hallazgo nuevo, registrado en `bugs.md` pero no arreglado — es un bug de VS-032, fuera de alcance de este pivote de layout.
 
 archivos_modificados:
-  - docs/adr/0006-editor-wysiwyg-comentario-confidencial.md (nuevo)
-  - docs/adr/README.md (índice)
-  - docs/engines/form.md (sección VS-028 actualizada con nota "actualizado en VS-030" + subsección nueva)
-  - docs/analysis/csa-sp-global-comparison.md (ya traía una actualización previa de la sesión de OmniRoute, no tocada por mí más allá de leerla)
-  - packages/sdk-core/src/rich-text.ts, rich-text.test.ts (nuevos — sanitizeCommentHtml/stripCommentHtml, 13 tests)
-  - packages/sdk-core/src/index.ts (export nuevo)
-  - packages/sdk-core/package.json (dep sanitize-html)
-  - apps/web/app/evaluations/[token]/page.tsx (NaCommentRow → TipTap; texto_corto/texto_largo/numero/seleccion_desplegable restructurados: <label> envuelve solo su control, naCommentRow/statusRow como hermanos)
-  - apps/web/app/frameworks/[frameworkId]/evaluations/[evaluationId]/review/page.tsx (sanitizeCommentHtml)
-  - apps/web/app/api/evaluations/[id]/export/route.ts (stripCommentHtml)
-  - apps/web/app/globals.css (.comment-editor/.comment-editor__content nuevos, .rich-toolbar actualizado)
-  - apps/web/lib/lite-markdown.ts (eliminado)
-  - apps/web/e2e/public-runtime.spec.ts (test nuevo: escribir con formato → autosave → recargar → persiste)
-  - apps/web/package.json (deps @tiptap/react, @tiptap/pm, @tiptap/starter-kit, @tiptap/extension-character-count)
-  - docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md, docs/project_notes/bugs.md
+  - apps/web/app/frameworks/[frameworkId]/builder/page.tsx (fix SSR window, sesión previa a VS-033)
+  - docs/project_notes/bugs.md (2 entradas nuevas: SSR window, wizard builder)
+  - docs/architecture/design-system.md (sección Layout reescrita — pivote a dashboard ancho, doc-first antes del código)
+  - apps/web/app/globals.css (--content-width 840→1180px, --sidebar-width nuevo, .page--wide 960→1280px, .app-shell/.app-sidebar__* nuevas, .data-table* nuevas)
+  - apps/web/components/app-header.tsx (eliminado) → apps/web/components/app-shell.tsx, app-sidebar.tsx (nuevos)
+  - apps/web/components/data-table.tsx (nuevo — DataTable<T> genérico)
+  - apps/web/app/layout.tsx (monta AppShell)
+  - apps/web/app/organizations/page.tsx, apps/web/app/frameworks/page.tsx, apps/web/app/frameworks/[frameworkId]/page.tsx (listas → DataTable con conteos reales)
+  - packages/db/src/domain/service.ts (listFrameworks/listDimensions con joins + count(distinct))
+  - packages/sdk-core/src/domain.ts (Framework.dimensionCount, Dimension.indicatorCount/directSubindicatorCount)
+  - packages/db/src/__tests__/domain.test.ts (test nuevo de conteos, incluyendo el caso crítico del doble join)
+  - docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md
 
 proximos_pasos:
-  - **Réplica de prueba del árbol CSA 2026 completada** (6 dimensiones, 34 ramas, 161 subindicadores, 584 elementos) — ver plan en `D:\Usuarios\PM75161698\.claude\plans\luminous-moseying-narwhal.md` (Parte 2) y detalle en `docs/project_notes/issues.md`. Framework `"CSA 2026 — Réplica QA"` publicado en producción y **dejado visible a pedido explícito del usuario** (no revocado — a diferencia del patrón habitual de limpiar datos de prueba al cerrar). Scripts (`scripts/csa-2026-replica-data.ts`, `packages/db/scripts/csa-2026-replica.mts`) quedan commiteados como utilidad reusable.
+  - Verificar en producción real (Chrome/Playwright a 1366×768) tras el deploy: `/frameworks`, `/frameworks/[id]`, `/organizations`, `/login` (angosto intacto), colapso del sidebar en `@media (max-width: 860px)`.
+  - Bug nuevo sin arreglar, registrado en `bugs.md` (2026-08-14): el wizard del builder no reconoce una Dimensión recién creada como seleccionada tras navegar directo a `/builder?s=<dimId>` — root cause no investigado a fondo, sospecha inicial es `wizardStep`/`wizardSession` desincronizado de `selectedId`. Bloquea que `builder-publish.spec.ts` pase limpio.
+  - Warning de SSL de Postgres (`sslmode=require` → deprecation warning de `pg`) visible en los runtime logs de Vercel desde el 2026-08-05 — no bloqueante, pendiente de decisión explícita del usuario antes de tocar `DATABASE_URL` en producción (variable de infraestructura compartida).
   - Pendiente no bloqueante, sigue en BACKLOG.md ("Siguiente"): proveedor de email/SMTP (ADR); TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada); tabla de historial de revisiones de `formSchema`.
-  - Hallazgo incidental sin resolver (documentado, no bloqueante): `apps/web/e2e/builder-publish.spec.ts` falla con `getByLabel('Título')` ambiguo (2 matches) — pre-existente, no introducido por VS-030 (confirmado por `git diff` antes de tocar nada). No investigado a fondo esta sesión.
   - Al retomar sin un pedido específico: revisar `docs/BACKLOG.md` y `docs/ROADMAP.md` para el siguiente ítem por prioridad.
 
 bloqueos: []
 
 contexto_para_continuar: |
-  VS-030 (editor WYSIWYG TipTap para comentario confidencial) cerrado y
-  verificado end-to-end en producción (https://csa-v3-web.vercel.app). Fue
-  trabajo nuevo pedido por el usuario, no un gap de AN-001 — AN-001 (análisis
-  S&P CSA 2026) sigue completamente cerrado desde VS-029.
+  Arco VS-033..VS-036 (pivote visual a dashboard empresarial ancho) cerrado:
+  sidebar izquierdo persistente, --content-width 840→1180px, y las 3 listas
+  administrativas principales (organizaciones, frameworks, dimensiones) con
+  DataTable + conteos reales en vez de listas de viñetas sin metadata.
 
-  La sesión partió de un reporte de un subagente corrido vía OmniRoute
-  (herramienta instalada en esta misma sesión para poder seguir trabajando
-  con modelos gratuitos si se agota la cuota de Claude — ver detalle en
-  decisiones_del_dia). El reporte se verificó contra los docs antes de
-  actuar, y resultó preciso.
+  Fue trabajo nuevo pedido por el usuario, no un gap de AN-001. Requirió
+  actualizar una decisión de diseño ya documentada (columna angosta ~840px,
+  "estilo ledger") — se hizo doc-first, reescribiendo
+  docs/architecture/design-system.md antes de tocar código, siguiendo la
+  regla rectora del proyecto.
 
-  También se completó la réplica de prueba del árbol completo del CSA 2026
-  (161 subindicadores) para estresar el Builder/Runtime a escala real —
-  publicada en producción y dejada visible a pedido del usuario, ver
-  "próximos pasos" y `docs/project_notes/issues.md`.
+  Antes de este arco, la sesión arrancó arreglando un bug real en
+  producción (VS-032 rota por un ReferenceError: window is not defined en
+  SSR) — ver decisiones_del_dia para el diagnóstico completo.
 
   Notas operativas nuevas de esta sesión (además de las ya acumuladas en
   checkpoints anteriores):
-  - **Un `<label>` nunca debe envolver más de un control de formulario
-    real.** Si un componente interactivo no-nativo (`contentEditable`,
-    custom con `tabIndex`) vive dentro de un `<label>`/`<fieldset>`
-    existente junto a otro control, el navegador redirige el foco al
-    control asociado del `<label>` en cualquier click — un control nativo
-    (input/textarea/select/button) queda exento porque intercepta su
-    propio click, uno custom no. Ver `docs/project_notes/bugs.md` para el
-    diagnóstico completo — costó bastante tiempo de esta sesión porque las
-    hipótesis iniciales (Strict Mode, timing de Playwright, sanitización)
-    eran más obvias pero incorrectas.
-  - **Cuando la reproducción de un bug de interacción es inconsistente en
-    local (`next dev`) pero el código parece correcto, verificar en
-    producción antes de seguir depurando localmente** — Turbopack Fast
-    Refresh + reinicios repetidos del dev server en la misma sesión de
-    debugging agregan ruido ambiental real (confirmado explícitamente por
-    el usuario en esta sesión). Producción con un build real es más lento
-    de iterar pero da la señal correcta a la primera.
-  - Para depurar un componente interactivo sin poder instrumentar la
-    misma pestaña que usa Playwright (procesos de browser separados):
-    crear un fixture standalone con un script `.mts` que importe
-    `@plataforma-csa/db` directo (mismo patrón que
-    `apps/web/e2e/global-setup.ts`), colocado DENTRO de un paquete que
-    tenga las dependencias necesarias como directas (ej.
-    `packages/db/_algo.mts`, no en `apps/web` si el script necesita
-    `drizzle-orm` u otra dep que apps/web no declara directo) — luego
-    interactuar con `claude-in-chrome` + `javascript_tool` para inspeccionar
-    `document.activeElement`/listeners en tiempo real. Borrar el script
-    (`_algo.mts`, prefijo `_` para no confundir con código real) al terminar.
-  - Cuando se hace un cambio de UI/foco no obvio como este, verificar
-    `document.activeElement` con `javascript_tool` es mucho más rápido y
-    concluyente que interpretar screenshots o reintentar con distintos
-    tiempos de espera.
-  - **Delegar a un subagente `opencode` la generación de UN SOLO archivo
-    grande (161 objetos estructurados) en una sola respuesta es poco
-    fiable** — dos intentos fallaron (uno por error de infraestructura del
-    modelo gratuito a mitad de stream, otro por fricción con heredocs de
-    bash en el entorno). Funcionó mejor pedir un GENERADOR PROGRAMÁTICO
-    corto (bucles + word banks) en vez de pedir la enumeración completa a
-    mano — mismo principio que ya valía para código: preferir que la
-    "tarea mecánica" la haga código, no prosa/literales generados por un
-    LLM. Aun así, terminé completando el archivo a mano tras el segundo
-    intento parcial — para trabajo de este volumen, considerar escribirlo
-    directamente en vez de delegar, o delegar en pedazos más chicos.
-  - `npm install -g` puede colgarse indefinidamente en Windows por el
-    límite de ruta (MAX_PATH) en paquetes con árboles de dependencias
-    profundos — usar `pnpm add -g` en su lugar (content-addressable store,
-    rutas más cortas). Si `pnpm add -g` falla con "global bin directory is
-    not in PATH", apuntar `pnpm config set global-bin-dir` a un directorio
-    que ya esté en el PATH (ej. el prefix de npm existente) en vez de pelear
-    con variables de entorno de sesión.
+  - **Antes de sospechar de un cambio de código por un fallo de e2e
+    inexplicable, verificar si hay un `next dev` de una sesión anterior
+    todavía escuchando en el puerto 3000** — `playwright.config.ts` usa
+    `reuseExistingServer: true`, así que reutiliza cualquier servidor viejo
+    sin detectar que sirve código desactualizado. `netstat -ano | grep
+    :3000` + `taskkill //PID <pid> //F` antes de correr el e2e si la sesión
+    viene de un trabajo largo con múltiples cambios de archivo.
+  - **Nunca asumir que un fallo de e2e es pre-existente o es una regresión
+    sin evidencia** — `git stash` (moviendo aparte archivos nuevos sin
+    trackear antes de stashear, ya que `git stash push <pathspec>` sin
+    `-u` no los incluye) + correr el mismo test contra el código ya
+    publicado es rápido y da una respuesta definitiva en vez de una
+    suposición.
+  - **Cuando un pedido de diseño amplio ("mejorar toda la plataforma")
+    contradice una decisión ya documentada en `docs/`**, no asumir que la
+    documentación estaba desactualizada — presentarle la disyuntiva
+    explícita al usuario (`AskUserQuestion`) antes de tocar nada, ya que
+    puede ser una decisión deliberada con una razón de negocio real detrás
+    (acá lo era: "estilo ledger" documentado en VS-006).
+  - Un mockup de Stitch (MCP) vale la pena UNA vez para validar valores de
+    diseño (anchos, patrón visual) antes de comprometerlos en CSS real —
+    pero no repetirlo por cada pantalla que reaplica el mismo patrón ya
+    validado; no tiene visibilidad de los datos reales del backend.
 
   Para retomar sin un pedido específico: leer este archivo, luego
   docs/BACKLOG.md ("Siguiente") y docs/ROADMAP.md para el siguiente ítem
-  por prioridad. Si el usuario menciona la réplica de árbol CSA 2026, el
-  plan ya existe en
-  D:\Usuarios\PM75161698\.claude\plans\luminous-moseying-narwhal.md.
-  Comando de verificación: pnpm install && pnpm slice:close.
+  por prioridad. Comando de verificación: pnpm install && pnpm slice:close.

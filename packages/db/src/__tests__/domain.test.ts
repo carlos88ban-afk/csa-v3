@@ -15,6 +15,7 @@ import {
   getFramework,
   getIndicator,
   getSubindicator,
+  listDimensions,
   listDirectSubindicators,
   listFrameworks,
   NotFoundError,
@@ -83,6 +84,36 @@ describe("VS-004 — dominio core (Framework→Dimensión→Indicador→Subindic
     const deleted = await deleteFramework(organizationId, created.id);
     expect(deleted?.id).toBe(created.id);
     expect(await getFramework(organizationId, created.id)).toBeNull();
+  });
+
+  it("VS-034/035 — listFrameworks/listDimensions traen conteos reales (dimensionCount/indicatorCount/directSubindicatorCount)", async () => {
+    const { organizationId } = await makeOrgWithOwner("counts");
+
+    const fw = await createFramework(organizationId, { name: "Framework Conteos" });
+    const dimA = await createDimension(organizationId, { frameworkId: fw.id, title: "Dim A (2 indicadores, 1 sub directo)" });
+    const dimB = await createDimension(organizationId, { frameworkId: fw.id, title: "Dim B (vacía)" });
+
+    await createIndicator(organizationId, { dimensionId: dimA.id, title: "Ind 1" });
+    await createIndicator(organizationId, { dimensionId: dimA.id, title: "Ind 2" });
+    await createSubindicator(organizationId, { dimensionId: dimA.id, title: "Sub directo" });
+
+    const frameworks = await listFrameworks(organizationId);
+    const listedFw = frameworks.find((f) => f.id === fw.id);
+    // El join de dimension no debe inflar el conteo aunque cada dimensión
+    // tenga a su vez indicadores/subs unidos por otras queries — acá solo
+    // se cuentan las 2 dimensiones directas del framework.
+    expect(listedFw?.dimensionCount).toBe(2);
+
+    const dimensions = await listDimensions(organizationId, fw.id);
+    const listedDimA = dimensions.find((d) => d.id === dimA.id);
+    const listedDimB = dimensions.find((d) => d.id === dimB.id);
+    // Caso crítico: el doble join (indicator + subindicator a la vez) no debe
+    // multiplicar el conteo del otro — 2 indicadores x 1 sub directo daría 2
+    // filas unidas si no fuera COUNT(DISTINCT ...) por columna.
+    expect(listedDimA?.indicatorCount).toBe(2);
+    expect(listedDimA?.directSubindicatorCount).toBe(1);
+    expect(listedDimB?.indicatorCount).toBe(0);
+    expect(listedDimB?.directSubindicatorCount).toBe(0);
   });
 
   it("crea la jerarquía completa Dimensión→Indicador→Subindicador y hace cascada al borrar el Framework", async () => {

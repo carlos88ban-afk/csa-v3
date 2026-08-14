@@ -79,6 +79,8 @@ export interface Framework {
   description: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /** VS-034 — conteo de dimensiones hijas, ver docs/architecture/design-system.md "Layout". */
+  dimensionCount: number;
 }
 
 export interface Dimension {
@@ -89,6 +91,10 @@ export interface Dimension {
   description: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /** VS-035 — conteo de indicadores hijos, ver docs/architecture/design-system.md "Layout". */
+  indicatorCount: number;
+  /** VS-035 — conteo de subindicadores directos (sin indicador intermedio). */
+  directSubindicatorCount: number;
 }
 
 export interface Indicator {

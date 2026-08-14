@@ -4,6 +4,36 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-033 — Pivote visual: shell de dashboard empresarial ancho (2026-08-14)
+
+- Pedido explícito del usuario (no gap de AN-001): reemplaza la decisión documentada de columna centrada ~840px ("estilo ledger") por un layout de dashboard ancho tipo Salesforce/Workday — la columna angosta desaprovechaba ~38% del ancho en un viewport de 1366px. Ver `docs/architecture/design-system.md` "Layout" (reescrito) para el razonamiento completo.
+- `docs/architecture/design-system.md` actualizado primero (doc-first) antes de tocar código.
+- `apps/web/app/globals.css`: `--content-width` 840px → 1180px, nuevo `--sidebar-width: 260px`, `.page--wide` 960px → 1280px (empareja con `.builder-layout`, que ya lo asumía internamente). Nuevas clases `.app-shell`/`.app-sidebar__*` reemplazan `.app-header*`; el único breakpoint del sistema (`@media (max-width: 860px)`) gana una tercera regla para colapsar el sidebar a barra horizontal.
+- `apps/web/components/app-header.tsx` eliminado, reemplazado por `app-shell.tsx` (wrapper de shell, decide con `useSession()` si hay sidebar) + `app-sidebar.tsx` (marca, nav Frameworks/Organizaciones con estado activo vía `usePathname()`, footer con organización activa + email + cerrar sesión). `apps/web/app/layout.tsx` monta `<AppShell>` en vez de `<AppHeader />` + `<div id="main-content">`.
+- Deliberadamente sin tocar: páginas de auth (`.page--narrow` se mantiene angosto) y el runtime público `/evaluations/[token]` (de cara al evaluado externo, sin sidebar ni chrome de admin — ambos quedan sin sidebar automáticamente porque `AppShell` se auto-oculta sin sesión, mismo comportamiento que ya tenía `AppHeader`).
+- Validado antes de escribir CSS con un mockup en Stitch (paleta real del proyecto) del patrón sidebar + tabla densa, ver plan de la sesión.
+- Verificado: `pnpm build`/`pnpm test`/`pnpm typecheck` en verde. E2E completo corrido dos veces (contra un `next dev` viejo reusado por error la primera vez, y contra uno fresco la segunda) — los 2 fallos que aparecen (`builder-publish.spec.ts` botón "Crear indicador" no aparece; `public-runtime.spec.ts` comentario en negrita no persiste) se confirmaron **pre-existentes** reproduciendo el mismo test contra `main` sin estos cambios (`git stash` + re-run, mismo punto de falla exacto en ambos). El segundo ya estaba documentado en `bugs.md` (2026-08-13); el primero es un hallazgo nuevo, documentado ahora, sin relación con el pivote de layout.
+
+### VS-034 — `DataTable` + conteo de dimensiones por framework (2026-08-14)
+
+- Continúa VS-033. Nuevo `apps/web/components/data-table.tsx` (`DataTable<T>` genérico) + clases `.data-table*` en `globals.css` (encabezados en mayúscula, cebra, hover, columnas numéricas en `--font-mono` alineadas a la derecha).
+- `packages/db/src/domain/service.ts`: `listFrameworks` ahora hace `leftJoin` con `dimension` + `count(distinct ...)` para traer `dimensionCount` por framework — aditivo, sin migración de schema (es un valor calculado, no una columna nueva).
+- `packages/sdk-core/src/domain.ts`: `Framework` gana `dimensionCount: number`.
+- `apps/web/app/frameworks/page.tsx`: lista de frameworks pasa de `.entry-list` a `<DataTable>` (columnas Nombre, Dimensiones). El alta optimista de un framework nuevo asume `dimensionCount: 0` (un framework recién creado siempre empieza sin dimensiones — `createFramework` no calcula el conteo, solo `listFrameworks` lo hace vía join).
+- Test nuevo en `packages/db/src/__tests__/domain.test.ts` cubre el conteo (incluyendo que el join no infle el número).
+
+### VS-035 — Conteo de ítems por dimensión (2026-08-14)
+
+- Continúa VS-034. `listDimensions` gana `indicatorCount`/`directSubindicatorCount` vía DOS `leftJoin` (indicator, subindicator directo) — cada `count()` es `DISTINCT` de forma independiente por columna, porque unir ambas tablas a la vez multiplica filas entre sí (un caso con 2 indicadores × 1 sub directo daría 2 filas unidas sin `DISTINCT`, inflando el conteo). Cubierto explícitamente por el mismo test nuevo de VS-034.
+- `packages/sdk-core/src/domain.ts`: `Dimension` gana ambos campos.
+- `apps/web/app/frameworks/[frameworkId]/page.tsx`: lista de Dimensiones pasa a `<DataTable>` (columnas Título, Ítems = indicadores + subs directos). La lista de Evaluaciones de la misma página queda como `.entry-list` (mezcla Pill + links + botón danger por fila, no es tabular). Alta optimista de una dimensión nueva asume ambos conteos en 0.
+
+### VS-036 — Conteo de miembros por organización + cierre del arco (2026-08-14)
+
+- Continúa VS-035, cierra el arco VS-033..VS-036 (pivote a dashboard empresarial ancho).
+- `apps/web/app/organizations/page.tsx`: lista de organizaciones pasa a `<DataTable>` (columnas Nombre + Pill "Activa", Miembros, Acción). El conteo de miembros no tiene ruta propia — Better Auth no lo expone en `useListOrganizations()` — se pide con `authClient.organization.listMembers` una vez por organización en paralelo (`Promise.all`), sin cambios de backend. La lista de *miembros de la organización activa* (gestión de roles) queda como `.entry-list`, fuera de alcance de este pedido (no es un conteo agregado).
+- Verificación final: `pnpm build`/`pnpm test`/`pnpm typecheck` en verde para el arco completo; verificación visual pendiente contra producción tras el deploy.
+
 ### VS-032 — Builder amigable: gestor visual de formularios con asistente guiado y vista previa (2026-08-13)
 
 - En curso — ver `docs/slices/VS-032.md`. Implementación principal commiteada (paleta visual de tipos, plantillas rápidas Texto/Número/Elección/Tabla, campos en lenguaje natural — condición `Pregunta 0.1 — …` con operadores humanos, chips de fórmula, sin UUIDs visibles — secciones colapsables por card, preview "Ver como evaluado" en drawer con toggle "Mostrar todos").

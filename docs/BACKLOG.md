@@ -10,6 +10,10 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Completado
 
+- [x] VS-036 — Conteo de miembros por organización (`authClient.organization.listMembers` en paralelo, sin ruta propia) + cierre del arco VS-033..VS-036 — 2026-08-14
+- [x] VS-035 — Conteo de ítems (indicadores + subindicadores directos) por dimensión, doble join con COUNT(DISTINCT) independiente por columna — 2026-08-14
+- [x] VS-034 — `DataTable` genérico + conteo de dimensiones por framework (join + count), reemplaza `.entry-list` en la lista de frameworks — 2026-08-14
+- [x] VS-033 — Pivote visual: shell de dashboard empresarial ancho (sidebar + `--content-width` 1180px, reemplaza la decisión "columna angosta ~840px" documentada en design-system.md — pedido explícito del usuario, no gap de AN-001) — 2026-08-14
 - [x] VS-030 — Editor WYSIWYG (TipTap) para comentario confidencial (reemplaza markdown-lite de VS-028, ver ADR 0006 — trabajo nuevo pedido por el usuario, no gap de AN-001; bug real de foco corregido en el camino, ver CHANGELOG) — 2026-08-07
 - [x] VS-029 — Subindicadores directos bajo Dimensión (único de los 5 ítems menores de AN-001 2.ª inspección con cambio de schema — `dimensionId` nullable alternativo + CHECK XOR en `packages/db`, verificado en producción) — 2026-08-06
 - [x] VS-028 — Comentario confidencial con formato (markdown-lite sin dependencia nueva, ítem menor de AN-001 2.ª inspección, verificado en producción) — 2026-08-06

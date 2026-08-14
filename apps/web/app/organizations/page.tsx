@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { Button, Card, Pill } from "@/components/ui";
+import { DataTable, type DataTableColumn } from "@/components/data-table";
 
 function slugify(name: string): string {
   return name
@@ -40,6 +41,29 @@ export default function OrganizationsPage() {
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [memberError, setMemberError] = useState<string | null>(null);
+
+  // Conteo de miembros por organización (VS-036, docs/architecture/design-system.md
+  // "Layout") — Better Auth no expone un conteo en useListOrganizations(), así que se
+  // pide una vez por organización en paralelo (sin nueva ruta propia, mismo cliente
+  // que ya se usa para los miembros de la organización activa más abajo).
+  const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!organizations || organizations.length === 0) return;
+    let alive = true;
+    void Promise.all(
+      organizations.map((org) =>
+        authClient.organization
+          .listMembers({ query: { organizationId: org.id } })
+          .then(({ data }) => [org.id, data?.members?.length ?? 0] as const),
+      ),
+    ).then((entries) => {
+      if (alive) setMemberCounts(Object.fromEntries(entries));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [organizations]);
 
   useEffect(() => {
     if (!sessionPending && !session) {
@@ -136,6 +160,36 @@ export default function OrganizationsPage() {
 
   if (sessionPending || !session) return <main className="loading">Cargando...</main>;
 
+  type OrgRow = NonNullable<typeof organizations>[number];
+  const orgColumns: DataTableColumn<OrgRow>[] = [
+    {
+      key: "name",
+      header: "Nombre",
+      render: (org) => (
+        <span className="entry-list__main">
+          {org.name}
+          {activeOrganization?.id === org.id && <Pill variant="accent">Activa</Pill>}
+        </span>
+      ),
+    },
+    {
+      key: "members",
+      header: "Miembros",
+      numeric: true,
+      render: (org) => memberCounts[org.id] ?? "…",
+    },
+    {
+      key: "action",
+      header: "",
+      render: (org) =>
+        activeOrganization?.id !== org.id ? (
+          <Button type="button" size="sm" onClick={() => handleSetActive(org.id)}>
+            Usar esta
+          </Button>
+        ) : null,
+    },
+  ];
+
   return (
     <main className="page">
       <h1>Tus organizaciones</h1>
@@ -148,24 +202,13 @@ export default function OrganizationsPage() {
       <Card>
         {orgsPending ? (
           <p className="empty">Cargando organizaciones...</p>
-        ) : organizations && organizations.length > 0 ? (
-          <ul className="entry-list">
-            {organizations.map((org) => (
-              <li key={org.id} className="entry-list__row">
-                <span className="entry-list__main">
-                  {org.name}
-                  {activeOrganization?.id === org.id && <Pill variant="accent">Activa</Pill>}
-                </span>
-                {activeOrganization?.id !== org.id && (
-                  <Button type="button" size="sm" onClick={() => handleSetActive(org.id)}>
-                    Usar esta
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
         ) : (
-          <p className="empty">Todavía no perteneces a ninguna organización.</p>
+          <DataTable
+            columns={orgColumns}
+            rows={organizations ?? []}
+            rowKey={(org) => org.id}
+            emptyLabel="Todavía no perteneces a ninguna organización."
+          />
         )}
       </Card>
 
