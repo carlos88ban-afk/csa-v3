@@ -39,11 +39,14 @@ test("Framework → Dimensión → Builder → Subindicador → Elemento → Pub
   await expect(page.getByRole("heading", { name: `Sub E2E ${suffix}` })).toBeVisible();
   await expect(page.getByRole("link", { name: "Framework", exact: true })).toBeVisible();
 
-  // Form Editor: el tipo por default ya es texto_corto (ver
-  // apps/web/components/subindicator-editor.tsx), alcanza con click en
-  // "Agregar elemento".
-  await page.getByRole("button", { name: "Agregar elemento" }).click();
-  await page.getByLabel("Texto").fill(`Pregunta E2E ${suffix}`);
+  // Form Editor (VS-032): la plantilla rápida "Texto" en la toolbar agrega
+  // un texto_corto directo, sin pasar por la paleta completa de "Agregar
+  // elemento completo..." (drawer con todos los tipos, ver
+  // apps/web/components/subindicator-editor.tsx). exact: true evita que
+  // "Texto" matchee también "Texto de la pregunta" (label del campo) o
+  // "Agregar elemento completo..." (contiene "elemento").
+  await page.getByRole("button", { name: "Texto", exact: true }).click();
+  await page.getByLabel("Texto de la pregunta").fill(`Pregunta E2E ${suffix}`);
   await expect(page.getByText(/^Guardado/)).toBeVisible();
 
   // Volver al Framework (breadcrumb) y publicar.

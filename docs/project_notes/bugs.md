@@ -28,6 +28,13 @@ Registro cronológico de bugs y su solución. Entradas breves. Limpiar entradas 
 - **Solution**: se quitó la condición — ambas ramas ahora llaman `selectSub(subindicator.id)` siempre. `selectSub()` ya apaga `wizardSession` internamente, así que el wizard no reaparece después.
 - **Prevention**: un paso de confirmación intermedio ("Empezar a editar") que no permite configurar nada y contradice el propio copy del paso anterior es una señal de UX redundante — cuando un flujo de asistente tiene una acción "siguiente" obvia y sin decisiones reales que tomar, que ocurra automáticamente en vez de exigir un click extra.
 
+### 2026-08-14 - E2E `builder-publish.spec.ts`: paso final desactualizado contra la UI real de VS-032 [RESUELTO — test desactualizado, no bug de producto]
+
+- **Issue**: con los dos bugs anteriores corregidos, el test seguía fallando (timeout de 180s) esperando `getByLabel("Texto")` tras click en `getByRole("button", {name: "Agregar elemento"})`.
+- **Root Cause**: no es un bug — el test quedó desactualizado desde VS-032. `getByRole` sin `exact: true` matchea por substring, así que `"Agregar elemento"` matcheaba el botón `"Agregar elemento completo..."` (el drawer con la paleta completa de tipos), no la plantilla rápida `"Texto"` que el test realmente quería (agregar un `texto_corto` en un solo click). El drawer abre una paleta de tarjetas ("Texto corto", "Texto largo", ...) sin ningún campo llamado exactamente "Texto" — de ahí el timeout. Confirmado a mano en producción: el flujo real (botón "Texto" de la toolbar → campo "Texto de la pregunta") funciona perfecto para un usuario real.
+- **Solution**: test actualizado a `getByRole("button", {name: "Texto", exact: true})` + `getByLabel("Texto de la pregunta")`.
+- **Prevention**: cuando un e2e usa `getByRole`/`getByText` sin `exact: true` cerca de un rediseño de UI, revisar si el nuevo copy contiene el string viejo como substring de otro elemento — puede matchear el control equivocado en silencio hasta que actúa distinto a lo esperado.
+
 ### 2026-08-14 - Builder (VS-032) roto en producción: `ReferenceError: window is not defined` en SSR
 
 - **Issue**: usuario reportó que las actualizaciones de VS-032 no se veían en producción. La página `/frameworks/[frameworkId]/builder` fallaba en el render de servidor (confirmado vía `mcp__plugin_vercel_vercel__get_runtime_errors`: 11 ocurrencias desde el deploy del commit `c285c50`/VS-032, todas contra el deployment vigente). El deploy en sí estaba correcto (alias de producción apuntaba al commit `9e016a4`, `state: READY`) — el bug era puramente de código.
