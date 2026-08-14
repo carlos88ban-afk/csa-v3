@@ -594,7 +594,7 @@ function SubOptionsView({
     id: string;
     label: string;
     subOptions?: { id: string; label: string }[] | undefined;
-    references?: { maxUrls?: number | undefined } | undefined;
+    references?: { maxUrls?: number | undefined; position?: "before_suboptions" | "after_suboptions" | undefined } | undefined;
     field?: SubOptionField | undefined;
   }[];
   value: AnswerValue | undefined;
@@ -634,6 +634,14 @@ function SubOptionsView({
               locked={locked}
             />
           )}
+          {isSelected(sub.id) && sub.references && sub.references.position !== "after_suboptions" && (
+            <OptionReferencesView
+              maxUrls={sub.references.maxUrls ?? 3}
+              value={answers[`${subKey}::${sub.id}::refs`] as string[] | undefined}
+              onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::refs`, next)}
+              locked={locked}
+            />
+          )}
           {isSelected(sub.id) && sub.subOptions && sub.subOptions.length > 0 && (
             <SubOptionsView
               subKey={`${subKey}::${sub.id}`}
@@ -645,7 +653,7 @@ function SubOptionsView({
               onAnswerChange={onAnswerChange}
             />
           )}
-          {isSelected(sub.id) && sub.references && (
+          {isSelected(sub.id) && sub.references && sub.references.position === "after_suboptions" && (
             <OptionReferencesView
               maxUrls={sub.references.maxUrls ?? 3}
               value={answers[`${subKey}::${sub.id}::refs`] as string[] | undefined}
@@ -1481,6 +1489,14 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                 />
                 {opt.label}
               </label>
+              {value === opt.id && opt.references && opt.references.position !== "after_suboptions" && (
+                <OptionReferencesView
+                  maxUrls={opt.references.maxUrls ?? 3}
+                  value={answers[`${element.id}::${opt.id}::refs`] as string[] | undefined}
+                  onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
+                  locked={locked}
+                />
+              )}
               {value === opt.id && opt.subOptions && opt.subOptions.length > 0 && (
                 <SubOptionsView
                   subKey={`${element.id}::${opt.id}`}
@@ -1493,7 +1509,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                   exclusive={opt.subOptionsExclusive ?? false}
                 />
               )}
-              {value === opt.id && opt.references && (
+              {value === opt.id && opt.references && opt.references.position === "after_suboptions" && (
                 <OptionReferencesView
                   maxUrls={opt.references.maxUrls ?? 3}
                   value={answers[`${element.id}::${opt.id}::refs`] as string[] | undefined}
@@ -1524,6 +1540,14 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                     />
                     {opt.label}
                   </label>
+                  {selected.includes(opt.id) && opt.references && opt.references.position !== "after_suboptions" && (
+                    <OptionReferencesView
+                      maxUrls={opt.references.maxUrls ?? 3}
+                      value={answers[`${element.id}::${opt.id}::refs`] as string[] | undefined}
+                      onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
+                      locked={locked}
+                    />
+                  )}
                   {selected.includes(opt.id) && opt.subOptions && opt.subOptions.length > 0 && (
                     <SubOptionsView
                       subKey={`${element.id}::${opt.id}`}
@@ -1536,7 +1560,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                       exclusive={opt.subOptionsExclusive ?? false}
                     />
                   )}
-                  {selected.includes(opt.id) && opt.references && (
+                  {selected.includes(opt.id) && opt.references && opt.references.position === "after_suboptions" && (
                     <OptionReferencesView
                       maxUrls={opt.references.maxUrls ?? 3}
                       value={answers[`${element.id}::${opt.id}::refs`] as string[] | undefined}

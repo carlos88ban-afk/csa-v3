@@ -38,8 +38,14 @@ const questionBase = {
 const subSubOption = z.object({ id: z.string().min(1), label: z.string() });
 
 // Campo opcional en formOption/subOption, reusado en ambos (VS-039/VS-040).
+// `position` (VS-041, docs/engines/form.md "Corrección posterior: posición
+// configurable"): el HTML real de S&P pone la fila de referencias
+// INMEDIATAMENTE después de la opción, antes de la sub-pregunta anidada —
+// default `before_suboptions` (ausente = antes) replica eso; el usuario
+// pidió poder elegirlo explícitamente en vez de un orden fijo.
 const optionReferences = z.object({
   maxUrls: z.number().int().positive().optional(), // default 3 (límite observado en S&P)
+  position: z.enum(["before_suboptions", "after_suboptions"]).optional(),
 });
 
 // Campo embebido en una sub-opción (VS-040, docs/engines/form.md "Campos

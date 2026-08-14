@@ -387,6 +387,48 @@ describe("formElement", () => {
     }
   });
 
+  // Posición configurable de las referencias (VS-041, docs/engines/form.md
+  // "Corrección posterior: posición configurable").
+  it("acepta references sin position (default before_suboptions implícito)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", references: {} }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "seleccion_unica") {
+      expect(result.data.options[0]?.references?.position).toBeUndefined();
+    }
+  });
+
+  it("acepta references con position before_suboptions/after_suboptions explícito", () => {
+    const before = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", references: { position: "before_suboptions" } }],
+    });
+    const after = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", references: { position: "after_suboptions" } }],
+    });
+    expect(before.success).toBe(true);
+    expect(after.success).toBe(true);
+  });
+
+  it("rechaza references con position desconocida", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", references: { position: "middle" } }],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("rechaza una sub-opción de 2do nivel con id vacío (VS-026)", () => {
     const result = formElement.safeParse({
       id: "1",

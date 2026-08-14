@@ -440,7 +440,30 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
       elements.map((el) => {
         if (el.id !== elementId) return el;
         if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
-        return { ...el, options: el.options.map((opt) => (opt.id === optionId ? { ...opt, references: { maxUrls } } : opt)) };
+        return {
+          ...el,
+          options: el.options.map((opt) => (opt.id === optionId ? { ...opt, references: { ...opt.references, maxUrls } } : opt)),
+        };
+      }),
+    );
+  }
+
+  // VS-041 (corrección posterior, docs/engines/form.md "Posición
+  // configurable"): dónde aparece el bloque de URL respecto a las
+  // sub-opciones — default (ausente) = antes, igual que el HTML real de S&P.
+  function updateOptionReferencesPosition(
+    elementId: string,
+    optionId: string,
+    position: "before_suboptions" | "after_suboptions" | undefined,
+  ) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return {
+          ...el,
+          options: el.options.map((opt) => (opt.id === optionId ? { ...opt, references: { ...opt.references, position } } : opt)),
+        };
       }),
     );
   }
@@ -491,7 +514,16 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
   }
 
   function updateSubOptionReferencesMaxUrls(elementId: string, optionId: string, subOptionId: string, maxUrls: number | undefined) {
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, references: { maxUrls } }));
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, references: { ...sub.references, maxUrls } }));
+  }
+
+  function updateSubOptionReferencesPosition(
+    elementId: string,
+    optionId: string,
+    subOptionId: string,
+    position: "before_suboptions" | "after_suboptions" | undefined,
+  ) {
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, references: { ...sub.references, position } }));
   }
 
   function addSubOptionField(elementId: string, optionId: string, subOptionId: string, type: SubOptionField["type"]) {
@@ -1081,6 +1113,23 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                               }
                                             />
                                           </label>
+                                          <label className="field">
+                                            <span className="field__label">Posición de las URLs</span>
+                                            <select
+                                              value={sub.references.position ?? "before_suboptions"}
+                                              onChange={(e) =>
+                                                updateSubOptionReferencesPosition(
+                                                  el.id,
+                                                  opt.id,
+                                                  sub.id,
+                                                  e.target.value === "after_suboptions" ? "after_suboptions" : undefined,
+                                                )
+                                              }
+                                            >
+                                              <option value="before_suboptions">Antes de las sub-opciones</option>
+                                              <option value="after_suboptions">Después de las sub-opciones</option>
+                                            </select>
+                                          </label>
                                           <Button
                                             type="button"
                                             variant="danger"
@@ -1142,6 +1191,22 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                           )
                                         }
                                       />
+                                    </label>
+                                    <label className="field">
+                                      <span className="field__label">Posición de las URLs</span>
+                                      <select
+                                        value={opt.references.position ?? "before_suboptions"}
+                                        onChange={(e) =>
+                                          updateOptionReferencesPosition(
+                                            el.id,
+                                            opt.id,
+                                            e.target.value === "after_suboptions" ? "after_suboptions" : undefined,
+                                          )
+                                        }
+                                      >
+                                        <option value="before_suboptions">Antes de las sub-opciones</option>
+                                        <option value="after_suboptions">Después de las sub-opciones</option>
+                                      </select>
                                     </label>
                                     <Button
                                       type="button"

@@ -4,6 +4,9 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Siguiente
 
+- [ ] VS-044 — Tipo de celda mixto dentro de una fila de `tabla_datos` (override por celda, atajo por fila sigue siendo el default — 5.ª inspección AN-001, 2026-08-14: tabla "SISTEMA DE DOS NIVELES" con filas `[texto, texto, número]`; caso previsto por la decisión de diseño de VS-024 — spec en `docs/engines/form.md`)
+- [ ] VS-043 — Fila de fórmula dentro de `tabla_datos` (`cellType: "calculado"` con referencias a celdas de la misma tabla, 5.ª inspección AN-001, 2026-08-14: filas "Tamaño total de la tabla" readonly con `class="formula"` — spec en `docs/engines/form.md`)
+- [ ] VS-042 — Tabla de datos embebida dentro de una sub-opción (`subOption.table`, 5.ª inspección AN-001, 2026-08-14: cada sub-opción del sub-radio trae su propia `form-table` — spec en `docs/engines/form.md`)
 - [ ] Decidir proveedor de email/SMTP (ADR) si se necesita invitación automática por correo — hoy el link se comparte manualmente (ver `docs/domain/organization-user.md`)
 - [ ] Migrar a migraciones versionadas de Drizzle en vez de `db:push`, junto con provisionar una rama/proyecto Neon aislado para tests (`docs/TECH_DEBT.md` TD-001 + TD-002)
 - [ ] Si se necesita reconstruir el historial de una revisión de `formSchema` fuera del contexto de una publicación, construir una tabla de historial real (ver `docs/engines/publishing.md`, decisión de usar snapshot en vez de historial)

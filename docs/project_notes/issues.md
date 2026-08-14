@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-14 - VS-041 (corrección): posición configurable de las referencias
+- **Status**: Completed
+- **Description**: El fix de VS-041 (orden fijo `subOptions → references`) resultó confuso — el usuario señaló que visualmente parecía que el campo de URL pertenecía a la última sub-opción, no a la opción padre. Revisando de nuevo el HTML original de S&P: la fila de referencias vive INMEDIATAMENTE después de la opción, ANTES de la sub-pregunta anidada. Pidió además control explícito: "debo tener esta opción de poder mover en qué sitio deseo que aparezca el campo de URL".
+- **Notes**: `optionReferences` gana `position?: "before_suboptions" | "after_suboptions"` (default `before_suboptions`, matching S&P). Runtime/preview: orden condicional en vez de fijo en ambos niveles (`formOption` y `SubOptionsView`). Builder: select "Posición de las URLs". 3 tests nuevos. Verificado en local Y producción (ambas posiciones probadas, confirmado el default con el Runtime público). `pnpm typecheck`/`build`/`test` en verde.
+
 ### 2026-08-14 - VS-041: Ajustes UX en referencias de URL (orden + botón "Agregar URL")
 - **Status**: Completed
 - **Description**: El usuario probó VS-039/VS-040 en producción y reportó dos problemas de UX: (1) el bloque de referencias (URL) aparecía antes que las sub-opciones anidadas de la misma opción; (2) los campos de URL crecían automáticamente al escribir, sin un botón explícito, y por defecto podían mostrarse todos los `maxUrls` slots de golpe en el preview del Builder.

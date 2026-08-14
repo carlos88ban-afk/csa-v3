@@ -337,6 +337,14 @@ function PreviewElement({
               />
               {opt.label}
             </label>
+            {isSelected(opt.id) && opt.references && opt.references.position !== "after_suboptions" && (
+              <PreviewUrlList
+                maxUrls={opt.references.maxUrls ?? 3}
+                value={answers[`${element.id}::${opt.id}::refs`]}
+                onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
+                className="runtime-url-list sub-options"
+              />
+            )}
             {isSelected(opt.id) && (
               <PreviewSubOptions
                 level={1}
@@ -349,7 +357,7 @@ function PreviewElement({
                 onAnswerChange={onAnswerChange}
               />
             )}
-            {isSelected(opt.id) && opt.references && (
+            {isSelected(opt.id) && opt.references && opt.references.position === "after_suboptions" && (
               <PreviewUrlList
                 maxUrls={opt.references.maxUrls ?? 3}
                 value={answers[`${element.id}::${opt.id}::refs`]}
@@ -533,6 +541,14 @@ function PreviewSubOptions({
               onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::field`, next)}
             />
           )}
+          {isSelected(sub.id) && sub.references && sub.references.position !== "after_suboptions" && (
+            <PreviewUrlList
+              maxUrls={sub.references.maxUrls ?? 3}
+              value={answers[`${subKey}::${sub.id}::refs`]}
+              onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::refs`, next)}
+              className="runtime-url-list sub-options"
+            />
+          )}
           <PreviewSubOptions
             level={level + 1}
             subKey={`${subKey}::${sub.id}`}
@@ -542,7 +558,7 @@ function PreviewSubOptions({
             answers={answers}
             onAnswerChange={onAnswerChange}
           />
-          {isSelected(sub.id) && sub.references && (
+          {isSelected(sub.id) && sub.references && sub.references.position === "after_suboptions" && (
             <PreviewUrlList
               maxUrls={sub.references.maxUrls ?? 3}
               value={answers[`${subKey}::${sub.id}::refs`]}

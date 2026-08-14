@@ -634,3 +634,119 @@ El usuario probó VS-039/VS-040 en producción y encontró dos problemas de UX (
 ### Testing
 
 Verificado manualmente en navegador real (local y producción desplegada): una opción con sub-opción + referencias simultáneas muestra primero la sub-opción, luego (si se marca) el/los campo(s) de URL; el campo de URL arranca en 1 input, botón "Agregar URL" lo hace crecer hasta el máximo configurado, y desaparece al llegar al tope.
+
+### Corrección posterior: posición configurable (mismo día)
+
+El orden fijo `subOptions → references` elegido arriba resultó confuso: visualmente parecía que el campo de URL pertenecía a la ÚLTIMA sub-opción, no a la opción/sub-opción padre. Revisando de nuevo el HTML original de S&P (el mismo de VS-039): la fila de referencias vive **inmediatamente después del párrafo de la opción, ANTES de la sub-pregunta anidada** (`<p>...</p><div class="sims-input reference">...</div><ol>...</ol>`) — el orden correcto por defecto es `opción → references → subOptions`, no al revés.
+
+Además, el usuario pidió control explícito: **"debo tener esta opción de poder mover en qué sitio deseo que aparezca el campo de URL"**. `references` gana `position`:
+
+```ts
+const optionReferences = z.object({
+  maxUrls: z.number().int().positive().optional(),
+  position: z.enum(["before_suboptions", "after_suboptions"]).optional(), // default: before_suboptions
+});
+```
+
+- Reusado por `formOption.references` y `subOption.references` (ambos ya comparten el mismo objeto `optionReferences`) — sin duplicar el campo.
+- **Default `before_suboptions`** (campo ausente = antes) — corrige el problema de confusión de raíz para todo `formSchema` existente sin necesitar migración.
+- **Runtime/preview**: orden condicional — `references` se renderiza antes de `subOptions` salvo que `position === "after_suboptions"`. `field` (el control embebido de la sub-opción) siempre queda inmediatamente después del label, sin verse afectado por este toggle — es una extensión directa de la propia sub-opción, no un bloque de apoyo como `references`/`subOptions`.
+- **Builder**: select "Posición de las URLs" (Antes de las sub-opciones / Después de las sub-opciones) junto al campo `Máximo de URLs`, tanto a nivel de opción como de sub-opción.
+- Sin cambios en la clave de respuesta ni en export CSV.
+
+## Tabla dentro de una sub-opción (VS-042, pendiente — spec doc-first)
+
+Hallazgo de la 5.ª inspección (2026-08-14, HTML real de la pregunta `COG_BoardType_Selection` del portal S&P enviado por el usuario): cada sub-opción del sub-radio ("SISTEMA DE UN SOLO NIVEL" / "SISTEMA DE DOS NIVELES") contiene **su propia `table.form-table` completa** anidada dentro del `<li>` de la sub-opción. La plataforma actual permite a una sub-opción cargar `field` (un control simple: select/texto/número) o `references` (slots de URL), pero **no una tabla** — `tabla_datos` (VS-024) es un Elemento plano del Subindicador, no anidable.
+
+### Decisión de diseño
+
+`subOption` gana un campo opcional `table` (mismo shape que el Elemento `tabla_datos` — `columns`, `rows` — reutilizado, sin duplicación de tipos en zod):
+
+```ts
+const subOption = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  subOptions: z.array(subSubOption).optional(),
+  references: z.object({ maxUrls: z.number().int().positive().optional() }).optional(),
+  field: subOptionField.optional(),
+  table: tablaDatosConfig.optional(), // VS-042: tabla embebida (mismo shape que tabla_datos, sin label/visibleIf propios — hereda el de la sub-opción)
+});
+```
+
+- **Compatible hacia atrás**: campo opcional, ningún `formSchema` existente cambia de forma; zod no exige el campo nuevo.
+- **Respuesta**: misma convención de clave sintética: `` `${elementId}::${optionId}::${subOptionId}::table` `` → `TableValue` (mismo mapa `rowId -> columnId -> valor` que `tabla_datos`). Sin cambios en `response.ts`.
+- **Runtime**: al marcar la sub-opción con `table`, se renderiza debajo la tabla completa (mismo `TableView` de `tabla_datos`, reutilizado tal cual con la clave un nivel más adentro). Si la sub-opción tiene a la vez `field` y `table`, orden: `field → table → subOptions → references` (consistente con VS-041: referencias al final).
+- **Builder**: cada sub-opción gana un botón "Agregar tabla" que abre la misma UI de configuración de `tabla_datos` (columnas + filas con cellType/unit/options/maxLength), en modal o inline.
+
+### Fuera de alcance (explícito)
+
+- **`visibleIf` sobre la tabla embebida** — misma limitación ya documentada para `references`/`field`: las condiciones operan sobre Elementos, no sobre partes de una opción. La visibilidad de la tabla la gobierna la sub-opción (marcada = visible), igual que S&P.
+- **Export CSV**: mismo criterio que VS-039/040 — sin fila/columna nueva; el contenido de la tabla (un `TableValue` completo) se anexa a la celda `Respuesta` existente (misma serialización de `tabla_datos`).
+
+## Fila de fórmula dentro de una tabla (VS-043, pendiente — spec doc-first)
+
+Mismo HTML de la 5.ª inspección: la última fila de cada tabla ("Tamaño total de la tabla" / "Tamaño total de ambos tableros") es un input **`readonly` con `class="formula"`** — valor calculado (suma) a partir de las celdas numéricas de la misma tabla, `data-dpd-name="COG_BoardType_BoardSize"`. La plataforma tiene el Elemento `calculado` (VS-013) a nivel de Subindicador con referencias a otros Elementos por `id`, pero `tabla_datos` no tiene filas calculadas ni el motor de fórmula puede referenciar celdas de tabla (`rowId.colId`).
+
+### Decisión de diseño
+
+`formTableRow.cellType` gana el valor `"calculado"` (además de `texto`/`numero`/`seleccion_desplegable`) con `expression` referenciando **celdas de la misma tabla**:
+
+```ts
+const formTableRow = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  cellType: formTableCellType, // ahora incluye "calculado"
+  expression: z.string().optional(), // solo si cellType === "calculado": sintaxis {rowId} + {rowId2} (celdas de la misma fila-objetivo en TODAS las columnas) o {rowId.columnId}
+  ...
+});
+```
+
+- **Sintaxis de la fórmula**: extensión del motor existente (`engine/formula.md` VS-013), referencias `{rowId}` (toda la fila, columna por columna) o `{rowId.columnId}` (celda puntual) dentro del **mismo Elemento tabla** — el parser actual (`parseFormula`) se reutiliza con un contexto nuevo de resolución de nombres (fila → valor por columna activa). No hay referencias entre Elementos distintos para filas calculadas (solo celdas de la misma tabla), por coherencia con la invariante "Subindicador = formulario independiente".
+- **Evaluación**: por cada columna de la fila calculada, se evalúa la expresión contra los valores numéricos de las celdas referenciadas de esa misma columna; si alguna falta o hay división por cero, la celda queda vacía (mismo criterio que VS-013: `undefined` → clave ausente). La fila calculada se persiste como `TableValue` normal (el Runtime la escribe con autosave, el evaluado no la edita — `readonly` en UI).
+- **Runtime**: celdas de fila `calculado` se renderizan como inputs `disabled` mostrando el valor recalculado en vivo (mismo patrón visual que el Elemento `calculado` de VS-013).
+- **Builder**: al elegir `cellType: "calculado"` en una fila, aparece un campo `expression` con autocompletado de filas disponibles (`{rowId}`) y validación inline vía el parser existente.
+
+### Fuera de alcance (explícito)
+
+- **Funciones agregadas** (`SUM`, `AVG`, etc.) — mismo criterio que VS-013: aritmética directa con referencias explícitas; una `SUM` de rango no está pedida.
+- **Fila calculada referenciando otros Elementos** — solo celdas de la misma tabla (el Elemento `calculado` de VS-013 ya cubre referencias entre Elementos).
+
+## Tipo de celda mixto dentro de una fila (VS-044, pendiente — spec doc-first)
+
+Mismo HTML de la 5.ª inspección: la tabla de "SISTEMA DE DOS NIVELES" tiene por fila `[texto, texto, número]` — columnas "Tipo de tablero"/"Tipo de director" con labels de texto y columna "Número de miembros" con inputs numéricos. `tabla_datos` (VS-024) define `cellType` **por fila uniforme** — decisión de diseño que previó exactamente este caso: *"Si en el futuro aparece un caso real con tipo mixto dentro de una fila, es un cambio aditivo (mover `cellType` de la fila a la celda), no un rediseño"*.
+
+### Decisión de diseño
+
+Mover `cellType` de la fila a la celda, **manteniendo el atajo por fila** para compatibilidad:
+
+```ts
+const formTableCell = z.object({
+  columnId: z.string().min(1),
+  cellType: formTableCellType, // texto | numero | seleccion_desplegable | calculado (VS-043)
+  // config propia según cellType (unit/availableUnits/options/maxLength/expression)
+});
+
+const formTableRow = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  cellType: formTableCellType.optional(),       // atajo legacy: aplica a TODAS las celdas de la fila (comportamiento VS-024)
+  cells: z.array(formTableCell).optional(),     // nuevo: override por celda — si está presente, gana sobre cellType
+  // config legacy (unit/availableUnits/options/maxLength/expression) sigue válida con cellType
+});
+```
+
+- **Compatibilidad hacia atrás**: fila con solo `cellType` (sin `cells`) se comporta exactamente como hoy (VS-024/VS-041 no cambian de forma). `cells` es un override opcional para los casos mixtos; zod permite `cellType` y `cells` ausentes juntos solo si... (validación cruzada: al menos uno presente — `.superRefine()` en `formSchema`).
+- **Runtime**: `TableView` resuelve el tipo por celda: `row.cells?.find(c => c.columnId === column.id) ?? row.cellType` — una sola rama de resolución, el resto del render no cambia.
+- **Builder**: la UI de fila gana un modo "celdas individuales" (lista de columnas con selector de tipo por celda) alternativo al modo por-fila actual.
+
+### Fuera de alcance (explícito)
+
+- **Merge de celdas/rowspan** (la tabla de dos niveles tiene "Tipo de tablero" con celdas vacías que visualmente agrupan) — el HTML usa `<td></td>` vacíos, no `rowspan` real; si S&P lo usara, sería otro ítem aparte. Se replica con labels repetidos o celdas `texto` vacías.
+- **Columnas dinámicas** (agregar columnas en Runtime) — fuera de alcance histórico, se mantiene.
+
+## Ítems menores del mismo HTML (pendientes de priorizar)
+
+Del mismo `COG_BoardType_Selection` (5.ª inspección), sin slice asignado todavía:
+
+- **`data-ref-type="flexible"`**: la fila de referencias de la opción "Sí" es `flexible` (admite URL pública O referencia interna/documento), mientras VS-039 modeló solo URLs públicas (`refType: "public"` implícito). Si se quiere paridad, `formOptionReference` gana `refType: "public" | "flexible"` (aditivo) — el Runtime flexible pediría una fila de referencias con selector público/interno. **Preguntar al usuario si lo necesita** antes de especificar.
+- **Patrón estándar de 4 opciones** (Sí / No / "No aplica" / "La información no está disponible"): ya construible hoy como opciones normales del radio (VS-019 cubre el N/A como checkbox universal, pero aquí N/A es simplemente otra opción del radio — nada que implementar).

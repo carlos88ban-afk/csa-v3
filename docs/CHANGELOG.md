@@ -12,6 +12,8 @@ Formato: por slice, no por commit individual.
 - Sin cambios de schema, respuesta ni export CSV.
 - Verificado: `pnpm typecheck`/`build`/`test` en verde, manualmente en navegador local y producción desplegada.
 
+**Corrección posterior (mismo día)**: el orden fijo `subOptions → references` elegido arriba resultó confuso — visualmente parecía que el campo de URL pertenecía a la ÚLTIMA sub-opción, no a la opción padre. El HTML real de S&P (el mismo de VS-039) pone la fila de referencias INMEDIATAMENTE después del párrafo de la opción, ANTES de la sub-pregunta anidada. Además, el usuario pidió control explícito sobre la posición. `optionReferences` (reusado por `formOption`/`subOption`) gana `position?: "before_suboptions" | "after_suboptions"` — default `before_suboptions` (ausente = antes, matching S&P). Builder: select "Posición de las URLs" junto a "Máximo de URLs", en ambos niveles. Runtime/preview: orden condicional en vez de fijo. Sin cambios en la clave de respuesta ni export CSV. Verificado en local y producción (ambas posiciones probadas).
+
 ### VS-040 — Campos embebidos en sub-opciones + exclusividad configurable (2026-08-14)
 
 - Segundo hallazgo sobre la misma pregunta 0.1 de S&P (mismo HTML que originó VS-039): la sub-pregunta anidada "OverallSustainabilityDisclosure" trae una sub-opción con su propio `<select>` (rangos de % de ingresos) y el grupo completo es `type="radio"` (mutuamente excluyente) — ninguna de las dos cosas era soportada. El usuario pidió corregir ambas en el mismo slice tras revisar el análisis (`AskUserQuestion`).
