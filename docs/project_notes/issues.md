@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-14 - Limpieza de DB de producción + 2 bugs reales del builder corregidos
+- **Status**: Completed
+- **Description**: Pedido explícito del usuario: reducir la base de producción a 1 usuario (`carlos88ban@gmail.com`)/1 organización/1 framework, borrando datos de verificación de slices y un leftover de e2e interrumpido. Verificación end-to-end posterior encontró y corrigió 2 bugs reales en el builder (`resolveFocus()` y sincronización de `wizardStep`, ver `bugs.md`) que el hallazgo incidental de la sesión anterior (VS-033..036) había dejado sin investigar a fondo.
+- **Notes**: `apps/web/e2e/builder-publish.spec.ts` pasa completo de punta a punta ahora (estaba desactualizado desde VS-032, no solo bloqueado por los bugs reales). Verificado también a mano en producción real, no solo en local. Único fallo e2e restante: `public-runtime.spec.ts:56`, ya documentado, sin relación.
+
 ### 2026-08-14 - VS-033..VS-036: Pivote visual completo — dashboard empresarial ancho
 - **Status**: Completed (arco de 4 slices)
 - **Description**: Pedido explícito del usuario tras auditar espacio desaprovechado (columna ~840px dejaba ~38% del ancho vacío en 1366px). VS-033: sidebar izquierdo persistente (`AppShell`/`AppSidebar`, reemplaza `AppHeader`), `--content-width` 840→1180px, `.page--wide` 960→1280px. VS-034/035/036: `DataTable` genérico + conteos reales (dimensiones por framework, ítems por dimensión, miembros por organización) reemplazando `.entry-list` en las 3 listas administrativas principales.

@@ -4,6 +4,16 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### Limpieza de base de datos de producción + 2 bugs reales del builder corregidos (2026-08-14)
+
+- Pedido explícito del usuario: la base acumulaba datos de verificación de slices y un leftover de un e2e interrumpido (orgs/usuarios `test-eval-c08b5d27-*` sin limpiar). Se redujo a exactamente 1 usuario (`carlos88ban@gmail.com`, la cuenta real, agregada como owner), 1 organización y 1 framework (`CSA 2026 — Réplica QA`, con su estructura de 4 dimensiones y su evaluación publicada intactas) — 6 organizaciones, 1 framework vacío y 11 usuarios de prueba borrados. Inspección y borrado hechos con scripts standalone temporales (prefijo `_`, borrados al terminar, mismo patrón que `csa-2026-replica.mts`) tras confirmar con el usuario qué usuario/framework conservar.
+- Verificación end-to-end en producción tras la limpieza encontró 2 bugs reales en `apps/web/app/frameworks/[frameworkId]/builder/page.tsx` (ver `docs/project_notes/bugs.md` para el diagnóstico completo de cada uno):
+  1. `resolveFocus()` perdía el foco real al navegar fresco a `/builder?s=<dimensiónVacía>` (caía a un subindicador no relacionado en vez de reconocer la dimensión como nodo válido sin hijos).
+  2. `wizardStep` no reflejaba una Dimensión/Indicador ya creados desde otra página al montar el builder fresco (solo avanzaba vía eventos en vivo).
+  3. De paso: crear un Subindicador durante el wizard activo no lo dejaba seleccionado (exigía un click extra sin razón, contradecía el propio texto del wizard).
+- `apps/web/e2e/builder-publish.spec.ts` actualizado — el paso final ("Agregar elemento") apuntaba a un selector desactualizado desde VS-032 (matcheaba por substring el botón equivocado). Confirmado a mano en producción que la UI real funciona bien; era el test el desactualizado.
+- Verificado: `pnpm typecheck`/`build` en verde, e2e completo pasa (`builder-publish.spec.ts` de punta a punta: Framework → Dimensión → Indicador → Subindicador → elemento → autosave → Publicar → link público — todos verificados también a mano en producción real). Único fallo restante es el bug ya documentado y sin relación de `public-runtime.spec.ts:56` (comentario TipTap en negrita).
+
 ### VS-033 — Pivote visual: shell de dashboard empresarial ancho (2026-08-14)
 
 - Pedido explícito del usuario (no gap de AN-001): reemplaza la decisión documentada de columna centrada ~840px ("estilo ledger") por un layout de dashboard ancho tipo Salesforce/Workday — la columna angosta desaprovechaba ~38% del ancho en un viewport de 1366px. Ver `docs/architecture/design-system.md` "Layout" (reescrito) para el razonamiento completo.
