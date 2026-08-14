@@ -114,7 +114,7 @@ export default function BuilderPage() {
   const [focusId, setFocusId] = useState<string | null>(initialRaw);
   const [collapsedDims, setCollapsedDims] = useState<Set<number>>(new Set());
   const [collapsedInds, setCollapsedInds] = useState<Set<string>>(new Set());
-  const [treeOpen, setTreeOpen] = useState<boolean>(() => !window.matchMedia("(max-width: 860px)").matches);
+  const [treeOpen, setTreeOpen] = useState<boolean>(true);
   const [creating, setCreating] = useState<CreateFormState | null>(null);
   const [renaming, setRenaming] = useState<RenameFormState | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState<DeleteConfirmState | null>(null);
@@ -125,6 +125,10 @@ export default function BuilderPage() {
   const [query, setQuery] = useState("");
   const [wizardStep, setWizardStep] = useState(0);
   const [wizardSession, setWizardSession] = useState(true);
+
+  useEffect(() => {
+    setTreeOpen(!window.matchMedia("(max-width: 860px)").matches);
+  }, []);
 
   useEffect(() => {
     let alive = true;
