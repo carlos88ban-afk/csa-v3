@@ -341,6 +341,7 @@ function PreviewElement({
             {isSelected(opt.id) && (
               <PreviewSubOptions
                 level={1}
+                exclusive={opt.subOptionsExclusive ?? false}
                 subKey={`${element.id}::${opt.id}`}
                 subOptions={opt.subOptions}
                 value={answers[`${element.id}::${opt.id}`]}
@@ -375,8 +376,56 @@ function updateCell(
   onChange({ ...table, [rowId]: { ...(table[rowId] ?? {}), [columnId]: cell } });
 }
 
+// Campo embebido en una sub-opción (VS-040, docs/engines/form.md "Campos
+// embebidos en sub-opciones"): mismo comportamiento interactivo que los
+// tipos de Elemento equivalentes (texto_corto/numero/seleccion_desplegable)
+// ya usan en este preview — a diferencia de url_publica, un solo valor
+// simple no justifica simplificarlo a solo lectura.
+type SubOptionFieldConfig = NonNullable<
+  Extract<FormElement, { type: "seleccion_unica" }>["options"][number]["subOptions"]
+>[number]["field"];
+
+function PreviewSubOptionField({
+  field,
+  value,
+  onChange,
+}: {
+  field: NonNullable<SubOptionFieldConfig>;
+  value: AnswerValue | undefined;
+  onChange: (value: AnswerValue) => void;
+}) {
+  if (field.type === "seleccion_desplegable") {
+    return (
+      <select value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Seleccionar…</option>
+        {field.options.map((opt) => (
+          <option key={opt.id} value={opt.id}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+  if (field.type === "texto_corto") {
+    return <input value={(value as string) ?? ""} maxLength={field.maxLength} onChange={(e) => onChange(e.target.value)} />;
+  }
+  return (
+    <span className="runtime-question__number-with-unit">
+      <input
+        type="number"
+        value={value === undefined ? "" : (value as number)}
+        min={field.min}
+        max={field.max}
+        onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+      />
+      {field.unit && <span className="runtime-question__unit">{field.unit}</span>}
+    </span>
+  );
+}
+
 function PreviewSubOptions({
   level,
+  exclusive = false,
   subKey,
   subOptions,
   value,
@@ -385,6 +434,7 @@ function PreviewSubOptions({
   onAnswerChange,
 }: {
   level: number;
+  exclusive?: boolean;
   subKey: string;
   subOptions: Extract<FormElement, { type: "seleccion_unica" }>["options"][number]["subOptions"];
   value: AnswerValue | undefined;
@@ -393,23 +443,45 @@ function PreviewSubOptions({
   onAnswerChange: (key: string, value: AnswerValue) => void;
 }) {
   if (!subOptions || subOptions.length === 0) return null;
+  const isSelected = (subId: string): boolean =>
+    exclusive ? value === subId : ((value as string[] | undefined)?.includes(subId) ?? false);
   return (
     <div className="sub-options" style={{ marginLeft: `var(--space-${2 + level})` }}>
       {subOptions.map((sub) => (
         <div className="option-row-group" key={sub.id}>
           <label className="field--checkbox">
             <input
-              type={level === 1 ? "radio" : "checkbox"}
+              type={exclusive ? "radio" : "checkbox"}
               name={subKey}
-              checked={level === 1 ? value === sub.id : (value as string[] | undefined)?.includes(sub.id) ?? false}
+              checked={isSelected(sub.id)}
               onChange={() =>
-                level === 1
+                exclusive
                   ? onChange(sub.id)
-                  : onChange((value as string[] | undefined)?.includes(sub.id) ? (value as string[]).filter((id) => id !== sub.id) : [...((value as string[] | undefined) ?? []), sub.id])
+                  : onChange(
+                      (value as string[] | undefined)?.includes(sub.id)
+                        ? (value as string[]).filter((id) => id !== sub.id)
+                        : [...((value as string[] | undefined) ?? []), sub.id],
+                    )
               }
             />
             {sub.label}
           </label>
+          {isSelected(sub.id) && sub.field && (
+            <PreviewSubOptionField
+              field={sub.field}
+              value={answers[`${subKey}::${sub.id}::field`]}
+              onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::field`, next)}
+            />
+          )}
+          {isSelected(sub.id) && sub.references && (
+            <div className="runtime-url-list sub-options">
+              {Array.from({ length: sub.references.maxUrls ?? 3 }, (_, i) => (
+                <div className="option-row" key={i}>
+                  <input type="url" placeholder="https://..." readOnly value="" aria-label={`Referencia ${i + 1}`} />
+                </div>
+              ))}
+            </div>
+          )}
           <PreviewSubOptions
             level={level + 1}
             subKey={`${subKey}::${sub.id}`}

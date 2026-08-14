@@ -522,9 +522,63 @@ interface ElementViewProps {
   onAnswerChange: (key: string, value: AnswerValue) => void;
 }
 
+// Campo embebido en una sub-opción (VS-040, docs/engines/form.md "Campos
+// embebidos en sub-opciones"): hallazgo del mismo HTML de S&P que VS-039 — la
+// sub-opción "% de ingresos cubierto" trae su propio <select>.
+type SubOptionField =
+  | { type: "seleccion_desplegable"; options: { id: string; label: string }[] }
+  | { type: "texto_corto"; maxLength?: number | undefined }
+  | { type: "numero"; min?: number | undefined; max?: number | undefined; unit?: string | undefined };
+
+function SubOptionFieldView({
+  field,
+  value,
+  onChange,
+  locked,
+}: {
+  field: SubOptionField;
+  value: AnswerValue | undefined;
+  onChange: (value: AnswerValue) => void;
+  locked?: boolean | undefined;
+}) {
+  if (field.type === "seleccion_desplegable") {
+    return (
+      <select value={(value as string) ?? ""} disabled={locked} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Seleccionar…</option>
+        {field.options.map((opt) => (
+          <option key={opt.id} value={opt.id}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+  if (field.type === "texto_corto") {
+    return (
+      <input value={(value as string) ?? ""} maxLength={field.maxLength} disabled={locked} onChange={(e) => onChange(e.target.value)} />
+    );
+  }
+  return (
+    <span className="runtime-question__number-with-unit">
+      <input
+        type="number"
+        value={value === undefined ? "" : (value as number)}
+        min={field.min}
+        max={field.max}
+        disabled={locked}
+        onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+      />
+      {field.unit && <span className="runtime-question__unit">{field.unit}</span>}
+    </span>
+  );
+}
+
 // Sub-checklist revelado bajo una opción seleccionada que tiene subOptions
-// (docs/engines/form.md, "Opciones anidadas VS-016"). Siempre selección
-// múltiple, sea cual sea el tipo del elemento padre — mismo patrón que S&P.
+// (docs/engines/form.md, "Opciones anidadas VS-016"). Por defecto selección
+// múltiple (checkbox) — `exclusive` (VS-040, "Campos embebidos en
+// sub-opciones") la vuelve excluyente (radio), solo para el nivel 1 (el
+// nivel 2/sub-sub-opciones, llamado recursivamente abajo, siempre queda en
+// selección múltiple — sin evidencia de necesitar excluyencia ahí).
 function SubOptionsView({
   subKey,
   subOptions,
@@ -533,30 +587,62 @@ function SubOptionsView({
   locked,
   answers,
   onAnswerChange,
+  exclusive = false,
 }: {
   subKey: string;
-  subOptions: { id: string; label: string; subOptions?: { id: string; label: string }[] | undefined }[];
+  subOptions: {
+    id: string;
+    label: string;
+    subOptions?: { id: string; label: string }[] | undefined;
+    references?: { maxUrls?: number | undefined } | undefined;
+    field?: SubOptionField | undefined;
+  }[];
   value: AnswerValue | undefined;
-  onChange: (value: string[]) => void;
+  onChange: (value: AnswerValue) => void;
   locked?: boolean | undefined;
   answers: ResponseAnswers;
   onAnswerChange: (key: string, value: AnswerValue) => void;
+  exclusive?: boolean;
 }) {
-  const selected = Array.isArray(value) && typeof value[0] === "string" ? (value as string[]) : [];
+  const selectedMulti = Array.isArray(value) && typeof value[0] === "string" ? (value as string[]) : [];
+  const selectedSingle = typeof value === "string" ? value : undefined;
+  const isSelected = (id: string): boolean => (exclusive ? selectedSingle === id : selectedMulti.includes(id));
+
   return (
     <div className="sub-options runtime-options" key={subKey}>
       {subOptions.map((sub) => (
         <div key={sub.id}>
           <label className="field--checkbox">
             <input
-              type="checkbox"
+              type={exclusive ? "radio" : "checkbox"}
+              name={exclusive ? subKey : undefined}
               disabled={locked}
-              checked={selected.includes(sub.id)}
-              onChange={(e) => onChange(e.target.checked ? [...selected, sub.id] : selected.filter((id) => id !== sub.id))}
+              checked={isSelected(sub.id)}
+              onChange={() =>
+                exclusive
+                  ? onChange(sub.id)
+                  : onChange(isSelected(sub.id) ? selectedMulti.filter((id) => id !== sub.id) : [...selectedMulti, sub.id])
+              }
             />
             {sub.label}
           </label>
-          {selected.includes(sub.id) && sub.subOptions && sub.subOptions.length > 0 && (
+          {isSelected(sub.id) && sub.field && (
+            <SubOptionFieldView
+              field={sub.field}
+              value={answers[`${subKey}::${sub.id}::field`]}
+              onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::field`, next)}
+              locked={locked}
+            />
+          )}
+          {isSelected(sub.id) && sub.references && (
+            <OptionReferencesView
+              maxUrls={sub.references.maxUrls ?? 3}
+              value={answers[`${subKey}::${sub.id}::refs`] as string[] | undefined}
+              onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::refs`, next)}
+              locked={locked}
+            />
+          )}
+          {isSelected(sub.id) && sub.subOptions && sub.subOptions.length > 0 && (
             <SubOptionsView
               subKey={`${subKey}::${sub.id}`}
               subOptions={sub.subOptions}
@@ -835,7 +921,7 @@ function OptionReferencesView({
   maxUrls: number;
   value: string[] | undefined;
   onChange: (value: string[]) => void;
-  locked?: boolean;
+  locked?: boolean | undefined;
 }) {
   const urls = Array.isArray(value) ? value : [];
   const slots = !locked && urls.length < maxUrls ? [...urls, ""] : urls;
@@ -1398,6 +1484,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                   locked={locked}
                   answers={answers}
                   onAnswerChange={onAnswerChange}
+                  exclusive={opt.subOptionsExclusive ?? false}
                 />
               )}
               {value === opt.id && opt.references && (
@@ -1440,6 +1527,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                       locked={locked}
                       answers={answers}
                       onAnswerChange={onAnswerChange}
+                      exclusive={opt.subOptionsExclusive ?? false}
                     />
                   )}
                   {selected.includes(opt.id) && opt.references && (

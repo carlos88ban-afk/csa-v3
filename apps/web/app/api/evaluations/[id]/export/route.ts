@@ -49,13 +49,65 @@ function csvCell(value: string): string {
 // — no una fila/columna nueva, sigue siendo "una fila por Elemento".
 function formatOptionReferences(
   opt: { id: string; references?: { maxUrls?: number | undefined } | undefined },
-  elementId: string,
+  refsKey: string,
   answers: ResponseAnswers,
 ): string {
   if (!opt.references) return "";
-  const refs = answers[`${elementId}::${opt.id}::refs`];
+  const refs = answers[refsKey];
   const urls = Array.isArray(refs) ? refs.map((u) => String(u)) : [];
   return urls.length > 0 ? ` (Referencias: ${urls.join("; ")})` : "";
+}
+
+type SeleccionOption = Extract<FormElement, { type: "seleccion_unica" }>["options"][number];
+type SubOptionNode = NonNullable<SeleccionOption["subOptions"]>[number];
+
+// Campos embebidos en sub-opciones (VS-040, docs/engines/form.md "Campos
+// embebidos en sub-opciones"): resuelve el valor del field (label si es
+// seleccion_desplegable, literal si es texto/número) + las references de la
+// sub-opción marcada, mismo criterio de sufijo que formatOptionReferences.
+function formatSubOptionExtras(sub: SubOptionNode, subOptionKey: string, answers: ResponseAnswers): string {
+  const parts: string[] = [];
+  if (sub.field) {
+    const raw = answers[`${subOptionKey}::field`];
+    if (raw !== undefined && raw !== "") {
+      const resolved =
+        sub.field.type === "seleccion_desplegable" ? (sub.field.options.find((o) => o.id === raw)?.label ?? String(raw)) : String(raw);
+      const unit = sub.field.type === "numero" && sub.field.unit ? ` ${sub.field.unit}` : "";
+      parts.push(`${resolved}${unit}`);
+    }
+  }
+  if (sub.references) {
+    const refs = answers[`${subOptionKey}::refs`];
+    const urls = Array.isArray(refs) ? refs.map((u) => String(u)) : [];
+    if (urls.length > 0) parts.push(`Referencias: ${urls.join("; ")}`);
+  }
+  return parts.length > 0 ? ` (${parts.join(", ")})` : "";
+}
+
+// Resuelve una opción elegida (seleccion_unica/multiple) a su label, con las
+// references propias de la opción y, si tiene sub-opciones marcadas, las
+// sub-opciones elegidas con sus propios field/references (VS-039/VS-040) —
+// sigue siendo "una fila por Elemento" (ver export.md), todo se anexa a la
+// misma celda Respuesta.
+function formatOptionLabel(opt: SeleccionOption, elementId: string, answers: ResponseAnswers): string {
+  const optKey = `${elementId}::${opt.id}`;
+  let label = `${opt.label}${formatOptionReferences(opt, `${optKey}::refs`, answers)}`;
+  if (opt.subOptions && opt.subOptions.length > 0) {
+    const subValue = answers[optKey];
+    const selectedSubIds = Array.isArray(subValue)
+      ? subValue.filter((v): v is string => typeof v === "string")
+      : typeof subValue === "string"
+        ? [subValue]
+        : [];
+    const subParts = selectedSubIds
+      .map((subId) => {
+        const sub = opt.subOptions?.find((s) => s.id === subId);
+        return sub ? `${sub.label}${formatSubOptionExtras(sub, `${optKey}::${subId}`, answers)}` : null;
+      })
+      .filter((s): s is string => s !== null);
+    if (subParts.length > 0) label += ` — ${subParts.join("; ")}`;
+  }
+  return label;
 }
 
 function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, answers: ResponseAnswers): string {
@@ -67,7 +119,7 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
   if (value === undefined || value === null || value === "") return "";
   if (element.type === "seleccion_unica") {
     const opt = element.options.find((o) => o.id === value);
-    return opt ? `${opt.label}${formatOptionReferences(opt, element.id, answers)}` : String(value);
+    return opt ? formatOptionLabel(opt, element.id, answers) : String(value);
   }
   if (element.type === "seleccion_desplegable") {
     const opt = element.options.find((o) => o.id === value);
@@ -78,7 +130,7 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
     return ids
       .map((id) => {
         const opt = element.options.find((o) => o.id === id);
-        return opt ? `${opt.label}${formatOptionReferences(opt, element.id, answers)}` : String(id);
+        return opt ? formatOptionLabel(opt, element.id, answers) : String(id);
       })
       .join("; ");
   }

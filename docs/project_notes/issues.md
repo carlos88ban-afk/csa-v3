@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-14 - VS-040: Campos embebidos en sub-opciones + exclusividad configurable
+- **Status**: Completed
+- **Description**: 2.º hallazgo sobre el mismo HTML de S&P que originó VS-039 (pedido explícito del usuario: "analiza bien la estructura... las sub opciones también tienen la capacidad de agregar elementos"). Dos gaps en la misma sub-pregunta anidada: (A) una sub-opción trae su propio `<select>` embebido (rangos de %) — `subOption` gana `field?`; (B) el grupo de sub-opciones es `type="radio"` (excluyente), pero el Runtime siempre renderizaba checkbox — `formOption` gana `subOptionsExclusive?: boolean`. Confirmado el alcance de ambos con el usuario vía `AskUserQuestion` antes de escribir la spec.
+- **Notes**: Corrige de paso una inconsistencia preexistente desde VS-016 entre el preview del Builder (radio fijo en nivel 1) y el Runtime real (checkbox siempre) — ver `bugs.md`. Clave sintética `${elementId}::${optionId}::${subOptionId}::field`/`::refs`. 10 tests nuevos en `form-schema.test.ts`. Verificado manualmente en navegador local: Builder (checkbox exclusividad + selector "Agregar campo…"), preview en vivo, Runtime público (confirmada la exclusividad real: seleccionar una sub-opción desmarca la otra y oculta su select), y export CSV (`"Sí, la empresa informa — El siguiente % de ingresos cubierto (0-25%)"`). `pnpm typecheck`/`build`/`test` en verde.
+
 ### 2026-08-14 - VS-039: Referencias de URL por opción en selección única/múltiple
 - **Status**: Completed
 - **Description**: Implementa el gap documentado abajo (4.ª inspección AN-001). `formOption` gana `references?: { maxUrls?: number }` opcional — Builder (botón "Agregar referencias (URL)" por opción), Runtime (`OptionReferencesView`, mismo patrón de slots que `UrlPublicaView` de VS-017), preview del Builder (slots de solo lectura) y export CSV (sufijo `(Referencias: ...)` en la celda `Respuesta`, misma fila del elemento).

@@ -94,6 +94,32 @@ describe("formElement", () => {
       label: "Indicadores divulgados",
       options: [{ id: "ind-1", label: "Indicador 1", references: {} }],
     },
+    // Campos embebidos en sub-opciones + exclusividad (VS-040, docs/engines/form.md).
+    {
+      type: "seleccion_unica",
+      id: "15",
+      label: "¿Aplica?",
+      options: [
+        {
+          id: "si",
+          label: "Sí",
+          subOptionsExclusive: true,
+          subOptions: [
+            { id: "a", label: "Todas las actividades" },
+            {
+              id: "b",
+              label: "% de ingresos",
+              field: {
+                type: "seleccion_desplegable",
+                options: [{ id: "0-25", label: "0-25%" }, { id: "25-50", label: "25-50%" }],
+              },
+            },
+            { id: "c", label: "Control operativo", field: { type: "texto_corto", maxLength: 200 } },
+            { id: "d", label: "Otro", field: { type: "numero", min: 0, max: 100, unit: "%" }, references: { maxUrls: 2 } },
+          ],
+        },
+      ],
+    },
   ])("acepta un elemento válido de tipo $type", (element) => {
     expect(formElement.safeParse(element).success).toBe(true);
   });
@@ -256,6 +282,109 @@ describe("formElement", () => {
       options: [{ id: "a", label: "A", references: { maxUrls: 1.5 } }],
     });
     expect(result.success).toBe(false);
+  });
+
+  // Campos embebidos en sub-opciones + exclusividad (VS-040, docs/engines/form.md).
+  it("acepta una sub-opción sin field/references/subOptionsExclusive (compatible hacia atrás)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", subOptions: [{ id: "sub-a", label: "Sub A" }] }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "seleccion_unica") {
+      expect(result.data.options[0]?.subOptionsExclusive).toBeUndefined();
+      expect(result.data.options[0]?.subOptions?.[0]?.field).toBeUndefined();
+    }
+  });
+
+  it("acepta subOptionsExclusive true/false explícito", () => {
+    const trueResult = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", subOptionsExclusive: true, subOptions: [{ id: "sub-a", label: "Sub A" }] }],
+    });
+    const falseResult = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", subOptionsExclusive: false, subOptions: [{ id: "sub-a", label: "Sub A" }] }],
+    });
+    expect(trueResult.success).toBe(true);
+    expect(falseResult.success).toBe(true);
+  });
+
+  it("acepta field tipo seleccion_desplegable en una sub-opción", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [
+        {
+          id: "a",
+          label: "A",
+          subOptions: [{ id: "sub-a", label: "Sub A", field: { type: "seleccion_desplegable", options: [{ id: "x", label: "X" }] } }],
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rechaza field seleccion_desplegable con options vacío", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [
+        { id: "a", label: "A", subOptions: [{ id: "sub-a", label: "Sub A", field: { type: "seleccion_desplegable", options: [] } }] },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("acepta field tipo texto_corto sin maxLength (opcional)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", subOptions: [{ id: "sub-a", label: "Sub A", field: { type: "texto_corto" } }] }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("acepta field tipo numero con min/max/unit", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", subOptions: [{ id: "sub-a", label: "Sub A", field: { type: "numero", min: 0, max: 100, unit: "%" } }] }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rechaza field con type desconocido", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", subOptions: [{ id: "sub-a", label: "Sub A", field: { type: "fecha" } }] }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("acepta references en una sub-opción (mismo campo que formOption.references)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", subOptions: [{ id: "sub-a", label: "Sub A", references: { maxUrls: 2 } }] }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "seleccion_unica") {
+      expect(result.data.options[0]?.subOptions?.[0]?.references?.maxUrls).toBe(2);
+    }
   });
 
   it("rechaza una sub-opción de 2do nivel con id vacío (VS-026)", () => {

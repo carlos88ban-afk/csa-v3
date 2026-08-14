@@ -10,6 +10,7 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Completado
 
+- [x] VS-040 — Campos embebidos en sub-opciones (select/texto/número) + exclusividad configurable (`subOptionsExclusive`) — 2.º hallazgo del mismo HTML de S&P que originó VS-039 — 2026-08-14
 - [x] VS-039 — Referencias de URL por opción en `seleccion_unica`/`seleccion_multiple` (hallazgo de la 4.ª inspección AN-001, 2026-08-14: S&P adjunta la fila de referencias DENTRO de cada opción del radio, no como elemento `url_publica` separado) — 2026-08-14
 - [x] VS-038 — Banner: contenido con formato (RichTextEditor compartido, mismo motor que el comentario confidencial) — 2026-08-14
 - [x] VS-037 — Banner: título/contenido separados + estado inicial contraído/expandido configurable (supersede VS-025, pedido explícito del usuario) — 2026-08-14

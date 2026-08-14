@@ -36,27 +36,52 @@ const questionBase = {
 // su propio subOptions. Sin caso observado de un 3er nivel; aditivo si
 // aparece (repetir el mismo patrón un nivel más), no rediseño.
 const subSubOption = z.object({ id: z.string().min(1), label: z.string() });
+
+// Campo opcional en formOption/subOption, reusado en ambos (VS-039/VS-040).
+const optionReferences = z.object({
+  maxUrls: z.number().int().positive().optional(), // default 3 (límite observado en S&P)
+});
+
+// Campo embebido en una sub-opción (VS-040, docs/engines/form.md "Campos
+// embebidos en sub-opciones"): hallazgo del mismo HTML de S&P que VS-039 — la
+// sub-opción "% de ingresos cubierto" trae su propio <select> de rangos.
+// Solo nivel 1 (subOption), no subSubOption — ver "Fuera de alcance" del doc.
+const subOptionFieldOption = z.object({ id: z.string().min(1), label: z.string() });
+const subOptionField = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("seleccion_desplegable"), options: z.array(subOptionFieldOption).min(1) }),
+  z.object({ type: z.literal("texto_corto"), maxLength: z.number().int().positive().optional() }),
+  z.object({
+    type: z.literal("numero"),
+    min: z.number().optional(),
+    max: z.number().optional(),
+    unit: z.string().min(1).optional(),
+  }),
+]);
+
 const subOption = z.object({
   id: z.string().min(1),
   label: z.string(),
   subOptions: z.array(subSubOption).optional(),
+  references: optionReferences.optional(), // VS-040: mismo campo que formOption.references
+  field: subOptionField.optional(), // VS-040: campo embebido (select/texto/número)
 });
 // Referencias de URL por opción (VS-039, docs/engines/form.md "Referencias de
 // URL por opción"): hallazgo de la 4.ª inspección — S&P adjunta la fila de
 // referencias DENTRO de la opción de un radio, no como Elemento `url_publica`
 // separado. Campo opcional, compatible hacia atrás; misma clave sintética
 // que el 3er nivel de sub-opciones (`${elementId}::${optionId}::refs`), sin
-// cambios en response.ts. Solo nivel 1 (no en subOptions, ver "Fuera de
-// alcance" del doc).
+// cambios en response.ts.
 const formOption = z.object({
   id: z.string().min(1),
   label: z.string(),
   subOptions: z.array(subOption).optional(),
-  references: z
-    .object({
-      maxUrls: z.number().int().positive().optional(), // default 3 (límite observado en S&P)
-    })
-    .optional(),
+  // VS-040: gobierna SOLO el grupo subOptions de este nivel — default false
+  // (checkbox/múltiple, comportamiento preexistente) preserva compatibilidad
+  // hacia atrás. true = radio/excluyente (hallazgo: S&P usa esto en un grupo
+  // anidado real). El nivel 2 (subOption.subOptions) no tiene este campo,
+  // sigue siempre checkbox/múltiple.
+  subOptionsExclusive: z.boolean().optional(),
+  references: optionReferences.optional(),
 });
 
 // Tabla de datos (VS-024, docs/engines/form.md "Tabla de datos"): columnas

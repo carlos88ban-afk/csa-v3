@@ -533,8 +533,8 @@ const formOption = z.object({
 
 ### Fuera de alcance (explícito)
 
-- **Controles (select/dropdown) dentro de sub-opciones** — el ejemplo de S&P tiene un select de porcentaje dentro de una sub-opción; las sub-opciones siguen siendo solo checkboxes de texto. Si el usuario lo pide, es un slice aparte (las sub-opciones pasarían de "checkboxes" a "tipos de campo configurables" — cambio de forma mayor en `AnswerValue`).
-- **Visibilidad condicional de referencias por sub-opción** — `references` se adjunta a la opción padre (nivel 1), no a sub-opciones.
+- **Controles (select/dropdown) dentro de sub-opciones** — resuelto por VS-040 (ver sección siguiente), ya no está fuera de alcance.
+- **Visibilidad condicional de referencias por sub-opción** — `references` se adjunta a la opción padre (nivel 1), no a sub-opciones. (VS-040 lo extiende a sub-opciones de nivel 1 también — ver abajo — pero sigue sin condicionarse por `visibleIf`.)
 - **`visibleIf` sobre referencias** — misma limitación ya documentada en VS-016/VS-026: las condiciones operan sobre elementos, no sobre partes de una opción.
 
 ### Notas de implementación
@@ -543,3 +543,77 @@ const formOption = z.object({
 - **Export CSV** (`apps/web/app/api/evaluations/[id]/export/route.ts`): sigue siendo "una fila por Elemento" (ver `export.md`) — no se agrega fila/columna nueva. Las referencias de la opción elegida se anexan como sufijo de la celda `Respuesta` ya existente: `{label de la opción} (Referencias: url1; url2)`, mismo criterio `"; "` join sin resolución de labels que `url_publica`. Aplica tanto a `seleccion_unica` (la opción elegida) como a `seleccion_multiple` (cada opción elegida que tenga `references`, dentro del join `"; "` ya existente entre opciones).
 - **Builder/Runtime/preview**: `apps/web/components/subindicator-editor.tsx` (botón + campo `maxUrls` por opción), `apps/web/app/evaluations/[token]/page.tsx` (`OptionReferencesView`, mismo patrón de slots que `UrlPublicaView`), `apps/web/components/form-preview.tsx` (slots de solo lectura en el preview en vivo del Builder, mismo criterio que el resto de `url_publica` ahí).
 - Verificado manualmente en navegador real (Builder + preview en vivo + Runtime público + export CSV) con un framework temporal creado y borrado al terminar (`DELETE /api/frameworks/[id]`, mismo endpoint ya existente) — sin dejar datos de prueba en la base de producción.
+
+## Campos embebidos en sub-opciones + exclusividad configurable (VS-040, implementado — 2026-08-14)
+
+Segundo hallazgo sobre la misma pregunta 0.1 "Sustainability Reporting Boundaries" (HTML real de S&P enviado por el usuario, mismo día que VS-039). El usuario pidió analizar la estructura completa de la sub-pregunta anidada bajo la opción "Sí, la empresa informa...", explícitamente dejada fuera de alcance en VS-039.
+
+### Hallazgo
+
+La sub-pregunta anidada `OverallSustainabilityDisclosure` (revelada al marcar "Sí, la empresa informa...") tiene 4 sub-opciones:
+
+1. "Todas las actividades totalmente consolidadas..." — texto plano.
+2. "El siguiente porcentaje de los ingresos... está cubierto:" — trae un **`<select>` embebido** (`data-dpd-type="List"`, rangos de porcentaje) que solo tiene sentido si se marca esta sub-opción.
+3. "Actividades bajo control operativo..." — texto plano.
+4. "Nada de lo anterior, pero..." — texto plano.
+
+Dos gaps, no uno:
+
+- **Gap A (lo pedido explícitamente)**: una sub-opción puede traer su propio campo (el select de porcentaje). `subOption` hoy es solo `{ id, label, subOptions? }` — no puede cargar un campo propio.
+- **Gap B (hallazgo adicional en el mismo HTML)**: el grupo `OverallSustainabilityDisclosure` es `type="radio"` — **mutuamente excluyente** (marcar una desmarca las demás). El Runtime actual (`SubOptionsView`) renderiza **todas** las sub-opciones como `checkbox` (selección múltiple) en cualquier nivel — decisión de VS-016 documentada como *"siempre selección múltiple, mismo patrón que S&P"*, que este HTML real contradice. Sin corregirlo, la plataforma permitiría marcar "Todas las actividades" y "% de ingresos" al mismo tiempo, algo que S&P no permite. Confirmado con el usuario (`AskUserQuestion`) que se corrige en el mismo slice.
+
+### Decisión de diseño
+
+`formOption` gana `subOptionsExclusive` (gobierna el grupo `subOptions` de nivel 1 únicamente); `subOption` gana `references` (mismo campo que VS-039, ahora también a nivel de sub-opción) y `field` (el campo embebido):
+
+```ts
+const subOptionFieldOption = z.object({ id: z.string().min(1), label: z.string() });
+const subOptionField = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("seleccion_desplegable"), options: z.array(subOptionFieldOption).min(1) }),
+  z.object({ type: z.literal("texto_corto"), maxLength: z.number().int().positive().optional() }),
+  z.object({
+    type: z.literal("numero"),
+    min: z.number().optional(),
+    max: z.number().optional(),
+    unit: z.string().min(1).optional(),
+  }),
+]);
+
+const subOption = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  subOptions: z.array(subSubOption).optional(),
+  references: z.object({ maxUrls: z.number().int().positive().optional() }).optional(), // VS-040: mismo campo que formOption.references, ahora en sub-opción
+  field: subOptionField.optional(), // VS-040: campo embebido (select/texto/número)
+});
+
+const formOption = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  subOptions: z.array(subOption).optional(),
+  subOptionsExclusive: z.boolean().optional(), // VS-040: default false (checkbox/múltiple, comportamiento actual) — true = radio/excluyente
+  references: z.object({ maxUrls: z.number().int().positive().optional() }).optional(),
+});
+```
+
+- **Compatible hacia atrás**: los 3 campos son opcionales; `subOptionsExclusive` por defecto (`undefined`/`false`) preserva el comportamiento actual (checkbox/múltiple) para todo `formSchema` existente — sin migración.
+- **Respuesta**: mismo patrón de clave sintética que VS-039, un segmento más allá de la propia clave de la sub-opción: `` `${elementId}::${optionId}::${subOptionId}::field` `` → `string | number` (según el tipo del field) y `` `${elementId}::${optionId}::${subOptionId}::refs` `` → `string[]`. No colisiona con la clave de sub-sub-opciones (`${elementId}::${optionId}::${subOptionId}`, sin sufijo) que ya existe desde VS-026. Sin cambios en `response.ts`.
+- **Exclusividad**: cuando `subOptionsExclusive` es `true`, el grupo de `subOptions` de esa opción se renderiza como radios (un solo `value: string` en la clave `${elementId}::${optionId}`, no un array) — igual que el nivel raíz de `seleccion_unica`. Cuando es `false`/ausente, sigue como hasta ahora (checkboxes, `string[]`). **Solo afecta el nivel 1** (`formOption.subOptions`); el nivel 2 (`subOption.subOptions`, sub-sub-opciones) sigue siendo siempre checkbox/múltiple — sin evidencia de necesitar excluyencia ahí, aditivo si aparece.
+- **Runtime**: al marcar una sub-opción con `field`, se renderiza debajo el control correspondiente (`<select>`, `<input type="text">` o `<input type="number">`, mismo patrón visual que los tipos de Elemento equivalentes). Al marcar una con `references`, se renderiza debajo la lista de slots de URL (mismo `OptionReferencesView` de VS-039, reutilizado tal cual con la clave un nivel más adentro).
+- **Builder**: cada opción con sub-opciones gana un checkbox "Sub-opciones excluyentes (solo una a la vez)"; cada sub-opción gana los mismos botones que una opción de nivel 1 ("Agregar referencias (URL)") más un selector "Agregar campo" (Selección desplegable / Texto corto / Número) con su configuración correspondiente y botón "Quitar campo".
+
+### Corrección de una inconsistencia preexistente (preview del Builder)
+
+Al implementar esto se encontró que `apps/web/components/form-preview.tsx` (preview en vivo del Builder) ya renderizaba las sub-opciones de **nivel 1** como radio (`type={level === 1 ? "radio" : "checkbox"}`) — basado en el nivel, no en un campo del schema — mientras el Runtime real (`evaluations/[token]/page.tsx`) las renderizaba **siempre** como checkbox, sin importar el nivel. Preexistente desde VS-016, sin impacto en datos guardados (el preview del Builder nunca persiste respuestas, es efímero). VS-040 hace que ambos componentes obedezcan el mismo campo explícito `subOptionsExclusive` (default `false` = checkbox, igual que el Runtime ya hacía) — corrige la inconsistencia en vez de preservarla. Documentado en `docs/project_notes/bugs.md`.
+
+### Fuera de alcance (explícito)
+
+- **`field`/`references`/exclusividad en sub-sub-opciones (nivel 2)** — solo `subOption` (nivel 1) gana estos campos; `subSubOption` sigue siendo `{ id, label }`. Sin caso observado que lo necesite; aditivo si aparece, mismo criterio que el resto de este documento.
+- **`availableUnits` (selector de unidad) en el field tipo `numero`** — solo `unit` fijo opcional, sin selector. El caso observado (select de porcentaje) no lo necesita.
+- **`visibleIf` sobre el field embebido** — misma limitación ya documentada para `references`.
+- **Validación cruzada `field`/`subOptions` en la misma sub-opción** — el schema no impide que una sub-opción tenga simultáneamente `field` y sus propias `subOptions` (sub-sub-opciones); no hay caso observado que lo combine, pero tampoco se prohíbe por simplicidad.
+
+### Notas de implementación
+
+- **Export CSV**: mismo criterio que VS-039 — sin fila/columna nueva. El valor del `field` (resuelto a label si es `seleccion_desplegable`, literal si es texto/número) y las `references` de la sub-opción marcada se anexan a la celda `Respuesta` existente.
+- **Builder/Runtime/preview**: mismos archivos que VS-039, extendidos: `subindicator-editor.tsx`, `evaluations/[token]/page.tsx` (`SubOptionsView`/`PreviewSubOptions` ganan modo excluyente + render de `field`/`references` embebidos), `form-preview.tsx`.

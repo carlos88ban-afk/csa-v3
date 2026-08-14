@@ -445,6 +445,113 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     );
   }
 
+  function toggleSubOptionsExclusive(elementId: string, optionId: string, exclusive: boolean) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return { ...el, options: el.options.map((opt) => (opt.id === optionId ? { ...opt, subOptionsExclusive: exclusive } : opt)) };
+      }),
+    );
+  }
+
+  // Campos embebidos en sub-opciones + exclusividad (VS-040, docs/engines/form.md
+  // "Campos embebidos en sub-opciones"): mismo patrón CRUD que references/subOptions
+  // de nivel 1, pero un nivel más adentro (subOption, no formOption). Helper
+  // compartido para no repetir el mismo recorrido anidado 7 veces.
+  type SubOption = NonNullable<Extract<FormElement, { type: "seleccion_unica" }>["options"][number]["subOptions"]>[number];
+  type SubOptionField = NonNullable<SubOption["field"]>;
+
+  function updateSubOptionNode(elementId: string, optionId: string, subOptionId: string, updater: (sub: SubOption) => SubOption) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return {
+          ...el,
+          options: el.options.map((opt) =>
+            opt.id === optionId
+              ? { ...opt, subOptions: (opt.subOptions ?? []).map((sub) => (sub.id === subOptionId ? updater(sub) : sub)) }
+              : opt,
+          ),
+        };
+      }),
+    );
+  }
+
+  function addSubOptionReferences(elementId: string, optionId: string, subOptionId: string) {
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, references: {} }));
+  }
+
+  function removeSubOptionReferences(elementId: string, optionId: string, subOptionId: string) {
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => {
+      const { references: _references, ...rest } = sub;
+      return rest;
+    });
+  }
+
+  function updateSubOptionReferencesMaxUrls(elementId: string, optionId: string, subOptionId: string, maxUrls: number | undefined) {
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, references: { maxUrls } }));
+  }
+
+  function addSubOptionField(elementId: string, optionId: string, subOptionId: string, type: SubOptionField["type"]) {
+    const field: SubOptionField =
+      type === "seleccion_desplegable"
+        ? { type: "seleccion_desplegable", options: [{ id: crypto.randomUUID(), label: "" }] }
+        : type === "texto_corto"
+          ? { type: "texto_corto" }
+          : { type: "numero" };
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, field }));
+  }
+
+  function removeSubOptionField(elementId: string, optionId: string, subOptionId: string) {
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => {
+      const { field: _field, ...rest } = sub;
+      return rest;
+    });
+  }
+
+  function updateSubOptionFieldMaxLength(elementId: string, optionId: string, subOptionId: string, maxLength: number | undefined) {
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) =>
+      sub.field?.type === "texto_corto" ? { ...sub, field: { ...sub.field, maxLength } } : sub,
+    );
+  }
+
+  function updateSubOptionFieldNumero(
+    elementId: string,
+    optionId: string,
+    subOptionId: string,
+    patch: { min?: number | undefined; max?: number | undefined; unit?: string | undefined },
+  ) {
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) =>
+      sub.field?.type === "numero" ? { ...sub, field: { ...sub.field, ...patch } } : sub,
+    );
+  }
+
+  function addSubOptionFieldOption(elementId: string, optionId: string, subOptionId: string) {
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) =>
+      sub.field?.type === "seleccion_desplegable"
+        ? { ...sub, field: { ...sub.field, options: [...sub.field.options, { id: crypto.randomUUID(), label: "" }] } }
+        : sub,
+    );
+  }
+
+  function updateSubOptionFieldOption(elementId: string, optionId: string, subOptionId: string, fieldOptionId: string, label: string) {
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) =>
+      sub.field?.type === "seleccion_desplegable"
+        ? { ...sub, field: { ...sub.field, options: sub.field.options.map((o) => (o.id === fieldOptionId ? { ...o, label } : o)) } }
+        : sub,
+    );
+  }
+
+  function removeSubOptionFieldOption(elementId: string, optionId: string, subOptionId: string, fieldOptionId: string) {
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) =>
+      sub.field?.type === "seleccion_desplegable" && sub.field.options.length > 1
+        ? { ...sub, field: { ...sub.field, options: sub.field.options.filter((o) => o.id !== fieldOptionId) } }
+        : sub,
+    );
+  }
+
   // Tabla de datos (VS-024, docs/engines/form.md "Tabla de datos"): columnas
   // son solo encabezados, filas cargan tipo/unidad de toda la fila.
   type TableRow = Extract<FormElement, { type: "tabla_datos" }>["rows"][number];
@@ -810,6 +917,16 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                 </Button>
                               </div>
                               <div className="sub-options">
+                                {(opt.subOptions?.length ?? 0) > 0 && (
+                                  <label className="field field--checkbox">
+                                    <input
+                                      type="checkbox"
+                                      checked={opt.subOptionsExclusive ?? false}
+                                      onChange={(e) => toggleSubOptionsExclusive(el.id, opt.id, e.target.checked)}
+                                    />
+                                    <span className="field__label">Sub-opciones excluyentes (solo una a la vez)</span>
+                                  </label>
+                                )}
                                 {(opt.subOptions ?? []).map((sub) => (
                                   <div key={sub.id}>
                                     <div className="option-row option-row--sub">
@@ -826,6 +943,158 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                       >
                                         Quitar
                                       </Button>
+                                    </div>
+                                    <div className="sub-option-field" style={{ marginLeft: "var(--space-4)" }}>
+                                      {sub.field ? (
+                                        <div className="option-row">
+                                          <span className="field__label">
+                                            {sub.field.type === "seleccion_desplegable" && "Campo: selección desplegable"}
+                                            {sub.field.type === "texto_corto" && "Campo: texto corto"}
+                                            {sub.field.type === "numero" && "Campo: número"}
+                                          </span>
+                                          <Button
+                                            type="button"
+                                            variant="danger"
+                                            size="sm"
+                                            onClick={() => removeSubOptionField(el.id, opt.id, sub.id)}
+                                          >
+                                            Quitar campo
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <select
+                                          value=""
+                                          onChange={(e) => {
+                                            if (e.target.value) {
+                                              addSubOptionField(el.id, opt.id, sub.id, e.target.value as SubOptionField["type"]);
+                                            }
+                                          }}
+                                        >
+                                          <option value="">Agregar campo…</option>
+                                          <option value="seleccion_desplegable">Selección desplegable</option>
+                                          <option value="texto_corto">Texto corto</option>
+                                          <option value="numero">Número</option>
+                                        </select>
+                                      )}
+                                      {sub.field?.type === "seleccion_desplegable" &&
+                                        (() => {
+                                          const selectField = sub.field;
+                                          return (
+                                            <div className="options" style={{ marginLeft: "var(--space-4)" }}>
+                                              {selectField.options.map((fo) => (
+                                                <div className="option-row" key={fo.id}>
+                                                  <input
+                                                    value={fo.label}
+                                                    onChange={(e) => updateSubOptionFieldOption(el.id, opt.id, sub.id, fo.id, e.target.value)}
+                                                  />
+                                                  <Button
+                                                    type="button"
+                                                    variant="danger"
+                                                    size="sm"
+                                                    onClick={() => removeSubOptionFieldOption(el.id, opt.id, sub.id, fo.id)}
+                                                    disabled={selectField.options.length <= 1}
+                                                  >
+                                                    Quitar
+                                                  </Button>
+                                                </div>
+                                              ))}
+                                              <Button type="button" size="sm" onClick={() => addSubOptionFieldOption(el.id, opt.id, sub.id)}>
+                                                Agregar opción
+                                              </Button>
+                                            </div>
+                                          );
+                                        })()}
+                                      {sub.field?.type === "texto_corto" && (
+                                        <label className="field" style={{ marginLeft: "var(--space-4)" }}>
+                                          <span className="field__label">Longitud máxima</span>
+                                          <input
+                                            type="number"
+                                            value={sub.field.maxLength ?? ""}
+                                            onChange={(e) =>
+                                              updateSubOptionFieldMaxLength(
+                                                el.id,
+                                                opt.id,
+                                                sub.id,
+                                                e.target.value === "" ? undefined : Number(e.target.value),
+                                              )
+                                            }
+                                          />
+                                        </label>
+                                      )}
+                                      {sub.field?.type === "numero" && (
+                                        <div className="field-grid" style={{ marginLeft: "var(--space-4)" }}>
+                                          <label className="field">
+                                            <span className="field__label">Mínimo</span>
+                                            <input
+                                              type="number"
+                                              value={sub.field.min ?? ""}
+                                              onChange={(e) =>
+                                                updateSubOptionFieldNumero(el.id, opt.id, sub.id, {
+                                                  min: e.target.value === "" ? undefined : Number(e.target.value),
+                                                })
+                                              }
+                                            />
+                                          </label>
+                                          <label className="field">
+                                            <span className="field__label">Máximo</span>
+                                            <input
+                                              type="number"
+                                              value={sub.field.max ?? ""}
+                                              onChange={(e) =>
+                                                updateSubOptionFieldNumero(el.id, opt.id, sub.id, {
+                                                  max: e.target.value === "" ? undefined : Number(e.target.value),
+                                                })
+                                              }
+                                            />
+                                          </label>
+                                          <label className="field">
+                                            <span className="field__label">Unidad</span>
+                                            <input
+                                              value={sub.field.unit ?? ""}
+                                              onChange={(e) =>
+                                                updateSubOptionFieldNumero(el.id, opt.id, sub.id, {
+                                                  unit: e.target.value === "" ? undefined : e.target.value,
+                                                })
+                                              }
+                                            />
+                                          </label>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="option-references" style={{ marginLeft: "var(--space-4)" }}>
+                                      {sub.references ? (
+                                        <div className="option-row">
+                                          <label className="field">
+                                            <span className="field__label">Máximo de URLs</span>
+                                            <input
+                                              type="number"
+                                              min={1}
+                                              value={sub.references.maxUrls ?? ""}
+                                              placeholder="3"
+                                              onChange={(e) =>
+                                                updateSubOptionReferencesMaxUrls(
+                                                  el.id,
+                                                  opt.id,
+                                                  sub.id,
+                                                  e.target.value === "" ? undefined : Number(e.target.value),
+                                                )
+                                              }
+                                            />
+                                          </label>
+                                          <Button
+                                            type="button"
+                                            variant="danger"
+                                            size="sm"
+                                            onClick={() => removeSubOptionReferences(el.id, opt.id, sub.id)}
+                                          >
+                                            Quitar referencias
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <Button type="button" size="sm" onClick={() => addSubOptionReferences(el.id, opt.id, sub.id)}>
+                                          Agregar referencias (URL)
+                                        </Button>
+                                      )}
                                     </div>
                                     <div className="sub-options" style={{ marginLeft: "var(--space-4)" }}>
                                       {(sub.subOptions ?? []).map((subsub) => (

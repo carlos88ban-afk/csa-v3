@@ -4,6 +4,18 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-040 — Campos embebidos en sub-opciones + exclusividad configurable (2026-08-14)
+
+- Segundo hallazgo sobre la misma pregunta 0.1 de S&P (mismo HTML que originó VS-039): la sub-pregunta anidada "OverallSustainabilityDisclosure" trae una sub-opción con su propio `<select>` (rangos de % de ingresos) y el grupo completo es `type="radio"` (mutuamente excluyente) — ninguna de las dos cosas era soportada. El usuario pidió corregir ambas en el mismo slice tras revisar el análisis (`AskUserQuestion`).
+- `packages/sdk-core/src/form-schema.ts`: `subOption` gana `field?: { type: "seleccion_desplegable" | "texto_corto" | "numero", ... }` (campo embebido) y `references?: { maxUrls? }` (mismo campo que `formOption`, ahora también en sub-opción); `formOption` gana `subOptionsExclusive?: boolean` (default `false` = checkbox/múltiple, preserva compatibilidad). 10 tests nuevos en `form-schema.test.ts`.
+- **Respuesta**: clave sintética un segmento más allá de VS-039: `` `${elementId}::${optionId}::${subOptionId}::field` `` y `::refs`. Sin cambios en `response.ts`.
+- **Builder** (`subindicator-editor.tsx`): checkbox "Sub-opciones excluyentes (solo una a la vez)" por opción; cada sub-opción gana "Agregar campo…" (Selección desplegable/Texto corto/Número) con su configuración y "Agregar referencias (URL)".
+- **Runtime** (`evaluations/[token]/page.tsx`): `SubOptionsView` gana el prop `exclusive` (radio vs checkbox, solo nivel 1) + renderiza `SubOptionFieldView`/`OptionReferencesView` bajo la sub-opción marcada.
+- **Preview del Builder** (`form-preview.tsx`): mismo comportamiento interactivo (a diferencia de `url_publica`, un campo simple sí se simula funcionalmente en el preview, no solo de solo lectura). De paso corrige una inconsistencia preexistente desde VS-016 (preview trataba nivel 1 como excluyente por heurística fija; el Runtime real siempre lo trataba como múltiple) — ver `docs/project_notes/bugs.md`.
+- **Export CSV** (`apps/web/app/api/evaluations/[id]/export/route.ts`): sigue siendo una fila por Elemento — la sub-opción marcada (con su `field` resuelto a label/literal y sus `references`) se anexa a la celda `Respuesta` tras un `—`.
+- Verificado manualmente en navegador real (Builder, preview en vivo, Runtime público con exclusividad real confirmada, export CSV) con un framework temporal — sesión completa documentada en `docs/checkpoints/CHECKPOINT.md`.
+- Verificado: `pnpm typecheck`/`build`/`test` en verde.
+
 ### VS-039 — Referencias de URL por opción en selección única/múltiple (2026-08-14)
 
 - Hallazgo de la 4.ª inspección contra el HTML real de la pregunta 0.1 "Sustainability Reporting Boundaries" del portal S&P Global CSA 2026: S&P adjunta la fila de referencias de URL pública (máx. 3) DENTRO de cada opción de un radio, no como Elemento `url_publica` separado — el usuario fue explícito en que sigue siendo "una sola pregunta", no dos preguntas separadas. VS-017 (`url_publica` como Elemento) no cubre este caso.

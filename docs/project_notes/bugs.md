@@ -12,6 +12,13 @@ Registro cronológico de bugs y su solución. Entradas breves. Limpiar entradas 
 - **Prevention**: cómo evitarlo (opcional)
 ```
 
+### 2026-08-14 - Preview del Builder trataba sub-opciones de nivel 1 como excluyentes, el Runtime real como múltiples [RESUELTO]
+
+- **Issue**: `apps/web/components/form-preview.tsx` (`PreviewSubOptions`, preview en vivo del Builder) renderizaba las sub-opciones de nivel 1 como `type="radio"` (excluyentes) mientras `apps/web/app/evaluations/[token]/page.tsx` (`SubOptionsView`, Runtime real) las renderizaba siempre como `type="checkbox"` (múltiples), sin importar el nivel. Encontrado al implementar VS-040 (analizando el HTML real de S&P, que confirmó que S&P sí usa grupos excluyentes en algunos casos anidados).
+- **Root Cause**: `PreviewSubOptions` decidía el comportamiento a partir del nivel de anidamiento (`level === 1 ? "radio" : "checkbox"`), una heurística fija desde VS-016, en vez de un campo explícito del schema. `SubOptionsView` nunca implementó esa heurística y quedó siempre en checkbox. Ninguno de los dos estaba "mal" en sí — simplemente no había un campo del schema que gobernara el comportamiento, así que cada componente asumió algo distinto.
+- **Solution**: VS-040 agrega `formOption.subOptionsExclusive?: boolean` (default `false`) — ambos componentes ahora leen el mismo campo explícito en vez de asumir por nivel o quedar fijos en checkbox. Sin impacto en datos guardados: el preview del Builder nunca persiste respuestas (es efímero), y el comportamiento por defecto (`false`) preserva el checkbox que el Runtime real ya usaba.
+- **Prevention**: cuando un comportamiento de UI depende de "qué tipo de grupo es esto", modelarlo como campo explícito del schema desde el principio, no como heurística implícita (nivel de anidamiento, posición, etc.) — evita que dos componentes que renderizan la misma estructura diverjan silenciosamente.
+
 ### 2026-08-14 - E2E `builder-publish.spec.ts`: wizard del builder no reconoce una Dimensión recién creada como seleccionada [RESUELTO]
 
 - **Issue**: al correr el e2e completo (Framework → Dimensión → Builder → Indicador → ...), tras crear una Dimensión y navegar a `/builder?s=<dimId>` (URL correcta, confirmada), el panel derecho muestra el asistente de 4 pasos (VS-032) todavía en el paso 1 "Dimensión" con el botón "Crear dimensión" — nunca aparece el botón "Crear indicador" que el test espera para una dimensión ya creada y seleccionada, aunque el árbol de la izquierda sí muestra la dimensión correctamente expandida con "Sin indicadores todavía".
