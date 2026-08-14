@@ -64,32 +64,6 @@ const subOptionField = z.discriminatedUnion("type", [
   }),
 ]);
 
-const subOption = z.object({
-  id: z.string().min(1),
-  label: z.string(),
-  subOptions: z.array(subSubOption).optional(),
-  references: optionReferences.optional(), // VS-040: mismo campo que formOption.references
-  field: subOptionField.optional(), // VS-040: campo embebido (select/texto/número)
-});
-// Referencias de URL por opción (VS-039, docs/engines/form.md "Referencias de
-// URL por opción"): hallazgo de la 4.ª inspección — S&P adjunta la fila de
-// referencias DENTRO de la opción de un radio, no como Elemento `url_publica`
-// separado. Campo opcional, compatible hacia atrás; misma clave sintética
-// que el 3er nivel de sub-opciones (`${elementId}::${optionId}::refs`), sin
-// cambios en response.ts.
-const formOption = z.object({
-  id: z.string().min(1),
-  label: z.string(),
-  subOptions: z.array(subOption).optional(),
-  // VS-040: gobierna SOLO el grupo subOptions de este nivel — default false
-  // (checkbox/múltiple, comportamiento preexistente) preserva compatibilidad
-  // hacia atrás. true = radio/excluyente (hallazgo: S&P usa esto en un grupo
-  // anidado real). El nivel 2 (subOption.subOptions) no tiene este campo,
-  // sigue siempre checkbox/múltiple.
-  subOptionsExclusive: z.boolean().optional(),
-  references: optionReferences.optional(),
-});
-
 // Tabla de datos (VS-024, docs/engines/form.md "Tabla de datos"): columnas
 // son solo encabezados, filas cargan el tipo/unidad de TODA la fila.
 // `options` solo aplica si cellType === "seleccion_desplegable", `unit`/
@@ -103,14 +77,64 @@ const formTableColumn = z.object({
   label: z.string(),
 });
 
+// VS-042 (docs/engines/form.md "Tabla dentro de una sub-opción"): rompe el
+// ciclo de tipos formTableRow -> formOption -> subOption -> tablaDatosConfig
+// -> formTableRow. Las opciones de una fila (`seleccion_desplegable`) nunca
+// usan `subOptions` en la práctica (id/label alcanzan), así que se tipan con
+// `formOptionBase` (sin subOptions) — el contrato se estrecha sin romper
+// nada: zod hace strip de claves desconocidas, un schema antiguo con
+// subOptions en una opción de fila sigue validando (el campo se ignora).
+const formOptionBase = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  references: optionReferences.optional(),
+  subOptionsExclusive: z.boolean().optional(),
+});
+
 const formTableRow = z.object({
   id: z.string().min(1),
   label: z.string(),
   cellType: formTableCellType,
   unit: z.string().min(1).optional(),
   availableUnits: z.array(z.string().min(1)).min(1).optional(),
-  options: z.array(formOption).min(1).optional(),
+  options: z.array(formOptionBase).min(1).optional(),
   maxLength: z.number().int().positive().optional(),
+});
+
+// Shape reutilizado por el Elemento `tabla_datos` y por la tabla embebida de
+// una sub-opción (VS-042) — un solo tipo zod, sin duplicación. Sin
+// label/visibleIf propios: la tabla embebida hereda los de la sub-opción.
+const tablaDatosConfig = z.object({
+  columns: z.array(formTableColumn).min(1),
+  rows: z.array(formTableRow).min(1),
+});
+
+// Tipos nombrados exportados: los consumidores (Runtime, Preview, Builder,
+// export CSV) comparten UNA instancia tipada en vez de derivar con Extract
+// por su cuenta — los tipos recursivos del schema (formTableRow -> formOption
+// -> subOption -> tablaDatosConfig -> formTableRow) se duplican en identidad
+// al expandirse por rutas distintas y TypeScript los declara "unrelated"
+// (TS2719), aunque sean estructuralmente idénticos.
+export type FormTableColumn = z.infer<typeof formTableColumn>;
+export type FormTableRow = z.infer<typeof formTableRow>;
+export type TablaDatosConfig = z.infer<typeof tablaDatosConfig>;
+
+const subOption = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  subOptions: z.array(subSubOption).optional(),
+  references: optionReferences.optional(), // VS-040: mismo campo que formOption.references
+  field: subOptionField.optional(), // VS-040: campo embebido (select/texto/número)
+  table: tablaDatosConfig.optional(), // VS-042: tabla embebida (mismo shape que tabla_datos)
+});
+// Referencias de URL por opción (VS-039, docs/engines/form.md "Referencias de
+// URL por opción"): hallazgo de la 4.ª inspección — S&P adjunta la fila de
+// referencias DENTRO de la opción de un radio, no como Elemento `url_publica`
+// separado. Campo opcional, compatible hacia atrás; misma clave sintética
+// que el 3er nivel de sub-opciones (`${elementId}::${optionId}::refs`), sin
+// cambios en response.ts.
+const formOption = formOptionBase.extend({
+  subOptions: z.array(subOption).optional(),
 });
 
 export const formElement = z.discriminatedUnion("type", [
@@ -191,11 +215,11 @@ export const formElement = z.discriminatedUnion("type", [
   // Tabla de datos (VS-024): el tipo de celda se define por FILA, no por
   // celda individual (ver docs/engines/form.md, "Decisión de diseño") — una
   // fila es una métrica con una unidad, las columnas son sus períodos.
+  // Shape compartido con la tabla embebida de sub-opción (VS-042).
   z.object({
     ...questionBase,
     type: z.literal("tabla_datos"),
-    columns: z.array(formTableColumn).min(1),
-    rows: z.array(formTableRow).min(1),
+    ...tablaDatosConfig.shape,
   }),
   // Sin questionBase: no es una pregunta editada por el evaluado, el
   // Runtime escribe su valor automáticamente (ver docs/engines/formula.md,

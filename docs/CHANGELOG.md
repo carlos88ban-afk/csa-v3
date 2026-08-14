@@ -4,6 +4,17 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-042 — Tabla embebida dentro de una sub-opción (2026-08-14)
+
+- 5.ª inspección AN-001: el HTML real de S&P (pregunta 0.1 "COG_BoardType_Selection") anida una tabla con fila de fórmula DENTRO de una sub-opción marcada — el patrón completo era radio → sub-radio → tabla anidada. VS-040/041 ya cubrían radio → sub-radio; faltaba la tabla anidada.
+- `packages/sdk-core/src/form-schema.ts`: `subOption` gana `table?: tablaDatosConfig` (mismo shape que el Elemento `tabla_datos`, reutilizado con `...tablaDatosConfig.shape`, sin duplicación). El ciclo de tipos `formTableRow → formOption → subOption → tablaDatosConfig → formTableRow` se rompió con `formOptionBase` (sin `subOptions`, que las opciones de fila nunca usan; zod hace strip de las claves sobrantes, los schemas antiguos siguen validando). Se exportan `FormTableColumn`/`FormTableRow`/`TablaDatosConfig` (z.infer) — los consumidores comparten una instancia tipada única en vez de derivar con `Extract`, que duplica la identidad de los tipos recursivos (TS2719 "unrelated"). 9 tests nuevos en `form-schema.test.ts`.
+- **Respuesta**: clave sintética `` `${elementId}::${optionId}::${subOptionId}::table` `` → `TableValue` (mismo mapa rowId→colId→valor que `tabla_datos`), unidades por fila con `unitKey("${subOptionKey}::table::${row.id}")`.
+- **Builder** (`subindicator-editor.tsx`): `TableConfigEditor` extraído (antes helpers + JSX inline de `tabla_datos`), reutilizado por el Elemento y por la sub-opción (botón "Agregar tabla" / "Quitar tabla"). Refactor puro para `tabla_datos` — misma UI y comportamiento.
+- **Runtime** (`evaluations/[token]/page.tsx`): `FormTableView` gana `label`/`unitKeyPrefix` (reutilizable) y se renderiza en `SubOptionsView` entre `field` y las referencias (orden: field → table → subOptions → references).
+- **Preview del Builder** (`form-preview.tsx`): `PreviewTableView` extraído con el mismo patrón, renderizado en `PreviewSubOptions`.
+- **Export CSV** (`route.ts`): la tabla embebida se serializa igual que `tabla_datos` (`fila: col1=v1, col2=v2; …`) y se anexa a la celda `Respuesta` como `Tabla: …` — sigue siendo una fila por Elemento.
+- Verificado: `pnpm typecheck`/`build`/`test` en verde.
+
 ### VS-041 — Ajustes UX en referencias de URL (2026-08-14)
 
 - El usuario probó VS-039/VS-040 en producción y reportó dos problemas de UX (sin cambio de schema): (1) el bloque de referencias (URL) se renderizaba antes que las sub-opciones anidadas cuando una sub-opción tenía ambas — corregido a sub-opciones primero, referencias al final; (2) los campos de URL crecían automáticamente al escribir en el último slot, sin botón explícito — corregido a arrancar en 1 slot con botón "Agregar URL" hasta `maxUrls`.

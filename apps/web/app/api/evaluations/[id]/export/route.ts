@@ -81,6 +81,38 @@ function formatSubOptionExtras(sub: SubOptionNode, subOptionKey: string, answers
     const urls = Array.isArray(refs) ? refs.map((u) => String(u)) : [];
     if (urls.length > 0) parts.push(`Referencias: ${urls.join("; ")}`);
   }
+  // Tabla embebida en una sub-opción (VS-042, docs/engines/form.md "Tabla
+  // dentro de una sub-opción"): misma serialización que tabla_datos, con la
+  // clave sintética `${subOptionKey}::table` y unidades por fila
+  // `${subOptionKey}::table::${row.id}` — sigue siendo "una fila por
+  // Elemento", se anexa a la celda Respuesta.
+  if (sub.table) {
+    const table = sub.table;
+    const tableValue = answers[`${subOptionKey}::table`];
+    if (typeof tableValue === "object" && !Array.isArray(tableValue)) {
+      const tableMap = tableValue as Record<string, Record<string, string | number>>;
+      const serialized = table.rows
+        .map((row) => {
+          const rowValue = tableMap[row.id] ?? {};
+          const unit = row.availableUnits
+            ? ((answers[unitKey(`${subOptionKey}::table::${row.id}`)] as string | undefined) ?? row.availableUnits[0])
+            : row.unit;
+          const cells = table.columns
+            .map((col) => {
+              const cell = rowValue[col.id];
+              if (cell === undefined || cell === "") return null;
+              const resolved =
+                row.cellType === "seleccion_desplegable" ? (row.options?.find((o) => o.id === cell)?.label ?? String(cell)) : String(cell);
+              return `${col.label}=${resolved}${unit && row.cellType === "numero" ? ` ${unit}` : ""}`;
+            })
+            .filter((c): c is string => c !== null);
+          return cells.length > 0 ? `${row.label}: ${cells.join(", ")}` : null;
+        })
+        .filter((r): r is string => r !== null)
+        .join("; ");
+      if (serialized.length > 0) parts.push(`Tabla: ${serialized}`);
+    }
+  }
   return parts.length > 0 ? ` (${parts.join(", ")})` : "";
 }
 

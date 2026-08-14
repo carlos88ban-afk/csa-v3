@@ -23,6 +23,7 @@ import {
   type EvidenceRef,
   type FormElement,
   type ResponseAnswers,
+  type TablaDatosConfig,
   type TableValue,
 } from "@plataforma-csa/sdk-core";
 import { use, useEffect, useMemo, useRef, useState } from "react";
@@ -596,6 +597,10 @@ function SubOptionsView({
     subOptions?: { id: string; label: string }[] | undefined;
     references?: { maxUrls?: number | undefined; position?: "before_suboptions" | "after_suboptions" | undefined } | undefined;
     field?: SubOptionField | undefined;
+    // VS-042 (docs/engines/form.md "Tabla dentro de una sub-opción"): mismo
+    // shape que el Elemento tabla_datos, reutilizado tal cual — solo nivel 1
+    // (subOption), no subSubOption (el tipo del schema lo garantiza).
+    table?: TablaDatosConfig | undefined;
   }[];
   value: AnswerValue | undefined;
   onChange: (value: AnswerValue) => void;
@@ -631,6 +636,22 @@ function SubOptionsView({
               field={sub.field}
               value={answers[`${subKey}::${sub.id}::field`]}
               onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::field`, next)}
+              locked={locked}
+            />
+          )}
+          {/* VS-042: tabla embebida — mismo FormTableView que tabla_datos,
+              clave sintética `${subKey}::${sub.id}::table` (un nivel más
+              adentro que la propia sub-opción) */}
+          {isSelected(sub.id) && sub.table && (
+            <FormTableView
+              label={sub.label}
+              unitKeyPrefix={`${subKey}::${sub.id}::table`}
+              columns={sub.table.columns}
+              rows={sub.table.rows}
+              value={answers[`${subKey}::${sub.id}::table`] as TableValue | undefined}
+              onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::table`, next)}
+              answers={answers}
+              onAnswerChange={onAnswerChange}
               locked={locked}
             />
           )}
@@ -974,22 +995,44 @@ function OptionReferencesView({
 // real, celdas leídas/escritas en el mapa anidado rowId->columnId->valor
 // (onChange reconstruye el objeto completo, mismo patrón inmutable que el
 // resto del Runtime). Unidad por fila (si availableUnits) via unitKey con id
-// compuesto `${element.id}::${row.id}` — una unidad por fila, no por celda.
+// compuesto `${unitKeyPrefix}::${row.id}` — una unidad por fila, no por
+// celda. Reutilizada por la tabla embebida de una sub-opción (VS-042): el
+// Elemento pasa unitKeyPrefix = element.id; la sub-opción pasa
+// `${subKey}::${sub.id}::table` (clave sintética de la respuesta).
+// Tipos del schema exportados desde sdk-core (FormTableColumn/FormTableRow/
+// TablaDatosConfig): instancia única compartida entre FormTableView y la
+// tabla embebida de una sub-opción — los Extract duplican la identidad de los
+// tipos recursivos y TypeScript los declara "unrelated" (TS2719).
+type FormTableColumns = TablaDatosConfig["columns"];
+type FormTableRows = TablaDatosConfig["rows"];
+
+// Alias nombrado de los props (no type literal inline en la firma): TS
+// re-instancia los type literals de los props en cada call site y la
+// identidad de los tipos del schema cambia de una comparación a otra
+// (TS2719 "unrelated"), aunque sean estructuralmente idénticos.
+type FormTableViewProps = {
+  label: string;
+  unitKeyPrefix: string;
+  columns: FormTableColumns;
+  rows: FormTableRows;
+  value: TableValue | undefined;
+  answers: ResponseAnswers;
+  onChange: (value: TableValue) => void;
+  onAnswerChange: (key: string, value: AnswerValue) => void;
+  locked?: boolean | undefined;
+};
+
 function FormTableView({
-  element,
+  label,
+  unitKeyPrefix,
+  columns,
+  rows,
   value,
   answers,
   onChange,
   onAnswerChange,
   locked,
-}: {
-  element: Extract<FormElement, { type: "tabla_datos" }>;
-  value: TableValue | undefined;
-  answers: ResponseAnswers;
-  onChange: (value: TableValue) => void;
-  onAnswerChange: (key: string, value: AnswerValue) => void;
-  locked?: boolean;
-}) {
+}: FormTableViewProps) {
   const table = value ?? {};
 
   function updateCell(rowId: string, columnId: string, cell: string | number) {
@@ -998,11 +1041,11 @@ function FormTableView({
 
   return (
     <table className="runtime-table">
-      <caption className="sr-only">{element.label}</caption>
+      <caption className="sr-only">{label}</caption>
       <thead>
         <tr>
           <th scope="col" />
-          {element.columns.map((col) => (
+          {columns.map((col) => (
             <th key={col.id} scope="col">
               {col.label}
             </th>
@@ -1010,9 +1053,9 @@ function FormTableView({
         </tr>
       </thead>
       <tbody>
-        {element.rows.map((row) => {
+        {rows.map((row) => {
           const rowValue = table[row.id] ?? {};
-          const rowUnitKey = unitKey(`${element.id}::${row.id}`);
+          const rowUnitKey = unitKey(`${unitKeyPrefix}::${row.id}`);
           const rowUnit = row.availableUnits
             ? ((answers[rowUnitKey] as string | undefined) ?? row.availableUnits[0])
             : undefined;
@@ -1031,7 +1074,7 @@ function FormTableView({
                 )}
                 {!row.availableUnits && row.unit && <span className="runtime-question__unit"> ({row.unit})</span>}
               </th>
-              {element.columns.map((col) => {
+              {columns.map((col) => {
                 const cell = rowValue[col.id];
                 if (row.cellType === "seleccion_desplegable") {
                   return (
@@ -1348,11 +1391,14 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
           {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
         </legend>
         {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
-        <FormTableView
-          element={element}
+<FormTableView
+          label={element.label}
+          unitKeyPrefix={element.id}
+          columns={element.columns}
+          rows={element.rows}
           value={table}
           answers={answers}
-          onChange={(next) => onChange(next)}
+          onChange={onChange}
           onAnswerChange={onAnswerChange}
           locked={locked}
         />

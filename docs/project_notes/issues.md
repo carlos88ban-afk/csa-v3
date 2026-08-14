@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-14 - VS-042: Tabla embebida dentro de una sub-opción
+- **Status**: Completed
+- **Description**: 5.ª inspección AN-001 contra el HTML real de S&P (pregunta 0.1 "COG_BoardType_Selection"): radio → sub-radio → tabla anidada con fila de fórmula. VS-040/041 ya cubrían radio → sub-radio; faltaba la tabla anidada (el usuario confirmó el alcance vía `AskUserQuestion`: tabla en sub-opción → VS-042, fórmula en celda → VS-043, overrides por celda → VS-044).
+- **Notes**: `subOption.table?: tablaDatosConfig` (mismo shape que `tabla_datos`). Ciclo de tipos resuelto con `formOptionBase` (opciones de fila sin `subOptions`). Tipos de tabla exportados desde sdk-core (`FormTableColumn`/`FormTableRow`/`TablaDatosConfig`) para evitar TS2719 por doble instanciación de tipos recursivos con `Extract`. `TableConfigEditor` extraído en el Builder (reutilizado por elemento y sub-opción — refactor puro para `tabla_datos`); `FormTableView`/`PreviewTableView` ganan `label`/`unitKeyPrefix` para reuso. Clave sintética `${elementId}::${optionId}::${subOptionId}::table`. Export CSV: `Tabla: fila: col=v, …` anexado a la celda Respuesta. 9 tests nuevos. `pnpm typecheck`/`build`/`test` en verde.
+
 ### 2026-08-14 - VS-041 (corrección): posición configurable de las referencias
 - **Status**: Completed
 - **Description**: El fix de VS-041 (orden fijo `subOptions → references`) resultó confuso — el usuario señaló que visualmente parecía que el campo de URL pertenecía a la última sub-opción, no a la opción padre. Revisando de nuevo el HTML original de S&P: la fila de referencias vive INMEDIATAMENTE después de la opción, ANTES de la sub-pregunta anidada. Pidió además control explícito: "debo tener esta opción de poder mover en qué sitio deseo que aparezca el campo de URL".

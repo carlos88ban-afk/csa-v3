@@ -10,6 +10,7 @@ import {
   type EvidenceRef,
   type FormElement,
   type ResponseAnswers,
+  type TablaDatosConfig,
   type TableValue,
 } from "@plataforma-csa/sdk-core";
 import { useMemo, useState } from "react";
@@ -167,78 +168,16 @@ function PreviewElement({
       <fieldset className="field runtime-question">
         <legend>{label}</legend>
         {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
-        <table className="runtime-table">
-          <caption className="sr-only">{element.label}</caption>
-          <thead>
-            <tr>
-              <th scope="col" />
-              {element.columns.map((col) => (
-                <th key={col.id} scope="col">
-                  {col.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {element.rows.map((row) => {
-              const rowValue = table[row.id] ?? {};
-              const rowUnit = row.availableUnits
-                ? ((answers[`${element.id}::${row.id}${UNIT_KEY}`] as string | undefined) ?? row.availableUnits[0])
-                : undefined;
-              return (
-                <tr key={row.id}>
-                  <th scope="row">
-                    {row.label}
-                    {row.availableUnits && row.availableUnits.length > 0 && (
-                      <select
-                        value={rowUnit}
-                        onChange={(e) => onAnswerChange(`${element.id}::${row.id}${UNIT_KEY}`, e.target.value)}
-                      >
-                        {row.availableUnits.map((u) => (
-                          <option key={u} value={u}>
-                            {u}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </th>
-                  {element.columns.map((col) => {
-                    const cell = rowValue[col.id];
-                    if (row.cellType === "seleccion_desplegable") {
-                      return (
-                        <td key={col.id}>
-                          <select
-                            value={(cell as string) ?? ""}
-                            onChange={(e) => updateCell(row.id, col.id, e.target.value, table, onChange)}
-                          >
-                            <option value="">Seleccionar…</option>
-                            {(row.options ?? []).map((opt) => (
-                              <option key={opt.id} value={opt.id}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                      );
-                    }
-                    return (
-                      <td key={col.id}>
-                        <input
-                          type={row.cellType === "numero" ? "number" : "text"}
-                          value={(cell as string | number | undefined) ?? ""}
-                          maxLength={row.maxLength}
-                          onChange={(e) =>
-                            updateCell(row.id, col.id, row.cellType === "numero" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value, table, onChange)
-                          }
-                        />
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <PreviewTableView
+          label={element.label}
+          unitKeyPrefix={element.id}
+          columns={element.columns}
+          rows={element.rows}
+          table={table}
+          answers={answers}
+          onAnswerChange={onAnswerChange}
+          onChange={onChange}
+        />
       </fieldset>
     );
   }
@@ -380,6 +319,107 @@ function updateCell(
   onChange: (value: AnswerValue) => void,
 ) {
   onChange({ ...table, [rowId]: { ...(table[rowId] ?? {}), [columnId]: cell } });
+}
+
+// Tabla de datos (VS-024, docs/engines/form.md "Tabla de datos"): misma
+// semántica que FormTableView del Runtime real — celdas en el mapa anidado
+// rowId->columnId->valor, unidad por fila via clave sintética
+// `${unitKeyPrefix}::${row.id}${UNIT_KEY}`. Reutilizada por la tabla embebida
+// de una sub-opción (VS-042): el Elemento pasa unitKeyPrefix = element.id,
+// la sub-opción `${subKey}::${sub.id}::table`.
+function PreviewTableView({
+  label,
+  unitKeyPrefix,
+  columns,
+  rows,
+  table,
+  answers,
+  onAnswerChange,
+  onChange,
+}: {
+  label: string;
+  unitKeyPrefix: string;
+  columns: TablaDatosConfig["columns"];
+  rows: TablaDatosConfig["rows"];
+  table: TableValue;
+  answers: ResponseAnswers;
+  onAnswerChange: (key: string, value: AnswerValue) => void;
+  onChange: (value: AnswerValue) => void;
+}) {
+  return (
+    <table className="runtime-table">
+      <caption className="sr-only">{label}</caption>
+      <thead>
+        <tr>
+          <th scope="col" />
+          {columns.map((col) => (
+            <th key={col.id} scope="col">
+              {col.label}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => {
+          const rowValue = table[row.id] ?? {};
+          const rowUnit = row.availableUnits
+            ? ((answers[`${unitKeyPrefix}::${row.id}${UNIT_KEY}`] as string | undefined) ?? row.availableUnits[0])
+            : undefined;
+          return (
+            <tr key={row.id}>
+              <th scope="row">
+                {row.label}
+                {row.availableUnits && row.availableUnits.length > 0 && (
+                  <select
+                    value={rowUnit}
+                    onChange={(e) => onAnswerChange(`${unitKeyPrefix}::${row.id}${UNIT_KEY}`, e.target.value)}
+                  >
+                    {row.availableUnits.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </th>
+              {columns.map((col) => {
+                const cell = rowValue[col.id];
+                if (row.cellType === "seleccion_desplegable") {
+                  return (
+                    <td key={col.id}>
+                      <select
+                        value={(cell as string) ?? ""}
+                        onChange={(e) => updateCell(row.id, col.id, e.target.value, table, onChange)}
+                      >
+                        <option value="">Seleccionar…</option>
+                        {(row.options ?? []).map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  );
+                }
+                return (
+                  <td key={col.id}>
+                    <input
+                      type={row.cellType === "numero" ? "number" : "text"}
+                      value={(cell as string | number | undefined) ?? ""}
+                      maxLength={row.maxLength}
+                      onChange={(e) =>
+                        updateCell(row.id, col.id, row.cellType === "numero" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value, table, onChange)
+                      }
+                    />
+                  </td>
+                );
+              })}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
 }
 
 // Campo embebido en una sub-opción (VS-040, docs/engines/form.md "Campos
@@ -539,6 +579,20 @@ function PreviewSubOptions({
               field={sub.field}
               value={answers[`${subKey}::${sub.id}::field`]}
               onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::field`, next)}
+            />
+          )}
+          {/* VS-042: tabla embebida, misma PreviewTableView que tabla_datos
+              con clave sintética `${subKey}::${sub.id}::table` */}
+          {isSelected(sub.id) && sub.table && (
+            <PreviewTableView
+              label={sub.label}
+              unitKeyPrefix={`${subKey}::${sub.id}::table`}
+              columns={sub.table.columns}
+              rows={sub.table.rows}
+              table={(answers[`${subKey}::${sub.id}::table`] as TableValue | undefined) ?? {}}
+              answers={answers}
+              onAnswerChange={onAnswerChange}
+              onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::table`, next)}
             />
           )}
           {isSelected(sub.id) && sub.references && sub.references.position !== "after_suboptions" && (

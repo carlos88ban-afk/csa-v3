@@ -120,6 +120,29 @@ describe("formElement", () => {
         },
       ],
     },
+  // Tabla embebida en una sub-opción (VS-042, docs/engines/form.md).
+    {
+      type: "seleccion_unica",
+      id: "16",
+      label: "Alcance de la información",
+      options: [
+        {
+          id: "opciones",
+          label: "Opciones",
+          subOptions: [
+            {
+              id: "cobertura",
+              label: "Cobertura",
+              table: {
+                columns: [{ id: "fy2024", label: "FY 2024" }],
+                rows: [{ id: "pct", label: "%", cellType: "numero", unit: "%" }],
+              },
+            },
+            { id: "sin-tabla", label: "Sin tabla" },
+          ],
+        },
+      ],
+    },
   ])("acepta un elemento válido de tipo $type", (element) => {
     expect(formElement.safeParse(element).success).toBe(true);
   });
@@ -443,6 +466,145 @@ describe("formElement", () => {
       ],
     });
     expect(result.success).toBe(false);
+  });
+
+  // Tabla embebida en una sub-opción (VS-042, docs/engines/form.md).
+  it("acepta una sub-opción sin table (compatible hacia atrás)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", subOptions: [{ id: "sub-a", label: "Sub A" }] }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "seleccion_unica") {
+      expect(result.data.options[0]?.subOptions?.[0]?.table).toBeUndefined();
+    }
+  });
+
+  it("acepta una sub-opción con tabla embebida completa (columns + rows)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [
+        {
+          id: "a",
+          label: "A",
+          subOptions: [
+            {
+              id: "sub-a",
+              label: "Sub A",
+              table: {
+                columns: [{ id: "c1", label: "FY 2024" }, { id: "c2", label: "FY 2025" }],
+                rows: [
+                  { id: "r1", label: "Total", cellType: "numero", unit: "met. ton. CO2e" },
+                  { id: "r2", label: "Nota", cellType: "texto", maxLength: 100 },
+                  { id: "r3", label: "Moneda", cellType: "seleccion_desplegable", options: [{ id: "usd", label: "USD" }] },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("acepta una sub-opción con field y table a la vez", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [
+        {
+          id: "a",
+          label: "A",
+          subOptions: [
+            {
+              id: "sub-a",
+              label: "Sub A",
+              field: { type: "numero", unit: "%" },
+              table: {
+                columns: [{ id: "c1", label: "FY 2024" }],
+                rows: [{ id: "r1", label: "Total", cellType: "numero" }],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rechaza una sub-opción con tabla embebida sin columns", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [
+        {
+          id: "a",
+          label: "A",
+          subOptions: [{ id: "sub-a", label: "Sub A", table: { columns: [], rows: [{ id: "r1", label: "Fila", cellType: "texto" }] } }],
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza una sub-opción con tabla embebida sin rows", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [
+        {
+          id: "a",
+          label: "A",
+          subOptions: [{ id: "sub-a", label: "Sub A", table: { columns: [{ id: "c1", label: "Col" }], rows: [] } }],
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza una fila de tabla embebida con cellType desconocido", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [
+        {
+          id: "a",
+          label: "A",
+          subOptions: [
+            { id: "sub-a", label: "Sub A", table: { columns: [{ id: "c1", label: "Col" }], rows: [{ id: "r1", label: "Fila", cellType: "fecha" }] } },
+          ],
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  // VS-042: una opción de fila de tabla (seleccion_desplegable) puede llevar
+  // subOptions en schemas antiguos sin romper la validación (zod hace strip).
+  it("acepta subOptions en una opción de fila de tabla (strip, compatible)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "tabla_datos",
+      label: "Tabla",
+      columns: [{ id: "c1", label: "Col" }],
+      rows: [
+        {
+          id: "r1",
+          label: "Fila",
+          cellType: "seleccion_desplegable",
+          options: [{ id: "o1", label: "O1", subOptions: [{ id: "s1", label: "S1" }] }],
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
   });
 });
 
