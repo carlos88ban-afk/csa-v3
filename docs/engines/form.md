@@ -494,3 +494,52 @@ Mismo patrón que VS-004/VS-006:
 - `packages/sdk-core`: tests de `formElement`/`formSchema` (zod) — casos válidos por tipo y casos inválidos (discriminante desconocido, campos requeridos faltantes).
 - `packages/db`: test de integración contra Neon real que verifica que un `updateSubindicator` con `formSchema` incrementa `revisionNumber` exactamente en 1 (ya cubierto genéricamente por VS-004, se añade un caso con contenido `FormSchema`-shaped realista).
 - `apps/web`: sin Playwright todavía (`../TECH_DEBT.md` TD-003) — verificación manual en navegador real (claude-in-chrome), mismo criterio que VS-006.
+
+## Referencias de URL por opción (VS-039, implementado — 2026-08-14)
+
+Hallazgo de la 4.ª inspección (2026-08-14, validación en producción contra el HTML real de la pregunta 0.1 "Sustainability Reporting Boundaries" del portal S&P enviado por el usuario). El mapeo de AN-001 daba por resuelto el gap de URLs públicas con VS-017 (`url_publica` como Elemento independiente), pero el HTML real muestra un matiz distinto: **las referencias viven DENTRO de cada opción de un radio, no como elemento de la pregunta**.
+
+En el DOM real de S&P, la misma pregunta tiene 2 bloques de referencias separados, cada uno adjunto a una opción distinta:
+
+- Opción "Sí, la empresa informa sobre el alcance o los límites de su divulgación de sostenibilidad" → fila de referencias propias (`div.sims-input.reference`, `data-ref-type="public"`, `data-maxrefs="3"`) + sub-pregunta anidada (OverallSustainabilityDisclosure) con 4 sub-opciones, una de ellas con select de porcentaje dentro de la sub-opción (`data-dpd-type="List"`).
+- Opción "No, la empresa no informa, pero sí ha divulgado ciertos indicadores" → fila de referencias propias (máx. 3) + checkboxes de indicadores ambientales/sociales.
+- Opciones "No" y "N/A" → sin referencias.
+
+Esto es **estructuralmente distinto** de `url_publica` (VS-017): no es un elemento numerado más (`0.x`), es un campo adjunto a la opción que aparece al seleccionarla. El usuario fue explícito: *"No es que sean preguntas separadas sino que es una sola pregunta"* — la plataforma actual no puede replicarlo sin este slice.
+
+### Decisión de diseño
+
+Nuevo campo opcional `references` en `formOption` (opciones de `seleccion_unica` y `seleccion_multiple`):
+
+```ts
+const formOptionReference = z.object({
+  id: z.string().min(1),
+  maxUrls: z.number().int().positive().optional(), // default 3 (límite observado en S&P)
+});
+const formOption = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  subOptions: z.array(subOption).optional(),
+  references: z.object({
+    maxUrls: z.number().int().positive().optional(),
+  }).optional(), // VS-039: campo de URL pública adjunto a esta opción
+});
+```
+
+- **Compatible hacia atrás**: campo opcional, ningún `formSchema` existente cambia de forma; zod no exige el campo nuevo.
+- **Respuesta**: misma convención de clave sintética que VS-016, un segmento más: `` `${elementId}::${optionId}::refs` `` → `string[]` (URLs literales, mismo filtrado `.filter(Boolean)` de VS-017 para no contar slots vacíos como respuesta). Sin cambios en `response.ts` — misma convención que el 3er nivel de sub-opciones.
+- **Runtime**: al seleccionar la opción con `references`, se renderiza debajo la lista de inputs URL (patrón visual de `url_publica`, reutilizando la misma UI de slots con "Agregar URL"/"Quitar").
+- **Builder**: cada opción gana un botón "Agregar referencias (URL)" que despliega el campo `maxUrls` (default 3); el Runtime/export tratan las URLs como literales (`"; "` join, sin resolución de labels — misma rama de `url_publica` en `export.md`).
+
+### Fuera de alcance (explícito)
+
+- **Controles (select/dropdown) dentro de sub-opciones** — el ejemplo de S&P tiene un select de porcentaje dentro de una sub-opción; las sub-opciones siguen siendo solo checkboxes de texto. Si el usuario lo pide, es un slice aparte (las sub-opciones pasarían de "checkboxes" a "tipos de campo configurables" — cambio de forma mayor en `AnswerValue`).
+- **Visibilidad condicional de referencias por sub-opción** — `references` se adjunta a la opción padre (nivel 1), no a sub-opciones.
+- **`visibleIf` sobre referencias** — misma limitación ya documentada en VS-016/VS-026: las condiciones operan sobre elementos, no sobre partes de una opción.
+
+### Notas de implementación
+
+- `formOption.references` es `{ maxUrls?: number }` (sin `id` propio — la clave sintética ya identifica opción + elemento, no hace falta un id adicional del bloque de referencias).
+- **Export CSV** (`apps/web/app/api/evaluations/[id]/export/route.ts`): sigue siendo "una fila por Elemento" (ver `export.md`) — no se agrega fila/columna nueva. Las referencias de la opción elegida se anexan como sufijo de la celda `Respuesta` ya existente: `{label de la opción} (Referencias: url1; url2)`, mismo criterio `"; "` join sin resolución de labels que `url_publica`. Aplica tanto a `seleccion_unica` (la opción elegida) como a `seleccion_multiple` (cada opción elegida que tenga `references`, dentro del join `"; "` ya existente entre opciones).
+- **Builder/Runtime/preview**: `apps/web/components/subindicator-editor.tsx` (botón + campo `maxUrls` por opción), `apps/web/app/evaluations/[token]/page.tsx` (`OptionReferencesView`, mismo patrón de slots que `UrlPublicaView`), `apps/web/components/form-preview.tsx` (slots de solo lectura en el preview en vivo del Builder, mismo criterio que el resto de `url_publica` ahí).
+- Verificado manualmente en navegador real (Builder + preview en vivo + Runtime público + export CSV) con un framework temporal creado y borrado al terminar (`DELETE /api/frameworks/[id]`, mismo endpoint ya existente) — sin dejar datos de prueba en la base de producción.

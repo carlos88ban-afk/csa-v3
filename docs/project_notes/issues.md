@@ -2,6 +2,16 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-14 - VS-039: Referencias de URL por opción en selección única/múltiple
+- **Status**: Completed
+- **Description**: Implementa el gap documentado abajo (4.ª inspección AN-001). `formOption` gana `references?: { maxUrls?: number }` opcional — Builder (botón "Agregar referencias (URL)" por opción), Runtime (`OptionReferencesView`, mismo patrón de slots que `UrlPublicaView` de VS-017), preview del Builder (slots de solo lectura) y export CSV (sufijo `(Referencias: ...)` en la celda `Respuesta`, misma fila del elemento).
+- **Notes**: Clave sintética `${elementId}::${optionId}::refs`, sin cambios en `response.ts`. 5 tests nuevos en `form-schema.test.ts`. Verificado manualmente en navegador real (Builder + preview + Runtime público + export CSV) con un framework temporal creado y borrado al terminar (`DELETE /api/frameworks/[id]`) — la DB de producción quedó igual que antes de la verificación. `pnpm typecheck`/`build`/`test` en verde.
+
+### 2026-08-14 - AN-001 (4.ª inspección): referencias de URL por opción — gap detectado en producción
+- **Status**: Gap documentado, implementado el mismo día — ver entrada VS-039 arriba
+- **Description**: Validación en producción (builder + "Ver como evaluado" en `csa-v3-web.vercel.app`, framework "CSA 2026 — Réplica QA") contra el HTML real de la pregunta 0.1 del portal S&P enviado por el usuario. Se confirmó que `seleccion_unica` soporta radios mutuamente excluyentes, sub-opciones anidadas a 2 niveles, N/A y comentario confidencial — pero NO puede adjuntar una fila de referencias URL a cada opción: el DOM del builder y el runtime muestran 0 inputs de URL al seleccionar una opción. En S&P la fila de referencias (`data-ref-type="public"`, `data-maxrefs="3"`) vive DENTRO de cada opción del radio; la plataforma solo tiene `url_publica` como elemento separado numerado. El usuario confirmó que eso no cumple su requisito ("es una sola pregunta").
+- **Notes**: Elemento de prueba "Selección única 0.3" creado, validado y ELIMINADO; el subindicador real quedó con su contenido original (solo bump `rev. 2 → rev. 7` por autosaves de la prueba). Spec doc-first escrita en `docs/engines/form.md` (VS-039: campo `references` opcional en `formOption`, clave sintética `${elementId}::${optionId}::refs`, compatible hacia atrás) y entrada en `docs/BACKLOG.md`. También se detectó (fuera de alcance del slice) un select de porcentaje dentro de una sub-opción en el HTML de S&P — documentado como no soportado.
+
 ### 2026-08-14 - VS-038: Banner con contenido con formato (rich text)
 - **Status**: Completed
 - **Description**: Continúa VS-037. `content` del banner pasa de texto plano a HTML sanitizado (mismo motor que el comentario confidencial, VS-030) — pegar texto con formato ya no lo aplana.

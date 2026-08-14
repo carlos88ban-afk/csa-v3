@@ -41,10 +41,22 @@ const subOption = z.object({
   label: z.string(),
   subOptions: z.array(subSubOption).optional(),
 });
+// Referencias de URL por opción (VS-039, docs/engines/form.md "Referencias de
+// URL por opción"): hallazgo de la 4.ª inspección — S&P adjunta la fila de
+// referencias DENTRO de la opción de un radio, no como Elemento `url_publica`
+// separado. Campo opcional, compatible hacia atrás; misma clave sintética
+// que el 3er nivel de sub-opciones (`${elementId}::${optionId}::refs`), sin
+// cambios en response.ts. Solo nivel 1 (no en subOptions, ver "Fuera de
+// alcance" del doc).
 const formOption = z.object({
   id: z.string().min(1),
   label: z.string(),
   subOptions: z.array(subOption).optional(),
+  references: z
+    .object({
+      maxUrls: z.number().int().positive().optional(), // default 3 (límite observado en S&P)
+    })
+    .optional(),
 });
 
 // Tabla de datos (VS-024, docs/engines/form.md "Tabla de datos"): columnas

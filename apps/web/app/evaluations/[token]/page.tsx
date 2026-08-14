@@ -822,6 +822,54 @@ function UrlPublicaView({
   );
 }
 
+// Referencias de URL por opción (VS-039, docs/engines/form.md "Referencias
+// de URL por opción"): mismo patrón de slots que UrlPublicaView arriba,
+// clave de respuesta `${elementId}::${optionId}::refs` en vez de un Elemento
+// propio — se renderiza debajo de la opción seleccionada.
+function OptionReferencesView({
+  maxUrls,
+  value,
+  onChange,
+  locked,
+}: {
+  maxUrls: number;
+  value: string[] | undefined;
+  onChange: (value: string[]) => void;
+  locked?: boolean;
+}) {
+  const urls = Array.isArray(value) ? value : [];
+  const slots = !locked && urls.length < maxUrls ? [...urls, ""] : urls;
+
+  function commit(nextSlots: string[]) {
+    onChange(nextSlots.map((s) => s.trim()).filter(Boolean));
+  }
+
+  function updateSlot(index: number, next: string) {
+    const nextSlots = [...slots];
+    nextSlots[index] = next;
+    commit(nextSlots);
+  }
+
+  function removeSlot(index: number) {
+    commit(slots.filter((_, i) => i !== index));
+  }
+
+  return (
+    <div className="runtime-url-list sub-options">
+      {slots.map((url, index) => (
+        <div key={index} className="option-row">
+          <input type="url" value={url} disabled={locked} placeholder="https://..." onChange={(e) => updateSlot(index, e.target.value)} />
+          {url !== "" && !locked && (
+            <button type="button" className="btn btn--danger btn--sm" onClick={() => removeSlot(index)}>
+              Quitar
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Tabla de datos (VS-024, docs/engines/form.md "Tabla de datos"): <table>
 // real, celdas leídas/escritas en el mapa anidado rowId->columnId->valor
 // (onChange reconstruye el objeto completo, mismo patrón inmutable que el
@@ -1352,6 +1400,14 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                   onAnswerChange={onAnswerChange}
                 />
               )}
+              {value === opt.id && opt.references && (
+                <OptionReferencesView
+                  maxUrls={opt.references.maxUrls ?? 3}
+                  value={answers[`${element.id}::${opt.id}::refs`] as string[] | undefined}
+                  onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
+                  locked={locked}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -1384,6 +1440,14 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                       locked={locked}
                       answers={answers}
                       onAnswerChange={onAnswerChange}
+                    />
+                  )}
+                  {selected.includes(opt.id) && opt.references && (
+                    <OptionReferencesView
+                      maxUrls={opt.references.maxUrls ?? 3}
+                      value={answers[`${element.id}::${opt.id}::refs`] as string[] | undefined}
+                      onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
+                      locked={locked}
                     />
                   )}
                 </div>

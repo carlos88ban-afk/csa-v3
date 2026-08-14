@@ -349,6 +349,15 @@ function PreviewElement({
                 onAnswerChange={onAnswerChange}
               />
             )}
+            {isSelected(opt.id) && opt.references && (
+              <div className="runtime-url-list sub-options">
+                {Array.from({ length: opt.references.maxUrls ?? 3 }, (_, i) => (
+                  <div className="option-row" key={i}>
+                    <input type="url" placeholder="https://..." readOnly value="" aria-label={`Referencia ${i + 1}`} />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>

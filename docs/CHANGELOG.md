@@ -4,6 +4,18 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-039 — Referencias de URL por opción en selección única/múltiple (2026-08-14)
+
+- Hallazgo de la 4.ª inspección contra el HTML real de la pregunta 0.1 "Sustainability Reporting Boundaries" del portal S&P Global CSA 2026: S&P adjunta la fila de referencias de URL pública (máx. 3) DENTRO de cada opción de un radio, no como Elemento `url_publica` separado — el usuario fue explícito en que sigue siendo "una sola pregunta", no dos preguntas separadas. VS-017 (`url_publica` como Elemento) no cubre este caso.
+- `packages/sdk-core/src/form-schema.ts`: `formOption` gana `references?: { maxUrls?: number }` (opciones de `seleccion_unica`/`seleccion_multiple`) — campo opcional, compatible hacia atrás, sin migración. 5 tests nuevos en `form-schema.test.ts` (ausencia, default, `maxUrls` explícito, rechazo de `maxUrls` no positivo/no entero).
+- **Respuesta**: misma convención de clave sintética que las sub-opciones (VS-016), un segmento más: `` `${elementId}::${optionId}::refs` `` → `string[]`. Sin cambios en `response.ts`.
+- **Builder** (`apps/web/components/subindicator-editor.tsx`): botón "Agregar referencias (URL)" por opción, despliega el campo `Máximo de URLs` (default 3) y "Quitar referencias".
+- **Runtime** (`apps/web/app/evaluations/[token]/page.tsx`): nuevo `OptionReferencesView`, mismo patrón de slots que `UrlPublicaView` (VS-017) — se renderiza debajo de la opción seleccionada.
+- **Preview del Builder** (`apps/web/components/form-preview.tsx`): slots de solo lectura al seleccionar la opción, mismo criterio que el resto del preview de `url_publica`.
+- **Export CSV** (`apps/web/app/api/evaluations/[id]/export/route.ts`): sigue siendo una fila por Elemento — las referencias se anexan a la celda `Respuesta` como sufijo `(Referencias: url1; url2)`, mismo join `"; "` sin resolución de labels que `url_publica`.
+- Verificado manualmente en navegador real (Builder, preview en vivo, Runtime público, export CSV) con un framework temporal creado y borrado al terminar (`DELETE /api/frameworks/[id]`) — sin dejar datos de prueba en la base de producción.
+- Verificado: `pnpm typecheck`/`build`/`test` en verde.
+
 ### VS-038 — Banner: contenido con formato (2026-08-14)
 
 - Pedido explícito del usuario, continúa VS-037: `content` del banner era texto plano (`<textarea>`) — pegar texto con formato real (negrita, párrafos, listas, ej. copiado de un portal externo) lo aplanaba, perdiendo la estructura.

@@ -404,6 +404,47 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     );
   }
 
+  // Referencias de URL por opción (VS-039, docs/engines/form.md "Referencias
+  // de URL por opción"): campo opcional adjunto a la opción de nivel 1 (no a
+  // sub-opciones, ver "Fuera de alcance" del doc) — mismo patrón CRUD que
+  // subOptions pero de un solo objeto, no un array.
+  function addOptionReferences(elementId: string, optionId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return { ...el, options: el.options.map((opt) => (opt.id === optionId ? { ...opt, references: {} } : opt)) };
+      }),
+    );
+  }
+
+  function removeOptionReferences(elementId: string, optionId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return {
+          ...el,
+          options: el.options.map((opt) => {
+            if (opt.id !== optionId) return opt;
+            const { references: _references, ...rest } = opt;
+            return rest;
+          }),
+        };
+      }),
+    );
+  }
+
+  function updateOptionReferencesMaxUrls(elementId: string, optionId: string, maxUrls: number | undefined) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return { ...el, options: el.options.map((opt) => (opt.id === optionId ? { ...opt, references: { maxUrls } } : opt)) };
+      }),
+    );
+  }
+
   // Tabla de datos (VS-024, docs/engines/form.md "Tabla de datos"): columnas
   // son solo encabezados, filas cargan tipo/unidad de toda la fila.
   type TableRow = Extract<FormElement, { type: "tabla_datos" }>["rows"][number];
@@ -813,6 +854,40 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                 <Button type="button" size="sm" onClick={() => addSubOption(el.id, opt.id)}>
                                   Agregar sub-opción
                                 </Button>
+                              </div>
+                              <div className="option-references">
+                                {opt.references ? (
+                                  <div className="option-row">
+                                    <label className="field">
+                                      <span className="field__label">Máximo de URLs</span>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        value={opt.references.maxUrls ?? ""}
+                                        placeholder="3"
+                                        onChange={(e) =>
+                                          updateOptionReferencesMaxUrls(
+                                            el.id,
+                                            opt.id,
+                                            e.target.value === "" ? undefined : Number(e.target.value),
+                                          )
+                                        }
+                                      />
+                                    </label>
+                                    <Button
+                                      type="button"
+                                      variant="danger"
+                                      size="sm"
+                                      onClick={() => removeOptionReferences(el.id, opt.id)}
+                                    >
+                                      Quitar referencias
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <Button type="button" size="sm" onClick={() => addOptionReferences(el.id, opt.id)}>
+                                    Agregar referencias (URL)
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           ))}

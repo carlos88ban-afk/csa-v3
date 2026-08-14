@@ -78,6 +78,22 @@ describe("formElement", () => {
         { id: "opt-2", label: "Opción 2", subOptions: [{ id: "sub-b", label: "Sub B" }, { id: "sub-c", label: "Sub C" }] },
       ],
     },
+    // Referencias de URL por opción (VS-039, docs/engines/form.md).
+    {
+      type: "seleccion_unica",
+      id: "13",
+      label: "¿La empresa informa sobre el alcance de su divulgación?",
+      options: [
+        { id: "si", label: "Sí", references: { maxUrls: 3 } },
+        { id: "no", label: "No" },
+      ],
+    },
+    {
+      type: "seleccion_multiple",
+      id: "14",
+      label: "Indicadores divulgados",
+      options: [{ id: "ind-1", label: "Indicador 1", references: {} }],
+    },
   ])("acepta un elemento válido de tipo $type", (element) => {
     expect(formElement.safeParse(element).success).toBe(true);
   });
@@ -178,6 +194,66 @@ describe("formElement", () => {
       type: "seleccion_unica",
       label: "Pregunta",
       options: [{ id: "opt-a", label: "Opción A", subOptions: [{ id: "", label: "Sub vacía" }] }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  // Referencias de URL por opción (VS-039, docs/engines/form.md).
+  it("acepta una opción sin references (campo opcional, compatible hacia atrás)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A" }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "seleccion_unica") {
+      expect(result.data.options[0]?.references).toBeUndefined();
+    }
+  });
+
+  it("acepta references sin maxUrls explícito (el default de 3 lo aplica el Runtime, no zod)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", references: {} }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "seleccion_unica") {
+      expect(result.data.options[0]?.references?.maxUrls).toBeUndefined();
+    }
+  });
+
+  it("acepta references con maxUrls explícito", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", references: { maxUrls: 5 } }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "seleccion_unica") {
+      expect(result.data.options[0]?.references?.maxUrls).toBe(5);
+    }
+  });
+
+  it("rechaza references con maxUrls no positivo", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", references: { maxUrls: 0 } }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza references con maxUrls no entero", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_multiple",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", references: { maxUrls: 1.5 } }],
     });
     expect(result.success).toBe(false);
   });

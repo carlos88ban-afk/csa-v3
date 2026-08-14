@@ -43,6 +43,21 @@ function csvCell(value: string): string {
   return value;
 }
 
+// Referencias de URL por opción (VS-039, docs/engines/form.md "Referencias
+// de URL por opción"): sufijo del label de la opción elegida, mismo criterio
+// que url_publica ("; " join, sin resolución de labels — son URLs literales)
+// — no una fila/columna nueva, sigue siendo "una fila por Elemento".
+function formatOptionReferences(
+  opt: { id: string; references?: { maxUrls?: number | undefined } | undefined },
+  elementId: string,
+  answers: ResponseAnswers,
+): string {
+  if (!opt.references) return "";
+  const refs = answers[`${elementId}::${opt.id}::refs`];
+  const urls = Array.isArray(refs) ? refs.map((u) => String(u)) : [];
+  return urls.length > 0 ? ` (Referencias: ${urls.join("; ")})` : "";
+}
+
 function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, answers: ResponseAnswers): string {
   // VS-019 (docs/engines/persistence.md, "N/A + comentario confidencial"):
   // N/A gana sobre cualquier valor residual de un intento anterior — el CSV
@@ -50,13 +65,22 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
   // "nunca se tocó".
   if (markedNA) return "N/A";
   if (value === undefined || value === null || value === "") return "";
-  if (element.type === "seleccion_unica" || element.type === "seleccion_desplegable") {
+  if (element.type === "seleccion_unica") {
+    const opt = element.options.find((o) => o.id === value);
+    return opt ? `${opt.label}${formatOptionReferences(opt, element.id, answers)}` : String(value);
+  }
+  if (element.type === "seleccion_desplegable") {
     const opt = element.options.find((o) => o.id === value);
     return opt?.label ?? String(value);
   }
   if (element.type === "seleccion_multiple") {
     const ids = Array.isArray(value) ? value : [];
-    return ids.map((id) => element.options.find((o) => o.id === id)?.label ?? String(id)).join("; ");
+    return ids
+      .map((id) => {
+        const opt = element.options.find((o) => o.id === id);
+        return opt ? `${opt.label}${formatOptionReferences(opt, element.id, answers)}` : String(id);
+      })
+      .join("; ");
   }
   if (element.type === "evidencia") {
     const refs = Array.isArray(value) ? value : [];
