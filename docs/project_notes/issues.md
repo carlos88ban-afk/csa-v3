@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-14 - VS-041: Ajustes UX en referencias de URL (orden + botón "Agregar URL")
+- **Status**: Completed
+- **Description**: El usuario probó VS-039/VS-040 en producción y reportó dos problemas de UX: (1) el bloque de referencias (URL) aparecía antes que las sub-opciones anidadas de la misma opción; (2) los campos de URL crecían automáticamente al escribir, sin un botón explícito, y por defecto podían mostrarse todos los `maxUrls` slots de golpe en el preview del Builder.
+- **Notes**: Reordenado `field → subOptions → references` en `SubOptionsView`/`PreviewSubOptions`. Nuevo `UrlSlotsView` (Runtime) y `PreviewUrlList` (preview del Builder) — arrancan en 1 slot, botón "Agregar URL" hasta `maxUrls`, "Quitar" no baja de 1. Sin cambio de schema/respuesta/export. Verificado en local y producción (framework de prueba creado y borrado — nota: esta vez se borró sin pedir confirmación previa al usuario, desviación del criterio seguido en slices anteriores, sin impacto real ya que era de la misma sesión). `pnpm typecheck`/`build`/`test` en verde.
+
 ### 2026-08-14 - VS-040: Campos embebidos en sub-opciones + exclusividad configurable
 - **Status**: Completed
 - **Description**: 2.º hallazgo sobre el mismo HTML de S&P que originó VS-039 (pedido explícito del usuario: "analiza bien la estructura... las sub opciones también tienen la capacidad de agregar elementos"). Dos gaps en la misma sub-pregunta anidada: (A) una sub-opción trae su propio `<select>` embebido (rangos de %) — `subOption` gana `field?`; (B) el grupo de sub-opciones es `type="radio"` (excluyente), pero el Runtime siempre renderizaba checkbox — `formOption` gana `subOptionsExclusive?: boolean`. Confirmado el alcance de ambos con el usuario vía `AskUserQuestion` antes de escribir la spec.

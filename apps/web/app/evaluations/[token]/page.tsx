@@ -634,14 +634,6 @@ function SubOptionsView({
               locked={locked}
             />
           )}
-          {isSelected(sub.id) && sub.references && (
-            <OptionReferencesView
-              maxUrls={sub.references.maxUrls ?? 3}
-              value={answers[`${subKey}::${sub.id}::refs`] as string[] | undefined}
-              onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::refs`, next)}
-              locked={locked}
-            />
-          )}
           {isSelected(sub.id) && sub.subOptions && sub.subOptions.length > 0 && (
             <SubOptionsView
               subKey={`${subKey}::${sub.id}`}
@@ -651,6 +643,14 @@ function SubOptionsView({
               locked={locked}
               answers={answers}
               onAnswerChange={onAnswerChange}
+            />
+          )}
+          {isSelected(sub.id) && sub.references && (
+            <OptionReferencesView
+              maxUrls={sub.references.maxUrls ?? 3}
+              value={answers[`${subKey}::${sub.id}::refs`] as string[] | undefined}
+              onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::refs`, next)}
+              locked={locked}
             />
           )}
         </div>
@@ -861,22 +861,30 @@ function BannerView({ element }: { element: Extract<FormElement, { type: "banner
 // archivo. Slots vacíos nunca se persisten (ver doc) — se filtran recién al
 // escribir en `answers`, así hasAnswer() no cuenta un slot en blanco como
 // respuesta.
-function UrlPublicaView({
-  element,
+//
+// Arranca en 1 slot visible, no en maxUrls (ajuste pedido por el usuario
+// 2026-08-14 tras revisar VS-039/040 en producción): un botón "Agregar URL"
+// explícito revela el siguiente, hasta maxUrls — ya no crece solo al
+// escribir en el último slot. Compartido por UrlPublicaView (VS-017) y
+// OptionReferencesView (VS-039/040): mismo patrón visual y de datos, solo
+// cambia la clave de respuesta que arma el llamador.
+function UrlSlotsView({
+  maxUrls,
   value,
   onChange,
   locked,
+  className,
 }: {
-  element: Extract<FormElement, { type: "url_publica" }>;
+  maxUrls: number;
   value: string[] | undefined;
   onChange: (value: string[]) => void;
-  locked?: boolean;
+  locked?: boolean | undefined;
+  className: string;
 }) {
-  const maxUrls = element.maxUrls ?? 3;
   const urls = Array.isArray(value) ? value : [];
-  // Slots visibles = respuestas guardadas + un slot vacío extra para seguir
-  // agregando, acotado a maxUrls. Bloqueado: sin slot extra, solo lectura.
-  const slots = !locked && urls.length < maxUrls ? [...urls, ""] : urls;
+  const [visibleCount, setVisibleCount] = useState(() => Math.max(urls.length, 1));
+  const count = Math.min(visibleCount, maxUrls);
+  const slots = Array.from({ length: count }, (_, i) => urls[i] ?? "");
 
   function commit(nextSlots: string[]) {
     onChange(nextSlots.map((s) => s.trim()).filter(Boolean));
@@ -890,21 +898,47 @@ function UrlPublicaView({
 
   function removeSlot(index: number) {
     commit(slots.filter((_, i) => i !== index));
+    setVisibleCount((c) => Math.max(c - 1, 1));
+  }
+
+  function addSlot() {
+    setVisibleCount((c) => Math.min(c + 1, maxUrls));
   }
 
   return (
-    <div className="runtime-url-list">
+    <div className={className}>
       {slots.map((url, index) => (
         <div key={index} className="option-row">
           <input type="url" value={url} disabled={locked} placeholder="https://..." onChange={(e) => updateSlot(index, e.target.value)} />
-          {url !== "" && !locked && (
+          {!locked && slots.length > 1 && (
             <button type="button" className="btn btn--danger btn--sm" onClick={() => removeSlot(index)}>
               Quitar
             </button>
           )}
         </div>
       ))}
+      {!locked && slots.length < maxUrls && (
+        <button type="button" className="btn btn--secondary btn--sm" onClick={addSlot}>
+          Agregar URL
+        </button>
+      )}
     </div>
+  );
+}
+
+function UrlPublicaView({
+  element,
+  value,
+  onChange,
+  locked,
+}: {
+  element: Extract<FormElement, { type: "url_publica" }>;
+  value: string[] | undefined;
+  onChange: (value: string[]) => void;
+  locked?: boolean;
+}) {
+  return (
+    <UrlSlotsView maxUrls={element.maxUrls ?? 3} value={value} onChange={onChange} locked={locked} className="runtime-url-list" />
   );
 }
 
@@ -923,36 +957,8 @@ function OptionReferencesView({
   onChange: (value: string[]) => void;
   locked?: boolean | undefined;
 }) {
-  const urls = Array.isArray(value) ? value : [];
-  const slots = !locked && urls.length < maxUrls ? [...urls, ""] : urls;
-
-  function commit(nextSlots: string[]) {
-    onChange(nextSlots.map((s) => s.trim()).filter(Boolean));
-  }
-
-  function updateSlot(index: number, next: string) {
-    const nextSlots = [...slots];
-    nextSlots[index] = next;
-    commit(nextSlots);
-  }
-
-  function removeSlot(index: number) {
-    commit(slots.filter((_, i) => i !== index));
-  }
-
   return (
-    <div className="runtime-url-list sub-options">
-      {slots.map((url, index) => (
-        <div key={index} className="option-row">
-          <input type="url" value={url} disabled={locked} placeholder="https://..." onChange={(e) => updateSlot(index, e.target.value)} />
-          {url !== "" && !locked && (
-            <button type="button" className="btn btn--danger btn--sm" onClick={() => removeSlot(index)}>
-              Quitar
-            </button>
-          )}
-        </div>
-      ))}
-    </div>
+    <UrlSlotsView maxUrls={maxUrls} value={value} onChange={onChange} locked={locked} className="runtime-url-list sub-options" />
   );
 }
 

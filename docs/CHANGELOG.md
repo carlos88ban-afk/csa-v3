@@ -4,6 +4,14 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-041 — Ajustes UX en referencias de URL (2026-08-14)
+
+- El usuario probó VS-039/VS-040 en producción y reportó dos problemas de UX (sin cambio de schema): (1) el bloque de referencias (URL) se renderizaba antes que las sub-opciones anidadas cuando una sub-opción tenía ambas — corregido a sub-opciones primero, referencias al final; (2) los campos de URL crecían automáticamente al escribir en el último slot, sin botón explícito — corregido a arrancar en 1 slot con botón "Agregar URL" hasta `maxUrls`.
+- `apps/web/app/evaluations/[token]/page.tsx`: nuevo `UrlSlotsView` compartido por `UrlPublicaView` (VS-017) y `OptionReferencesView` (VS-039/040).
+- `apps/web/components/form-preview.tsx`: nuevo `PreviewUrlList` reemplaza los 3 bloques antes estáticos/de solo lectura por el mismo patrón interactivo del Runtime.
+- Sin cambios de schema, respuesta ni export CSV.
+- Verificado: `pnpm typecheck`/`build`/`test` en verde, manualmente en navegador local y producción desplegada.
+
 ### VS-040 — Campos embebidos en sub-opciones + exclusividad configurable (2026-08-14)
 
 - Segundo hallazgo sobre la misma pregunta 0.1 de S&P (mismo HTML que originó VS-039): la sub-pregunta anidada "OverallSustainabilityDisclosure" trae una sub-opción con su propio `<select>` (rangos de % de ingresos) y el grupo completo es `type="radio"` (mutuamente excluyente) — ninguna de las dos cosas era soportada. El usuario pidió corregir ambas en el mismo slice tras revisar el análisis (`AskUserQuestion`).

@@ -617,3 +617,20 @@ Al implementar esto se encontró que `apps/web/components/form-preview.tsx` (pre
 
 - **Export CSV**: mismo criterio que VS-039 — sin fila/columna nueva. El valor del `field` (resuelto a label si es `seleccion_desplegable`, literal si es texto/número) y las `references` de la sub-opción marcada se anexan a la celda `Respuesta` existente.
 - **Builder/Runtime/preview**: mismos archivos que VS-039, extendidos: `subindicator-editor.tsx`, `evaluations/[token]/page.tsx` (`SubOptionsView`/`PreviewSubOptions` ganan modo excluyente + render de `field`/`references` embebidos), `form-preview.tsx`.
+
+## Ajustes UX en referencias de URL (VS-041, implementado — 2026-08-14)
+
+El usuario probó VS-039/VS-040 en producción y encontró dos problemas de UX (sin cambio de schema, solo de presentación/interacción):
+
+1. **Orden visual**: cuando una sub-opción tenía a la vez `field`/`subOptions` y `references`, el bloque de referencias (URL) se renderizaba ANTES que las sub-opciones anidadas — `SubOptionsView`/`PreviewSubOptions` listaban `field → references → subOptions`. Corregido a `field → subOptions → references` (las referencias, como bloque de evidencia de apoyo, van al final — mismo orden que ya tenía el nivel raíz de `formOption`, que no necesitó cambio).
+2. **Crecimiento automático de slots de URL**: `UrlPublicaView` (VS-017) y `OptionReferencesView` (VS-039/040) mostraban `respuestas guardadas + 1 slot vacío`, creciendo solo al escribir en el último slot — sin botón explícito. El usuario pidió que, en cambio, arranque en 1 slot visible y un botón **"Agregar URL"** explícito revele los siguientes, hasta `maxUrls` (ej. máx. 3 configurado → 1 inicial + hasta 2 adicionales vía botón). El preview del Builder (`form-preview.tsx`) además mostraba los `maxUrls` slots de golpe, en solo lectura — ahora es interactivo con el mismo patrón que el Runtime real.
+
+### Implementación
+
+- `apps/web/app/evaluations/[token]/page.tsx`: nuevo `UrlSlotsView` compartido (estado local `visibleCount`, arranca en `Math.max(urls.length, 1)`, botón "Agregar URL" hace `min(count+1, maxUrls)`, "Quitar" hace `max(count-1, 1)`) — `UrlPublicaView` y `OptionReferencesView` pasan a ser wrappers finos sobre este componente.
+- `apps/web/components/form-preview.tsx`: nuevo `PreviewUrlList` (mismo patrón, interactivo) reemplaza los 3 bloques antes estáticos (`url_publica`, referencias de opción, referencias de sub-opción).
+- Sin cambios de schema, respuesta ni export CSV — es un ajuste de presentación/interacción sobre datos que ya se guardaban igual.
+
+### Testing
+
+Verificado manualmente en navegador real (local y producción desplegada): una opción con sub-opción + referencias simultáneas muestra primero la sub-opción, luego (si se marca) el/los campo(s) de URL; el campo de URL arranca en 1 input, botón "Agregar URL" lo hace crecer hasta el máximo configurado, y desaparece al llegar al tope.

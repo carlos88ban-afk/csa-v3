@@ -141,13 +141,12 @@ function PreviewElement({
       <fieldset className="field runtime-question">
         <legend>{label}</legend>
         {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
-        <div className="runtime-url-list">
-          {Array.from({ length: element.maxUrls ?? 3 }, (_, i) => (
-            <div className="option-row" key={i}>
-              <input type="url" placeholder="https://..." readOnly value="" aria-label={`URL ${i + 1}`} />
-            </div>
-          ))}
-        </div>
+        <PreviewUrlList
+          maxUrls={element.maxUrls ?? 3}
+          value={answers[element.id]}
+          onChange={(next) => onChange(next)}
+          className="runtime-url-list"
+        />
       </fieldset>
     );
   }
@@ -351,13 +350,12 @@ function PreviewElement({
               />
             )}
             {isSelected(opt.id) && opt.references && (
-              <div className="runtime-url-list sub-options">
-                {Array.from({ length: opt.references.maxUrls ?? 3 }, (_, i) => (
-                  <div className="option-row" key={i}>
-                    <input type="url" placeholder="https://..." readOnly value="" aria-label={`Referencia ${i + 1}`} />
-                  </div>
-                ))}
-              </div>
+              <PreviewUrlList
+                maxUrls={opt.references.maxUrls ?? 3}
+                value={answers[`${element.id}::${opt.id}::refs`]}
+                onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
+                className="runtime-url-list sub-options"
+              />
             )}
           </div>
         ))}
@@ -423,6 +421,68 @@ function PreviewSubOptionField({
   );
 }
 
+// Lista de slots de URL con botón "Agregar URL" explícito (no crece
+// automáticamente al escribir) — hasta maxUrls, arranca en 1. Mismo
+// componente para url_publica (VS-017) y references de opción/sub-opción
+// (VS-039/040), mismo comportamiento que su equivalente en el Runtime real
+// (`UrlSlotsView` en evaluations/[token]/page.tsx) — ajuste pedido por el
+// usuario 2026-08-14 tras revisar en producción.
+function PreviewUrlList({
+  maxUrls,
+  value,
+  onChange,
+  className,
+}: {
+  maxUrls: number;
+  value: AnswerValue | undefined;
+  onChange: (value: AnswerValue) => void;
+  className: string;
+}) {
+  const urls = Array.isArray(value) && (value.length === 0 || typeof value[0] === "string") ? (value as string[]) : [];
+  const [visibleCount, setVisibleCount] = useState(() => Math.max(urls.length, 1));
+  const count = Math.min(visibleCount, maxUrls);
+  const slots = Array.from({ length: count }, (_, i) => urls[i] ?? "");
+
+  function commit(nextSlots: string[]) {
+    onChange(nextSlots.map((s) => s.trim()).filter(Boolean));
+  }
+
+  function updateSlot(index: number, next: string) {
+    const nextSlots = [...slots];
+    nextSlots[index] = next;
+    commit(nextSlots);
+  }
+
+  function removeSlot(index: number) {
+    commit(slots.filter((_, i) => i !== index));
+    setVisibleCount((c) => Math.max(c - 1, 1));
+  }
+
+  function addSlot() {
+    setVisibleCount((c) => Math.min(c + 1, maxUrls));
+  }
+
+  return (
+    <div className={className}>
+      {slots.map((url, index) => (
+        <div className="option-row" key={index}>
+          <input type="url" placeholder="https://..." value={url} aria-label={`URL ${index + 1}`} onChange={(e) => updateSlot(index, e.target.value)} />
+          {slots.length > 1 && (
+            <button type="button" className="btn btn--danger btn--sm" onClick={() => removeSlot(index)}>
+              Quitar
+            </button>
+          )}
+        </div>
+      ))}
+      {slots.length < maxUrls && (
+        <button type="button" className="btn btn--secondary btn--sm" onClick={addSlot}>
+          Agregar URL
+        </button>
+      )}
+    </div>
+  );
+}
+
 function PreviewSubOptions({
   level,
   exclusive = false,
@@ -473,15 +533,6 @@ function PreviewSubOptions({
               onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::field`, next)}
             />
           )}
-          {isSelected(sub.id) && sub.references && (
-            <div className="runtime-url-list sub-options">
-              {Array.from({ length: sub.references.maxUrls ?? 3 }, (_, i) => (
-                <div className="option-row" key={i}>
-                  <input type="url" placeholder="https://..." readOnly value="" aria-label={`Referencia ${i + 1}`} />
-                </div>
-              ))}
-            </div>
-          )}
           <PreviewSubOptions
             level={level + 1}
             subKey={`${subKey}::${sub.id}`}
@@ -491,6 +542,14 @@ function PreviewSubOptions({
             answers={answers}
             onAnswerChange={onAnswerChange}
           />
+          {isSelected(sub.id) && sub.references && (
+            <PreviewUrlList
+              maxUrls={sub.references.maxUrls ?? 3}
+              value={answers[`${subKey}::${sub.id}::refs`]}
+              onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::refs`, next)}
+              className="runtime-url-list sub-options"
+            />
+          )}
         </div>
       ))}
     </div>
