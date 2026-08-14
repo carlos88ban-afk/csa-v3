@@ -60,30 +60,7 @@ function directSubindicatorNumber(dimIndex: number, indCount: number, subIndex: 
 
 // Resolución del foco ?s=: si apunta a un subindicador, ese; si apunta a una
 // dimensión/indicador, su primer subindicador (o null si no tiene contenido).
-function resolveFocus(tree: TreeDimension[], raw: string | null): string | null {
-  const direct = (): string | null => {
-    if (!raw) return null;
-    const allSubs: TreeSubindicator[] = [];
-    for (const d of tree) {
-      for (const ind of d.indicators) allSubs.push(...ind.subs);
-      allSubs.push(...d.directSubs);
-    }
-    const found = allSubs.find((s) => s.id === raw);
-    if (found) return found.id;
-    return null;
-  };
-
-  if (direct()) return direct();
-
-  if (raw) {
-    for (const d of tree) {
-      if (d.dimension.id === raw && d.directSubs.length > 0) return d.directSubs[0]!.id;
-      for (const ind of d.indicators) {
-        if (ind.indicator.id === raw && ind.subs.length > 0) return ind.subs[0]!.id;
-      }
-    }
-  }
-
+function firstSubindicator(tree: TreeDimension[]): string | null {
   for (const d of tree) {
     if (d.directSubs.length > 0) return d.directSubs[0]!.id;
     for (const ind of d.indicators) {
@@ -91,6 +68,36 @@ function resolveFocus(tree: TreeDimension[], raw: string | null): string | null 
     }
   }
   return null;
+}
+
+// Bug 2026-08-14 (docs/project_notes/bugs.md): si `raw` apunta a una
+// Dimensión/Indicador que existe pero todavía no tiene subindicadores, esta
+// función antes "caía" al default global (primer subindicador de TODO el
+// árbol) en vez de reconocer que `raw` sí era un nodo válido sin hijos —
+// EmptyState() nunca se enteraba de cuál era el nodo realmente enfocado.
+// Ahora, si `raw` coincide con una Dimensión/Indicador real (con o sin
+// hijos), se devuelve su primer sub (si tiene) o null explícito (si está
+// vacía) — nunca un id de otra rama del árbol. El default global solo se usa
+// cuando `raw` no coincide con nada.
+function resolveFocus(tree: TreeDimension[], raw: string | null): string | null {
+  if (!raw) return firstSubindicator(tree);
+
+  const allSubs: TreeSubindicator[] = [];
+  for (const d of tree) {
+    for (const ind of d.indicators) allSubs.push(...ind.subs);
+    allSubs.push(...d.directSubs);
+  }
+  const found = allSubs.find((s) => s.id === raw);
+  if (found) return found.id;
+
+  for (const d of tree) {
+    if (d.dimension.id === raw) return d.directSubs[0]?.id ?? null;
+    for (const ind of d.indicators) {
+      if (ind.indicator.id === raw) return ind.subs[0]?.id ?? null;
+    }
+  }
+
+  return firstSubindicator(tree);
 }
 
 const KIND_META = {
@@ -174,9 +181,10 @@ export default function BuilderPage() {
         }
 
         const resolved = resolveFocus(tree, initialRaw);
+        const nextFocus = resolved ?? initialRaw;
         setSelectedId(resolved);
-        setFocusId(resolved ?? initialRaw);
-        window.history.replaceState(null, "", resolved ? `?s=${resolved}` : window.location.pathname);
+        setFocusId(nextFocus);
+        window.history.replaceState(null, "", nextFocus ? `?s=${nextFocus}` : window.location.pathname);
         setDims(tree);
       } catch (err) {
         if (alive) setTreeMessage(err instanceof Error ? err.message : "No se pudo cargar la estructura");
@@ -222,6 +230,25 @@ export default function BuilderPage() {
     }
     return out;
   }, [dims, query]);
+
+  // Bug 2026-08-14 (docs/project_notes/bugs.md): wizardStep arrancaba
+  // siempre en 0 en cada montaje del builder, sin importar si la primera
+  // Dimensión/Indicador/Subindicador ya existía (ej. creada desde
+  // /frameworks/[id] y navegada acá con ?s= — un montaje fresco, no un
+  // avance en vivo dentro de la misma sesión). El efecto de abajo (basado en
+  // treeMessage) solo cubre altas hechas DESPUÉS de montado el builder; este
+  // sincroniza el paso mínimo real apenas se carga el árbol, sea cual sea el
+  // origen de los datos.
+  useEffect(() => {
+    if (!dims) return;
+    const firstDim = dims[0];
+    if (!firstDim) return;
+    setWizardStep((s) => Math.max(s, 1));
+    const firstIndicator = firstDim.indicators[0];
+    if (firstIndicator) setWizardStep((s) => Math.max(s, 2));
+    const hasSub = firstDim.directSubs.length > 0 || (firstIndicator?.subs.length ?? 0) > 0;
+    if (hasSub) setWizardStep((s) => Math.max(s, 3));
+  }, [dims]);
 
   // El asistente avanza automáticamente al completarse cada alta (los forms
   // inline del árbol ya reportan en treeMessage).
@@ -372,10 +399,14 @@ export default function BuilderPage() {
         });
         setTreeMessage(`Subindicador ${subindicator.title} creado`);
         setCreating(null);
-        // Con el asistente activo (VS-032) la selección NO salta al editor:
-        // el paso 4 del wizard guía al primer elemento y deja decidir el
-        // momento de "Empezar a editar".
-        if (!wizardSession) selectSub(subindicator.id);
+        // Bug 2026-08-14 (docs/project_notes/bugs.md): con el asistente
+        // activo esto antes NO seleccionaba el subindicador recién creado —
+        // contradecía el propio texto del paso 4 del wizard ("Agregá sus
+        // preguntas con las plantillas... del editor", como si ya estuviera
+        // visible) y exigía un click extra en "Empezar a editar" que el e2e
+        // (y el resto de la app, fuera del wizard) no esperaba. selectSub()
+        // ya apaga wizardSession, así que el wizard no vuelve a aparecer.
+        selectSub(subindicator.id);
       } else if (c.kind === "directSub" && c.dimensionId) {
         const { subindicator } = await api.post<{ subindicator: { id: string; title: string } }>("/api/subindicators", {
           dimensionId: c.dimensionId,
@@ -394,7 +425,7 @@ export default function BuilderPage() {
         });
         setTreeMessage(`Subindicador ${subindicator.title} creado`);
         setCreating(null);
-        if (!wizardSession) selectSub(subindicator.id);
+        selectSub(subindicator.id);
       }
     } catch (err) {
       setCreating((prev) =>
