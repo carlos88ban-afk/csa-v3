@@ -75,7 +75,7 @@ const subOptionField = z.discriminatedUnion("type", [
 // `availableUnits` solo si cellType === "numero", `maxLength` solo si
 // cellType === "texto" — no expresado como discriminated union anidado
 // (costo de complejidad no justificado, ver el doc), lo exige el Builder.
-const formTableCellType = z.enum(["texto", "numero", "seleccion_desplegable"]);
+const formTableCellType = z.enum(["texto", "numero", "seleccion_desplegable", "calculado"]);
 
 const formTableColumn = z.object({
   id: z.string().min(1),
@@ -100,20 +100,31 @@ const formOptionBase = z.object({
 // override de tipo por CELDA — mismo shape de config que la fila legacy
 // (unit/availableUnits/options/maxLength), pero apuntando a una columna.
 // Si `cells` está presente en la fila, gana sobre `cellType` de la fila.
+// VS-043: `expression` es opcional y se valida cuando cellType === "calculado".
 const formTableCell = z.object({
   columnId: z.string().min(1),
   cellType: formTableCellType,
+  expression: z.string().optional(),
   unit: z.string().min(1).optional(),
   availableUnits: z.array(z.string().min(1)).min(1).optional(),
   options: z.array(formOptionBase).min(1).optional(),
   maxLength: z.number().int().positive().optional(),
-});
+})
+// VS-043: si cellType es "calculado", expression es obligatorio
+.superRefine((cell, ctx) => {
+  if (cell.cellType === "calculado" && (!cell.expression || cell.expression.trim() === "")) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Se requiere expression cuando cellType es 'calculado'",
+      path: ["expression"],
+    });
+  }
+})
 
-// VS-044: `cellType` pasa a optional — el atajo legacy "toda la fila es de
-// este tipo" sigue funcionando, pero una fila puede declarar solo `cells`
-// (overrides por celda). El `.superRefine()` exige al menos uno de los dos;
-// va en el objeto fila (no en formSchema) porque la regla se expresa por
-// fila y así cubre también la tabla embebida de una sub-opción (VS-042).
+// VS-043 (docs/engines/form.md "Fila de fórmula dentro de tabla_datos"):
+// cellType: "calculado" con expression {rowId} (fila completa) o {rowId.columnId} (celda puntual).
+// formTableRow y formTableCell ganan expression: z.string().optional().
+// .superRefine() exige expression no vacío cuando cellType === "calculado" (fila o celda).
 const formTableRow = z
   .object({
     id: z.string().min(1),
@@ -131,6 +142,20 @@ const formTableRow = z
         code: z.ZodIssueCode.custom,
         message: "La fila necesita cellType o al menos una celda (cells)",
         path: ["cellType"],
+      });
+    }
+    // VS-043: si la fila tiene cellType "calculado", verificar que las celdas tengan expression
+    if (row.cellType === "calculado" && row.cells) {
+      row.cells.forEach((cell, i) => {
+        if (cell.cellType === "calculado" && (!cell.expression || cell.expression.trim() === "")) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Se requiere expression en cells[${
+              i
+            }] cuando cellType es 'calculado'`,
+            path: ["cells", i, "expression"],
+          });
+        }
       });
     }
   });

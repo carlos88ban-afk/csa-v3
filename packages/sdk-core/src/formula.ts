@@ -277,3 +277,38 @@ export function evaluateExpression(
   }
   return evaluateNode(node, values);
 }
+
+// VS-043 (docs/engines/form.md "Fila de fórmula dentro de tabla_datos"):
+// Motor de evaluación de fórmulas de tabla con contexto de fila/columna.
+// Resuelve referencias {rowId} (fila completa, columna activa) y
+// {rowId.columnId} (celda puntual). valuesByRow es un arreglo donde
+// valuesByRow[i] = valor numérico de la fila i (índice = posición en la tabla).
+export function evaluateTableExpression(
+  expression: string,
+  columnId: string,
+  valuesByRow: number[],
+): number | undefined {
+  // Construye un mapa de valores por fila: {rowId} → valor de esa fila
+  // y {rowId.columnId} → valor de esa celda específica.
+  // columnId identifica qué columna de la tabla estamos evaluando.
+  const values: Record<string, number> = {};
+
+  valuesByRow.forEach((rowValue, rowIdx) => {
+    // {rowId} → valor de la fila completa (el número de la fila)
+    values[`ref_${rowIdx}`] = rowValue ?? 0
+    // {rowId.columnId} → valor de la celda específica (columna dentro de la fila)
+    // Usamos columnId como identificador para mapear la celda
+    values[`ref_${rowIdx}_${columnId}`] = rowValue ?? 0
+  })
+
+  // Tokeniza y parsea la expresión
+  let node: FormulaNode;
+  try {
+    node = parseFormula(expression);
+  } catch {
+    return undefined;
+  }
+  return evaluateNode(node, values)
+}
+  return evaluateNode(node, values)
+}
