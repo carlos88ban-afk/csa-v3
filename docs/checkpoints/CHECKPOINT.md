@@ -1,36 +1,33 @@
 checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000026
-fecha: 2026-08-14
+fecha: 2026-08-15
 estado: completo
-slice_actual: VS-042 (tabla embebida dentro de una sub-opción) implementado y verificado en verde — commit pendiente de push; siguiente: VS-044.
+slice_actual: VS-045 (formato rich text en preguntas y opciones + referencias flexibles) implementado, verificado en producción y CERRADO — incluye 2 fixes de UI hallados en la verificación. Siguiente: VS-044.
 
-slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030, VS-031, VS-032, VS-033, VS-034, VS-035, VS-036, VS-037, VS-038, VS-039, VS-040, VS-041, VS-042]
+slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030, VS-031, VS-032, VS-033, VS-034, VS-035, VS-036, VS-037, VS-038, VS-039, VS-040, VS-041, VS-042, VS-045]
 
 decisiones_del_dia:
-  - **VS-040 — Campos embebidos en sub-opciones + exclusividad configurable**: 2.º hallazgo sobre la misma pregunta 0.1 de S&P que originó VS-039, mismo día. El usuario pidió analizar la sub-pregunta anidada "OverallSustainabilityDisclosure" (revelada bajo la opción "Sí, la empresa informa..."). Dos gaps: (A) una sub-opción trae su propio `<select>` embebido (rangos de % de ingresos) — pedido explícito; (B) hallazgo adicional en el mismo HTML: el grupo es `type="radio"` (excluyente), pero el Runtime siempre renderizaba checkbox (decisión de VS-016 documentada como "siempre selección múltiple, mismo patrón que S&P", que este HTML real contradice). Presentado el análisis completo al usuario con `AskUserQuestion` (2 preguntas: corregir Gap B en el mismo slice sí/no, alcance del field select-only vs select+texto/número) antes de escribir la spec — ambas respondidas afirmativamente/ampliado.
-  - **Implementación**: spec doc-first en `docs/engines/form.md` primero (regla rectora). `packages/sdk-core`: `subOption` gana `field?: {type: "seleccion_desplegable"|"texto_corto"|"numero", ...}` y `references?` (mismo campo que `formOption`, ahora también a nivel de sub-opción); `formOption` gana `subOptionsExclusive?: boolean` (default `false`, compatible hacia atrás). 10 tests nuevos. Builder (`subindicator-editor.tsx`): checkbox "Sub-opciones excluyentes" + selector "Agregar campo…" por sub-opción con su configuración. Runtime (`evaluations/[token]/page.tsx`): `SubOptionsView` gana prop `exclusive` (radio vs checkbox, solo nivel 1) + `SubOptionFieldView` nuevo. Preview del Builder (`form-preview.tsx`): mismo comportamiento, ahora interactivo (a diferencia de `url_publica`, un campo simple sí se simula funcionalmente). Export CSV: sub-opción marcada con su `field` resuelto se anexa a la celda `Respuesta` tras un `—`.
-  - **Bug preexistente corregido de paso**: al implementar la exclusividad explícita, se encontró que el preview del Builder (`PreviewSubOptions`) trataba las sub-opciones de nivel 1 como radio por una heurística fija (`level === 1`) desde VS-016, mientras el Runtime real siempre las trataba como checkbox — inconsistencia sin impacto en datos (el preview nunca persiste), documentada en `docs/project_notes/bugs.md` y corregida: ambos componentes ahora leen el mismo campo explícito `subOptionsExclusive`.
-  - **Verificación manual en navegador local**: framework temporal "VS-040 verificación temporal" creado (sin tocar "VS-039 verificación producción", dejado intencionalmente de la sesión anterior). Verificado Builder (checkbox exclusividad + campo select con 2 opciones de rango), preview en vivo, Runtime público (confirmada la exclusividad REAL: seleccionar "Todas las actividades" desmarca "El siguiente % de ingresos cubierto" y oculta su `<select>`; el valor del select persiste al volver a seleccionar), y export CSV (`"Sí, la empresa informa — El siguiente % de ingresos cubierto (0-25%)"`). `pnpm typecheck`/`build`/`test` en verde.
-  - **Deploy a producción + verificación explícita de persistencia real**: commit (`12ef05a`) + push a `main` (con un `git push` que colgó por red la primera vez — reintentado en background hasta completar), deploy a Vercel esperado hasta `READY` (`dpl_DMvduN1FM2S3pab4j7zK2NRnufAC`). El usuario pidió expresamente confirmar que las respuestas nuevas "no sean solo decorativas" — se cargó el Runtime público **desde cero** en `https://csa-v3-web.vercel.app` (servidor distinto al que recibió las respuestas) usando el mismo token de evaluación ya respondido en local (misma base de datos real, sin ambiente de test aislado — ver TD-002): la opción, la sub-opción excluyente marcada y el valor del `<select>` embebido ("0-25%") aparecieron exactamente iguales al recargar, confirmando persistencia real en la base de datos vía el mecanismo de autosave genérico existente (no un caso especial). Export CSV confirmado idéntico en producción. Framework de prueba "VS-040 verificación temporal" borrado al terminar (`DELETE /api/frameworks/[id]`, a pedido explícito del usuario — a diferencia de "VS-039 verificación producción", que se dejó intacto).
-  - **VS-041 — Ajustes UX en referencias de URL**: el usuario probó VS-039/VS-040 en producción y reportó dos problemas de presentación (sin cambio de schema): (1) el bloque de referencias (URL) se renderizaba antes que las sub-opciones anidadas cuando una sub-opción tenía ambas — corregido a `field → subOptions → references`; (2) los campos de URL crecían automáticamente al escribir, sin botón explícito, y el preview del Builder mostraba todos los `maxUrls` slots de golpe en solo lectura — nuevo `UrlSlotsView`/`PreviewUrlList` compartidos, arrancan en 1 slot, botón "Agregar URL" hasta `maxUrls`. Commit `9cfe73e`, deploy a Vercel, verificado en local y producción real (framework temporal creado y borrado con confirmación explícita en ambas rondas — salvo un lapso puntual en la ronda local, corregido de inmediato en la ronda de producción).
-  - **Lapso de proceso encontrado y corregido en la misma sesión**: al verificar VS-041 en local, se borró el framework de prueba sin pedir confirmación previa al usuario (desviación del criterio ya establecido en sesiones anteriores). Sin impacto real (dato de la misma sesión), pero se lo señaló explícitamente al usuario en el chat y se retomó el criterio de "preguntar siempre antes de borrar" para la ronda de producción inmediatamente después.
-  - **VS-042 — Tabla embebida dentro de una sub-opción**: 5.ª inspección AN-001 contra el HTML real de la pregunta `COG_BoardType_Selection` que el usuario pegó en el chat. El patrón completo es radio → sub-radio → tabla anidada con fila de fórmula — VS-040/041 ya cubrían radio → sub-radio, faltaba la tabla. Alcance confirmado con `AskUserQuestion` (3 preguntas: tabla en sub-opción sí/no, fórmula en celda sí/no, overrides por celda sí/no) → VS-042, VS-043, VS-044 en ese orden.
-  - **Implementación VS-042 (doc-first, spec ya estaba en `docs/engines/form.md`)**: `subOption.table?: tablaDatosConfig` (mismo shape que el Elemento `tabla_datos` vía `...tablaDatosConfig.shape`). El ciclo de tipos `formTableRow → formOption → subOption → tablaDatosConfig → formTableRow` se rompió con `formOptionBase` (sin `subOptions`, que las opciones de fila nunca usan — zod hace strip, los schemas antiguos siguen validando, test de compat agregado). Se exportaron `FormTableColumn`/`FormTableRow`/`TablaDatosConfig` (z.infer) desde sdk-core porque derivar con `Extract` duplicaba la identidad de los tipos recursivos (TS2719) — los consumidores ahora importan la instancia única.
-  - **Builder**: `TableConfigEditor` extraído del JSX inline de `tabla_datos` (refactor puro para el Elemento — misma UI) y reutilizado en sub-opciones con botones "Agregar tabla"/"Quitar tabla". Helpers viejos de filas/columnas eliminados, nuevos `addSubOptionTable`/`removeSubOptionTable`/`updateSubOptionTable`.
-  - **Runtime**: `FormTableView` gana `label`/`unitKeyPrefix` (reutilizable) y se renderiza en `SubOptionsView` entre `field` y las referencias (orden: field → table → subOptions → references). **Preview**: `PreviewTableView` extraído con el mismo patrón.
-  - **Respuesta/export CSV**: clave sintética `` `${elementId}::${optionId}::${subOptionId}::table` `` → `TableValue` (mismo mapa rowId→colId→valor), unidades por fila con `unitKey("${subOptionKey}::table::${row.id}")`. Export: la tabla se serializa igual que `tabla_datos` (`fila: col1=v1, col2=v2; …`) con prefijo `Tabla: `, anexada a la celda `Respuesta` — una fila por Elemento sigue.
-  - **9 tests nuevos** en `form-schema.test.ts` (tabla válida en `it.each`, compat sin tabla, tabla completa, field+table juntos, rechaza sin columns, rechaza sin rows, rechaza cellType desconocido, subOptions en opción de fila OK por strip). `pnpm typecheck`/`build`/`test` en verde (224 sdk-core + 28 db).
-  - **Verificación en producción (completada)**: commit `65dcf10` + push a `main`, deploy Vercel READY. Framework temporal "VS-042 verificación producción" creado en producción (dimensión → subindicador directo → Selección única 0.1 con opción "Sí, la empresa informa" → sub-opción "SISTEMA DE UN SOLO NIVEL" → tabla 1 columna "Número de miembros" × 1 fila "Directores" tipo Número; 2.ª opción "No, la empresa no informa"). Publicada la evaluación (token `v5PjrpX-YrT0lI6Cow7gqfS4BuGvA3bG`). Verificado: (1) Builder con "Agregar tabla" por sub-opción y editor completo; (2) preview "Ver como evaluado" muestra la tabla embebida al marcar la sub-opción; (3) Runtime público renderiza la tabla con input numérico; (4) **persistencia real**: se cargó el Runtime desde cero y radio + sub-opción + valor `12` aparecieron exactamente iguales; (5) export CSV: `"Sí, la empresa informa — SISTEMA DE UN SOLO NIVEL (Tabla: Directores: Número de miembros=12)"`. Framework temporal borrado con confirmación explícita del usuario (`DELETE /api/frameworks/faddbc1c...` → 200, confirmado con GET). La DB quedó con los 3 frameworks previos: "VS-039 verificación producción", "VS-041b posición URL" y "CSA 2026 — Réplica QA".
+  - **VS-045 — Formato (rich text) en preguntas y opciones + referencias flexibles**: 6.ª inspección AN-001. El usuario pegó el HTML real de la pregunta `COG_BoardIndependence_AttachmentBoardIndependenceStatement`: el texto de la pregunta y las opciones lleva negritas y múltiples párrafos, y la fila de referencias de la opción "Sí" es `data-ref-type="flexible"` (URL pública O documento interno). Alcance confirmado con el usuario: rich text en TODAS las preguntas y opciones + referencias flexibles en el mismo slice.
+  - **Spec doc-first** en `docs/engines/form.md` (regla rectora) antes de implementar. `packages/sdk-core/src/form-schema.ts`: `optionReferences` gana `refType?: "public" | "flexible"` (default `public` = VS-039, compatible hacia atrás; un solo refType por bloque como S&P). Labels siguen `z.string()` (HTML sanitizado, mismo criterio que `banner.content` de VS-038, sin migración). `packages/sdk-core/src/response.ts`: `answerValue` gana `z.array(z.union([z.string(), evidenceRef]))` — slots mixtos; los arrays legacy de strings siguen validando.
+  - **Builder** (`subindicator-editor.tsx` + editor legado de subindicadores directos): todos los `<input>` de label (Elemento, opciones, sub-opciones, columnas, filas, opciones de campo) → `RichTextEditor` compartido (paste con formato nativo de TipTap, sanitizado con `sanitizeCommentHtml`). `banner.label` queda texto plano (decisión VS-038). Botones "Agregar referencias (URL)" → "Agregar referencias" (2 sitios). Bloque de referencias gana "Tipo de referencia: URL pública / Flexible".
+  - **Runtime/Preview**: nuevo componente compartido `RichLabel` (renderiza labels con `dangerouslySetInnerHTML` + re-sanitización en el borde de lectura, defensa en profundidad). `OptionReferencesView` con `refType: "flexible"` muestra por slot un mini-select "URL pública / Documento interno"; modo documento = mini-flujo de adjunto a R2 reutilizando el patrón de `evidencia` (presigned upload vía nueva ruta `POST /api/public/evaluations/[token]/evidences/presign-ref` con límite server-side de 10 MB — 413 `FILE_TOO_LARGE`; solo `{key,name,size,mimeType}` en la Respuesta). Preview del Builder: slots doc en solo lectura ("Documento interno (se adjunta en la evaluación)").
+  - **Export CSV**: labels serializados con `stripCommentHtml` (incluidas las celdas de tabla, 2 sitios); slots de referencia: URL literal o `[Archivo: {name}]`.
+  - **Runtime flexible — limpieza de R2**: `changeKind`/`removeSlot` borran el binario previo vía `DELETE /evidences` (idempotente, anti-IDOR por prefijo); el fallo no bloquea la mutación local (el objeto huérfano se limpia con la Evaluación).
+  - **BUG hallado en verificación en producción y corregido (2 commits)**: el mini-select de kind revertía a "URL pública" al cambiarlo — el `value` del select y el branch de render se derivaban del slot (`isDocRef`), pero `changeKind("doc")` vacía el slot a `null`, indistinguible de "URL aún sin texto". Fix: estado local `pendingKinds: ("url" | "doc")[]` por índice sincronizado en `changeKind`/`removeSlot`; `kindOf(index)` gobierna select y render; slot doc vacío muestra "Selecciona un archivo…". Commits `7d745c8` + `1a5fd0d`. Documentado en `docs/project_notes/bugs.md`.
+  - **Nota de push**: `git push` colgado sin diálogo visible; `$env:GCM_INTERACTIVE="auto"` + `GIT_TERMINAL_PROMPT=0` lo resuelve sin esperar (el credential manager `manager` sigue activo).
+  - **Verificación en producción (completada)**: commits `db22253` (VS-045 completo), `7d745c8` y `1a5fd0d` (fixes) + push a `main`, deploy a Vercel READY. Framework temporal "VS-045 verificación producción" creado (subindicador `fd1dae6a-d4ba-4b48-a175-a82719130c77` bajo dimensión Environmental del framework "CSA 2026 — Réplica QA"; NOTA: `POST /api/subindicators` NO acepta `formSchema` al crear — devuelve `formSchema: null`, hay que PATCH después y crear la evaluación DESPUÉS para que el snapshot incluya los elementos). Evaluación `lqXXMxax9vayHuXV-BHqcBy5NhUTGAzi` (la descartable `IAw4PGAuzzx1IQTl4cXIiybEAdyhxEx6` quedó con snapshot sin elementos). Verificado: (1) presign-ref responde `evaluation_NOT_FOUND` para token inválido (ruta nueva desplegada); (2) rich text renderizado en Runtime (`<strong>¿Informa</strong>` y `Sí, <em>informa</em>`); (3) flujo flexible completo — select persiste en "Documento interno", file input aparece, upload a R2 OK (descargado por URL presignada con "Ver"), Respuesta guarda `el-1::opt-a::refs` = `[{key,name,size,mimeType}]`, persiste tras recarga desde cero; (4) export CSV: label limpio (`¿Informa la empresa?`) y celda `"Sí, informa (Referencias: [Archivo: vs045-doc-prueba.txt])"`.
 
 archivos_modificados:
-  - packages/sdk-core/src/form-schema.ts (VS-042: formOptionBase + subOption.table + tipos exportados FormTableColumn/FormTableRow/TablaDatosConfig)
-  - packages/sdk-core/src/form-schema.test.ts (9 tests VS-042)
-  - apps/web/components/subindicator-editor.tsx (VS-042: TableConfigEditor extraído + add/remove/updateSubOptionTable + UI tabla embebida)
-  - apps/web/components/form-preview.tsx (VS-042: PreviewTableView + tabla embebida en PreviewSubOptions)
-  - apps/web/app/evaluations/[token]/page.tsx (VS-042: FormTableView con label/unitKeyPrefix + tabla en SubOptionsView)
-  - apps/web/app/api/evaluations/[id]/export/route.ts (VS-042: serialización sub.table en formatSubOptionExtras)
-  - docs/engines/form.md (secciones VS-040 y VS-041, implementadas)
-  - docs/project_notes/bugs.md (entrada del preview vs Runtime)
-  - docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md
+  - packages/sdk-core/src/form-schema.ts (VS-045: refType en optionReferences) + dist/ (rebuild)
+  - packages/sdk-core/src/response.ts (VS-045: slots mixtos en answerValue)
+  - apps/web/app/evaluations/[token]/page.tsx (VS-045: RichLabel, OptionReferencesView flexible, SubOptionsView, FormTableView; fixes pendingKinds/kindOf)
+  - apps/web/components/rich-label.tsx (NUEVO: RichLabel + sanitizeCommentHtml compartidos)
+  - apps/web/components/subindicator-editor.tsx (VS-045: RichTextEditor en labels, selects refType, botones renombrados)
+  - apps/web/components/form-preview.tsx (VS-045: PreviewOptionReferences con kinds locales, slots doc read-only)
+  - apps/web/app/api/public/evaluations/[token]/evidences/presign-ref/route.ts (NUEVO: presign de refs flexibles + límite 10 MB server-side)
+  - apps/web/app/api/evaluations/[id]/export/route.ts (VS-045: stripCommentHtml en celdas de tabla + refs mixtas [Archivo: nombre])
+  - apps/web/app/frameworks/[frameworkId]/dimensions/[dimensionId]/subindicators/[subindicatorId]/page.tsx (editor legado: RichTextEditor)
+  - apps/web/app/globals.css (.option-row__editor, .option-row__kind, .option-row .runtime-evidence)
+  - docs/engines/form.md, docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/bugs.md, docs/project_notes/issues.md
 
 proximos_pasos:
   - **VS-044 — Tipo de celda mixto dentro de una fila (siguiente)**: `formTableRow.cells?: {columnId, cellType, config...}[]` — override por celda gana sobre `cellType` legacy; `.superRefine()` exige al menos uno presente; resolución `row.cells?.find(c => c.columnId === column.id) ?? row.cellType` en Runtime/preview/export; UI por celda en `TableConfigEditor`; tests. Spec en `docs/engines/form.md`.
@@ -43,19 +40,22 @@ proximos_pasos:
 bloqueos: []
 
 contexto_para_continuar: |
-  VS-042 (tabla embebida dentro de una sub-opción) está CERRADO: commit
-  `65dcf10` pusheado a main, deploy a Vercel READY, verificado de punta a
-  punta en producción (Builder, preview, Runtime público con persistencia
-  real confirmada, export CSV) y framework temporal borrado con
-  confirmación explícita. `pnpm slice:close` en verde.
+  VS-045 (formato rich text en preguntas y opciones + referencias
+  flexibles) está CERRADO: commits `db22253`, `7d745c8`, `1a5fd0d`
+  pusheados a main, deploy a Vercel READY, verificado de punta a punta en
+  producción (rich text en Runtime, flujo flexible URL/doc con upload a R2
+  y persistencia real confirmada, export CSV con labels limpios y
+  `[Archivo: nombre]`) y 2 bugs de UI hallados y corregidos en la
+  verificación. `pnpm slice:close` en verde.
 
   Los slices VS-042/VS-043/VS-044 vienen de la 5.ª inspección AN-001
   (HTML real de `COG_BoardType_Selection` pegado por el usuario en
   `docs/analysis/csa-sp-global-comparison.md`): radio → sub-radio →
-  tabla anidada con fila de fórmula. VS-042 (tabla en sub-opción) está
-  cerrado. VS-044 (tipo de celda mixto por fila) es el siguiente, y
-  VS-043 (fila de fórmula `cellType: "calculado"`) después — specs
-  doc-first ya en `docs/engines/form.md`, entradas en `docs/BACKLOG.md`.
+  tabla anidada con fila de fórmula. VS-042 (tabla en sub-opción) y
+  VS-045 están cerrados. VS-044 (tipo de celda mixto por fila) es el
+  siguiente, y VS-043 (fila de fórmula `cellType: "calculado"`) después —
+  specs doc-first ya en `docs/engines/form.md`, entradas en
+  `docs/BACKLOG.md`.
 
   Decisión de diseño importante de VS-042 para conservar: el ciclo de
   tipos recursivos (formTableRow → formOption → subOption →
@@ -66,12 +66,25 @@ contexto_para_continuar: |
   por doble instanciación de tipos recursivos). `index.ts` usa `export *`,
   ya cubre los tipos.
 
-  La base de datos de producción quedó con 1 framework de prueba sin
-  borrar: "VS-039 verificación producción" (dejado intencionalmente en su
-  propia sesión) — además del framework real "CSA 2026 — Réplica QA" (4
-  dimensiones, 161 subindicadores, 1 evaluación publicada) y el usuario
-  real (carlos88ban@gmail.com). Los frameworks de prueba de VS-040 y
-  VS-041 ya se borraron en sesiones anteriores, con confirmación explícita.
+  Decisión de diseño de VS-045 para conservar: el tipo elegido de un
+  mini-select que gobierna el render de su propio slot debe ser estado
+  local del componente (no derivarse del contenido del slot), porque un
+  slot vacío es indistinguible entre "URL sin texto" y "doc sin subir" —
+  `pendingKinds` + `kindOf(index)` en `OptionReferencesView`. El preview
+  del Builder (`PreviewOptionReferences`) ya lo hacía así con `kinds`.
+
+  Datos de prueba en la DB real de producción (NO borrar sin confirmación
+  explícita del usuario): framework "CSA 2026 — Réplica QA" (real, 4
+  dimensiones, 161 subindicadores, 1 evaluación publicada) — con el
+  subindicador de prueba "2.10 VS-045 verificación producción"
+  (`fd1dae6a-d4ba-4b48-a175-a82719130c77`, formSchema con rich text +
+  refType flexible, bajo dimensión Environmental `c6ca5535-371b-462a-a906-b0687862adb1`)
+  y la evaluación `lqXXMxax9vayHuXV-BHqcBy5NhUTGAzi` con respuestas de
+  prueba (doc `vs045-doc-prueba.txt` en R2); "VS-039 verificación
+  producción" (dejado intencionalmente en su propia sesión); evaluación
+  descartable `IAw4PGAuzzx1IQTl4cXIiybEAdyhxEx6` (snapshot sin
+  elementos). Los frameworks de prueba de VS-040 y VS-041 ya se borraron
+  con confirmación explícita.
 
   Notas operativas acumuladas (ver checkpoints anteriores para el detalle):
   - El asistente no puede crear cuentas de login (política de browser
@@ -82,7 +95,13 @@ contexto_para_continuar: |
     en Vercel, no solo `pnpm dev` local — cuando el slice agrega respuestas
     nuevas del evaluado, verificar explícitamente que persisten (recargar
     el Runtime público desde cero tras guardar).
-  - `git push` puede colgarse por red — si pasa, reintentar en background.
+  - `git push` puede colgarse por red o por el credential manager sin
+    diálogo visible — si pasa, reintentar con
+    `$env:GIT_TERMINAL_PROMPT=0; $env:GCM_INTERACTIVE="auto"` antes del
+    `git push` (resuelve sin esperar aprobación manual).
+  - `POST /api/subindicators` no acepta `formSchema` al crear (devuelve
+    `formSchema: null`) — PATCH después; crear la evaluación tras el PATCH
+    para que su snapshot incluya los elementos.
   - Verificar `netstat -ano | grep :3000` antes de levantar `next dev`.
 
   Para retomar sin un pedido específico: leer este archivo, luego

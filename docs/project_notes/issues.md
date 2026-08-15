@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-15 - VS-045: Formato en preguntas/opciones + referencias flexibles
+- **Status**: Completed
+- **Description**: 6.ª inspección AN-001 contra el HTML real de `COG_BoardIndependence_AttachmentBoardIndependenceStatement`: labels con negritas/múltiples párrafos + fila de referencias `data-ref-type="flexible"`.
+- **Notes**: `optionReferences.refType?: "public"|"flexible"` (default `public`); `answerValue` acepta slots mixtos (`z.array(z.union([z.string(), evidenceRef]))`). Builder: todos los labels → `RichTextEditor` compartido (nuevo `components/rich-label.tsx` con `RichLabel`/`sanitizeCommentHtml`). Runtime: `RichLabel` + `OptionReferencesView` flexible (mini-select URL/doc por slot, upload a R2 vía nueva ruta `presign-ref` con límite 10 MB server-side, borrado de binario en `changeKind`/`removeSlot`). Export CSV: `stripCommentHtml` (incl. celdas de tabla) + `[Archivo: nombre]`. 2 bugs hallados en verificación en producción y corregidos (`7d745c8`, `1a5fd0d`): el select de kind revertía a URL pública (tipo no derivable de slot vacío → estado local `pendingKinds`/`kindOf`). Verificado en producción (commit `db22253` + fixes, deploy Vercel READY, evaluación `lqXXMxax9vayHuXV-BHqcBy5NhUTGAzi`): rich text renderizado, flujo flexible completo (doc subido a R2, persistencia tras recarga, export CSV con `[Archivo: vs045-doc-prueba.txt]`). `pnpm typecheck`/`build`/`test` en verde.
+
 ### 2026-08-14 - VS-045 (spec doc-first): Formato en preguntas/opciones + referencias flexibles
 - **Status**: Spec escrita, sin implementar
 - **Description**: 6.ª inspección AN-001 contra el HTML real de la pregunta `COG_BoardIndependence_AttachmentBoardIndependenceStatement` enviado por el usuario. (A) El texto de la pregunta y de las opciones lleva negritas y múltiples párrafos — pegar en un `<input>` plano lo aplanaba (mismo problema que `banner.content` antes de VS-038). (B) El bloque de referencias de la opción "Sí" es `data-ref-type="flexible"` con `data-maxrefs="3"` — ítem menor de la 5.ª inspección que el usuario pidió incluir ahora.

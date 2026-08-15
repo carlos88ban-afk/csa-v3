@@ -12,6 +12,13 @@ Registro cronológico de bugs y su solución. Entradas breves. Limpiar entradas 
 - **Prevention**: cómo evitarlo (opcional)
 ```
 
+### 2026-08-15 - Runtime VS-045: el select de referencia flexible (URL/Documento) revertía a "URL pública" al cambiarlo [RESUELTO]
+
+- **Issue**: en producción, al cambiar el mini-select de un slot de referencia flexible de "URL pública" a "Documento interno", el select volvía inmediatamente a "URL pública" y el slot seguía mostrando el input de URL — imposible subir un documento interno. Hallado en la verificación en producción de VS-045 (evaluación `lqXXMxax9vayHuXV-BHqcBy5NhUTGAzi`).
+- **Root Cause**: dos derivaciones del mismo error en `apps/web/app/evaluations/[token]/page.tsx` (`OptionReferencesView`): (1) el `value` del select se derivaba solo del slot (`isDocRef(slot) ? "doc" : "url"`), pero `changeKind("doc")` vacía el slot a `null` — un slot `null` es indistinguible de "URL aún sin texto", así que el select revertía a "URL pública"; (2) el branch de render (input URL vs file input) usaba la misma derivación `isDocRef(slot)`, con lo que ni siquiera el input cambiaba, y si lo hubiera hecho, `slot.name` sobre `null` habría crasheado.
+- **Solution**: estado local `pendingKinds: ("url" | "doc")[]` por índice, sincronizado en `changeKind`/`removeSlot`; el select y el branch de render ahora usan `kindOf(index)` (slot docRef → "doc", string → "url", vacío → pendingKind), y el branch doc con slot vacío muestra "Selecciona un archivo para adjuntarlo como documento interno." (commit `1a5fd0d`, tras `7d745c8` que solo cubrió el select).
+- **Prevention**: cuando un mini-select de tipo gobierna el render de su propio slot y el valor de tipo no es derivable del contenido (slot vacío), el tipo elegido debe ser estado propio del componente, no una función del contenido; verificar en producción con el flujo completo (cambiar tipo → subir archivo → recargar → persistencia), no solo el cambio de select.
+
 ### 2026-08-14 - Preview del Builder trataba sub-opciones de nivel 1 como excluyentes, el Runtime real como múltiples [RESUELTO]
 
 - **Issue**: `apps/web/components/form-preview.tsx` (`PreviewSubOptions`, preview en vivo del Builder) renderizaba las sub-opciones de nivel 1 como `type="radio"` (excluyentes) mientras `apps/web/app/evaluations/[token]/page.tsx` (`SubOptionsView`, Runtime real) las renderizaba siempre como `type="checkbox"` (múltiples), sin importar el nivel. Encontrado al implementar VS-040 (analizando el HTML real de S&P, que confirmó que S&P sí usa grupos excluyentes en algunos casos anidados).

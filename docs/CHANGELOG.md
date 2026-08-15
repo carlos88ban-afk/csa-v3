@@ -14,6 +14,8 @@ Formato: por slice, no por commit individual.
 - **Export CSV**: labels serializados con `stripCommentHtml`; slots de referencia: URL literal o `[Archivo: {name}]` (los binarios no viajan en el CSV, mismo criterio que `evidencia`).
 - Verificado: `pnpm typecheck`/`build`/`test` en verde.
 
+**Verificación en producción (2026-08-15)**: commits `db22253`, `7d745c8`, `1a5fd0d` + push a `main`, deploy a Vercel (READY). Verificado contra `https://csa-v3-web.vercel.app` con la evaluación `lqXXMxax9vayHuXV-BHqcBy5NhUTGAzi` (subindicador "2.10 VS-045 verificación producción", creado vía POST/PATCH en la API): rich text renderizado en pregunta (`<strong>¿Informa</strong>`) y opción (`Sí, <em>informa</em>`); presign-ref responde `evaluation_NOT_FOUND` para token inválido (ruta nueva desplegada); flujo flexible completo — select a "Documento interno" persiste, file input aparece, upload a R2 OK (el archivo se descarga por URL presignada con "Ver"), la Respuesta guarda `{key,name,size,mimeType}` (`el-1::opt-a::refs`), y persiste tras recarga. Export CSV: label limpio (`¿Informa la empresa?`) y celda `"Sí, informa (Referencias: [Archivo: vs045-doc-prueba.txt])"`. Dos bugs de UI hallados aquí y corregidos (ver `docs/project_notes/bugs.md`): select de kind que revertía a URL pública (falta de estado local del tipo en slot vacío).
+
 ### VS-042 — Tabla embebida dentro de una sub-opción (2026-08-14)
 
 - 5.ª inspección AN-001: el HTML real de S&P (pregunta 0.1 "COG_BoardType_Selection") anida una tabla con fila de fórmula DENTRO de una sub-opción marcada — el patrón completo era radio → sub-radio → tabla anidada. VS-040/041 ya cubrían radio → sub-radio; faltaba la tabla anidada.
