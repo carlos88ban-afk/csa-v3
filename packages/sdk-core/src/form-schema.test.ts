@@ -488,6 +488,97 @@ describe("formElement", () => {
     }
   });
 
+  // Bloque secundario de sub-opciones por opción (VS-046, docs/engines/form.md
+  // "Bloque secundario de sub-opciones por opción").
+  it("acepta una opción sin secondaryOptions (compatible hacia atrás)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", subOptions: [{ id: "sub-a", label: "Sub A" }] }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "seleccion_unica") {
+      expect(result.data.options[0]?.secondaryOptions).toBeUndefined();
+      expect(result.data.options[0]?.secondaryOptionsHeading).toBeUndefined();
+      expect(result.data.options[0]?.secondaryOptionsExclusive).toBeUndefined();
+    }
+  });
+
+  it("acepta secondaryOptions junto con subOptions en la misma opción (bloques hermanos)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [
+        {
+          id: "applicable",
+          label: "Applicable",
+          subOptionsExclusive: true,
+          subOptions: [
+            { id: "cg-code", label: "Acceptable CG Code" },
+            { id: "own-req", label: "Own Independence Requirements", subOptions: [{ id: "crit-1", label: "Criterio 1" }] },
+          ],
+          secondaryOptionsHeading: "Distribución de objetivos",
+          secondaryOptions: [
+            { id: "target-share", label: "Participación objetivo", field: { type: "texto_corto", maxLength: 1000 } },
+          ],
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "seleccion_unica") {
+      const option = result.data.options[0];
+      expect(option?.subOptions).toHaveLength(2);
+      expect(option?.secondaryOptions).toHaveLength(1);
+      expect(option?.secondaryOptions?.[0]?.field?.type).toBe("texto_corto");
+      expect(option?.secondaryOptionsHeading).toBe("Distribución de objetivos");
+    }
+  });
+
+  it("acepta secondaryOptionsExclusive true/false explícito, independiente de subOptionsExclusive", () => {
+    const trueResult = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [
+        {
+          id: "a",
+          label: "A",
+          subOptionsExclusive: false,
+          subOptions: [{ id: "sub-a", label: "Sub A" }],
+          secondaryOptionsExclusive: true,
+          secondaryOptions: [{ id: "sec-a", label: "Sec A" }],
+        },
+      ],
+    });
+    expect(trueResult.success).toBe(true);
+    if (trueResult.success && trueResult.data.type === "seleccion_unica") {
+      expect(trueResult.data.options[0]?.subOptionsExclusive).toBe(false);
+      expect(trueResult.data.options[0]?.secondaryOptionsExclusive).toBe(true);
+    }
+  });
+
+  it("acepta secondaryOptions vacío (array sin ítems no rechazado, mismo criterio que subOptions)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", secondaryOptions: [] }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rechaza secondaryOptions con un ítem sin id", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", secondaryOptions: [{ id: "", label: "Sec vacía" }] }],
+    });
+    expect(result.success).toBe(false);
+  });
+
   // Posición configurable de las referencias (VS-041, docs/engines/form.md
   // "Corrección posterior: posición configurable").
   it("acepta references sin position (default before_suboptions implícito)", () => {

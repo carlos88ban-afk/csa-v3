@@ -779,6 +779,11 @@ input[type="checkbox"] {
   border-left: 2px solid var(--border);
 }
 
+.sub-options__heading {
+  font-weight: 600;
+  margin: 0;
+}
+
 .option-row--sub input {
   font-size: var(--text-sm);
 }

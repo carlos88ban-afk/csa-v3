@@ -584,6 +584,7 @@ function SubOptionFieldView({
 // selección múltiple — sin evidencia de necesitar excluyencia ahí).
 function SubOptionsView({
   subKey,
+  heading,
   subOptions,
   value,
   onChange,
@@ -596,6 +597,10 @@ function SubOptionsView({
   elementId,
 }: {
   subKey: string;
+  // VS-046: encabezado propio, usado por el bloque secundario
+  // (`secondaryOptionsHeading`) — el bloque primario (`subOptions`) nunca lo
+  // pasa, sin cambio de comportamiento para llamadas existentes.
+  heading?: string | undefined;
   subOptions: {
     id: string;
     label: string;
@@ -631,6 +636,11 @@ function SubOptionsView({
 
   return (
     <div className="sub-options runtime-options" key={subKey}>
+      {heading && (
+        <p className="sub-options__heading">
+          <RichLabel html={heading} />
+        </p>
+      )}
       {subOptions.map((sub) => (
         <div key={sub.id}>
           <label className="field--checkbox">
@@ -1803,6 +1813,22 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                   elementId={element.id}
                 />
               )}
+              {value === opt.id && opt.secondaryOptions && opt.secondaryOptions.length > 0 && (
+                <SubOptionsView
+                  subKey={`${element.id}::${opt.id}::secondary`}
+                  heading={opt.secondaryOptionsHeading}
+                  subOptions={opt.secondaryOptions}
+                  value={answers[`${element.id}::${opt.id}::secondary`]}
+                  onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::secondary`, next)}
+                  locked={locked}
+                  answers={answers}
+                  onAnswerChange={onAnswerChange}
+                  exclusive={opt.secondaryOptionsExclusive ?? false}
+                  token={token}
+                  subindicatorId={subindicatorId}
+                  elementId={element.id}
+                />
+              )}
               {value === opt.id && opt.references && opt.references.position === "after_suboptions" && (
                 <OptionReferencesView
                   refType={opt.references.refType ?? "public"}
@@ -1860,6 +1886,22 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                       answers={answers}
                       onAnswerChange={onAnswerChange}
                       exclusive={opt.subOptionsExclusive ?? false}
+                      token={token}
+                      subindicatorId={subindicatorId}
+                      elementId={element.id}
+                    />
+                  )}
+                  {selected.includes(opt.id) && opt.secondaryOptions && opt.secondaryOptions.length > 0 && (
+                    <SubOptionsView
+                      subKey={`${element.id}::${opt.id}::secondary`}
+                      heading={opt.secondaryOptionsHeading}
+                      subOptions={opt.secondaryOptions}
+                      value={answers[`${element.id}::${opt.id}::secondary`]}
+                      onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::secondary`, next)}
+                      locked={locked}
+                      answers={answers}
+                      onAnswerChange={onAnswerChange}
+                      exclusive={opt.secondaryOptionsExclusive ?? false}
                       token={token}
                       subindicatorId={subindicatorId}
                       elementId={element.id}

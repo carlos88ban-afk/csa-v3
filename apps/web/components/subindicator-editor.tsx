@@ -714,7 +714,29 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
 
   // Sub-opciones anidadas (docs/engines/form.md, "Opciones anidadas VS-016"):
   // un solo nivel, mismo patrón CRUD que las opciones de primer nivel.
-  function addSubOption(elementId: string, optionId: string) {
+  // VS-046 ("Bloque secundario de sub-opciones por opción"): mismo shape que
+  // `subOptions`, ahora reusado también para `secondaryOptions` — todas las
+  // funciones de este grupo ganan un parámetro `block` opcional (default
+  // "subOptions", preserva el comportamiento de todo call-site existente)
+  // en vez de duplicar cada función para el bloque secundario.
+  type OptionSubBlock = "subOptions" | "secondaryOptions";
+
+  function addSubOption(elementId: string, optionId: string, block: OptionSubBlock = "subOptions") {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return {
+          ...el,
+          options: el.options.map((opt) =>
+            opt.id === optionId ? { ...opt, [block]: [...(opt[block] ?? []), { id: crypto.randomUUID(), label: "" }] } : opt,
+          ),
+        };
+      }),
+    );
+  }
+
+  function updateSubOption(elementId: string, optionId: string, subOptionId: string, label: string, block: OptionSubBlock = "subOptions") {
     commit(
       elements.map((el) => {
         if (el.id !== elementId) return el;
@@ -723,7 +745,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
           ...el,
           options: el.options.map((opt) =>
             opt.id === optionId
-              ? { ...opt, subOptions: [...(opt.subOptions ?? []), { id: crypto.randomUUID(), label: "" }] }
+              ? { ...opt, [block]: (opt[block] ?? []).map((sub) => (sub.id === subOptionId ? { ...sub, label } : sub)) }
               : opt,
           ),
         };
@@ -731,7 +753,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     );
   }
 
-  function updateSubOption(elementId: string, optionId: string, subOptionId: string, label: string) {
+  function removeSubOption(elementId: string, optionId: string, subOptionId: string, block: OptionSubBlock = "subOptions") {
     commit(
       elements.map((el) => {
         if (el.id !== elementId) return el;
@@ -739,31 +761,14 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
         return {
           ...el,
           options: el.options.map((opt) =>
-            opt.id === optionId
-              ? { ...opt, subOptions: (opt.subOptions ?? []).map((sub) => (sub.id === subOptionId ? { ...sub, label } : sub)) }
-              : opt,
+            opt.id === optionId ? { ...opt, [block]: (opt[block] ?? []).filter((sub) => sub.id !== subOptionId) } : opt,
           ),
         };
       }),
     );
   }
 
-  function removeSubOption(elementId: string, optionId: string, subOptionId: string) {
-    commit(
-      elements.map((el) => {
-        if (el.id !== elementId) return el;
-        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
-        return {
-          ...el,
-          options: el.options.map((opt) =>
-            opt.id === optionId ? { ...opt, subOptions: (opt.subOptions ?? []).filter((sub) => sub.id !== subOptionId) } : opt,
-          ),
-        };
-      }),
-    );
-  }
-
-  function addSubSubOption(elementId: string, optionId: string, subOptionId: string) {
+  function addSubSubOption(elementId: string, optionId: string, subOptionId: string, block: OptionSubBlock = "subOptions") {
     commit(
       elements.map((el) => {
         if (el.id !== elementId) return el;
@@ -774,7 +779,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
             opt.id === optionId
               ? {
                   ...opt,
-                  subOptions: (opt.subOptions ?? []).map((sub) =>
+                  [block]: (opt[block] ?? []).map((sub) =>
                     sub.id === subOptionId
                       ? { ...sub, subOptions: [...(sub.subOptions ?? []), { id: crypto.randomUUID(), label: "" }] }
                       : sub,
@@ -787,7 +792,14 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     );
   }
 
-  function updateSubSubOption(elementId: string, optionId: string, subOptionId: string, subSubOptionId: string, label: string) {
+  function updateSubSubOption(
+    elementId: string,
+    optionId: string,
+    subOptionId: string,
+    subSubOptionId: string,
+    label: string,
+    block: OptionSubBlock = "subOptions",
+  ) {
     commit(
       elements.map((el) => {
         if (el.id !== elementId) return el;
@@ -798,7 +810,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
             opt.id === optionId
               ? {
                   ...opt,
-                  subOptions: (opt.subOptions ?? []).map((sub) =>
+                  [block]: (opt[block] ?? []).map((sub) =>
                     sub.id === subOptionId
                       ? { ...sub, subOptions: (sub.subOptions ?? []).map((subsub) => (subsub.id === subSubOptionId ? { ...subsub, label } : subsub)) }
                       : sub,
@@ -811,7 +823,13 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     );
   }
 
-  function removeSubSubOption(elementId: string, optionId: string, subOptionId: string, subSubOptionId: string) {
+  function removeSubSubOption(
+    elementId: string,
+    optionId: string,
+    subOptionId: string,
+    subSubOptionId: string,
+    block: OptionSubBlock = "subOptions",
+  ) {
     commit(
       elements.map((el) => {
         if (el.id !== elementId) return el;
@@ -822,7 +840,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
             opt.id === optionId
               ? {
                   ...opt,
-                  subOptions: (opt.subOptions ?? []).map((sub) =>
+                  [block]: (opt[block] ?? []).map((sub) =>
                     sub.id === subOptionId ? { ...sub, subOptions: (sub.subOptions ?? []).filter((subsub) => subsub.id !== subSubOptionId) } : sub,
                   ),
                 }
@@ -923,14 +941,80 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     );
   }
 
+  // VS-046: exclusividad del bloque secundario, independiente de
+  // subOptionsExclusive — nombre de campo distinto (secondaryOptionsExclusive),
+  // por eso no comparte `block` con toggleSubOptionsExclusive.
+  function toggleSecondaryOptionsExclusive(elementId: string, optionId: string, exclusive: boolean) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return {
+          ...el,
+          options: el.options.map((opt) => (opt.id === optionId ? { ...opt, secondaryOptionsExclusive: exclusive } : opt)),
+        };
+      }),
+    );
+  }
+
+  // VS-046: encabezado propio del bloque secundario, ej. "Distribución de objetivos".
+  function updateSecondaryOptionsHeading(elementId: string, optionId: string, heading: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return { ...el, options: el.options.map((opt) => (opt.id === optionId ? { ...opt, secondaryOptionsHeading: heading } : opt)) };
+      }),
+    );
+  }
+
+  // VS-046: inicia/quita el bloque secundario entero (array + heading +
+  // exclusividad) — mismo patrón que addOptionReferences/removeOptionReferences.
+  function addSecondaryOptionsBlock(elementId: string, optionId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return {
+          ...el,
+          options: el.options.map((opt) => (opt.id === optionId ? { ...opt, secondaryOptions: [{ id: crypto.randomUUID(), label: "" }] } : opt)),
+        };
+      }),
+    );
+  }
+
+  function removeSecondaryOptionsBlock(elementId: string, optionId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return {
+          ...el,
+          options: el.options.map((opt) => {
+            if (opt.id !== optionId) return opt;
+            const { secondaryOptions: _secondaryOptions, secondaryOptionsHeading: _heading, secondaryOptionsExclusive: _exclusive, ...rest } = opt;
+            return rest;
+          }),
+        };
+      }),
+    );
+  }
+
   // Campos embebidos en sub-opciones + exclusividad (VS-040, docs/engines/form.md
   // "Campos embebidos en sub-opciones"): mismo patrón CRUD que references/subOptions
   // de nivel 1, pero un nivel más adentro (subOption, no formOption). Helper
-  // compartido para no repetir el mismo recorrido anidado 7 veces.
+  // compartido para no repetir el mismo recorrido anidado 7 veces. VS-046: gana
+  // el mismo parámetro `block` que el grupo anterior, mismo criterio.
   type SubOption = NonNullable<Extract<FormElement, { type: "seleccion_unica" }>["options"][number]["subOptions"]>[number];
   type SubOptionField = NonNullable<SubOption["field"]>;
 
-  function updateSubOptionNode(elementId: string, optionId: string, subOptionId: string, updater: (sub: SubOption) => SubOption) {
+  function updateSubOptionNode(
+    elementId: string,
+    optionId: string,
+    subOptionId: string,
+    updater: (sub: SubOption) => SubOption,
+    block: OptionSubBlock = "subOptions",
+  ) {
     commit(
       elements.map((el) => {
         if (el.id !== elementId) return el;
@@ -939,7 +1023,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
           ...el,
           options: el.options.map((opt) =>
             opt.id === optionId
-              ? { ...opt, subOptions: (opt.subOptions ?? []).map((sub) => (sub.id === subOptionId ? updater(sub) : sub)) }
+              ? { ...opt, [block]: (opt[block] ?? []).map((sub) => (sub.id === subOptionId ? updater(sub) : sub)) }
               : opt,
           ),
         };
@@ -947,43 +1031,67 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     );
   }
 
-  function addSubOptionReferences(elementId: string, optionId: string, subOptionId: string) {
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, references: {} }));
+  function addSubOptionReferences(elementId: string, optionId: string, subOptionId: string, block: OptionSubBlock = "subOptions") {
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, references: {} }), block);
   }
 
   // Tabla embebida en una sub-opción (VS-042, docs/engines/form.md "Tabla
   // dentro de una sub-opción"): mismo TableConfigEditor que el Elemento
   // tabla_datos, un nivel más adentro (subOption, no formOption).
-  function addSubOptionTable(elementId: string, optionId: string, subOptionId: string) {
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({
-      ...sub,
-      table: {
-        columns: [{ id: crypto.randomUUID(), label: "" }],
-        rows: [{ id: crypto.randomUUID(), label: "", cellType: "texto" }],
+  function addSubOptionTable(elementId: string, optionId: string, subOptionId: string, block: OptionSubBlock = "subOptions") {
+    updateSubOptionNode(
+      elementId,
+      optionId,
+      subOptionId,
+      (sub) => ({
+        ...sub,
+        table: {
+          columns: [{ id: crypto.randomUUID(), label: "" }],
+          rows: [{ id: crypto.randomUUID(), label: "", cellType: "texto" }],
+        },
+      }),
+      block,
+    );
+  }
+
+  function removeSubOptionTable(elementId: string, optionId: string, subOptionId: string, block: OptionSubBlock = "subOptions") {
+    updateSubOptionNode(
+      elementId,
+      optionId,
+      subOptionId,
+      (sub) => {
+        const { table: _table, ...rest } = sub;
+        return rest;
       },
-    }));
+      block,
+    );
   }
 
-  function removeSubOptionTable(elementId: string, optionId: string, subOptionId: string) {
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => {
-      const { table: _table, ...rest } = sub;
-      return rest;
-    });
+  function updateSubOptionTable(elementId: string, optionId: string, subOptionId: string, next: TablaDatosConfig, block: OptionSubBlock = "subOptions") {
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, table: next }), block);
   }
 
-  function updateSubOptionTable(elementId: string, optionId: string, subOptionId: string, next: TablaDatosConfig) {
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, table: next }));
+  function removeSubOptionReferences(elementId: string, optionId: string, subOptionId: string, block: OptionSubBlock = "subOptions") {
+    updateSubOptionNode(
+      elementId,
+      optionId,
+      subOptionId,
+      (sub) => {
+        const { references: _references, ...rest } = sub;
+        return rest;
+      },
+      block,
+    );
   }
 
-  function removeSubOptionReferences(elementId: string, optionId: string, subOptionId: string) {
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => {
-      const { references: _references, ...rest } = sub;
-      return rest;
-    });
-  }
-
-  function updateSubOptionReferencesMaxUrls(elementId: string, optionId: string, subOptionId: string, maxUrls: number | undefined) {
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, references: { ...sub.references, maxUrls } }));
+  function updateSubOptionReferencesMaxUrls(
+    elementId: string,
+    optionId: string,
+    subOptionId: string,
+    maxUrls: number | undefined,
+    block: OptionSubBlock = "subOptions",
+  ) {
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, references: { ...sub.references, maxUrls } }), block);
   }
 
   function updateSubOptionReferencesPosition(
@@ -991,8 +1099,9 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     optionId: string,
     subOptionId: string,
     position: "before_suboptions" | "after_suboptions" | undefined,
+    block: OptionSubBlock = "subOptions",
   ) {
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, references: { ...sub.references, position } }));
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, references: { ...sub.references, position } }), block);
   }
 
   // VS-045: refType de las referencias de una sub-opción (ver
@@ -1002,30 +1111,53 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     optionId: string,
     subOptionId: string,
     refType: "public" | "flexible" | undefined,
+    block: OptionSubBlock = "subOptions",
   ) {
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, references: { ...sub.references, refType } }));
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, references: { ...sub.references, refType } }), block);
   }
 
-  function addSubOptionField(elementId: string, optionId: string, subOptionId: string, type: SubOptionField["type"]) {
+  function addSubOptionField(
+    elementId: string,
+    optionId: string,
+    subOptionId: string,
+    type: SubOptionField["type"],
+    block: OptionSubBlock = "subOptions",
+  ) {
     const field: SubOptionField =
       type === "seleccion_desplegable"
         ? { type: "seleccion_desplegable", options: [{ id: crypto.randomUUID(), label: "" }] }
         : type === "texto_corto"
           ? { type: "texto_corto" }
           : { type: "numero" };
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, field }));
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, field }), block);
   }
 
-  function removeSubOptionField(elementId: string, optionId: string, subOptionId: string) {
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => {
-      const { field: _field, ...rest } = sub;
-      return rest;
-    });
+  function removeSubOptionField(elementId: string, optionId: string, subOptionId: string, block: OptionSubBlock = "subOptions") {
+    updateSubOptionNode(
+      elementId,
+      optionId,
+      subOptionId,
+      (sub) => {
+        const { field: _field, ...rest } = sub;
+        return rest;
+      },
+      block,
+    );
   }
 
-  function updateSubOptionFieldMaxLength(elementId: string, optionId: string, subOptionId: string, maxLength: number | undefined) {
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) =>
-      sub.field?.type === "texto_corto" ? { ...sub, field: { ...sub.field, maxLength } } : sub,
+  function updateSubOptionFieldMaxLength(
+    elementId: string,
+    optionId: string,
+    subOptionId: string,
+    maxLength: number | undefined,
+    block: OptionSubBlock = "subOptions",
+  ) {
+    updateSubOptionNode(
+      elementId,
+      optionId,
+      subOptionId,
+      (sub) => (sub.field?.type === "texto_corto" ? { ...sub, field: { ...sub.field, maxLength } } : sub),
+      block,
     );
   }
 
@@ -1034,33 +1166,66 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     optionId: string,
     subOptionId: string,
     patch: { min?: number | undefined; max?: number | undefined; unit?: string | undefined },
+    block: OptionSubBlock = "subOptions",
   ) {
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) =>
-      sub.field?.type === "numero" ? { ...sub, field: { ...sub.field, ...patch } } : sub,
+    updateSubOptionNode(
+      elementId,
+      optionId,
+      subOptionId,
+      (sub) => (sub.field?.type === "numero" ? { ...sub, field: { ...sub.field, ...patch } } : sub),
+      block,
     );
   }
 
-  function addSubOptionFieldOption(elementId: string, optionId: string, subOptionId: string) {
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) =>
-      sub.field?.type === "seleccion_desplegable"
-        ? { ...sub, field: { ...sub.field, options: [...sub.field.options, { id: crypto.randomUUID(), label: "" }] } }
-        : sub,
+  function addSubOptionFieldOption(elementId: string, optionId: string, subOptionId: string, block: OptionSubBlock = "subOptions") {
+    updateSubOptionNode(
+      elementId,
+      optionId,
+      subOptionId,
+      (sub) =>
+        sub.field?.type === "seleccion_desplegable"
+          ? { ...sub, field: { ...sub.field, options: [...sub.field.options, { id: crypto.randomUUID(), label: "" }] } }
+          : sub,
+      block,
     );
   }
 
-  function updateSubOptionFieldOption(elementId: string, optionId: string, subOptionId: string, fieldOptionId: string, label: string) {
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) =>
-      sub.field?.type === "seleccion_desplegable"
-        ? { ...sub, field: { ...sub.field, options: sub.field.options.map((o) => (o.id === fieldOptionId ? { ...o, label } : o)) } }
-        : sub,
+  function updateSubOptionFieldOption(
+    elementId: string,
+    optionId: string,
+    subOptionId: string,
+    fieldOptionId: string,
+    label: string,
+    block: OptionSubBlock = "subOptions",
+  ) {
+    updateSubOptionNode(
+      elementId,
+      optionId,
+      subOptionId,
+      (sub) =>
+        sub.field?.type === "seleccion_desplegable"
+          ? { ...sub, field: { ...sub.field, options: sub.field.options.map((o) => (o.id === fieldOptionId ? { ...o, label } : o)) } }
+          : sub,
+      block,
     );
   }
 
-  function removeSubOptionFieldOption(elementId: string, optionId: string, subOptionId: string, fieldOptionId: string) {
-    updateSubOptionNode(elementId, optionId, subOptionId, (sub) =>
-      sub.field?.type === "seleccion_desplegable" && sub.field.options.length > 1
-        ? { ...sub, field: { ...sub.field, options: sub.field.options.filter((o) => o.id !== fieldOptionId) } }
-        : sub,
+  function removeSubOptionFieldOption(
+    elementId: string,
+    optionId: string,
+    subOptionId: string,
+    fieldOptionId: string,
+    block: OptionSubBlock = "subOptions",
+  ) {
+    updateSubOptionNode(
+      elementId,
+      optionId,
+      subOptionId,
+      (sub) =>
+        sub.field?.type === "seleccion_desplegable" && sub.field.options.length > 1
+          ? { ...sub, field: { ...sub.field, options: sub.field.options.filter((o) => o.id !== fieldOptionId) } }
+          : sub,
+      block,
     );
   }
 
@@ -1627,6 +1792,272 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                 <Button type="button" size="sm" onClick={() => addSubOption(el.id, opt.id)}>
                                   Agregar sub-opción
                                 </Button>
+                              </div>
+                              {/* VS-046 (docs/engines/form.md "Bloque secundario de
+                                  sub-opciones por opción"): bloque HERMANO de
+                                  `subOptions` arriba, no anidado dentro de él —
+                                  caso real: sub-radio StockExchange + grupo de
+                                  checkboxes "Distribución de objetivos" bajo la
+                                  misma opción. Mismo CRUD que subOptions, mismas
+                                  funciones con block="secondaryOptions". */}
+                              <div className="sub-options">
+                                {opt.secondaryOptions ? (
+                                  <>
+                                    <div className="option-row">
+                                      <label className="field" style={{ flex: 1 }}>
+                                        <span className="field__label">Encabezado del bloque secundario</span>
+                                        <RichTextEditor
+                                          value={opt.secondaryOptionsHeading ?? ""}
+                                          onChange={(html) => updateSecondaryOptionsHeading(el.id, opt.id, html)}
+                                          ariaLabel="Encabezado del bloque secundario de sub-opciones"
+                                        />
+                                      </label>
+                                      <Button
+                                        type="button"
+                                        variant="danger"
+                                        size="sm"
+                                        onClick={() => removeSecondaryOptionsBlock(el.id, opt.id)}
+                                      >
+                                        Quitar bloque secundario
+                                      </Button>
+                                    </div>
+                                    {(opt.secondaryOptions?.length ?? 0) > 0 && (
+                                      <label className="field field--checkbox">
+                                        <input
+                                          type="checkbox"
+                                          checked={opt.secondaryOptionsExclusive ?? false}
+                                          onChange={(e) => toggleSecondaryOptionsExclusive(el.id, opt.id, e.target.checked)}
+                                        />
+                                        <span className="field__label">Sub-opciones excluyentes (solo una a la vez)</span>
+                                      </label>
+                                    )}
+                                    {(opt.secondaryOptions ?? []).map((sub) => (
+                                      <div key={sub.id}>
+                                        <div className="option-row option-row--sub">
+                                          <div className="option-row__editor">
+                                            <RichTextEditor
+                                              value={sub.label}
+                                              onChange={(html) => updateSubOption(el.id, opt.id, sub.id, html, "secondaryOptions")}
+                                              ariaLabel="Texto de la sub-opción"
+                                            />
+                                          </div>
+                                          <Button
+                                            type="button"
+                                            variant="danger"
+                                            size="sm"
+                                            onClick={() => removeSubOption(el.id, opt.id, sub.id, "secondaryOptions")}
+                                          >
+                                            Quitar
+                                          </Button>
+                                        </div>
+                                        <div className="sub-option-field" style={{ marginLeft: "var(--space-4)" }}>
+                                          {sub.field ? (
+                                            <div className="option-row">
+                                              <span className="field__label">
+                                                {sub.field.type === "seleccion_desplegable" && "Campo: selección desplegable"}
+                                                {sub.field.type === "texto_corto" && "Campo: texto corto"}
+                                                {sub.field.type === "numero" && "Campo: número"}
+                                              </span>
+                                              <Button
+                                                type="button"
+                                                variant="danger"
+                                                size="sm"
+                                                onClick={() => removeSubOptionField(el.id, opt.id, sub.id, "secondaryOptions")}
+                                              >
+                                                Quitar campo
+                                              </Button>
+                                            </div>
+                                          ) : (
+                                            <select
+                                              value=""
+                                              onChange={(e) => {
+                                                if (e.target.value) {
+                                                  addSubOptionField(el.id, opt.id, sub.id, e.target.value as SubOptionField["type"], "secondaryOptions");
+                                                }
+                                              }}
+                                            >
+                                              <option value="">Agregar campo…</option>
+                                              <option value="seleccion_desplegable">Selección desplegable</option>
+                                              <option value="texto_corto">Texto corto</option>
+                                              <option value="numero">Número</option>
+                                            </select>
+                                          )}
+                                          {sub.field?.type === "seleccion_desplegable" &&
+                                            (() => {
+                                              const selectField = sub.field;
+                                              return (
+                                                <div className="options" style={{ marginLeft: "var(--space-4)" }}>
+                                                  {selectField.options.map((fo) => (
+                                                    <div className="option-row" key={fo.id}>
+                                                      <div className="option-row__editor">
+                                                        <RichTextEditor
+                                                          value={fo.label}
+                                                          onChange={(html) =>
+                                                            updateSubOptionFieldOption(el.id, opt.id, sub.id, fo.id, html, "secondaryOptions")
+                                                          }
+                                                          ariaLabel="Texto de la opción del campo"
+                                                        />
+                                                      </div>
+                                                      <Button
+                                                        type="button"
+                                                        variant="danger"
+                                                        size="sm"
+                                                        onClick={() => removeSubOptionFieldOption(el.id, opt.id, sub.id, fo.id, "secondaryOptions")}
+                                                        disabled={selectField.options.length <= 1}
+                                                      >
+                                                        Quitar
+                                                      </Button>
+                                                    </div>
+                                                  ))}
+                                                  <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    onClick={() => addSubOptionFieldOption(el.id, opt.id, sub.id, "secondaryOptions")}
+                                                  >
+                                                    Agregar opción
+                                                  </Button>
+                                                </div>
+                                              );
+                                            })()}
+                                          {sub.field?.type === "texto_corto" && (
+                                            <label className="field" style={{ marginLeft: "var(--space-4)" }}>
+                                              <span className="field__label">Longitud máxima</span>
+                                              <input
+                                                type="number"
+                                                value={sub.field.maxLength ?? ""}
+                                                onChange={(e) =>
+                                                  updateSubOptionFieldMaxLength(
+                                                    el.id,
+                                                    opt.id,
+                                                    sub.id,
+                                                    e.target.value === "" ? undefined : Number(e.target.value),
+                                                    "secondaryOptions",
+                                                  )
+                                                }
+                                              />
+                                            </label>
+                                          )}
+                                          {sub.field?.type === "numero" && (
+                                            <div className="field-grid" style={{ marginLeft: "var(--space-4)" }}>
+                                              <label className="field">
+                                                <span className="field__label">Mínimo</span>
+                                                <input
+                                                  type="number"
+                                                  value={sub.field.min ?? ""}
+                                                  onChange={(e) =>
+                                                    updateSubOptionFieldNumero(
+                                                      el.id,
+                                                      opt.id,
+                                                      sub.id,
+                                                      { min: e.target.value === "" ? undefined : Number(e.target.value) },
+                                                      "secondaryOptions",
+                                                    )
+                                                  }
+                                                />
+                                              </label>
+                                              <label className="field">
+                                                <span className="field__label">Máximo</span>
+                                                <input
+                                                  type="number"
+                                                  value={sub.field.max ?? ""}
+                                                  onChange={(e) =>
+                                                    updateSubOptionFieldNumero(
+                                                      el.id,
+                                                      opt.id,
+                                                      sub.id,
+                                                      { max: e.target.value === "" ? undefined : Number(e.target.value) },
+                                                      "secondaryOptions",
+                                                    )
+                                                  }
+                                                />
+                                              </label>
+                                              <label className="field">
+                                                <span className="field__label">Unidad</span>
+                                                <input
+                                                  value={sub.field.unit ?? ""}
+                                                  onChange={(e) =>
+                                                    updateSubOptionFieldNumero(
+                                                      el.id,
+                                                      opt.id,
+                                                      sub.id,
+                                                      { unit: e.target.value === "" ? undefined : e.target.value },
+                                                      "secondaryOptions",
+                                                    )
+                                                  }
+                                                />
+                                              </label>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="option-references" style={{ marginLeft: "var(--space-4)" }}>
+                                          {sub.references ? (
+                                            <div className="option-row">
+                                              <label className="field">
+                                                <span className="field__label">Máximo de URLs</span>
+                                                <input
+                                                  type="number"
+                                                  min={1}
+                                                  value={sub.references.maxUrls ?? ""}
+                                                  placeholder="3"
+                                                  onChange={(e) =>
+                                                    updateSubOptionReferencesMaxUrls(
+                                                      el.id,
+                                                      opt.id,
+                                                      sub.id,
+                                                      e.target.value === "" ? undefined : Number(e.target.value),
+                                                      "secondaryOptions",
+                                                    )
+                                                  }
+                                                />
+                                              </label>
+                                              <label className="field">
+                                                <span className="field__label">Tipo de referencia</span>
+                                                <select
+                                                  value={sub.references.refType ?? "public"}
+                                                  onChange={(e) =>
+                                                    updateSubOptionReferencesRefType(
+                                                      el.id,
+                                                      opt.id,
+                                                      sub.id,
+                                                      e.target.value === "flexible" ? "flexible" : undefined,
+                                                      "secondaryOptions",
+                                                    )
+                                                  }
+                                                >
+                                                  <option value="public">URL pública</option>
+                                                  <option value="flexible">Flexible (URL o documento interno)</option>
+                                                </select>
+                                              </label>
+                                              <Button
+                                                type="button"
+                                                variant="danger"
+                                                size="sm"
+                                                onClick={() => removeSubOptionReferences(el.id, opt.id, sub.id, "secondaryOptions")}
+                                              >
+                                                Quitar referencias
+                                              </Button>
+                                            </div>
+                                          ) : (
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              onClick={() => addSubOptionReferences(el.id, opt.id, sub.id, "secondaryOptions")}
+                                            >
+                                              Agregar referencias
+                                            </Button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                    <Button type="button" size="sm" onClick={() => addSubOption(el.id, opt.id, "secondaryOptions")}>
+                                      Agregar sub-opción
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <Button type="button" size="sm" onClick={() => addSecondaryOptionsBlock(el.id, opt.id)}>
+                                    Agregar bloque secundario de sub-opciones
+                                  </Button>
+                                )}
                               </div>
                               <div className="option-references">
                                 {opt.references ? (

@@ -195,6 +195,17 @@ const subOption = z.object({
 // cambios en response.ts.
 const formOption = formOptionBase.extend({
   subOptions: z.array(subOption).optional(),
+  // VS-046 (docs/engines/form.md "Bloque secundario de sub-opciones por
+  // opción"): segundo bloque de sub-opciones, HERMANO de `subOptions` (no
+  // anidado dentro de él) — caso real: la opción "Applicable" de
+  // COG_BoardIndependence_Selection trae un sub-radio (StockExchange) Y, por
+  // separado, un grupo de checkboxes con encabezado propio ("Distribución de
+  // objetivos"). Mismo shape que subOptions/subOptionsExclusive, tope fijo en
+  // 2 bloques (no un array genérico de N grupos), mismo criterio ya usado
+  // para sub-opciones a 2 niveles (VS-026).
+  secondaryOptionsHeading: z.string().optional(),
+  secondaryOptions: z.array(subOption).optional(),
+  secondaryOptionsExclusive: z.boolean().optional(),
 });
 
 export const formElement = z.discriminatedUnion("type", [

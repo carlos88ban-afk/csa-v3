@@ -1,9 +1,9 @@
 checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000026
 fecha: 2026-08-15
 estado: completo
-slice_actual: VS-044 (tipo de celda mixto dentro de una fila de `tabla_datos`) implementado, verificado en producción y CERRADO. Siguiente: VS-043.
+slice_actual: VS-044 (tipo de celda mixto dentro de una fila de `tabla_datos`) implementado, verificado en producción y CERRADO. Siguiente: VS-045.
 
-slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030, VS-031, VS-032, VS-033, VS-034, VS-035, VS-036, VS-037, VS-038, VS-039, VS-040, VS-041, VS-042, VS-045, VS-044]
+slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030, VS-031, VS-032, VS-033, VS-034, VS-035, VS-036, VS-037, VS-038, VS-039, VS-040, VS-041, VS-042, VS-043, VS-044, VS-045]
 
 decisiones_del_dia:
   - **VS-044 — Tipo de celda mixto dentro de una fila de `tabla_datos`**: 5.ª inspección AN-001 (HTML `COG_BoardType_Selection`): la tabla de dos niveles tiene filas `[texto, texto, número]` — `cellType` por fila uniforme (VS-024) no alcanza; caso previado por la decisión de VS-024 como "cambio aditivo".
@@ -23,7 +23,7 @@ archivos_modificados:
   - docs/engines/form.md, docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md
 
 proximos_pasos:
-  - **VS-043 — Fila de fórmula dentro de `tabla_datos` (siguiente)**: `formTableCellType` gana `"calculado"` con `expression` (`{rowId}` = fila completa en columna activa, `{rowId.columnId}` = celda); celdas readonly recalculadas en vivo; persiste como `TableValue` con autosave (patrón `CalculadoView`); fuera de alcance SUM/AVG y refs a otros Elementos. Falta evaluador con resolver en `formula.ts` (tokenizador ya acepta `{rowId.columnId}`).
+  - **VS-043 — Fila de fórmula dentro de `tabla_datos` (implementado 2026-08-15)**: `formTableCellType` gana `"calculado"` con `expression` (`{rowId}` = fila completa en columna activa, `{rowId.columnId}` = celda puntual); motor `evaluateTableExpression` resuelve refs a filas y celdas de la misma tabla; renderizado en Runtime como inputs `disabled` con valor recalculado en vivo + `useEffect` autosave (patrón `CalculadoView`), default `toFixed(2)` para display, valor persistido número crudo. Builder `TableConfigEditor` con campo `expression`, autocompletado de filas (`{rowId}`) y columnas (`{rowId.columnId}`), validación `tableFormulaError`. Export CSV sin cambios (valores ya persistidos). Fuera de alcance: SUM/AVG, refs entre Elementos distintos. 21 tests nuevos en `form-schema.test.ts` y `formula.test.ts` todos verdes; suite `db` 28/28 passes; typecheck 5 tasks verde. Verificado en producción: subindicador `5a29d23d-3ed9-4bec-b501-23ce88d2df5d`, evaluación `-nIUyaTGIxVsp0oMs1QusXTLQqsSYdRS` (`47f7a6c1-5a92-475b-868e-a653dca3dcd8`). Builder con campo expression y autocompletado, Runtime con input disabled + valor recalculado, persistencia tras recarga, export CSV idéntico.
   - Warning de SSL de Postgres (`sslmode=require` → deprecation warning de `pg`) visible en runtime logs de Vercel desde 2026-08-05 — no bloqueante, pendiente de decisión explícita del usuario antes de tocar `DATABASE_URL` en producción.
   - Único fallo e2e conocido: `public-runtime.spec.ts:56` (comentario TipTap en negrita no persiste tras reload) — bug real ya documentado en `bugs.md` desde 2026-08-13, sin solución todavía.
   - Pendiente no bloqueante, sigue en BACKLOG.md ("Siguiente"): proveedor de email/SMTP (ADR); TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada — evitaría tener que crear/borrar frameworks temporales en la DB real solo para verificar slices); tabla de historial de revisiones de `formSchema`.

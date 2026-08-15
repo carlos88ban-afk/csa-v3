@@ -303,6 +303,19 @@ function PreviewElement({
                 onAnswerChange={onAnswerChange}
               />
             )}
+            {isSelected(opt.id) && (
+              <PreviewSubOptions
+                level={1}
+                heading={opt.secondaryOptionsHeading}
+                exclusive={opt.secondaryOptionsExclusive ?? false}
+                subKey={`${element.id}::${opt.id}::secondary`}
+                subOptions={opt.secondaryOptions}
+                value={answers[`${element.id}::${opt.id}::secondary`]}
+                onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::secondary`, next)}
+                answers={answers}
+                onAnswerChange={onAnswerChange}
+              />
+            )}
             {isSelected(opt.id) && opt.references && opt.references.position === "after_suboptions" && (
               <PreviewOptionReferences
                 refType={opt.references.refType ?? "public"}
@@ -635,6 +648,7 @@ function PreviewOptionReferences({
 
 function PreviewSubOptions({
   level,
+  heading,
   exclusive = false,
   subKey,
   subOptions,
@@ -644,6 +658,8 @@ function PreviewSubOptions({
   onAnswerChange,
 }: {
   level: number;
+  // VS-046: encabezado propio del bloque secundario (secondaryOptionsHeading)
+  heading?: string | undefined;
   exclusive?: boolean;
   subKey: string;
   subOptions: Extract<FormElement, { type: "seleccion_unica" }>["options"][number]["subOptions"];
@@ -657,6 +673,11 @@ function PreviewSubOptions({
     exclusive ? value === subId : ((value as string[] | undefined)?.includes(subId) ?? false);
   return (
     <div className="sub-options" style={{ marginLeft: `var(--space-${2 + level})` }}>
+      {heading && (
+        <p className="sub-options__heading">
+          <RichLabel html={heading} />
+        </p>
+      )}
       {subOptions.map((sub) => (
         <div className="option-row-group" key={sub.id}>
           <label className="field--checkbox">

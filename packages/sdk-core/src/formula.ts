@@ -308,7 +308,5 @@ export function evaluateTableExpression(
   } catch {
     return undefined;
   }
-  return evaluateNode(node, values)
-}
-  return evaluateNode(node, values)
+return evaluateNode(node, values)
 }

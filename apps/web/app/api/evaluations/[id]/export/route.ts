@@ -150,24 +150,32 @@ function formatSubOptionExtras(sub: SubOptionNode, subOptionKey: string, answers
 // sub-opciones elegidas con sus propios field/references (VS-039/VS-040) —
 // sigue siendo "una fila por Elemento" (ver export.md), todo se anexa a la
 // misma celda Respuesta.
+// VS-046 (docs/engines/form.md "Bloque secundario de sub-opciones por
+// opción"): mismo shape/resolución que `subOptions`, factorizado para no
+// duplicar la lectura de value (radio vs. checkbox) ni el mapeo a labels.
+function formatMarkedSubOptions(subOptions: SubOptionNode[] | undefined, key: string, answers: ResponseAnswers): string[] {
+  if (!subOptions || subOptions.length === 0) return [];
+  const subValue = answers[key];
+  const selectedSubIds = Array.isArray(subValue)
+    ? subValue.filter((v): v is string => typeof v === "string")
+    : typeof subValue === "string"
+      ? [subValue]
+      : [];
+  return selectedSubIds
+    .map((subId) => {
+      const sub = subOptions.find((s) => s.id === subId);
+      return sub ? `${stripCommentHtml(sub.label)}${formatSubOptionExtras(sub, `${key}::${subId}`, answers)}` : null;
+    })
+    .filter((s): s is string => s !== null);
+}
+
 function formatOptionLabel(opt: SeleccionOption, elementId: string, answers: ResponseAnswers): string {
   const optKey = `${elementId}::${opt.id}`;
   let label = `${stripCommentHtml(opt.label)}${formatOptionReferences(opt, `${optKey}::refs`, answers)}`;
-  if (opt.subOptions && opt.subOptions.length > 0) {
-    const subValue = answers[optKey];
-    const selectedSubIds = Array.isArray(subValue)
-      ? subValue.filter((v): v is string => typeof v === "string")
-      : typeof subValue === "string"
-        ? [subValue]
-        : [];
-    const subParts = selectedSubIds
-      .map((subId) => {
-        const sub = opt.subOptions?.find((s) => s.id === subId);
-        return sub ? `${stripCommentHtml(sub.label)}${formatSubOptionExtras(sub, `${optKey}::${subId}`, answers)}` : null;
-      })
-      .filter((s): s is string => s !== null);
-    if (subParts.length > 0) label += ` — ${subParts.join("; ")}`;
-  }
+  const subParts = formatMarkedSubOptions(opt.subOptions, optKey, answers);
+  const secondaryParts = formatMarkedSubOptions(opt.secondaryOptions, `${optKey}::secondary`, answers);
+  const allParts = [...subParts, ...secondaryParts];
+  if (allParts.length > 0) label += ` — ${allParts.join("; ")}`;
   return label;
 }
 

@@ -801,3 +801,65 @@ Del mismo `COG_BoardType_Selection` (5.ª inspección), sin slice asignado todav
 
 - **`data-ref-type="flexible"`**: la fila de referencias de la opción "Sí" es `flexible` (admite URL pública O referencia interna/documento), mientras VS-039 modeló solo URLs públicas (`refType: "public"` implícito). **Implementado en VS-045** (`optionReferences.refType: "public" | "flexible"`, default `public`) — ver spec VS-045 arriba.
 - **Patrón estándar de 4 opciones** (Sí / No / "No aplica" / "La información no está disponible"): ya construible hoy como opciones normales del radio (VS-019 cubre el N/A como checkbox universal, pero aquí N/A es simplemente otra opción del radio — nada que implementar).
+
+## Bloque secundario de sub-opciones por opción (VS-046, implementado 2026-08-15)
+
+Re-análisis en profundidad del mismo HTML de VS-045 (`COG_BoardIndependence_Selection`, pregunta completa — `COG_BoardIndependence_AttachmentBoardIndependenceStatement` es solo el bloque de referencias de su opción "Applicable"), pedido explícito del usuario ("analiza esta pregunta... valida en producción que sea capaz de crear una igual"). **Corrige una conclusión errónea de la 6.ª inspección**: la nota del 2026-08-14 en `../analysis/csa-sp-global-comparison.md` (línea junto a la spec VS-045) decía que el segundo grupo de checkboxes visto en ese HTML ("Distribución de objetivos") ya era "construible con VS-016/VS-040, sin gap nuevo" — una lectura apresurada del DOM que no siguió con cuidado el prefijo de los `id`. No lo es: se verificó tanto por el schema (`packages/sdk-core/src/form-schema.ts`) como en vivo contra el Builder desplegado en producción (`csa-v3-web.vercel.app`, framework temporal `TEMP - análisis pregunta BoardIndependence`, borrado al terminar).
+
+### Hallazgo
+
+Bajo la opción "Applicable" (`st1sc1cc1`) del radio raíz, el DOM tiene **dos `<ol>` hermanos independientes**, ambos hijos directos del mismo `div.level` de la opción (no uno anidado dentro del otro):
+
+1. `st1sc1cc1st1sc1` (`COG_BoardIndependence_StockExchange`) — sub-radio excluyente de 2 sub-opciones: "Acceptable CG Code" (con `<select>` embebido) y "Own Independence Requirements" (con 9 checkboxes de criterios, sub-sub-opciones). Esto **ya es representable** hoy: `formOption.subOptions` + `subOptionsExclusive: true` (VS-040) + `subOption.field` tipo `seleccion_desplegable` (VS-040) + `subOption.subOptions` de 9 checkboxes (VS-026).
+2. `st1sc1cc1st1mc1` ("Distribución de objetivos", encabezado en `<strong>` propio) — grupo de checkboxes **separado**, con un único ítem "TargetShare" que trae su propio campo de texto embebido (`data-maxchars="1000"`). Representable de forma aislada (`subOption.field` tipo `texto_corto`, VS-040) — **el problema no es el contenido del ítem, es que no hay dónde colgarlo**: es un segundo grupo, con su propio encabezado y su propia exclusividad (checkbox, no radio), hermano del sub-radio de StockExchange, no un tercer ítem dentro de él.
+
+`formOption` (`form-schema.ts`) solo tiene **un** campo `subOptions` (con **un** `subOptionsExclusive` que gobierna todo el array) — no hay forma de adjuntar un segundo bloque de sub-opciones, con su propio encabezado y su propia exclusividad, a la misma opción. Confirmado en el Builder de producción: el panel de una opción ofrece exactamente un checkbox "Sub-opciones excluyentes", un botón "Agregar sub-opción" (que agrega ítems al mismo array) y un botón "Agregar referencias" — ningún control para iniciar un segundo grupo independiente.
+
+### Decisión de diseño
+
+`formOption` gana un segundo bloque opcional, mismo shape que `subOptions` (reusa `subOption` tal cual, sin nuevo tipo zod) pero con su propio encabezado y exclusividad — **fijo en 2 bloques, no un array genérico de N grupos**: sin evidencia de un tercer bloque en ningún HTML inspeccionado hasta ahora, mismo criterio ya usado en este documento para el tope de sub-opciones a 2 niveles (VS-026: "tope fijo, no recursión genérica... aditivo si aparece un caso real de un nivel más").
+
+```ts
+const formOption = formOptionBase.extend({
+  subOptions: z.array(subOption).optional(),
+  // VS-046: segundo bloque de sub-opciones, HERMANO de `subOptions` (no
+  // anidado dentro de él) — caso real: la opción "Applicable" trae un
+  // sub-radio (StockExchange) Y, por separado, un grupo de checkboxes con
+  // encabezado propio ("Distribución de objetivos"). Mismo shape que
+  // subOptions/subOptionsExclusive, prefijo `secondary` para distinguirlos.
+  secondaryOptionsHeading: z.string().optional(), // ej. "Distribución de objetivos" — HTML sanitizado, mismo motor que el resto de labels (VS-045)
+  secondaryOptions: z.array(subOption).optional(),
+  secondaryOptionsExclusive: z.boolean().optional(), // default false (checkbox/múltiple), independiente de subOptionsExclusive
+});
+```
+
+- **Compatible hacia atrás**: los 3 campos son opcionales; ningún `formSchema` existente cambia de forma.
+- **Orden de render**: `references (antes) → subOptions → secondaryOptions → references (después)` — coincide con el HTML real (la fila de referencias de "Applicable" antecede al sub-radio de StockExchange, que a su vez antecede a "Distribución de objetivos"). Sin campo de posición configurable para `secondaryOptions` (a diferencia de `references`, VS-041): no hay caso observado que lo necesite antes del bloque primario, aditivo si aparece.
+- **Respuesta**: misma convención de clave sintética que el resto del motor, con un segmento `secondary` para no colisionar con las claves de `subOptions`: `` `${elementId}::${optionId}::secondary::${subOptionId}` `` (marca de selección — `string` si `secondaryOptionsExclusive`, `string[]` si no) y, para campos embebidos de un ítem de ese bloque, `` `${elementId}::${optionId}::secondary::${subOptionId}::field` `` / `::refs` / `::table` (mismos sufijos que ya existen para `subOptions`, VS-040/042). Sin cambios en `response.ts`.
+- **Runtime/Builder**: el componente existente que renderiza `subOptions` (`SubOptionsView` en Runtime, su equivalente en `form-preview.tsx`, y el bloque de Builder en `subindicator-editor.tsx`) se parametriza por `(keyPrefix, heading?, options, exclusive)` en vez de asumir siempre `subOptions`/`subOptionsExclusive` — se invoca una segunda vez con el prefijo `secondary` cuando `secondaryOptions` está presente, reusando el mismo componente (no uno nuevo). Builder: la opción gana un botón "Agregar bloque secundario de sub-opciones" (junto a "Agregar sub-opción"/"Agregar referencias") que revela el campo de encabezado + el mismo checkbox "excluyentes" + el mismo CRUD de sub-opciones, ahora aplicado al segundo array.
+- **Export CSV**: mismo criterio que `subOptions` (VS-016) — sin fila/columna nueva; ítems marcados de `secondaryOptions` (label + campo embebido si tiene) se anexan a la celda `Respuesta` existente con el mismo separador `"; "`.
+
+### Fuera de alcance (explícito)
+
+- **Un tercer bloque, o un array genérico de N bloques nombrados** — sin caso observado; si aparece, es aditivo (repetir el patrón), no un rediseño (mismo criterio que sub-opciones a 2 niveles).
+- **`secondaryOptions` en `subOption` (nivel 2) o en filas de tabla** — solo `formOption` (nivel raíz de la pregunta) gana este campo; no hay evidencia de un caso de doble bloque más profundo.
+- **`visibleIf` sobre el bloque secundario** — misma limitación ya documentada para `references`/`field`/`subOptions`: las condiciones operan sobre Elementos completos.
+- **Posición configurable de `secondaryOptions` relativa a `subOptions`** — orden fijo (ver "Decisión de diseño"), a diferencia de `references` (VS-041). Aditivo si un caso real lo requiere.
+
+### Corrección de `docs/analysis/csa-sp-global-comparison.md`
+
+La nota de la 6.ª inspección (2026-08-14) en ese archivo afirma que este caso "ya es construible con VS-016/VS-040, sin gap nuevo" — incorrecto, ver "Hallazgo" arriba. Se agrega una nota de corrección en el mismo archivo (no se borra el texto original, mismo criterio de preservar el historial que el resto de este documento).
+
+### Implementación (2026-08-15)
+
+- `packages/sdk-core/src/form-schema.ts`: `formOption` gana `secondaryOptionsHeading`/`secondaryOptions`/`secondaryOptionsExclusive` exactamente como en "Decisión de diseño" arriba. 6 tests nuevos en `form-schema.test.ts` (compatibilidad hacia atrás, bloques hermanos con `subOptions` + `secondaryOptions` simultáneos, exclusividad independiente, array vacío, item sin id).
+- **Runtime** (`apps/web/app/evaluations/[token]/page.tsx`): `SubOptionsView` (ya genérico por `subKey`/`exclusive`) gana un prop opcional `heading` — sin tocar su lógica de field/table/references/sub-sub-opciones, que ya funcionaba para cualquier array de `subOption` que se le pasara. Se invoca una segunda vez con `subKey: `${elementId}::${optionId}::secondary``, `exclusive: opt.secondaryOptionsExclusive`, después del bloque `subOptions` y antes de `references` en posición `after_suboptions` — mismo orden documentado arriba.
+- **Preview** (`apps/web/components/form-preview.tsx`): mismo tratamiento en `PreviewSubOptions` (prop `heading` + segunda invocación).
+- **Builder** (`apps/web/components/subindicator-editor.tsx`): las funciones CRUD de `subOptions` (`addSubOption`/`updateSubOption`/`removeSubOption`/`addSubSubOption`/`updateSubSubOption`/`removeSubSubOption`/`updateSubOptionNode` y sus ~12 derivadas de field/table/references) ganaron un parámetro `block: "subOptions" | "secondaryOptions" = "subOptions"` en vez de duplicarse — todo call-site existente sigue igual (default preserva el comportamiento), el bloque secundario nuevo pasa `"secondaryOptions"` explícito. Nuevas: `addSecondaryOptionsBlock`/`removeSecondaryOptionsBlock` (inicia/quita el bloque entero), `updateSecondaryOptionsHeading`, `toggleSecondaryOptionsExclusive` (nombre de campo distinto a `subOptionsExclusive`, no comparte `block`). Botón "Agregar bloque secundario de sub-opciones" por opción, con encabezado (RichTextEditor), checkbox de exclusividad propio y el mismo CRUD de sub-opciones (label + campo embebido select/texto/número + referencias URL) que el bloque primario.
+- **Export CSV**: `formatOptionLabel` factoriza la resolución de sub-opciones marcadas en `formatMarkedSubOptions(subOptions, key, answers)`, reusada para `opt.subOptions` (clave `${optKey}`) y `opt.secondaryOptions` (clave `${optKey}::secondary`) — ambas listas de partes se concatenan en el mismo sufijo `" — a; b; c"` de la celda Respuesta, mismo criterio "una fila por Elemento".
+- **Alcance reducido en el Builder** (desviación menor, documentada aquí en vez de en el schema): los ítems del bloque secundario soportan label, campo embebido (`field`) y referencias (`references`) desde la UI — cubre el caso real (`TargetShare` con `field: texto_corto`). **Tabla embebida (`table`) y sub-sub-opciones (`subOptions` de 2do nivel) dentro de un ítem de `secondaryOptions` no tienen UI propia en este slice**, aunque el tipo (`subOption` reusado tal cual) y el Runtime/Preview (genéricos, sin distinguir el bloque de origen) ya los soportan si se cargaran por otra vía — aditivo si aparece un caso real que los necesite, mismo criterio "no diseñar para hipotéticos" del resto de este documento.
+- 242 tests en `sdk-core` (antes 237), `pnpm typecheck`/`build`/`test` en verde.
+
+### Estado
+
+Implementado. Pendiente: verificación en producción (Builder + Runtime + export CSV + persistencia tras recarga contra `csa-v3-web.vercel.app`).

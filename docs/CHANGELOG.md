@@ -4,6 +4,12 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-046 — Bloque secundario de sub-opciones por opción (spec doc-first, 2026-08-15)
+
+- Pedido explícito del usuario: analizar la pregunta completa `COG_BoardIndependence_Selection` (misma HTML de VS-045) y validar en producción si la plataforma puede replicarla idéntica. Re-análisis + validación en vivo contra el Builder desplegado mostraron que la opción "Applicable" trae dos `<ol>` **hermanos** e independientes (sub-radio "StockExchange" + grupo de checkboxes "Distribución de objetivos" con encabezado propio) — `formOption` solo admite un bloque `subOptions` con una sola exclusividad, no hay forma de adjuntar un segundo bloque a la misma opción.
+- Corrige una conclusión errónea de la nota de la 6.ª inspección (2026-08-14, `docs/analysis/csa-sp-global-comparison.md`) que había dado este caso por "sin gap nuevo".
+- `docs/engines/form.md`: especificación doc-first. Decisión central: `formOption.secondaryOptions`/`secondaryOptionsHeading`/`secondaryOptionsExclusive` — mismo shape que `subOptions` (reusa `subOption` sin nuevo tipo zod), tope fijo en 2 bloques (no array genérico de N grupos), mismo criterio ya usado en el motor para sub-opciones a 2 niveles (VS-026). Sin implementar todavía — entrada en `docs/BACKLOG.md`.
+
 ### VS-044 — Tipo de celda mixto dentro de una fila de `tabla_datos` (2026-08-15)
 
 - 5.ª inspección AN-001 (HTML real de `COG_BoardType_Selection`): la tabla de dos niveles tiene filas `[texto, texto, número]` ("Tipo de tablero"/"Tipo de director" con labels y "Número de miembros" con inputs) — `cellType` por fila uniforme (VS-024) no alcanza; caso que la decisión de VS-024 previó como "cambio aditivo: mover `cellType` de la fila a la celda".
