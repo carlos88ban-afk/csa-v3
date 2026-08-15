@@ -212,6 +212,84 @@ describe("formElement", () => {
     expect(result.success).toBe(false);
   });
 
+  it("acepta una fila de tabla_datos con cells (overrides por celda) sin cellType", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "tabla_datos",
+      label: "x",
+      columns: [
+        { id: "c1", label: "Tipo" },
+        { id: "c2", label: "Número" },
+      ],
+      rows: [
+        {
+          id: "r1",
+          label: "Fila mixta",
+          cells: [
+            { columnId: "c1", cellType: "texto", maxLength: 100 },
+            { columnId: "c2", cellType: "numero", unit: "miembros" },
+          ],
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("acepta una fila de tabla_datos con cellType legacy y cells de override juntos", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "tabla_datos",
+      label: "x",
+      columns: [{ id: "c1", label: "Col" }],
+      rows: [{ id: "r1", label: "Fila", cellType: "texto", cells: [{ columnId: "c1", cellType: "numero" }] }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rechaza una fila de tabla_datos sin cellType ni cells", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "tabla_datos",
+      label: "x",
+      columns: [{ id: "c1", label: "Col" }],
+      rows: [{ id: "r1", label: "Fila", maxLength: 10 }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza una fila de tabla_datos con cells vacío y sin cellType", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "tabla_datos",
+      label: "x",
+      columns: [{ id: "c1", label: "Col" }],
+      rows: [{ id: "r1", label: "Fila", cells: [] }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza una fila de tabla_datos con cell de cellType desconocido", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "tabla_datos",
+      label: "x",
+      columns: [{ id: "c1", label: "Col" }],
+      rows: [{ id: "r1", label: "Fila", cells: [{ columnId: "c1", cellType: "fecha" }] }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza una fila de tabla_datos con cell sin columnId", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "tabla_datos",
+      label: "x",
+      columns: [{ id: "c1", label: "Col" }],
+      rows: [{ id: "r1", label: "Fila", cells: [{ cellType: "texto" }] }],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("rechaza banner sin variant", () => {
     const result = formElement.safeParse({ id: "1", type: "banner", label: "x", content: "y" });
     expect(result.success).toBe(false);
@@ -647,6 +725,67 @@ describe("formElement", () => {
       ],
     });
     expect(result.success).toBe(true);
+  });
+
+  // VS-044: la tabla embebida comparte el mismo formTableRow — los overrides
+  // por celda funcionan igual que en tabla_datos.
+  it("acepta una fila de tabla embebida con cells mixtos (VS-044)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [
+        {
+          id: "a",
+          label: "A",
+          subOptions: [
+            {
+              id: "sub-a",
+              label: "Sub A",
+              table: {
+                columns: [
+                  { id: "c1", label: "Tipo" },
+                  { id: "c2", label: "Número" },
+                ],
+                rows: [
+                  {
+                    id: "r1",
+                    label: "Fila",
+                    cells: [
+                      { columnId: "c1", cellType: "texto" },
+                      { columnId: "c2", cellType: "numero" },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rechaza una fila de tabla embebida sin cellType ni cells (VS-044)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [
+        {
+          id: "a",
+          label: "A",
+          subOptions: [
+            {
+              id: "sub-a",
+              label: "Sub A",
+              table: { columns: [{ id: "c1", label: "Col" }], rows: [{ id: "r1", label: "Fila" }] },
+            },
+          ],
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
   });
 });
 

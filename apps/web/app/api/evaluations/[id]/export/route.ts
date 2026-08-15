@@ -12,9 +12,26 @@ import {
   unitKey,
   type EvaluationSnapshot,
   type FormElement,
+  type FormTableCell,
+  type FormTableRow,
   type ResponseAnswers,
 } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
+
+// VS-044 (docs/engines/form.md "Tipo de celda mixto dentro de una fila"):
+// el tipo/config de una celda se resuelve por override (row.cells) y cae al
+// atajo legacy de la fila si no hay override — misma resolución que
+// Runtime/Preview, compartida por tabla_datos y tabla embebida.
+function cellConfig(row: FormTableRow, columnId: string): FormTableCell {
+  return row.cells?.find((c) => c.columnId === columnId) ?? {
+    columnId,
+    cellType: row.cellType ?? "texto",
+    unit: row.unit,
+    availableUnits: row.availableUnits,
+    options: row.options,
+    maxLength: row.maxLength,
+  };
+}
 
 // Motor engine/export v1 (ver docs/engines/export.md). Autenticado y
 // tenant-scoped (a diferencia de persistence.md/evidences.md): exportar es
@@ -103,16 +120,19 @@ function formatSubOptionExtras(sub: SubOptionNode, subOptionKey: string, answers
       const serialized = table.rows
         .map((row) => {
           const rowValue = tableMap[row.id] ?? {};
-          const unit = row.availableUnits
-            ? ((answers[unitKey(`${subOptionKey}::table::${row.id}`)] as string | undefined) ?? row.availableUnits[0])
-            : row.unit;
           const cells = table.columns
             .map((col) => {
+              const cellCfg = cellConfig(row, col.id);
               const cell = rowValue[col.id];
               if (cell === undefined || cell === "") return null;
+              const unit = cellCfg.availableUnits
+                ? row.availableUnits
+                  ? ((answers[unitKey(`${subOptionKey}::table::${row.id}`)] as string | undefined) ?? cellCfg.availableUnits[0])
+                  : cellCfg.availableUnits[0]
+                : cellCfg.unit;
               const resolved =
-                row.cellType === "seleccion_desplegable" ? (stripCommentHtml(row.options?.find((o) => o.id === cell)?.label ?? "") || String(cell)) : String(cell);
-              return `${stripCommentHtml(col.label)}=${resolved}${unit && row.cellType === "numero" ? ` ${unit}` : ""}`;
+                cellCfg.cellType === "seleccion_desplegable" ? (stripCommentHtml(cellCfg.options?.find((o) => o.id === cell)?.label ?? "") || String(cell)) : String(cell);
+              return `${stripCommentHtml(col.label)}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}`;
             })
             .filter((c): c is string => c !== null);
           return cells.length > 0 ? `${stripCommentHtml(row.label)}: ${cells.join(", ")}` : null;
@@ -199,16 +219,19 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
     return element.rows
       .map((row) => {
         const rowValue = table[row.id] ?? {};
-        const unit = row.availableUnits
-          ? ((answers[unitKey(`${element.id}::${row.id}`)] as string | undefined) ?? row.availableUnits[0])
-          : row.unit;
         const cells = element.columns
           .map((col) => {
+            const cellCfg = cellConfig(row, col.id);
             const cell = rowValue[col.id];
             if (cell === undefined || cell === "") return null;
+            const unit = cellCfg.availableUnits
+              ? row.availableUnits
+                ? ((answers[unitKey(`${element.id}::${row.id}`)] as string | undefined) ?? cellCfg.availableUnits[0])
+                : cellCfg.availableUnits[0]
+              : cellCfg.unit;
             const resolved =
-              row.cellType === "seleccion_desplegable" ? (stripCommentHtml(row.options?.find((o) => o.id === cell)?.label ?? "") || String(cell)) : String(cell);
-            return `${stripCommentHtml(col.label)}=${resolved}${unit && row.cellType === "numero" ? ` ${unit}` : ""}`;
+              cellCfg.cellType === "seleccion_desplegable" ? (stripCommentHtml(cellCfg.options?.find((o) => o.id === cell)?.label ?? "") || String(cell)) : String(cell);
+            return `${stripCommentHtml(col.label)}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}`;
           })
           .filter((c): c is string => c !== null);
         return cells.length > 0 ? `${stripCommentHtml(row.label)}: ${cells.join(", ")}` : null;

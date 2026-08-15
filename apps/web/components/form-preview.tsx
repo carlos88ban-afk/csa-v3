@@ -391,8 +391,11 @@ function PreviewTableView({
                 )}
               </th>
               {columns.map((col) => {
+                // VS-044: override por celda (row.cells) gana sobre el atajo
+                // legacy de fila — misma resolución que el Runtime.
+                const cellCfg = row.cells?.find((c) => c.columnId === col.id) ?? row;
                 const cell = rowValue[col.id];
-                if (row.cellType === "seleccion_desplegable") {
+                if (cellCfg.cellType === "seleccion_desplegable") {
                   return (
                     <td key={col.id}>
                       <select
@@ -400,7 +403,7 @@ function PreviewTableView({
                         onChange={(e) => updateCell(row.id, col.id, e.target.value, table, onChange)}
                       >
                         <option value="">Seleccionar…</option>
-                        {(row.options ?? []).map((opt) => (
+                        {(cellCfg.options ?? []).map((opt) => (
                           <option key={opt.id} value={opt.id}>
                             {stripCommentHtml(opt.label)}
                           </option>
@@ -412,11 +415,11 @@ function PreviewTableView({
                 return (
                   <td key={col.id}>
                     <input
-                      type={row.cellType === "numero" ? "number" : "text"}
+                      type={cellCfg.cellType === "numero" ? "number" : "text"}
                       value={(cell as string | number | undefined) ?? ""}
-                      maxLength={row.maxLength}
+                      maxLength={cellCfg.maxLength}
                       onChange={(e) =>
-                        updateCell(row.id, col.id, row.cellType === "numero" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value, table, onChange)
+                        updateCell(row.id, col.id, cellCfg.cellType === "numero" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value, table, onChange)
                       }
                     />
                   </td>

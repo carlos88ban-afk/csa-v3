@@ -5,6 +5,7 @@ import {
   componentRegistry,
   parseFormula,
   questionNumber,
+  stripCommentHtml,
   type Condition,
   type FormElement,
   type Subindicator,
@@ -155,7 +156,11 @@ function TableConfigEditor({
 
   function removeColumn(columnId: string) {
     if (columns.length <= 1) return;
-    onChange({ columns: columns.filter((c) => c.id !== columnId), rows });
+    onChange({
+      columns: columns.filter((c) => c.id !== columnId),
+      // VS-044: al quitar la columna se limpian sus overrides de celda.
+      rows: rows.map((r) => (r.cells ? { ...r, cells: r.cells.filter((c) => c.columnId !== columnId) } : r)),
+    });
   }
 
   function updateRow(rowId: string, patch: Partial<TableConfigRows[number]>) {
@@ -196,6 +201,120 @@ function TableConfigEditor({
     });
   }
 
+  // VS-044 (docs/engines/form.md "Tipo de celda mixto dentro de una fila"):
+  // por fila se puede elegir el atajo legacy (toda la fila es de un tipo) o
+  // overrides por celda (cells). Al entrar en modo por celda se materializan
+  // los valores legacy en cada celda y se limpia la fila; al salir, la
+  // primera celda (o texto) vuelve a ser el tipo de fila y su config viaja
+  // con él.
+  type CellPatch = Partial<NonNullable<TableConfigRows[number]["cells"]>[number]>;
+
+  function enablePerCell(rowId: string) {
+    onChange({
+      columns,
+      rows: rows.map((r) =>
+        r.id === rowId
+          ? {
+              ...r,
+              cells: columns.map((col) => ({
+                columnId: col.id,
+                cellType: r.cellType ?? "texto",
+                unit: r.unit,
+                availableUnits: r.availableUnits,
+                options: r.options,
+                maxLength: r.maxLength,
+              })),
+              cellType: undefined,
+              unit: undefined,
+              availableUnits: undefined,
+              options: undefined,
+              maxLength: undefined,
+            }
+          : r,
+      ),
+    });
+  }
+
+  function disablePerCell(rowId: string) {
+    onChange({
+      columns,
+      rows: rows.map((r) => {
+        if (r.id !== rowId) return r;
+        const first = r.cells?.[0];
+        return {
+          ...r,
+          cellType: first?.cellType ?? "texto",
+          unit: first?.unit,
+          availableUnits: first?.availableUnits,
+          options: first?.options,
+          maxLength: first?.maxLength,
+          cells: undefined,
+        };
+      }),
+    });
+  }
+
+  function updateCell(rowId: string, columnId: string, patch: CellPatch) {
+    onChange({
+      columns,
+      rows: rows.map((r) =>
+        r.id === rowId
+          ? { ...r, cells: (r.cells ?? []).map((c) => (c.columnId === columnId ? { ...c, ...patch } : c)) }
+          : r,
+      ),
+    });
+  }
+
+  function addCellOption(rowId: string, columnId: string) {
+    onChange({
+      columns,
+      rows: rows.map((r) =>
+        r.id === rowId
+          ? {
+              ...r,
+              cells: (r.cells ?? []).map((c) =>
+                c.columnId === columnId ? { ...c, options: [...(c.options ?? []), { id: crypto.randomUUID(), label: "" }] } : c,
+              ),
+            }
+          : r,
+      ),
+    });
+  }
+
+  function updateCellOption(rowId: string, columnId: string, optionId: string, label: string) {
+    onChange({
+      columns,
+      rows: rows.map((r) =>
+        r.id === rowId
+          ? {
+              ...r,
+              cells: (r.cells ?? []).map((c) =>
+                c.columnId === columnId ? { ...c, options: (c.options ?? []).map((o) => (o.id === optionId ? { ...o, label } : o)) } : c,
+              ),
+            }
+          : r,
+      ),
+    });
+  }
+
+  function removeCellOption(rowId: string, columnId: string, optionId: string) {
+    onChange({
+      columns,
+      rows: rows.map((r) =>
+        r.id === rowId
+          ? {
+              ...r,
+              cells: (r.cells ?? []).map((c) =>
+                c.columnId === columnId && (c.options?.length ?? 0) > 1
+                  ? { ...c, options: (c.options ?? []).filter((o) => o.id !== optionId) }
+                  : c,
+              ),
+            }
+          : r,
+      ),
+    });
+  }
+
   return (
     <>
       <div className="options">
@@ -214,7 +333,18 @@ function TableConfigEditor({
             </Button>
           </div>
         ))}
-        <Button type="button" size="sm" onClick={() => onChange({ columns: [...columns, { id: crypto.randomUUID(), label: "" }], rows })}>
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => {
+            const column = { id: crypto.randomUUID(), label: "" };
+            onChange({
+              columns: [...columns, column],
+              // VS-044: en modo por celda, la columna nueva arranca como texto.
+              rows: rows.map((r) => (r.cells ? { ...r, cells: [...r.cells, { columnId: column.id, cellType: "texto" }] } : r)),
+            });
+          }}
+        >
           Agregar columna
         </Button>
       </div>
@@ -227,28 +357,123 @@ function TableConfigEditor({
               <div className="option-row__editor">
                 <RichTextEditor value={row.label} onChange={(html) => updateRow(row.id, { label: html })} ariaLabel="Encabezado de fila" />
               </div>
-              <select
-                value={row.cellType}
-                onChange={(e) =>
-                  updateRow(row.id, {
-                    cellType: e.target.value as TableConfigRows[number]["cellType"],
-                    unit: undefined,
-                    availableUnits: undefined,
-                    options: undefined,
-                    maxLength: undefined,
-                  })
-                }
-              >
-                <option value="texto">Texto</option>
-                <option value="numero">Número</option>
-                <option value="seleccion_desplegable">Selección desplegable</option>
-              </select>
+              {row.cells ? (
+                <Pill>Celdas individuales</Pill>
+              ) : (
+                <select
+                  value={row.cellType}
+                  onChange={(e) =>
+                    updateRow(row.id, {
+                      cellType: e.target.value as TableConfigRows[number]["cellType"],
+                      unit: undefined,
+                      availableUnits: undefined,
+                      options: undefined,
+                      maxLength: undefined,
+                    })
+                  }
+                >
+                  <option value="texto">Texto</option>
+                  <option value="numero">Número</option>
+                  <option value="seleccion_desplegable">Selección desplegable</option>
+                </select>
+              )}
               <Button type="button" variant="danger" size="sm" onClick={() => removeRow(row.id)} disabled={rows.length <= 1}>
                 Quitar
               </Button>
             </div>
 
-            {row.cellType === "texto" && (
+            {/* VS-044: override por celda — una fila con `cells` configura el
+                tipo de cada columna por separado (caso real S&P: Tipo de
+                tablero/Tipo de director en texto y Número de miembros en
+                número). La unidad elegida en Runtime sigue siendo por fila
+                (misma clave de respuesta que el modo legacy). */}
+            {row.cells && (
+              <>
+                {columns.map((col) => {
+                  const cell = row.cells!.find((c) => c.columnId === col.id);
+                  const cellType = cell?.cellType ?? "texto";
+                  const colLabel = stripCommentHtml(col.label).trim() || "Columna sin título";
+                  return (
+                    <div className="option-row-group" key={col.id}>
+                      <div className="option-row">
+                        <span className="options__label">{colLabel}</span>
+                        <select
+                          value={cellType}
+                          onChange={(e) =>
+                            updateCell(row.id, col.id, {
+                              cellType: e.target.value as NonNullable<TableConfigRows[number]["cells"]>[number]["cellType"],
+                              unit: undefined,
+                              availableUnits: undefined,
+                              options: undefined,
+                              maxLength: undefined,
+                            })
+                          }
+                        >
+                          <option value="texto">Texto</option>
+                          <option value="numero">Número</option>
+                          <option value="seleccion_desplegable">Selección desplegable</option>
+                        </select>
+                      </div>
+
+                      {cellType === "texto" && (
+                        <label className="field">
+                          <span className="field__label">Longitud máxima</span>
+                          <input
+                            type="number"
+                            value={cell?.maxLength ?? ""}
+                            onChange={(e) => updateCell(row.id, col.id, { maxLength: e.target.value === "" ? undefined : Number(e.target.value) })}
+                          />
+                        </label>
+                      )}
+
+                      {cellType === "numero" && (
+                        <label className="field">
+                          <span className="field__label">Unidad</span>
+                          <input
+                            value={cell?.unit ?? ""}
+                            placeholder="ej. met. ton. CO2e, %"
+                            onChange={(e) => updateCell(row.id, col.id, { unit: e.target.value === "" ? undefined : e.target.value })}
+                          />
+                        </label>
+                      )}
+
+                      {cellType === "seleccion_desplegable" && (
+                        <div className="sub-options">
+                          {(cell?.options ?? []).map((opt) => (
+                            <div className="option-row option-row--sub" key={opt.id}>
+                              <div className="option-row__editor">
+                                <RichTextEditor
+                                  value={opt.label}
+                                  onChange={(html) => updateCellOption(row.id, col.id, opt.id, html)}
+                                  ariaLabel="Opción de celda"
+                                />
+                              </div>
+                              <Button
+                                type="button"
+                                variant="danger"
+                                size="sm"
+                                onClick={() => removeCellOption(row.id, col.id, opt.id)}
+                                disabled={(cell?.options?.length ?? 0) <= 1}
+                              >
+                                Quitar
+                              </Button>
+                            </div>
+                          ))}
+                          <Button type="button" size="sm" onClick={() => addCellOption(row.id, col.id)}>
+                            Agregar opción
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <Button type="button" size="sm" onClick={() => disablePerCell(row.id)}>
+                  Usar un solo tipo para toda la fila
+                </Button>
+              </>
+            )}
+
+            {!row.cells && row.cellType === "texto" && (
               <label className="field">
                 <span className="field__label">Longitud máxima</span>
                 <input
@@ -262,7 +487,7 @@ function TableConfigEditor({
             {/* onBlur, no onChange: mismo bug/fix que VS-023
                 (docs/engines/form.md) — controlado + recorte en
                 cada tecla se come el separador recién escrito. */}
-            {row.cellType === "numero" && (
+            {!row.cells && row.cellType === "numero" && (
               <div className="field-grid">
                 <label className="field">
                   <span className="field__label">Unidad</span>
@@ -291,7 +516,7 @@ function TableConfigEditor({
               </div>
             )}
 
-            {row.cellType === "seleccion_desplegable" && (
+            {!row.cells && row.cellType === "seleccion_desplegable" && (
               <div className="sub-options">
                 {(row.options ?? []).map((opt) => (
                   <div className="option-row option-row--sub" key={opt.id}>
@@ -317,6 +542,12 @@ function TableConfigEditor({
                   Agregar opción
                 </Button>
               </div>
+            )}
+
+            {!row.cells && (
+              <Button type="button" size="sm" onClick={() => enablePerCell(row.id)}>
+                Configurar celdas individualmente
+              </Button>
             )}
           </div>
         ))}

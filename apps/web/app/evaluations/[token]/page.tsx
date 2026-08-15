@@ -1308,8 +1308,12 @@ function FormTableView({
                 {!row.availableUnits && row.unit && <span className="runtime-question__unit"> ({row.unit})</span>}
               </th>
               {columns.map((col) => {
+                // VS-044: el tipo de una celda se resuelve por override
+                // (row.cells) y cae al atajo legacy de la fila si no hay
+                // override — una sola rama de resolución, el render no cambia.
+                const cellCfg = row.cells?.find((c) => c.columnId === col.id) ?? row;
                 const cell = rowValue[col.id];
-                if (row.cellType === "seleccion_desplegable") {
+                if (cellCfg.cellType === "seleccion_desplegable") {
                   return (
                     <td key={col.id}>
                       <select
@@ -1318,7 +1322,7 @@ function FormTableView({
                         onChange={(e) => updateCell(row.id, col.id, e.target.value)}
                       >
                         <option value="">Seleccionar…</option>
-                        {(row.options ?? []).map((opt) => (
+                        {(cellCfg.options ?? []).map((opt) => (
                           <option key={opt.id} value={opt.id}>
                             {stripCommentHtml(opt.label)}
                           </option>
@@ -1327,7 +1331,7 @@ function FormTableView({
                     </td>
                   );
                 }
-                if (row.cellType === "numero") {
+                if (cellCfg.cellType === "numero") {
                   return (
                     <td key={col.id}>
                       <input
@@ -1343,7 +1347,7 @@ function FormTableView({
                   <td key={col.id}>
                     <input
                       value={(cell as string) ?? ""}
-                      maxLength={row.maxLength}
+                      maxLength={cellCfg.maxLength}
                       disabled={locked}
                       onChange={(e) => updateCell(row.id, col.id, e.target.value)}
                     />

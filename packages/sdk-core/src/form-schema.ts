@@ -96,15 +96,44 @@ const formOptionBase = z.object({
   subOptionsExclusive: z.boolean().optional(),
 });
 
-const formTableRow = z.object({
-  id: z.string().min(1),
-  label: z.string(),
+// VS-044 (docs/engines/form.md "Tipo de celda mixto dentro de una fila"):
+// override de tipo por CELDA — mismo shape de config que la fila legacy
+// (unit/availableUnits/options/maxLength), pero apuntando a una columna.
+// Si `cells` está presente en la fila, gana sobre `cellType` de la fila.
+const formTableCell = z.object({
+  columnId: z.string().min(1),
   cellType: formTableCellType,
   unit: z.string().min(1).optional(),
   availableUnits: z.array(z.string().min(1)).min(1).optional(),
   options: z.array(formOptionBase).min(1).optional(),
   maxLength: z.number().int().positive().optional(),
 });
+
+// VS-044: `cellType` pasa a optional — el atajo legacy "toda la fila es de
+// este tipo" sigue funcionando, pero una fila puede declarar solo `cells`
+// (overrides por celda). El `.superRefine()` exige al menos uno de los dos;
+// va en el objeto fila (no en formSchema) porque la regla se expresa por
+// fila y así cubre también la tabla embebida de una sub-opción (VS-042).
+const formTableRow = z
+  .object({
+    id: z.string().min(1),
+    label: z.string(),
+    cellType: formTableCellType.optional(),
+    cells: z.array(formTableCell).optional(),
+    unit: z.string().min(1).optional(),
+    availableUnits: z.array(z.string().min(1)).min(1).optional(),
+    options: z.array(formOptionBase).min(1).optional(),
+    maxLength: z.number().int().positive().optional(),
+  })
+  .superRefine((row, ctx) => {
+    if (row.cellType === undefined && (row.cells === undefined || row.cells.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "La fila necesita cellType o al menos una celda (cells)",
+        path: ["cellType"],
+      });
+    }
+  });
 
 // Shape reutilizado por el Elemento `tabla_datos` y por la tabla embebida de
 // una sub-opción (VS-042) — un solo tipo zod, sin duplicación. Sin
@@ -121,6 +150,7 @@ const tablaDatosConfig = z.object({
 // al expandirse por rutas distintas y TypeScript los declara "unrelated"
 // (TS2719), aunque sean estructuralmente idénticos.
 export type FormTableColumn = z.infer<typeof formTableColumn>;
+export type FormTableCell = z.infer<typeof formTableCell>;
 export type FormTableRow = z.infer<typeof formTableRow>;
 export type TablaDatosConfig = z.infer<typeof tablaDatosConfig>;
 
