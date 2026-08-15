@@ -4,6 +4,19 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-047 — Editor de `tabla_datos` estilo grilla (2026-08-15)
+
+- Pedido explícito del usuario tras probar VS-046: la construcción de tablas en el Builder (dos listas separadas "Columnas"/"Filas", sin relación visual con la tabla resultante) no se sentía intuitiva. Rediseño completo estilo Excel: grilla real que empieza de una celda, "+" para agregar columna a la derecha/fila abajo desde el borde, y por celda: tipo, editable (lo llena el evaluado) vs solo lectura (contenido fijo del admin), "×" para quitar una celda puntual — permite grillas irregulares (una columna con menos filas que otras).
+- `packages/sdk-core/src/form-schema.ts`: `formTableCell` gana `editable`/`content` (formaliza un campo `editable` que ya estaba a medio agregar). Nueva semántica: fila en modo celdas sin override para una columna = celda en blanco (antes caía a un input de texto por defecto) — compatible hacia atrás, toda tabla existente ya tiene cobertura completa de `cells` por construcción del Builder anterior.
+- **Hallazgo durante el análisis**: `evaluateTableExpression` (VS-043) nunca se conectó a ningún consumidor de `apps/web` pese a estar documentado como "verificado en producción" con Builder/Runtime funcionando — además tenía un bug real (indexaba filas por posición numérica con claves sintéticas `ref_N` que nunca calzaban con una referencia `{rowId}` real escrita por un admin). Reescrito correctamente (`{rowId}` resuelve contra la columna activa, `{rowId.columnId}` una celda puntual), con 5 tests nuevos, y recién conectado a Runtime/Preview/Builder en este slice.
+- **Runtime/Preview**: `FormTableView`/`PreviewTableView` resuelven celdas en blanco, contenido fijo (`RichLabel`) y `cellType: "calculado"` (mismo patrón que `CalculadoView`, componentes nuevos `TableCalculatedCell`/`PreviewTableCalculatedCell`).
+- **Builder**: `TableConfigEditor` reescrito como `<table>` real — encabezados de columna/fila editables con botón "Quitar", "+" en los bordes para extender la grilla, celdas con chip de tipo expandible (`<details>`-like) a tipo/editable/contenido/config, "×" para quitar una celda puntual. El default de un elemento `tabla_datos` nuevo arranca en grilla 1×1 (antes: fila uniforme "texto").
+- **Export CSV**: `cellConfig` devuelve `undefined` para celdas en blanco; celdas no editables se omiten de la serialización (nada que el evaluado haya respondido).
+- **Fuera de alcance** (documentado en `docs/engines/form.md`): insertar columna/fila en posición intermedia (solo al final); `rowspan`/`colspan` real; el editor legado de subindicadores directos bajo Dimensión, que nunca llegó a paridad con VS-044, queda sin actualizar.
+- 11 tests nuevos en `sdk-core` (250 total). `pnpm build`/`typecheck`/`test` en verde.
+
+**Verificación en producción (2026-08-15)**: commit `c2ec968` + push a `main`, deploy Vercel READY (webhook demorado de nuevo, forzado manualmente desde el dashboard). Framework temporal en `csa-v3-web.vercel.app`: grilla 1×1 inicial confirmada, tabla real "SISTEMA DE UN SOLO NIVEL" (`COG_BoardType_BoardType`) construida con 3 filas numéricas + fila `calculado` (fórmula armada con los chips de autocompletado, sin error de sintaxis). Runtime público: celda calculada disabled con "(sin calcular)" antes de llenar datos, luego **12** en vivo al escribir 4/6/2 con autosave; persistencia confirmada tras recarga completa desde cero. Framework de prueba borrado con confirmación explícita.
+
 ### fix(runtime): radio/checkbox de opciones con label en línea siguiente (2026-08-15)
 
 - Hallazgo del usuario probando VS-046 en producción: el radio/checkbox de una opción quedaba solo en su línea y el texto caía a la línea siguiente — bug pre-existente desde VS-045 (no específico de VS-046), afecta a cualquier opción con label enriquecido.

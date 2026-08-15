@@ -941,3 +941,11 @@ Reemplaza las dos listas separadas ("Columnas" / "Filas") por una única tabla H
 - **Export CSV**: sin cambios de forma — `formatAnswer` de `tabla_datos` sigue serializando `"fila: col1=v1, col2=v2; ..."`, pero ahora omite del lado derecho las celdas con `editable === false` (nada que el evaluado haya respondido, mismo criterio "el CSV exporta respuestas" del resto del motor) y las celdas en blanco (sin valor posible). Las celdas `calculado` se serializan igual que `numero` (ya se persisten con autosave).
 - **Sin cambios en `response.ts`**: `TableValue` ya es un mapa disperso (`rowId -> columnId -> valor`), una celda sin entrada ya significa "sin valor" — la raggedness no necesita ensanchar `AnswerValue`.
 - **Tests**: `form-schema.test.ts` gana casos para `content`/`editable` (con y sin valor, compatibilidad hacia atrás) — sin caso nuevo para la semántica de blank porque esa es responsabilidad del Runtime/Preview, no del schema (el schema ya permite `cells` con menos entradas que `columns`, no hay nada que validar ahí).
+
+### Verificación en producción (2026-08-15)
+
+Commit `c2ec968` + push a `main`, deploy Vercel READY (el webhook GitHub→Vercel volvió a demorarse ~10 min sin disparar — mismo síntoma ya documentado; se forzó con "Create Deployment" desde el dashboard, ya READY como Production antes de necesitarlo). Framework temporal "TEMP - VS-047 verificacion produccion" (creado en esta verificación): elemento `tabla_datos` con la grilla 1×1 inicial confirmada (celda "Texto" + botones "+ columna"/"+ fila" en los bordes), construida hasta reproducir la tabla real "SISTEMA DE UN SOLO NIVEL" — 3 filas numéricas + fila `calculado` con fórmula armada con los chips de autocompletado (`{id1}+{id2}+{id3}`, sin error de sintaxis). Runtime público: celda calculada renderizada `disabled` con "(sin calcular)" antes de llenar datos; al escribir 4/6/2 en las tres filas, "Tamaño total de la tabla" mostró **12** en vivo con autosave ("Guardado"); **persistencia confirmada tras recarga completa desde cero** (los 4 valores, incluido el calculado, se conservaron). Framework temporal borrado con confirmación explícita del usuario.
+
+### Estado
+
+Implementado y verificado en producción. Cerrado.
