@@ -1156,7 +1156,7 @@ function OptionReferencesView({
   return (
     <div className="runtime-url-list sub-options">
       {localSlots.map((slot, index) => {
-        const doc = isDocRef(slot);
+        const isDoc = kindOf(index) === "doc";
         return (
           <div key={index} className="option-row">
             <select
@@ -1168,7 +1168,7 @@ function OptionReferencesView({
               <option value="url">URL pública</option>
               <option value="doc">Documento interno</option>
             </select>
-            {doc ? (
+            {isDoc ? (
               <span className="runtime-evidence">
                 {!locked && (
                   <input
@@ -1181,10 +1181,16 @@ function OptionReferencesView({
                     }}
                   />
                 )}
-                {slot.name} ({(slot.size / 1024).toFixed(0)} KB)
-                <button type="button" className="btn btn--secondary btn--sm" onClick={() => void downloadDoc(slot)}>
-                  Ver
-                </button>
+                {isDocRef(slot) ? (
+                  <>
+                    {slot.name} ({(slot.size / 1024).toFixed(0)} KB)
+                    <button type="button" className="btn btn--secondary btn--sm" onClick={() => void downloadDoc(slot)}>
+                      Ver
+                    </button>
+                  </>
+                ) : (
+                  <em>Selecciona un archivo para adjuntarlo como documento interno.</em>
+                )}
               </span>
             ) : (
               <input
