@@ -1,11 +1,13 @@
 checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000027
 fecha: 2026-08-15
 estado: completo
-slice_actual: VS-046 (bloque secundario de sub-opciones por opción) implementado, verificado en producción y CERRADO. Siguiente: sin ítem asignado en BACKLOG.md ("Siguiente") — revisar ROADMAP.md.
+slice_actual: VS-046 (bloque secundario de sub-opciones por opción) implementado, verificado en producción y CERRADO. Fix adicional del mismo día: radio/checkbox con label en línea siguiente (bug pre-existente desde VS-045, hallado por el usuario probando VS-046). Siguiente: sin ítem asignado en BACKLOG.md ("Siguiente") — revisar ROADMAP.md.
 
 slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030, VS-031, VS-032, VS-033, VS-034, VS-035, VS-036, VS-037, VS-038, VS-039, VS-040, VS-041, VS-042, VS-043, VS-044, VS-045, VS-046]
 
 decisiones_del_dia:
+  - **Fix (mismo día, post-VS-046) — radio/checkbox con label en línea siguiente**: el usuario probó la pregunta real "1.1.1 Independencia de la Junta" en producción y reportó que el radio/checkbox quedaba solo en su línea, el texto en la siguiente. Causa: `<label className="field--checkbox">` en Runtime y preview del Builder nunca tenía la clase base `field` (`display:flex`) — solo el Builder la combinaba correctamente. Bug pre-existente desde VS-045 (el `<p>` que envuelve el label desde ese slice fuerza el salto sin `display:flex`), no introducido por VS-046, pero recién visible/reportado ahora. Fix: `className="field field--checkbox"` en los 7 sitios afectados (commit `07b74d8`). Detalle en `docs/project_notes/bugs.md`.
+  - **Nota operativa nueva**: el push del fix anterior no disparó deploy automático en Vercel (~8 min sin nuevo deployment pese a que GitHub ya tenía el commit) — resuelto disparando manualmente desde el dashboard de Vercel (Deployments → "..." → "Create Deployment" → pegar el SHA → "Deploy to Production"). Guardado como nota operativa reutilizable más abajo.
   - **VS-046 — Bloque secundario de sub-opciones por opción**: pedido explícito del usuario ("analiza esta pregunta... valida en producción que sea capaz de crear una igual, si no, crea el plan de mejora") sobre el HTML completo de `COG_BoardIndependence_Selection` (la misma pregunta que originó VS-045). Re-análisis + validación en vivo mostraron que la opción "Applicable" trae DOS `<ol>` **hermanos** e independientes: sub-radio excluyente "StockExchange" (ya construible, VS-040) Y, por separado, un grupo de checkboxes con encabezado propio ("Distribución de objetivos") — `formOption` solo admitía un bloque `subOptions` con una sola exclusividad para todo el array.
   - **Corrige una conclusión errónea de la 6.ª inspección** (2026-08-14, `docs/analysis/csa-sp-global-comparison.md`): la nota original daba este caso por "sin gap nuevo" — lectura apresurada que no siguió el prefijo del `id` del segundo `<ol>`. Corregido en el mismo archivo (historial preservado, no borrado).
   - **Diseño**: `formOption.secondaryOptions`/`secondaryOptionsHeading`/`secondaryOptionsExclusive` — mismo shape que `subOptions` (reusa `subOption` sin nuevo tipo zod), tope fijo en 2 bloques (no array genérico de N grupos), mismo criterio que sub-opciones a 2 niveles (VS-026). Clave de respuesta: mismo patrón sintético con segmento `secondary` (`${elementId}::${optionId}::secondary::${subOptionId}`), sin cambios en `response.ts`.
@@ -114,6 +116,13 @@ contexto_para_continuar: |
     diálogo visible — si pasa, reintentar con
     `$env:GIT_TERMINAL_PROMPT=0; $env:GCM_INTERACTIVE="auto"` antes del
     `git push` (resuelve sin esperar aprobación manual).
+  - El deploy automático de Vercel a veces no se dispara tras un `git push`
+    (webhook GitHub→Vercel demorado o silencioso, visto por primera vez
+    2026-08-15, ~8 min sin nuevo deployment pese al commit ya en
+    `origin/main`) — si `list_deployments`/`get_deployment` no muestra un
+    deployment nuevo después de 1-2 min, no seguir esperando: en el
+    dashboard de Vercel, Deployments → "..." (arriba a la derecha) →
+    "Create Deployment" → pegar el SHA del commit → "Deploy to Production".
   - `POST /api/subindicators` no acepta `formSchema` al crear (devuelve
     `formSchema: null`) — PATCH después; crear la evaluación tras el PATCH
     para que su snapshot incluya los elementos.

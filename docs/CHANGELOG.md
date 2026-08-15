@@ -4,6 +4,13 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### fix(runtime): radio/checkbox de opciones con label en línea siguiente (2026-08-15)
+
+- Hallazgo del usuario probando VS-046 en producción: el radio/checkbox de una opción quedaba solo en su línea y el texto caía a la línea siguiente — bug pre-existente desde VS-045 (no específico de VS-046), afecta a cualquier opción con label enriquecido.
+- Causa: `<label className="field--checkbox">` en Runtime (`evaluations/[token]/page.tsx`) y preview del Builder (`form-preview.tsx`) nunca tenía la clase base `field` (`display: flex`) — solo el Builder (`subindicator-editor.tsx`) combinaba correctamente ambas clases. Sin `display: flex`, el `<p>` que envuelve el label (TipTap, desde VS-045) fuerza el salto de línea. Detalle completo en `docs/project_notes/bugs.md`.
+- Fix: `className="field field--checkbox"` en los 7 sitios afectados (commit `07b74d8`). Sin cambio de lógica ni de schema.
+- Verificado en producción contra la pregunta real "1.1.1 Independencia de la Junta" (framework "CSA 2026 — Réplica QA").
+
 ### VS-046 — Bloque secundario de sub-opciones por opción (2026-08-15)
 
 - Pedido explícito del usuario: analizar la pregunta completa `COG_BoardIndependence_Selection` (misma HTML de VS-045) y validar en producción si la plataforma puede replicarla idéntica. Re-análisis + validación en vivo contra el Builder desplegado mostraron que la opción "Applicable" trae dos `<ol>` **hermanos** e independientes (sub-radio "StockExchange" + grupo de checkboxes "Distribución de objetivos" con encabezado propio) — `formOption` solo admitía un bloque `subOptions` con una sola exclusividad, no había forma de adjuntar un segundo bloque a la misma opción.
