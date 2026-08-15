@@ -4,11 +4,18 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
-### VS-046 — Bloque secundario de sub-opciones por opción (spec doc-first, 2026-08-15)
+### VS-046 — Bloque secundario de sub-opciones por opción (2026-08-15)
 
-- Pedido explícito del usuario: analizar la pregunta completa `COG_BoardIndependence_Selection` (misma HTML de VS-045) y validar en producción si la plataforma puede replicarla idéntica. Re-análisis + validación en vivo contra el Builder desplegado mostraron que la opción "Applicable" trae dos `<ol>` **hermanos** e independientes (sub-radio "StockExchange" + grupo de checkboxes "Distribución de objetivos" con encabezado propio) — `formOption` solo admite un bloque `subOptions` con una sola exclusividad, no hay forma de adjuntar un segundo bloque a la misma opción.
+- Pedido explícito del usuario: analizar la pregunta completa `COG_BoardIndependence_Selection` (misma HTML de VS-045) y validar en producción si la plataforma puede replicarla idéntica. Re-análisis + validación en vivo contra el Builder desplegado mostraron que la opción "Applicable" trae dos `<ol>` **hermanos** e independientes (sub-radio "StockExchange" + grupo de checkboxes "Distribución de objetivos" con encabezado propio) — `formOption` solo admitía un bloque `subOptions` con una sola exclusividad, no había forma de adjuntar un segundo bloque a la misma opción.
 - Corrige una conclusión errónea de la nota de la 6.ª inspección (2026-08-14, `docs/analysis/csa-sp-global-comparison.md`) que había dado este caso por "sin gap nuevo".
-- `docs/engines/form.md`: especificación doc-first. Decisión central: `formOption.secondaryOptions`/`secondaryOptionsHeading`/`secondaryOptionsExclusive` — mismo shape que `subOptions` (reusa `subOption` sin nuevo tipo zod), tope fijo en 2 bloques (no array genérico de N grupos), mismo criterio ya usado en el motor para sub-opciones a 2 niveles (VS-026). Sin implementar todavía — entrada en `docs/BACKLOG.md`.
+- `packages/sdk-core/src/form-schema.ts`: `formOption` gana `secondaryOptionsHeading`/`secondaryOptions`/`secondaryOptionsExclusive` — mismo shape que `subOptions` (reusa `subOption` sin nuevo tipo zod), tope fijo en 2 bloques (no array genérico de N grupos), mismo criterio ya usado en el motor para sub-opciones a 2 niveles (VS-026). 6 tests nuevos (242 total).
+- **Runtime/preview** (`evaluations/[token]/page.tsx`, `form-preview.tsx`): `SubOptionsView`/`PreviewSubOptions` ganan un prop `heading` opcional y se invocan una segunda vez para el bloque secundario, sin tocar su lógica ya genérica de field/table/references/2do nivel.
+- **Builder** (`subindicator-editor.tsx`): las funciones CRUD de `subOptions` ganan un parámetro `block: "subOptions" | "secondaryOptions"` en vez de duplicarse (default preserva todo call-site existente); nuevo botón "Agregar bloque secundario de sub-opciones" por opción con encabezado, exclusividad propia y el mismo CRUD de sub-opciones (label + campo embebido + referencias).
+- **Export CSV**: `formatOptionLabel` factoriza `formatMarkedSubOptions`, reusada para ambos bloques.
+- Incluye un fix suelto previo a esta sesión: `return` duplicado en `evaluateTableExpression` (`formula.ts`).
+- `pnpm typecheck`/`build`/`test` en verde (242 sdk-core + 28 db).
+
+**Verificación en producción (2026-08-15)**: commit `0c1272d` + push a `main`, deploy Vercel READY. Framework temporal en `csa-v3-web.vercel.app` (borrado al terminar, con confirmación explícita): Builder con el botón nuevo, bloque secundario con encabezado "Distribución de objetivos" + checkbox + campo `texto_corto` embebido; preview del Builder y Runtime público con el mismo render; **persistencia confirmada tras recarga completa** (radio, checkbox y valor "40%" del campo conservados); export CSV `"Applicable — La empresa tiene una participación objetivo de directores independientes en el consejo (40%)"`.
 
 ### VS-044 — Tipo de celda mixto dentro de una fila de `tabla_datos` (2026-08-15)
 

@@ -1,69 +1,85 @@
-checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000026
+checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000027
 fecha: 2026-08-15
 estado: completo
-slice_actual: VS-044 (tipo de celda mixto dentro de una fila de `tabla_datos`) implementado, verificado en producción y CERRADO. Siguiente: VS-045.
+slice_actual: VS-046 (bloque secundario de sub-opciones por opción) implementado, verificado en producción y CERRADO. Siguiente: sin ítem asignado en BACKLOG.md ("Siguiente") — revisar ROADMAP.md.
 
-slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030, VS-031, VS-032, VS-033, VS-034, VS-035, VS-036, VS-037, VS-038, VS-039, VS-040, VS-041, VS-042, VS-043, VS-044, VS-045]
+slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030, VS-031, VS-032, VS-033, VS-034, VS-035, VS-036, VS-037, VS-038, VS-039, VS-040, VS-041, VS-042, VS-043, VS-044, VS-045, VS-046]
 
 decisiones_del_dia:
-  - **VS-044 — Tipo de celda mixto dentro de una fila de `tabla_datos`**: 5.ª inspección AN-001 (HTML `COG_BoardType_Selection`): la tabla de dos niveles tiene filas `[texto, texto, número]` — `cellType` por fila uniforme (VS-024) no alcanza; caso previado por la decisión de VS-024 como "cambio aditivo".
-  - **Spec doc-first** en `docs/engines/form.md` (regla rectora) antes de implementar. `packages/sdk-core/src/form-schema.ts`: `formTableRow.cells?: {columnId, cellType, unit?, availableUnits?, options?, maxLength?}[]` — override por celda gana sobre `cellType` legacy; `cellType` de fila opcional; `.superRefine()` exige al menos uno presente. Desviación menor de spec: el refine vive en `formTableRow` (no en `formSchema`) para cubrir también la tabla embebida de VS-042. `formTableCell` movido después de `formOptionBase` (TS "Block-scoped variable used before its declaration") y exportado como `FormTableCell`.
-  - **Resolución única en consumidores**: `row.cells?.find(c => c.columnId === col.id) ?? row` (fallback "texto") en Runtime `FormTableView`, preview `PreviewTableView` y export CSV (`cellConfig(row, columnId)` normaliza el shape legacy de fila al de celda — unit/availableUnits/options/maxLength — para que ambos pasen por el mismo serializador).
-  - **Builder** (`subindicator-editor.tsx` `TableConfigEditor`): modo por celda — botón "Configurar celdas individualmente" / "Usar un solo tipo para toda la fila"; `updateCell`/`addCellOption`/`updateCellOption`/`removeCellOption`; `removeColumn` limpia `cells` de filas, `addColumn` agrega cell "texto". Pill "Celdas individuales" + bloque de configuración por columna (tipo, maxLength/unidad/opciones).
-  - **Decisión**: SIN `availableUnits` por celda — la unidad por celda es fija (`unit`) y la selección de unidad en Runtime sigue siendo por fila (misma clave de respuesta), evitando un select que no existe en Runtime.
-  - **Verificación en producción (completada)**: commit `e08a9c7` + push a `main`, deploy a Vercel READY (confirmado: botón "Configurar celdas individualmente" visible en builder). Framework "CSA 2026 — Réplica QA" (org "CSA 2026 Réplica QA Org"): subindicador "VS-044 verificación producción" (`5a29d23d-3ed9-4bec-b501-23ce88d2df5d`, creado vía UI del builder — la evaluación debe crearse DESPUÉS del guardado, ver nota VS-045), evaluación `-nIUyaTGIxVsp0oMs1QusXTLQqsSYdRS` (`47f7a6c1-5a92-475b-868e-a653dca3dcd8`). Verificado: builder con modo por celda (labels limpios vía stripCommentHtml, col 2 → Número + unidad "miembros"), formSchema persistido con `cells` y sin `cellType` legacy, Runtime con textbox (col texto) + spinbutton (col número), persistencia tras recarga desde cero, y export CSV `"Composición del directorio: Tipo de tablero=Junta directiva independiente, Número de miembros=12 miembros"` (unidad por celda).
+  - **VS-046 — Bloque secundario de sub-opciones por opción**: pedido explícito del usuario ("analiza esta pregunta... valida en producción que sea capaz de crear una igual, si no, crea el plan de mejora") sobre el HTML completo de `COG_BoardIndependence_Selection` (la misma pregunta que originó VS-045). Re-análisis + validación en vivo mostraron que la opción "Applicable" trae DOS `<ol>` **hermanos** e independientes: sub-radio excluyente "StockExchange" (ya construible, VS-040) Y, por separado, un grupo de checkboxes con encabezado propio ("Distribución de objetivos") — `formOption` solo admitía un bloque `subOptions` con una sola exclusividad para todo el array.
+  - **Corrige una conclusión errónea de la 6.ª inspección** (2026-08-14, `docs/analysis/csa-sp-global-comparison.md`): la nota original daba este caso por "sin gap nuevo" — lectura apresurada que no siguió el prefijo del `id` del segundo `<ol>`. Corregido en el mismo archivo (historial preservado, no borrado).
+  - **Diseño**: `formOption.secondaryOptions`/`secondaryOptionsHeading`/`secondaryOptionsExclusive` — mismo shape que `subOptions` (reusa `subOption` sin nuevo tipo zod), tope fijo en 2 bloques (no array genérico de N grupos), mismo criterio que sub-opciones a 2 niveles (VS-026). Clave de respuesta: mismo patrón sintético con segmento `secondary` (`${elementId}::${optionId}::secondary::${subOptionId}`), sin cambios en `response.ts`.
+  - **Runtime/preview**: `SubOptionsView`/`PreviewSubOptions` (ya genéricos por `subKey`/`exclusive`) ganan un prop `heading` opcional y se invocan una 2.ª vez para el bloque secundario — sin tocar su lógica de field/table/references/2do nivel, que ya funcionaba para cualquier array de `subOption`.
+  - **Builder**: las ~20 funciones CRUD de `subOptions` (`addSubOption`/`updateSubOptionNode`/sus ~15 derivadas de field/table/references) ganan un parámetro `block: "subOptions" | "secondaryOptions" = "subOptions"` en vez de duplicarse — todo call-site existente preserva su comportamiento por el default. Nuevas: `addSecondaryOptionsBlock`/`removeSecondaryOptionsBlock`, `updateSecondaryOptionsHeading`, `toggleSecondaryOptionsExclusive`. Botón "Agregar bloque secundario de sub-opciones" por opción.
+  - **Alcance reducido en el Builder** (documentado en `form.md`, no en el schema): los ítems del bloque secundario soportan label/field/references desde la UI (cubre el caso real, `field: texto_corto`); tabla embebida y sub-sub-opciones de un ítem de `secondaryOptions` no tienen UI propia en este slice (el tipo y Runtime/Preview ya los soportarían si se cargaran por otra vía) — aditivo si aparece un caso real.
+  - **Export CSV**: `formatOptionLabel` factoriza `formatMarkedSubOptions(subOptions, key, answers)`, reusada para `opt.subOptions` y `opt.secondaryOptions`.
+  - Incluye un fix suelto previo a esta sesión (no generado por este slice): `return` duplicado en `evaluateTableExpression` (`packages/sdk-core/src/formula.ts`) y corrección de texto en este mismo checkpoint (siguiente slice tras VS-044 era VS-045, no VS-043) — commiteados juntos a pedido explícito del usuario.
+  - **Verificación en producción (completada)**: commit `0c1272d` + push a `main`, deploy Vercel READY (`dpl_GFzKYPakbM8qPTniiThBRR6XwvRr`). Framework temporal "TEMP - VS-046 verificacion produccion" (creado y **borrado al terminar, con confirmación explícita** — no queda en la DB real): Builder con el botón nuevo, bloque secundario completo (encabezado "Distribución de objetivos" + checkbox "excluyentes" + ítem con campo `texto_corto` embebido, máx. 1000); preview del Builder y Runtime público (`/evaluations/RLHX1jApGPli63Co7gws6sI8ox0lmgjV`) con el mismo render; **persistencia confirmada tras recarga completa desde cero** (radio "Applicable", checkbox marcado, valor "40%" del campo, todos conservados); export CSV `"Applicable — La empresa tiene una participación objetivo de directores independientes en el consejo (40%)"`.
 
 archivos_modificados:
-  - packages/sdk-core/src/form-schema.ts (VS-044: formTableRow.cells + superRefine, FormTableCell exportado y movido tras formOptionBase) + dist/ (rebuild)
-  - packages/sdk-core/src/form-schema.test.ts (VS-044: 9 tests nuevos de cells)
-  - apps/web/app/evaluations/[token]/page.tsx (VS-044: FormTableView resuelve cellCfg por columna)
-  - apps/web/components/form-preview.tsx (VS-044: PreviewTableView resuelve cellCfg por columna)
-  - apps/web/components/subindicator-editor.tsx (VS-044: TableConfigEditor modo por celda, stripCommentHtml en labels)
-  - apps/web/app/api/evaluations/[id]/export/route.ts (VS-044: helper cellConfig + serialización por celda)
-  - docs/engines/form.md, docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md
+  - packages/sdk-core/src/form-schema.ts (VS-046: formOption.secondaryOptions/secondaryOptionsHeading/secondaryOptionsExclusive)
+  - packages/sdk-core/src/form-schema.test.ts (VS-046: 6 tests nuevos, 242 total)
+  - packages/sdk-core/src/formula.ts (fix suelto previo a la sesión: return duplicado en evaluateTableExpression)
+  - apps/web/app/evaluations/[token]/page.tsx (VS-046: SubOptionsView gana prop heading + 2.ª invocación para secondaryOptions)
+  - apps/web/components/form-preview.tsx (VS-046: PreviewSubOptions ídem)
+  - apps/web/components/subindicator-editor.tsx (VS-046: funciones CRUD de subOptions ganan parámetro block; nuevas addSecondaryOptionsBlock/removeSecondaryOptionsBlock/updateSecondaryOptionsHeading/toggleSecondaryOptionsExclusive; JSX del bloque secundario)
+  - apps/web/app/globals.css (VS-046: .sub-options__heading)
+  - apps/web/app/api/evaluations/[id]/export/route.ts (VS-046: formatMarkedSubOptions factorizada)
+  - docs/engines/form.md, docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md, docs/analysis/csa-sp-global-comparison.md (corrección de la 6.ª inspección)
 
 proximos_pasos:
-  - **VS-043 — Fila de fórmula dentro de `tabla_datos` (implementado 2026-08-15)**: `formTableCellType` gana `"calculado"` con `expression` (`{rowId}` = fila completa en columna activa, `{rowId.columnId}` = celda puntual); motor `evaluateTableExpression` resuelve refs a filas y celdas de la misma tabla; renderizado en Runtime como inputs `disabled` con valor recalculado en vivo + `useEffect` autosave (patrón `CalculadoView`), default `toFixed(2)` para display, valor persistido número crudo. Builder `TableConfigEditor` con campo `expression`, autocompletado de filas (`{rowId}`) y columnas (`{rowId.columnId}`), validación `tableFormulaError`. Export CSV sin cambios (valores ya persistidos). Fuera de alcance: SUM/AVG, refs entre Elementos distintos. 21 tests nuevos en `form-schema.test.ts` y `formula.test.ts` todos verdes; suite `db` 28/28 passes; typecheck 5 tasks verde. Verificado en producción: subindicador `5a29d23d-3ed9-4bec-b501-23ce88d2df5d`, evaluación `-nIUyaTGIxVsp0oMs1QusXTLQqsSYdRS` (`47f7a6c1-5a92-475b-868e-a653dca3dcd8`). Builder con campo expression y autocompletado, Runtime con input disabled + valor recalculado, persistencia tras recarga, export CSV idéntico.
+  - Sin ítem asignado en BACKLOG.md ("Siguiente"), sección vacía tras cerrar VS-046 — revisar `docs/ROADMAP.md` para el siguiente ítem por prioridad, o esperar un nuevo hallazgo/pedido del usuario (patrón habitual: HTML real de S&P pegado por el usuario).
+  - Pendientes no bloqueantes, siguen en BACKLOG.md: proveedor de email/SMTP (ADR); TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada); tabla de historial de revisiones de `formSchema`.
   - Warning de SSL de Postgres (`sslmode=require` → deprecation warning de `pg`) visible en runtime logs de Vercel desde 2026-08-05 — no bloqueante, pendiente de decisión explícita del usuario antes de tocar `DATABASE_URL` en producción.
   - Único fallo e2e conocido: `public-runtime.spec.ts:56` (comentario TipTap en negrita no persiste tras reload) — bug real ya documentado en `bugs.md` desde 2026-08-13, sin solución todavía.
-  - Pendiente no bloqueante, sigue en BACKLOG.md ("Siguiente"): proveedor de email/SMTP (ADR); TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada — evitaría tener que crear/borrar frameworks temporales en la DB real solo para verificar slices); tabla de historial de revisiones de `formSchema`.
   - Al retomar sin un pedido específico: revisar `docs/BACKLOG.md` y `docs/ROADMAP.md` para el siguiente ítem por prioridad.
 
 bloqueos: []
 
 contexto_para_continuar: |
-  VS-044 (tipo de celda mixto dentro de una fila de `tabla_datos`)
-  está CERRADO: commit `e08a9c7` pusheado a main, deploy a Vercel
-  READY, verificado de punta a punta en producción (builder con modo
-  por celda y labels limpios, formSchema persistido con `cells` sin
-  `cellType` legacy, Runtime con textbox + spinbutton por columna,
-  persistencia tras recarga y export CSV con serialización por celda
-  incluyendo unidad de celda). `pnpm slice:close` en verde.
+  VS-046 (bloque secundario de sub-opciones por opción) está CERRADO:
+  commit `0c1272d` pusheado a main, deploy a Vercel READY, verificado
+  de punta a punta en producción (Builder con el botón nuevo, bloque
+  secundario completo, Runtime con persistencia confirmada tras
+  recarga, export CSV correcto). El framework temporal de esta
+  verificación fue borrado al terminar, con confirmación explícita —
+  no queda dato de prueba de VS-046 en la DB real.
 
-  Los slices VS-042/VS-043/VS-044 vienen de la 5.ª inspección AN-001
-  (HTML real de `COG_BoardType_Selection` pegado por el usuario en
-  `docs/analysis/csa-sp-global-comparison.md`): radio → sub-radio →
-  tabla anidada con fila de fórmula. VS-042 (tabla en sub-opción),
-  VS-045 y VS-044 están cerrados. VS-043 (fila de fórmula
-  `cellType: "calculado"`) es el siguiente —
-  spec doc-first ya en `docs/engines/form.md`, entrada en
-  `docs/BACKLOG.md`.
+  VS-046 nace de un pedido del usuario de analizar en profundidad una
+  pregunta YA usada como fuente de VS-045 (`COG_BoardIndependence_Selection`)
+  y corrige una conclusión errónea de la 6.ª inspección AN-001 (ver
+  `docs/analysis/csa-sp-global-comparison.md`, nota de corrección
+  2026-08-15) — sirve de recordatorio: al re-analizar HTML ya usado
+  antes, seguir con cuidado el prefijo de los `id` de cada bloque
+  anidado antes de concluir "sin gap nuevo".
 
-  Decisión de diseño importante de VS-042 para conservar: el ciclo de
-  tipos recursivos (formTableRow → formOption → subOption →
+  Decisión de diseño importante de VS-046 para conservar: cuando una
+  segunda instancia de un patrón ya existente (aquí, un segundo bloque
+  de sub-opciones) aparece, generalizar las funciones CRUD del Builder
+  con un parámetro adicional (`block`) es preferible a duplicarlas —
+  siempre que el parámetro tenga un default que preserve el
+  comportamiento de todo call-site existente. Mismo criterio aplicado
+  en Runtime/preview: los componentes ya genéricos (`SubOptionsView`)
+  se reusan con un prop nuevo en vez de crear una variante paralela.
+
+  BACKLOG.md ("Siguiente") queda vacío tras cerrar VS-046 — no hay un
+  ítem priorizado explícito. El patrón habitual de este proyecto es que
+  el usuario pega HTML real del portal S&P Global CSA y se analiza para
+  encontrar el siguiente gap; si no hay HTML nuevo, revisar
+  `docs/ROADMAP.md`.
+
+  Decisión de diseño de VS-042 para conservar (sigue vigente): el ciclo
+  de tipos recursivos (formTableRow → formOption → subOption →
   tablaDatosConfig → formTableRow) se rompe con `formOptionBase` (sin
   subOptions) y los tipos de tabla se EXPORTAN desde sdk-core
   (`FormTableColumn`/`FormTableRow`/`TablaDatosConfig` vía z.infer) — los
   consumidores (web) deben importarlos, NO derivar con `Extract` (TS2719
-  por doble instanciación de tipos recursivos). `index.ts` usa `export *`,
-  ya cubre los tipos.
+  por doble instanciación de tipos recursivos).
 
-  Decisión de diseño de VS-045 para conservar: el tipo elegido de un
-  mini-select que gobierna el render de su propio slot debe ser estado
-  local del componente (no derivarse del contenido del slot), porque un
-  slot vacío es indistinguible entre "URL sin texto" y "doc sin subir" —
-  `pendingKinds` + `kindOf(index)` en `OptionReferencesView`. El preview
-  del Builder (`PreviewOptionReferences`) ya lo hacía así con `kinds`.
+  Decisión de diseño de VS-045 para conservar (sigue vigente): el tipo
+  elegido de un mini-select que gobierna el render de su propio slot
+  debe ser estado local del componente (no derivarse del contenido del
+  slot) — `pendingKinds` + `kindOf(index)` en `OptionReferencesView`.
 
   Datos de prueba en la DB real de producción (NO borrar sin confirmación
   explícita del usuario): framework "CSA 2026 — Réplica QA" (real, 4
@@ -78,8 +94,8 @@ contexto_para_continuar: |
   (doc `vs045-doc-prueba.txt` en R2); "VS-039 verificación
   producción" (dejado intencionalmente en su propia sesión); evaluación
   descartable `IAw4PGAuzzx1IQTl4cXIiybEAdyhxEx6` (snapshot sin
-  elementos). Los frameworks de prueba de VS-040 y VS-041 ya se borraron
-  con confirmación explícita.
+  elementos). Los frameworks de prueba de VS-040, VS-041 y VS-046 ya se
+  borraron con confirmación explícita.
 
   Notas operativas acumuladas (ver checkpoints anteriores para el detalle):
   - El asistente no puede crear cuentas de login (política de browser
@@ -90,6 +106,10 @@ contexto_para_continuar: |
     en Vercel, no solo `pnpm dev` local — cuando el slice agrega respuestas
     nuevas del evaluado, verificar explícitamente que persisten (recargar
     el Runtime público desde cero tras guardar).
+  - Para leer el CSV exportado sin descargar un archivo, usar
+    `fetch(url).then(r => r.text())` vía consola del navegador (evita el
+    paso de "descarga de archivo" que requiere confirmación explícita del
+    usuario) — usado en la verificación de VS-046.
   - `git push` puede colgarse por red o por el credential manager sin
     diálogo visible — si pasa, reintentar con
     `$env:GIT_TERMINAL_PROMPT=0; $env:GCM_INTERACTIVE="auto"` antes del
@@ -100,5 +120,5 @@ contexto_para_continuar: |
   - Verificar `netstat -ano | grep :3000` antes de levantar `next dev`.
 
   Para retomar sin un pedido específico: leer este archivo, luego
-  docs/BACKLOG.md ("Siguiente": VS-043) y docs/ROADMAP.md. Comando de
+  docs/BACKLOG.md ("Siguiente", vacío) y docs/ROADMAP.md. Comando de
   verificación: pnpm install && pnpm slice:close.

@@ -860,6 +860,10 @@ La nota de la 6.ª inspección (2026-08-14) en ese archivo afirma que este caso 
 - **Alcance reducido en el Builder** (desviación menor, documentada aquí en vez de en el schema): los ítems del bloque secundario soportan label, campo embebido (`field`) y referencias (`references`) desde la UI — cubre el caso real (`TargetShare` con `field: texto_corto`). **Tabla embebida (`table`) y sub-sub-opciones (`subOptions` de 2do nivel) dentro de un ítem de `secondaryOptions` no tienen UI propia en este slice**, aunque el tipo (`subOption` reusado tal cual) y el Runtime/Preview (genéricos, sin distinguir el bloque de origen) ya los soportan si se cargaran por otra vía — aditivo si aparece un caso real que los necesite, mismo criterio "no diseñar para hipotéticos" del resto de este documento.
 - 242 tests en `sdk-core` (antes 237), `pnpm typecheck`/`build`/`test` en verde.
 
+### Verificación en producción (2026-08-15)
+
+Commit `0c1272d` + push a `main`, deploy Vercel READY (`dpl_GFzKYPakbM8qPTniiThBRR6XwvRr`, alias `csa-v3-web.vercel.app`). Framework temporal "TEMP - VS-046 verificacion produccion" (creado y borrado en esta verificación, con confirmación explícita): elemento `seleccion_unica` con opción "Applicable" — botón "Agregar bloque secundario de sub-opciones" visible y funcional en el Builder, encabezado "Distribución de objetivos" + checkbox "excluyentes" + ítem con campo embebido `texto_corto` (máx. 1000). Preview del Builder: heading en negrita + checkbox + input de texto al marcar. Runtime público (`/evaluations/RLHX1jApGPli63Co7gws6sI8ox0lmgjV`): mismo render, autosave ("Guardado"), **persistencia confirmada tras recarga completa desde cero** (radio "Applicable", checkbox marcado y valor "40%" del campo embebido, todos conservados). Export CSV: `"Applicable — La empresa tiene una participación objetivo de directores independientes en el consejo (40%)"` — serialización correcta del ítem del bloque secundario anexado a la celda Respuesta.
+
 ### Estado
 
-Implementado. Pendiente: verificación en producción (Builder + Runtime + export CSV + persistencia tras recarga contra `csa-v3-web.vercel.app`).
+Implementado y verificado en producción. Cerrado.
