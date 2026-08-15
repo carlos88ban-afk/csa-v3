@@ -82,7 +82,7 @@ export function FormPreview({ elements }: Props) {
     <div className="form-preview">
       <div className="form-preview__toolbar">
         <p className="form-preview__hint">Así verá el/la evaluado/a este subindicador. Los cambios se reflejan al instante.</p>
-        <label className="field--checkbox">
+        <label className="field field--checkbox">
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
           Mostrar todos (ignorar condiciones)
         </label>
@@ -269,7 +269,7 @@ function PreviewElement({
       <div className="runtime-options">
         {element.options.map((opt) => (
           <div className="option-row-group" key={opt.id}>
-            <label className="field--checkbox">
+            <label className="field field--checkbox">
               <input
                 type={isSingle ? "radio" : "checkbox"}
                 name={element.id}
@@ -680,7 +680,7 @@ function PreviewSubOptions({
       )}
       {subOptions.map((sub) => (
         <div className="option-row-group" key={sub.id}>
-          <label className="field--checkbox">
+          <label className="field field--checkbox">
             <input
               type={exclusive ? "radio" : "checkbox"}
               name={subKey}

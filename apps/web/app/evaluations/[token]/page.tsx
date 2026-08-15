@@ -643,7 +643,7 @@ function SubOptionsView({
       )}
       {subOptions.map((sub) => (
         <div key={sub.id}>
-          <label className="field--checkbox">
+          <label className="field field--checkbox">
             <input
               type={exclusive ? "radio" : "checkbox"}
               name={exclusive ? subKey : undefined}
@@ -1483,7 +1483,7 @@ function NaCommentRow({
 
   return (
     <div className="runtime-question__na">
-      <label className="field--checkbox">
+      <label className="field field--checkbox">
         <input
           type="checkbox"
           checked={markedNA}
@@ -1776,7 +1776,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
         <div className="runtime-options">
           {element.options.map((opt) => (
             <div key={opt.id} className="option-row-group">
-              <label className="field--checkbox">
+              <label className="field field--checkbox">
                 <input
                   type="radio"
                   name={element.id}
@@ -1853,7 +1853,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
             <div className="runtime-options">
               {element.options.map((opt) => (
                 <div key={opt.id} className="option-row-group">
-                  <label className="field--checkbox">
+                  <label className="field field--checkbox">
                     <input
                       type="checkbox"
                       disabled={locked}
