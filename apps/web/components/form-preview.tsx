@@ -458,13 +458,8 @@ function PreviewTableView({
                 const cellMaxLength = cellOverride?.maxLength ?? row.maxLength;
                 const cellOptions = cellOverride?.options ?? row.options;
                 const cell = rowValue[col.id];
-                if (!editable) {
-                  return (
-                    <td key={col.id}>
-                      <RichLabel html={content ?? ""} />
-                    </td>
-                  );
-                }
+                // "calculado" siempre se evalúa dinámicamente sin importar
+                // `editable` — ver misma nota en Runtime (page.tsx).
                 if (cellType === "calculado") {
                   return (
                     <td key={col.id}>
@@ -475,6 +470,13 @@ function PreviewTableView({
                         table={table}
                         onChange={(r, c, v) => updateCell(r, c, v, table, onChange)}
                       />
+                    </td>
+                  );
+                }
+                if (!editable) {
+                  return (
+                    <td key={col.id}>
+                      <RichLabel html={content ?? ""} />
                     </td>
                   );
                 }

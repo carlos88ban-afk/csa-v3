@@ -4,6 +4,15 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### fix(builder): celda `calculado` de `tabla_datos` perdía la fórmula al marcarla "solo lectura" (2026-08-15)
+
+- Reporte de usuario tras VS-047: al construir una tabla equivalente a un HTML de referencia con fila total `readonly`/`formula`, desmarcar "Editable" en una celda tipo "Calculado" la reemplazaba por un editor de "Contenido fijo" vacío, ocultando el selector de Tipo y el campo de fórmula — la única forma de mantener el acceso a la fórmula era dejar la celda marcada "Editable", término confuso para un valor que en realidad llena la fórmula, no el evaluado.
+- Root cause: `editable` (booleano) y `cellType` (enum) se trataban como ejes cruzados; "calculado" es un tercer modo de render (ni editable-por-evaluado ni contenido-fijo-estático) pero vivía anidado dentro de la rama `editable` en Builder, Runtime y Preview.
+- `TableConfigEditor` (Builder): selector de Tipo ahora siempre visible; cuando el tipo es "calculado" se muestra siempre el editor de fórmula (sin casilla "Editable" ni "contenido fijo", que no aplican). Cambiar el Tipo a "calculado" fuerza `editable: true` para normalizar datos previos.
+- `FormTableView`/`PreviewTableView` (Runtime/Preview): `cellType === "calculado"` se resuelve antes que `!editable`, así una celda calculada con `editable: false` heredado sigue evaluando la fórmula en vez de mostrarse como texto fijo vacío.
+- Export CSV: excluida `calculado` de la condición de omisión por `editable === false`.
+- Ver detalle completo en `docs/project_notes/bugs.md` (2026-08-15). Sin cambios de schema ni de motor de fórmula — 250 tests `sdk-core` + 28 `db` sin regresiones.
+
 ### VS-047 — Editor de `tabla_datos` estilo grilla (2026-08-15)
 
 - Pedido explícito del usuario tras probar VS-046: la construcción de tablas en el Builder (dos listas separadas "Columnas"/"Filas", sin relación visual con la tabla resultante) no se sentía intuitiva. Rediseño completo estilo Excel: grilla real que empieza de una celda, "+" para agregar columna a la derecha/fila abajo desde el borde, y por celda: tipo, editable (lo llena el evaluado) vs solo lectura (contenido fijo del admin), "×" para quitar una celda puntual — permite grillas irregulares (una columna con menos filas que otras).

@@ -348,6 +348,17 @@ function TableConfigEditor({
                     );
                   }
                   const editable = cell.editable !== false;
+                  // "calculado" es de solo lectura por naturaleza (lo llena
+                  // la fórmula, no el evaluado ni el admin) — es un tercer
+                  // modo de renderizado, no un caso de "editable"/"fijo".
+                  // Antes vivía dentro de la rama `editable`, así que
+                  // desmarcar "Editable" ocultaba la fórmula y la
+                  // reemplazaba por un editor de contenido fijo vacío,
+                  // perdiendo el acceso a la expresión sin borrar los datos
+                  // (bug real, hallado 2026-08-15 reproduciendo un reporte
+                  // de usuario: "no me permite construir tablas" con una
+                  // fila calculada de solo lectura).
+                  const isCalculado = cell.cellType === "calculado";
                   return (
                     <td key={col.id} className="table-config-grid__cell">
                       <button
@@ -355,7 +366,7 @@ function TableConfigEditor({
                         className="table-config-grid__chip"
                         onClick={() => setExpandedCell(expandedCell === cellKey ? null : cellKey)}
                       >
-                        {editable ? CELL_TYPE_LABEL[cell.cellType] : "Fijo"}
+                        {isCalculado ? "Calculado" : editable ? CELL_TYPE_LABEL[cell.cellType] : "Fijo"}
                       </button>
                       <button
                         type="button"
@@ -368,144 +379,148 @@ function TableConfigEditor({
                       </button>
                       {expandedCell === cellKey && (
                         <div className="table-config-grid__cell-config">
-                          <label className="field field--checkbox">
-                            <input
-                              type="checkbox"
-                              checked={editable}
-                              onChange={(e) => updateCell(row.id, col.id, { editable: e.target.checked })}
-                            />
-                            <span className="field__label">{editable ? "Editable (lo llena el evaluado)" : "Solo lectura (contenido fijo)"}</span>
+                          <label className="field">
+                            <span className="field__label">Tipo</span>
+                            <select
+                              value={cell.cellType}
+                              onChange={(e) => {
+                                const nextType = e.target.value as TableConfigCell["cellType"];
+                                updateCell(row.id, col.id, {
+                                  cellType: nextType,
+                                  unit: undefined,
+                                  availableUnits: undefined,
+                                  options: undefined,
+                                  maxLength: undefined,
+                                  expression: undefined,
+                                  editable: nextType === "calculado" ? true : cell.editable,
+                                });
+                              }}
+                            >
+                              <option value="texto">Texto</option>
+                              <option value="numero">Número</option>
+                              <option value="seleccion_desplegable">Selección desplegable</option>
+                              <option value="calculado">Calculado</option>
+                            </select>
                           </label>
 
-                          {!editable ? (
+                          {isCalculado ? (
                             <label className="field">
-                              <span className="field__label">Contenido fijo</span>
-                              <RichTextEditor
-                                value={cell.content ?? ""}
-                                onChange={(html) => updateCell(row.id, col.id, { content: html })}
-                                ariaLabel="Contenido fijo de la celda"
+                              <span className="field__label">Fórmula (referencia otras filas de esta columna con {"{"}filaId{"}"})</span>
+                              <input
+                                value={cell.expression ?? ""}
+                                placeholder="ej. {r1}+{r2}+{r3}"
+                                onChange={(e) => updateCell(row.id, col.id, { expression: e.target.value })}
                               />
+                              {formulaError(cell.expression ?? "") && (
+                                <p className="alert" role="alert">
+                                  {formulaError(cell.expression ?? "")}
+                                </p>
+                              )}
+                              <div className="table-config-grid__formula-refs">
+                                {rows
+                                  .filter((r) => r.id !== row.id)
+                                  .map((r) => (
+                                    <button
+                                      type="button"
+                                      key={r.id}
+                                      className="table-config-grid__formula-ref"
+                                      onClick={() => updateCell(row.id, col.id, { expression: `${cell.expression ?? ""}{${r.id}}` })}
+                                    >
+                                      {stripCommentHtml(r.label).trim() || "(sin título)"}
+                                    </button>
+                                  ))}
+                              </div>
                             </label>
                           ) : (
                             <>
-                              <label className="field">
-                                <span className="field__label">Tipo</span>
-                                <select
-                                  value={cell.cellType}
-                                  onChange={(e) =>
-                                    updateCell(row.id, col.id, {
-                                      cellType: e.target.value as TableConfigCell["cellType"],
-                                      unit: undefined,
-                                      availableUnits: undefined,
-                                      options: undefined,
-                                      maxLength: undefined,
-                                      expression: undefined,
-                                    })
-                                  }
-                                >
-                                  <option value="texto">Texto</option>
-                                  <option value="numero">Número</option>
-                                  <option value="seleccion_desplegable">Selección desplegable</option>
-                                  <option value="calculado">Calculado</option>
-                                </select>
+                              <label className="field field--checkbox">
+                                <input
+                                  type="checkbox"
+                                  checked={editable}
+                                  onChange={(e) => updateCell(row.id, col.id, { editable: e.target.checked })}
+                                />
+                                <span className="field__label">{editable ? "Editable (lo llena el evaluado)" : "Solo lectura (contenido fijo)"}</span>
                               </label>
 
-                              {cell.cellType === "texto" && (
+                              {!editable ? (
                                 <label className="field">
-                                  <span className="field__label">Longitud máxima</span>
-                                  <input
-                                    type="number"
-                                    value={cell.maxLength ?? ""}
-                                    onChange={(e) => updateCell(row.id, col.id, { maxLength: e.target.value === "" ? undefined : Number(e.target.value) })}
+                                  <span className="field__label">Contenido fijo</span>
+                                  <RichTextEditor
+                                    value={cell.content ?? ""}
+                                    onChange={(html) => updateCell(row.id, col.id, { content: html })}
+                                    ariaLabel="Contenido fijo de la celda"
                                   />
                                 </label>
-                              )}
+                              ) : (
+                                <>
+                                  {cell.cellType === "texto" && (
+                                    <label className="field">
+                                      <span className="field__label">Longitud máxima</span>
+                                      <input
+                                        type="number"
+                                        value={cell.maxLength ?? ""}
+                                        onChange={(e) => updateCell(row.id, col.id, { maxLength: e.target.value === "" ? undefined : Number(e.target.value) })}
+                                      />
+                                    </label>
+                                  )}
 
-                              {cell.cellType === "numero" && (
-                                <div className="field-grid">
-                                  <label className="field">
-                                    <span className="field__label">Unidad</span>
-                                    <input
-                                      value={cell.unit ?? ""}
-                                      placeholder="ej. met. ton. CO2e, %"
-                                      onChange={(e) => updateCell(row.id, col.id, { unit: e.target.value === "" ? undefined : e.target.value })}
-                                    />
-                                  </label>
-                                  <label className="field">
-                                    <span className="field__label">Unidades separadas por comas</span>
-                                    <input
-                                      key={cellKey}
-                                      defaultValue={cell.availableUnits?.join(", ") ?? ""}
-                                      placeholder="ej. MWh, GJ, kWh"
-                                      onBlur={(e) =>
-                                        updateCell(row.id, col.id, {
-                                          availableUnits:
-                                            e.target.value.trim() === ""
-                                              ? undefined
-                                              : e.target.value.split(",").map((s) => s.trim()).filter((s) => s.length > 0),
-                                        })
-                                      }
-                                    />
-                                  </label>
-                                </div>
-                              )}
-
-                              {cell.cellType === "seleccion_desplegable" && (
-                                <div className="sub-options">
-                                  {(cell.options ?? []).map((opt) => (
-                                    <div className="option-row option-row--sub" key={opt.id}>
-                                      <div className="option-row__editor">
-                                        <RichTextEditor
-                                          value={opt.label}
-                                          onChange={(html) => updateCellOption(row.id, col.id, opt.id, html, cell)}
-                                          ariaLabel="Opción de celda"
+                                  {cell.cellType === "numero" && (
+                                    <div className="field-grid">
+                                      <label className="field">
+                                        <span className="field__label">Unidad</span>
+                                        <input
+                                          value={cell.unit ?? ""}
+                                          placeholder="ej. met. ton. CO2e, %"
+                                          onChange={(e) => updateCell(row.id, col.id, { unit: e.target.value === "" ? undefined : e.target.value })}
                                         />
-                                      </div>
-                                      <Button
-                                        type="button"
-                                        variant="danger"
-                                        size="sm"
-                                        onClick={() => removeCellOption(row.id, col.id, opt.id, cell)}
-                                        disabled={(cell.options?.length ?? 0) <= 1}
-                                      >
-                                        Quitar
+                                      </label>
+                                      <label className="field">
+                                        <span className="field__label">Unidades separadas por comas</span>
+                                        <input
+                                          key={cellKey}
+                                          defaultValue={cell.availableUnits?.join(", ") ?? ""}
+                                          placeholder="ej. MWh, GJ, kWh"
+                                          onBlur={(e) =>
+                                            updateCell(row.id, col.id, {
+                                              availableUnits:
+                                                e.target.value.trim() === ""
+                                                  ? undefined
+                                                  : e.target.value.split(",").map((s) => s.trim()).filter((s) => s.length > 0),
+                                            })
+                                          }
+                                        />
+                                      </label>
+                                    </div>
+                                  )}
+
+                                  {cell.cellType === "seleccion_desplegable" && (
+                                    <div className="sub-options">
+                                      {(cell.options ?? []).map((opt) => (
+                                        <div className="option-row option-row--sub" key={opt.id}>
+                                          <div className="option-row__editor">
+                                            <RichTextEditor
+                                              value={opt.label}
+                                              onChange={(html) => updateCellOption(row.id, col.id, opt.id, html, cell)}
+                                              ariaLabel="Opción de celda"
+                                            />
+                                          </div>
+                                          <Button
+                                            type="button"
+                                            variant="danger"
+                                            size="sm"
+                                            onClick={() => removeCellOption(row.id, col.id, opt.id, cell)}
+                                            disabled={(cell.options?.length ?? 0) <= 1}
+                                          >
+                                            Quitar
+                                          </Button>
+                                        </div>
+                                      ))}
+                                      <Button type="button" size="sm" onClick={() => addCellOption(row.id, col.id, cell)}>
+                                        Agregar opción
                                       </Button>
                                     </div>
-                                  ))}
-                                  <Button type="button" size="sm" onClick={() => addCellOption(row.id, col.id, cell)}>
-                                    Agregar opción
-                                  </Button>
-                                </div>
-                              )}
-
-                              {cell.cellType === "calculado" && (
-                                <label className="field">
-                                  <span className="field__label">Fórmula (referencia otras filas de esta columna con {"{"}filaId{"}"})</span>
-                                  <input
-                                    value={cell.expression ?? ""}
-                                    placeholder="ej. {r1}+{r2}+{r3}"
-                                    onChange={(e) => updateCell(row.id, col.id, { expression: e.target.value })}
-                                  />
-                                  {formulaError(cell.expression ?? "") && (
-                                    <p className="alert" role="alert">
-                                      {formulaError(cell.expression ?? "")}
-                                    </p>
                                   )}
-                                  <div className="table-config-grid__formula-refs">
-                                    {rows
-                                      .filter((r) => r.id !== row.id)
-                                      .map((r) => (
-                                        <button
-                                          type="button"
-                                          key={r.id}
-                                          className="table-config-grid__formula-ref"
-                                          onClick={() => updateCell(row.id, col.id, { expression: `${cell.expression ?? ""}{${r.id}}` })}
-                                        >
-                                          {stripCommentHtml(r.label).trim() || "(sin título)"}
-                                        </button>
-                                      ))}
-                                  </div>
-                                </label>
+                                </>
                               )}
                             </>
                           )}

@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-15 - fix(builder): celda `calculado` perdía la fórmula al marcarla "solo lectura"
+- **Status**: Completed
+- **Description**: reporte de usuario ("no me está permitiendo Construir tablas similares a esta", pegando un HTML con fila total `readonly`/`formula`) tras el cierre de VS-047. Reproducido paso a paso en producción replicando la tabla del HTML (3 filas numéricas + fila "Total board size" calculada): al marcar la celda calculada como "solo lectura" (paso natural dado el `readonly` del HTML de referencia), el Builder reemplazaba el editor de fórmula por un editor de "Contenido fijo" vacío — la fórmula quedaba inaccesible desde la UI.
+- **Notes**: `editable`/`cellType` se trataban como ejes cruzados en vez de reconocer "calculado" como un tercer modo de render. Fix en 4 archivos: `TableConfigEditor` (Builder) — selector de Tipo siempre visible, fórmula siempre visible cuando el tipo es "calculado" (sin casilla "Editable" ni "contenido fijo"); `FormTableView`/`PreviewTableView` (Runtime/Preview) — `cellType === "calculado"` se chequea antes que `!editable`; export CSV — `calculado` excluida de la condición de omisión por `editable === false`. Sin cambios de schema ni de motor de fórmula. Detalle completo en `docs/project_notes/bugs.md`. `pnpm typecheck` en verde, 250 tests `sdk-core` + 28 `db` sin regresiones.
+
 ### 2026-08-15 - VS-047: Editor de `tabla_datos` estilo grilla
 - **Status**: Completed
 - **Description**: Pedido explícito del usuario tras probar VS-046 ("la creación de tablas no se siente intuitiva... quiero algo como Excel"): rediseño completo de `TableConfigEditor` en el Builder — grilla real que arranca de una celda, "+" para agregar columna a la derecha/fila abajo, celda editable (evaluado) vs solo lectura (contenido fijo del admin), "×" para quitar una celda puntual (grillas irregulares). Al analizar el código existente para planear el rediseño se encontró que `evaluateTableExpression` (VS-043) nunca se había conectado a Runtime/Preview/Builder pese a estar documentado como "verificado en producción" — y tenía un bug real (claves sintéticas por índice que nunca calzaban con `{rowId}`).

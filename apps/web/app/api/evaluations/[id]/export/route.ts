@@ -131,7 +131,7 @@ function formatSubOptionExtras(sub: SubOptionNode, subOptionKey: string, answers
           const cells = table.columns
             .map((col) => {
               const cellCfg = cellConfig(row, col.id);
-              if (!cellCfg || cellCfg.editable === false) return null;
+              if (!cellCfg || (cellCfg.editable === false && cellCfg.cellType !== "calculado")) return null;
               const cell = rowValue[col.id];
               if (cell === undefined || cell === "") return null;
               const unit = cellCfg.availableUnits
@@ -239,7 +239,7 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
         const cells = element.columns
           .map((col) => {
             const cellCfg = cellConfig(row, col.id);
-            if (!cellCfg || cellCfg.editable === false) return null;
+            if (!cellCfg || (cellCfg.editable === false && cellCfg.cellType !== "calculado")) return null;
             const cell = rowValue[col.id];
             if (cell === undefined || cell === "") return null;
             const unit = cellCfg.availableUnits

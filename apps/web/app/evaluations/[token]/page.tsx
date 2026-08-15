@@ -1379,13 +1379,10 @@ function FormTableView({
                 const cellMaxLength = cellOverride?.maxLength ?? row.maxLength;
                 const cellOptions = cellOverride?.options ?? row.options;
                 const cell = rowValue[col.id];
-                if (!editable) {
-                  return (
-                    <td key={col.id}>
-                      <RichLabel html={content ?? ""} />
-                    </td>
-                  );
-                }
+                // "calculado" siempre se evalúa dinámicamente sin importar
+                // `editable` — es de solo lectura por naturaleza (VS-047,
+                // bug real: el check `!editable` antes de este la ocultaba
+                // y la mostraba como contenido fijo estático vacío).
                 if (cellType === "calculado") {
                   return (
                     <td key={col.id}>
@@ -1396,6 +1393,13 @@ function FormTableView({
                         table={table}
                         onChange={(r, c, v) => updateCell(r, c, v)}
                       />
+                    </td>
+                  );
+                }
+                if (!editable) {
+                  return (
+                    <td key={col.id}>
+                      <RichLabel html={content ?? ""} />
                     </td>
                   );
                 }
