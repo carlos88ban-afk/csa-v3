@@ -761,7 +761,7 @@ const optionReferences = z.object({
 
 - `packages/sdk-core`: `form-schema.test.ts` (refType válido/ausente/inválido + default), `response.test.ts` (union mixta acepta `string[]` legacy y array mixto), `rich-text.test.ts` ya cubre sanitize/strip (sin cambios).
 
-## Tipo de celda mixto dentro de una fila (VS-044, pendiente — spec doc-first)
+## Tipo de celda mixto dentro de una fila (VS-044, implementado 2026-08-15)
 
 Mismo HTML de la 5.ª inspección: la tabla de "SISTEMA DE DOS NIVELES" tiene por fila `[texto, texto, número]` — columnas "Tipo de tablero"/"Tipo de director" con labels de texto y columna "Número de miembros" con inputs numéricos. `tabla_datos` (VS-024) define `cellType` **por fila uniforme** — decisión de diseño que previó exactamente este caso: *"Si en el futuro aparece un caso real con tipo mixto dentro de una fila, es un cambio aditivo (mover `cellType` de la fila a la celda), no un rediseño"*.
 
@@ -785,9 +785,10 @@ const formTableRow = z.object({
 });
 ```
 
-- **Compatibilidad hacia atrás**: fila con solo `cellType` (sin `cells`) se comporta exactamente como hoy (VS-024/VS-041 no cambian de forma). `cells` es un override opcional para los casos mixtos; zod permite `cellType` y `cells` ausentes juntos solo si... (validación cruzada: al menos uno presente — `.superRefine()` en `formSchema`).
-- **Runtime**: `TableView` resuelve el tipo por celda: `row.cells?.find(c => c.columnId === column.id) ?? row.cellType` — una sola rama de resolución, el resto del render no cambia.
-- **Builder**: la UI de fila gana un modo "celdas individuales" (lista de columnas con selector de tipo por celda) alternativo al modo por-fila actual.
+- **Compatibilidad hacia atrás**: fila con solo `cellType` (sin `cells`) se comporta exactamente como hoy (VS-024/VS-041 no cambian de forma). `cells` es un override opcional para los casos mixtos; la validación cruzada (al menos uno presente) se implementa con `.superRefine()` en **`formTableRow`** — desviación menor de la spec original (que lo ponía en `formSchema`) para cubrir también la tabla embebida de VS-042, cuyo schema raíz no es `formSchema`.
+- **Runtime**: `TableView` resuelve el tipo por celda: `row.cells?.find(c => c.columnId === column.id) ?? row.cellType` — una sola rama de resolución, el resto del render no cambia. Fallback implícito "texto" cuando la celda no tiene config (resolución desde la fila sin `cellType`).
+- **Builder**: la UI de fila gana un modo "celdas individuales" (lista de columnas con selector de tipo por celda) alternativo al modo por-fila actual. **Decisión**: el modo por celda NO ofrece `availableUnits` (la unidad por celda es fija `unit`; la selección de unidad en Runtime sigue siendo por fila — misma clave de respuesta), evitando un select que no existe en Runtime.
+- **Export CSV**: helper `cellConfig(row, columnId)` normaliza el shape legacy de fila al de celda (unit/availableUnits/options/maxLength), así legacy y `cells` pasan por el mismo serializador; la unidad de celda se respeta.
 
 ### Fuera de alcance (explícito)
 
@@ -798,5 +799,5 @@ const formTableRow = z.object({
 
 Del mismo `COG_BoardType_Selection` (5.ª inspección), sin slice asignado todavía:
 
-- **`data-ref-type="flexible"`**: la fila de referencias de la opción "Sí" es `flexible` (admite URL pública O referencia interna/documento), mientras VS-039 modeló solo URLs públicas (`refType: "public"` implícito). Si se quiere paridad, `formOptionReference` gana `refType: "public" | "flexible"` (aditivo) — el Runtime flexible pediría una fila de referencias con selector público/interno. **Preguntar al usuario si lo necesita** antes de especificar.
+- **`data-ref-type="flexible"`**: la fila de referencias de la opción "Sí" es `flexible` (admite URL pública O referencia interna/documento), mientras VS-039 modeló solo URLs públicas (`refType: "public"` implícito). **Implementado en VS-045** (`optionReferences.refType: "public" | "flexible"`, default `public`) — ver spec VS-045 arriba.
 - **Patrón estándar de 4 opciones** (Sí / No / "No aplica" / "La información no está disponible"): ya construible hoy como opciones normales del radio (VS-019 cubre el N/A como checkbox universal, pero aquí N/A es simplemente otra opción del radio — nada que implementar).

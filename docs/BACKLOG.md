@@ -4,9 +4,8 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Siguiente
 
-- [ ] VS-045 — Formato (rich text) en preguntas y opciones + referencias flexibles (`refType: "public" | "flexible"`) — 6.ª inspección AN-001, 2026-08-14: HTML `COG_BoardIndependence_AttachmentBoardIndependenceStatement` con negritas/múltiples párrafos en labels y bloque de referencias `data-ref-type="flexible"`; alcance confirmado con el usuario (todas las preguntas/opciones + flexible incluido) — spec en `docs/engines/form.md` (antecede a VS-044/VS-043 por pedido explícito del usuario)
-- [ ] VS-044 — Tipo de celda mixto dentro de una fila de `tabla_datos` (override por celda, atajo por fila sigue siendo el default — 5.ª inspección AN-001, 2026-08-14: tabla "SISTEMA DE DOS NIVELES" con filas `[texto, texto, número]`; caso previsto por la decisión de diseño de VS-024 — spec en `docs/engines/form.md`)
 - [ ] VS-043 — Fila de fórmula dentro de `tabla_datos` (`cellType: "calculado"` con referencias a celdas de la misma tabla, 5.ª inspección AN-001, 2026-08-14: filas "Tamaño total de la tabla" readonly con `class="formula"` — spec en `docs/engines/form.md`)
+- [x] VS-045 — Formato (rich text) en preguntas y opciones + referencias flexibles (`refType: "public" | "flexible"`) — 6.ª inspección AN-001, 2026-08-14: HTML `COG_BoardIndependence_AttachmentBoardIndependenceStatement` con negritas/múltiples párrafos en labels y bloque de referencias `data-ref-type="flexible"`; alcance confirmado con el usuario (todas las preguntas/opciones + flexible incluido) — spec en `docs/engines/form.md` (antecede a VS-044/VS-043 por pedido explícito del usuario) — 2026-08-14
 - [x] VS-042 — Tabla de datos embebida dentro de una sub-opción (`subOption.table`, 5.ª inspección AN-001, 2026-08-14: cada sub-opción del sub-radio trae su propia `form-table` — spec en `docs/engines/form.md`)
 - [ ] Decidir proveedor de email/SMTP (ADR) si se necesita invitación automática por correo — hoy el link se comparte manualmente (ver `docs/domain/organization-user.md`)
 - [ ] Migrar a migraciones versionadas de Drizzle en vez de `db:push`, junto con provisionar una rama/proyecto Neon aislado para tests (`docs/TECH_DEBT.md` TD-001 + TD-002)
@@ -14,6 +13,7 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Completado
 
+- [x] VS-044 — Tipo de celda mixto dentro de una fila de `tabla_datos` (override por celda, atajo por fila sigue siendo el default — 5.ª inspección AN-001, 2026-08-14: tabla "SISTEMA DE DOS NIVELES" con filas `[texto, texto, número]`; caso previsto por la decisión de diseño de VS-024 — spec en `docs/engines/form.md`) — 2026-08-15
 - [x] VS-041 — Ajustes UX en referencias de URL: orden (sub-opciones antes que referencias) + botón "Agregar URL" explícito en vez de crecimiento automático (Runtime y preview del Builder) — hallazgo del usuario probando VS-039/040 — 2026-08-14
 - [x] VS-040 — Campos embebidos en sub-opciones (select/texto/número) + exclusividad configurable (`subOptionsExclusive`) — 2.º hallazgo del mismo HTML de S&P que originó VS-039 — 2026-08-14
 - [x] VS-039 — Referencias de URL por opción en `seleccion_unica`/`seleccion_multiple` (hallazgo de la 4.ª inspección AN-001, 2026-08-14: S&P adjunta la fila de referencias DENTRO de cada opción del radio, no como elemento `url_publica` separado) — 2026-08-14
