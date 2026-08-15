@@ -1057,11 +1057,23 @@ function OptionReferencesView({
   const [visibleCount, setVisibleCount] = useState(() => Math.max(slots.length, 1));
   const [uploading, setUploading] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // El kind elegido de un slot vacío no se puede derivar del slot (null
+  // puede ser "URL aún sin texto" o "documento aún sin subir") — se guarda
+  // por índice aquí y se sincroniza en cada mutación de localSlots.
+  const [pendingKinds, setPendingKinds] = useState<("url" | "doc")[]>(() =>
+    Array.from({ length: Math.min(Math.max(slots.length, 1), maxUrls) }, (_, i) => (isDocRef(slots[i]) ? "doc" : "url")),
+  );
   const count = Math.min(visibleCount, maxUrls);
   const localSlots: (string | EvidenceRef | null)[] = Array.from(
     { length: count },
     (_, i) => slots[i] ?? null,
   );
+  const kindOf = (index: number): "url" | "doc" => {
+    const slot = localSlots[index];
+    if (isDocRef(slot)) return "doc";
+    if (typeof slot === "string") return "url";
+    return pendingKinds[index] ?? "url";
+  };
 
   function commit(nextSlots: (string | EvidenceRef | null)[]) {
     onChange(
@@ -1086,6 +1098,7 @@ function OptionReferencesView({
       void api.del(`/api/public/evaluations/${token}/evidences`, { key: current.key }).catch(() => {});
     }
     commit(localSlots.filter((_, i) => i !== index));
+    setPendingKinds((prev) => prev.filter((_, i) => i !== index));
     setVisibleCount((c) => Math.max(c - 1, 1));
   }
 
@@ -1096,6 +1109,7 @@ function OptionReferencesView({
     if (isDocRef(current)) {
       void api.del(`/api/public/evaluations/${token}/evidences`, { key: current.key }).catch(() => {});
     }
+    setPendingKinds((prev) => prev.map((k, i) => (i === index ? kind : k)));
     updateSlot(index, kind === "doc" ? null : "");
   }
 
@@ -1147,7 +1161,7 @@ function OptionReferencesView({
           <div key={index} className="option-row">
             <select
               className="option-row__kind"
-              value={doc ? "doc" : "url"}
+              value={kindOf(index)}
               disabled={locked}
               onChange={(e) => changeKind(index, e.target.value as "url" | "doc")}
             >
