@@ -30,8 +30,9 @@ archivos_modificados:
   - docs/engines/form.md, docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md, docs/analysis/csa-sp-global-comparison.md (corrección de la 6.ª inspección)
 
 proximos_pasos:
-  - Sin ítem asignado en BACKLOG.md ("Siguiente"), sección vacía tras cerrar VS-046 — revisar `docs/ROADMAP.md` para el siguiente ítem por prioridad, o esperar un nuevo hallazgo/pedido del usuario (patrón habitual: HTML real de S&P pegado por el usuario).
-  - Pendientes no bloqueantes, siguen en BACKLOG.md: proveedor de email/SMTP (ADR); TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada); tabla de historial de revisiones de `formSchema`.
+  - **Mejorar experiencia de edición de `tabla_datos`** (BACKLOG.md "Siguiente": item pendiente — admin puede agregar/quitar filas y columnas individualmente, definir tipo de celda editable vs solo-lectura por celda, experiencia tipo Excel, celdas desbloqueables con `expression` `calculado` VS-043). Siguiente slice tras VS-045.
+  - Sin ítem asignado prioritario en BACKLOG.md tras VS-045 — revisar `docs/ROADMAP.md` para el siguiente ítem por prioridad, o esperar un nuevo hallazgo/pedido del usuario (patrón habitual: HTML real de S&P pegado por el usuario).
+  - Pendientes no bloqueantes, siguen en BACKLOG.md: proveedor de email/SMTP (ADR); TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada); tabla de historial de revisiones de `formSchema`; **Mejorar experiencia de edición de `tabla_datos`** (admin puede agregar/quitar filas y columnas individualmente, definir tipo de celda editable vs solo-lectura por celda).
   - Warning de SSL de Postgres (`sslmode=require` → deprecation warning de `pg`) visible en runtime logs de Vercel desde 2026-08-05 — no bloqueante, pendiente de decisión explícita del usuario antes de tocar `DATABASE_URL` en producción.
   - Único fallo e2e conocido: `public-runtime.spec.ts:56` (comentario TipTap en negrita no persiste tras reload) — bug real ya documentado en `bugs.md` desde 2026-08-13, sin solución todavía.
   - Al retomar sin un pedido específico: revisar `docs/BACKLOG.md` y `docs/ROADMAP.md` para el siguiente ítem por prioridad.
@@ -64,11 +65,7 @@ contexto_para_continuar: |
   en Runtime/preview: los componentes ya genéricos (`SubOptionsView`)
   se reusan con un prop nuevo en vez de crear una variante paralela.
 
-  BACKLOG.md ("Siguiente") queda vacío tras cerrar VS-046 — no hay un
-  ítem priorizado explícito. El patrón habitual de este proyecto es que
-  el usuario pega HTML real del portal S&P Global CSA y se analiza para
-  encontrar el siguiente gap; si no hay HTML nuevo, revisar
-  `docs/ROADMAP.md`.
+  BACKLOG.md ("Siguiente") queda vacío tras cerrar VS-046, pero ahora incluye el ítem **Mejorar experiencia de edición de `tabla_datos`** (pendiente: admin puede agregar/quitar filas y columnas individualmente, definir tipo de celda editable vs solo-lectura por celda, experiencia tipo Excel). El patrón habitual es que el usuario pegue HTML real del portal S&P Global CSA y se analiza para encontrar el siguiente gap; si no hay HTML nuevo, revisar `docs/ROADMAP.md`.
 
   Decisión de diseño de VS-042 para conservar (sigue vigente): el ciclo
   de tipos recursivos (formTableRow → formOption → subOption →

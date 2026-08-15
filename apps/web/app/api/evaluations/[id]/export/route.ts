@@ -21,11 +21,19 @@ import { toErrorResponse } from "@/lib/api-errors";
 // VS-044 (docs/engines/form.md "Tipo de celda mixto dentro de una fila"):
 // el tipo/config de una celda se resuelve por override (row.cells) y cae al
 // atajo legacy de la fila si no hay override — misma resolución que
-// Runtime/Preview, compartida por tabla_datos y tabla embebida.
-function cellConfig(row: FormTableRow, columnId: string): FormTableCell {
-  return row.cells?.find((c) => c.columnId === columnId) ?? {
+// Runtime/Preview, compartida por tabla_datos y tabla embebida. VS-047
+// (docs/engines/form.md "Editor de tabla_datos estilo grilla"): si la fila
+// está en modo celdas (sin cellType propio) y no hay override para esta
+// columna, no hay celda — undefined (mismo criterio de blank que
+// Runtime/Preview, permite grillas irregulares).
+function cellConfig(row: FormTableRow, columnId: string): FormTableCell | undefined {
+  const override = row.cells?.find((c) => c.columnId === columnId);
+  if (override) return override;
+  if (row.cellType === undefined) return undefined;
+  return {
     columnId,
-    cellType: row.cellType ?? "texto",
+    cellType: row.cellType,
+    editable: true,
     unit: row.unit,
     availableUnits: row.availableUnits,
     options: row.options,
@@ -123,6 +131,7 @@ function formatSubOptionExtras(sub: SubOptionNode, subOptionKey: string, answers
           const cells = table.columns
             .map((col) => {
               const cellCfg = cellConfig(row, col.id);
+              if (!cellCfg || cellCfg.editable === false) return null;
               const cell = rowValue[col.id];
               if (cell === undefined || cell === "") return null;
               const unit = cellCfg.availableUnits
@@ -230,6 +239,7 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
         const cells = element.columns
           .map((col) => {
             const cellCfg = cellConfig(row, col.id);
+            if (!cellCfg || cellCfg.editable === false) return null;
             const cell = rowValue[col.id];
             if (cell === undefined || cell === "") return null;
             const unit = cellCfg.availableUnits

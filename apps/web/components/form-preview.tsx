@@ -3,6 +3,7 @@
 import {
   componentRegistry,
   evaluateExpression,
+  evaluateTableExpression,
   isElementVisible,
   questionNumber,
   sanitizeCommentHtml,
@@ -14,7 +15,7 @@ import {
   type TablaDatosConfig,
   type TableValue,
 } from "@plataforma-csa/sdk-core";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pill } from "@/components/ui";
 import { RichLabel } from "@/components/rich-label";
 
@@ -348,6 +349,42 @@ function updateCell(
 // `${unitKeyPrefix}::${row.id}${UNIT_KEY}`. Reutilizada por la tabla embebida
 // de una sub-opción (VS-042): el Elemento pasa unitKeyPrefix = element.id,
 // la sub-opción `${subKey}::${sub.id}::table`.
+// VS-047 (docs/engines/form.md "Editor de tabla_datos estilo grilla"):
+// mismo patrón que TableCalculatedCell del Runtime (evaluations/[token]/page.tsx).
+function PreviewTableCalculatedCell({
+  rowId,
+  columnId,
+  expression,
+  table,
+  onChange,
+}: {
+  rowId: string;
+  columnId: string;
+  expression: string | undefined;
+  table: TableValue;
+  onChange: (rowId: string, columnId: string, value: number) => void;
+}) {
+  const valuesByRow: Record<string, Record<string, number | undefined>> = {};
+  for (const [r, rowVals] of Object.entries(table)) {
+    const numRow: Record<string, number | undefined> = {};
+    for (const [c, v] of Object.entries(rowVals)) {
+      if (typeof v === "number") numRow[c] = v;
+    }
+    valuesByRow[r] = numRow;
+  }
+  const computed = expression ? evaluateTableExpression(expression, columnId, valuesByRow) : undefined;
+
+  useEffect(() => {
+    if (computed !== undefined && table[rowId]?.[columnId] !== computed) {
+      onChange(rowId, columnId, computed);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computed]);
+
+  const display = computed === undefined ? "" : String(Number(computed.toFixed(2)));
+  return <input value={display} disabled readOnly placeholder="(sin calcular)" />;
+}
+
 function PreviewTableView({
   label,
   unitKeyPrefix,
@@ -405,10 +442,43 @@ function PreviewTableView({
               </th>
               {columns.map((col) => {
                 // VS-044: override por celda (row.cells) gana sobre el atajo
-                // legacy de fila — misma resolución que el Runtime.
-                const cellCfg = row.cells?.find((c) => c.columnId === col.id) ?? row;
+                // legacy de fila — misma resolución que el Runtime. VS-047:
+                // fila en modo celdas sin override para esta columna = blanco.
+                const cellOverride = row.cells?.find((c) => c.columnId === col.id);
+                if (!cellOverride && row.cellType === undefined) {
+                  return <td key={col.id} className="runtime-table__blank" />;
+                }
+                // Ver nota equivalente en evaluations/[token]/page.tsx: row
+                // (formTableRow) no tiene editable/content/expression, solo
+                // formTableCell — se destructura con fallback explícito.
+                const cellType = cellOverride?.cellType ?? row.cellType ?? "texto";
+                const editable = cellOverride ? cellOverride.editable !== false : true;
+                const content = cellOverride?.content;
+                const expression = cellOverride?.expression;
+                const cellMaxLength = cellOverride?.maxLength ?? row.maxLength;
+                const cellOptions = cellOverride?.options ?? row.options;
                 const cell = rowValue[col.id];
-                if (cellCfg.cellType === "seleccion_desplegable") {
+                if (!editable) {
+                  return (
+                    <td key={col.id}>
+                      <RichLabel html={content ?? ""} />
+                    </td>
+                  );
+                }
+                if (cellType === "calculado") {
+                  return (
+                    <td key={col.id}>
+                      <PreviewTableCalculatedCell
+                        rowId={row.id}
+                        columnId={col.id}
+                        expression={expression}
+                        table={table}
+                        onChange={(r, c, v) => updateCell(r, c, v, table, onChange)}
+                      />
+                    </td>
+                  );
+                }
+                if (cellType === "seleccion_desplegable") {
                   return (
                     <td key={col.id}>
                       <select
@@ -416,7 +486,7 @@ function PreviewTableView({
                         onChange={(e) => updateCell(row.id, col.id, e.target.value, table, onChange)}
                       >
                         <option value="">Seleccionar…</option>
-                        {(cellCfg.options ?? []).map((opt) => (
+                        {(cellOptions ?? []).map((opt) => (
                           <option key={opt.id} value={opt.id}>
                             {stripCommentHtml(opt.label)}
                           </option>
@@ -428,11 +498,11 @@ function PreviewTableView({
                 return (
                   <td key={col.id}>
                     <input
-                      type={cellCfg.cellType === "numero" ? "number" : "text"}
+                      type={cellType === "numero" ? "number" : "text"}
                       value={(cell as string | number | undefined) ?? ""}
-                      maxLength={cellCfg.maxLength}
+                      maxLength={cellMaxLength}
                       onChange={(e) =>
-                        updateCell(row.id, col.id, cellCfg.cellType === "numero" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value, table, onChange)
+                        updateCell(row.id, col.id, cellType === "numero" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value, table, onChange)
                       }
                     />
                   </td>

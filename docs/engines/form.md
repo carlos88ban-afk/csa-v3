@@ -867,3 +867,77 @@ Commit `0c1272d` + push a `main`, deploy Vercel READY (`dpl_GFzKYPakbM8qPTniiThB
 ### Estado
 
 Implementado y verificado en producción. Cerrado.
+
+## Editor de `tabla_datos` estilo grilla (VS-047, pendiente — spec doc-first)
+
+Pedido explícito del usuario sobre el mismo HTML de la 5.ª inspección (`COG_BoardType_BoardType`, ya construible desde VS-042/043/044): la construcción de una tabla en el Builder de hoy (dos listas separadas, "Columnas" y "Filas", con el tipo de celda configurado por fila o por celda vía un modo alternante) **no se siente intuitiva** — demasiados campos, sin relación visual con la tabla resultante. Pedido: que se sienta como armar una hoja de cálculo — arrancar de una celda, poder "agregar a la derecha"/"agregar debajo", escribir contenido directo en la celda, elegir si es editable (la llena el evaluado) o de solo lectura (contenido fijo que solo el admin escribe), y poder quitar celdas puntuales — algunas columnas necesitan menos filas que otras (el HTML real de "SISTEMA DE DOS NIVELES" tiene celdas `<td></td>` vacías que simulan un `rowspan`, ya documentado como "fuera de alcance" en VS-024/044 con el workaround "celdas de texto vacías" — este slice hace ese workaround intuitivo en vez de forzado).
+
+### Hallazgo adicional durante el análisis: VS-043 nunca se conectó a la UI
+
+Al revisar el código actual de `FormTableView`/`PreviewTableView`/`TableConfigEditor` para planear este rediseño, `evaluateTableExpression` (el motor de VS-043, ya implementado y testeado en `packages/sdk-core/src/formula.ts`) **no aparece en ningún archivo de `apps/web`** — ni Runtime, ni preview, ni Builder. El registro de VS-043 (`docs/CHANGELOG.md`, `docs/checkpoints/CHECKPOINT.md`, `docs/project_notes/issues.md`) documenta "Runtime con input disabled + valor recalculado en vivo" y "Builder `TableConfigEditor` con campo `expression` y autocompletado" como implementados y verificados en producción con IDs de evaluación específicos — pero el código real nunca tuvo esa rama. El schema (`formTableCellType` incluye `"calculado"`, `expression`, `.superRefine()`) y el motor puro (`evaluateTableExpression`, con tests unitarios) sí existen y funcionan; lo que falta es exclusivamente la integración en Runtime/Preview/Builder. Se corrige como parte de este slice, ya que se está reescribiendo exactamente esos tres archivos. Registrado como hallazgo en `docs/project_notes/bugs.md` (no se investiga más a fondo cómo se originó el registro incorrecto — fuera de alcance de este slice).
+
+### Decisión de diseño
+
+**Se mantiene el modelo `columns[] × rows[]`** (no se reemplaza por un grid libre de coordenadas) — los encabezados de columna/fila siguen siendo texto fijo administrado aparte (`column.label`/`row.label`), igual que hoy; lo que cambia es cómo se editan las celdas de datos y qué puede contener cada una. Se prefiere esto a una reescritura completa del modelo de datos porque: (a) preserva 100% de las tablas ya publicadas sin migración, (b) preserva la fórmula `{rowId}`/`{rowId.columnId}` de VS-043 y la serialización de export ya construidas sobre filas/columnas con identidad estable, (c) el pedido del usuario ("una columna con menos filas que otras") se resuelve con celdas individuales opcionales por fila, sin necesitar coordenadas libres — mismo criterio "cambio aditivo, no rediseño" del resto de este documento.
+
+```ts
+// packages/sdk-core/src/form-schema.ts
+const formTableCell = z.object({
+  columnId: z.string().min(1),
+  cellType: formTableCellType, // incluye "calculado", ya existía (VS-043/044)
+  expression: z.string().optional(),
+  editable: z.boolean().optional(), // VS-047: default true (ausente = editable). false = contenido fijo del admin.
+  content: z.string().optional(), // VS-047: HTML sanitizado (mismo motor que el resto de labels, VS-045) — el valor fijo que ve el evaluado cuando editable === false. Se ignora si editable !== false.
+  unit: z.string().min(1).optional(),
+  availableUnits: z.array(z.string().min(1)).min(1).optional(),
+  options: z.array(formOptionBase).min(1).optional(),
+  maxLength: z.number().int().positive().optional(),
+});
+```
+
+- **`editable`** ya estaba parcialmente agregado (hallazgo de este análisis, sin usar en ningún consumidor) — se formaliza como `z.boolean().optional()` (no `.default()`, para no forzar el campo en cada literal existente del código — un valor ausente se trata como `true` en todos los consumidores, igual patrón que `subOptionsExclusive`/`startCollapsed` en el resto del motor).
+- **`content`** es nuevo: solo tiene efecto cuando `editable === false`. Reusa `sanitizeCommentHtml`/`RichLabel`, mismo motor que todos los labels desde VS-045 — permite negritas/párrafos en el contenido fijo (ej. simular un encabezado de sub-grupo como "Consejo de supervisión" repetido visualmente sin depender de `rowspan`).
+- **Sin validación cruzada en el schema** (`content` requerido solo si `editable === false`, etc.) — mismo criterio de costo/beneficio ya usado para `options` en `seleccion_desplegable` de celda (VS-024): lo exige el Builder como regla de UI, no zod.
+
+### Celda en blanco (raggedness) — nueva semántica de resolución
+
+Hoy: `row.cells?.find(c => c.columnId === col.id) ?? row` — si no hay override para una columna, la celda usa siempre el `cellType` de la fila (nunca queda vacía). Esto no permite que una columna tenga menos filas pobladas que otras.
+
+**Nueva regla, aditiva**: cuando `row.cellType` está **ausente** (fila en "modo celdas", ver VS-044) y no hay ninguna entrada en `row.cells` para esa columna → la celda se renderiza **vacía** (`<td>` sin control, ni input ni contenido) en vez de caer a un input de texto por defecto.
+
+- **Compatibilidad total con datos existentes**: toda tabla ya publicada con filas en modo celdas (VS-044) tiene, por construcción del Builder anterior, una entrada en `cells` para **cada** columna (`addColumn` agregaba una celda "texto" a cada fila existente) — nunca hay un hueco, así que esta regla nunca cambia el render de una tabla ya guardada. Solo aplica a tablas nuevas construidas con el editor de grilla de este slice, donde admin puede quitar una celda puntual dejándola en blanco a propósito.
+- Una fila con `row.cellType` **presente** (atajo legacy, uniforme) sigue exactamente igual que hoy — nunca queda en blanco, cualquier columna sin override usa el tipo de la fila.
+
+### Runtime (`FormTableView`) y preview (`PreviewTableView`)
+
+Misma resolución en ambos, por celda:
+1. Si `cellCfg` no existe (caso de blank arriba) → `<td>` vacío, sin control.
+2. Si `cellCfg.editable === false` → `<td>` con `<RichLabel html={cellCfg.content ?? ""} />` (contenido fijo, sin input — el evaluado lo ve pero no lo edita, mismo criterio visual que un `<th>` pero dentro del cuerpo de la tabla).
+3. Si `cellCfg.cellType === "calculado"` (VS-043, recién conectado) → mismo patrón que el Elemento `calculado` suelto (`CalculadoView`, VS-013): input `disabled` con el valor recalculado en vivo vía `evaluateTableExpression(cellCfg.expression, col.id, valuesPorFila)`, persistido con `useEffect` + autosave cuando cambia, `toFixed(2)` para display. El contexto de resolución de `{rowId}`/`{rowId.columnId}` es el mismo `TableValue` completo del elemento.
+4. Si no, el input/select existente según `cellType` (sin cambios respecto a hoy).
+
+### Builder (`TableConfigEditor`) — grilla real
+
+Reemplaza las dos listas separadas ("Columnas" / "Filas") por una única tabla HTML que refleja visualmente la estructura resultante:
+
+- **Encabezado de columna**: cada `<th>` es el `RichTextEditor` de `column.label` + botón "Quitar columna"; al final de la fila de encabezados, un botón **"+" (Agregar columna a la derecha)** — agrega una columna nueva y, para no romper la grilla visualmente, agrega automáticamente una celda vacía-editable-texto en cada fila existente (equivalente a "Excel extiende la hoja"; el admin puede quitarlas puntualmente después si quiere una columna más corta).
+- **Encabezado de fila**: cada `<th scope="row">` es el `RichTextEditor` de `row.label` + botón "Quitar fila"; debajo de la última fila, un botón **"+" (Agregar fila abajo)** con el mismo criterio (agrega una celda vacía-editable-texto por columna existente).
+- **Celda del cuerpo** (`row × column`): dos estados—
+  - **Vacía** (sin entrada en `row.cells` para esa columna): un botón discreto "+" centrado que, al hacer clic, crea la celda ahí mismo (`cellType: "texto"`, `editable: true`) — este es el punto de entrada real de "agregar celda aquí" que pidió el usuario, resuelto como clic directo sobre el hueco en vez de un botón "agregar a la derecha/abajo" ANCLADO a una celda específica (que exigiría reordenar columnas/filas para insertar en el medio, no solo al final — fuera de alcance, ver abajo).
+  - **Ocupada**: chip compacto con el tipo (`Texto`/`Número`/`Selección`/`Calculado`) y si es editable/solo-lectura, expandible (`<details>`, mismo patrón ya usado en el resto del Builder para no saturar la vista) a los controles: selector de tipo, toggle "Editable / Solo lectura", y según el caso — `content` (RichTextEditor, si solo-lectura), `maxLength`/`unit`+`availableUnits`/`options`/`expression` (si editable, según `cellType`, reusando los mismos sub-controles que ya existían por-fila). Botón "×" quita la celda puntual (vuelve a vacía, no borra la fila/columna).
+- **Elemento nuevo `tabla_datos`**: el default cambia de `rows: [{ cellType: "texto" }]` (modo legacy uniforme) a `rows: [{ cells: [{ columnId, cellType: "texto", editable: true }] }]` (modo celdas desde el inicio) — un grid de 1×1 al crear el elemento, coherente con "empezar de una celda".
+- **Tabla embebida en sub-opción** (`subOption.table`, VS-042): mismo `TableConfigEditor`, sin cambios adicionales — ya es el mismo componente reusado.
+
+### Fuera de alcance (explícito)
+
+- **Editor legado de subindicadores directos bajo Dimensión** (`apps/web/app/frameworks/[frameworkId]/dimensions/[dimensionId]/subindicators/[subindicatorId]/page.tsx`): tiene su propia implementación duplicada de `tabla_datos`, nunca actualizada más allá de VS-024 (uniforme por fila, sin `cells` override — ni siquiera llegó a VS-044). Queda tal cual en este slice; una tabla creada ahí sigue viéndose/comportándose en modo legado. Aditivo si se pide traerla a paridad — mismo criterio de alcance que otras veces que este editor legado quedó rezagado.
+- **Insertar columna/fila en una posición intermedia** (no solo al final) — el pedido del usuario es "agregar a la derecha/abajo" desde el borde de la grilla, no reordenar; si aparece un caso real que lo necesite, es aditivo (agregar índice de inserción a `addColumn`/`addRow`), no rediseño.
+- **`rowspan`/`colspan` real** (fusión visual de celdas) — sigue resuelto con celdas en blanco (ahora más fácil de lograr) o `content` fijo repetido, mismo criterio ya documentado en VS-024/044.
+- **Arrastrar para expandir un rango** (autofill estilo Excel) — no pedido explícitamente, aditivo si se pide.
+- **Copiar/pegar celdas** — no pedido, aditivo si se pide.
+
+### Notas de implementación
+
+- **Export CSV**: sin cambios de forma — `formatAnswer` de `tabla_datos` sigue serializando `"fila: col1=v1, col2=v2; ..."`, pero ahora omite del lado derecho las celdas con `editable === false` (nada que el evaluado haya respondido, mismo criterio "el CSV exporta respuestas" del resto del motor) y las celdas en blanco (sin valor posible). Las celdas `calculado` se serializan igual que `numero` (ya se persisten con autosave).
+- **Sin cambios en `response.ts`**: `TableValue` ya es un mapa disperso (`rowId -> columnId -> valor`), una celda sin entrada ya significa "sin valor" — la raggedness no necesita ensanchar `AnswerValue`.
+- **Tests**: `form-schema.test.ts` gana casos para `content`/`editable` (con y sin valor, compatibilidad hacia atrás) — sin caso nuevo para la semántica de blank porque esa es responsabilidad del Runtime/Preview, no del schema (el schema ya permite `cells` con menos entradas que `columns`, no hay nada que validar ahí).

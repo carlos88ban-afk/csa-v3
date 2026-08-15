@@ -235,6 +235,60 @@ describe("formElement", () => {
     expect(result.success).toBe(true);
   });
 
+  // Editor de tabla_datos estilo grilla (VS-047, docs/engines/form.md).
+  it("acepta una celda de tabla_datos sin editable/content (compatible hacia atrás)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "tabla_datos",
+      label: "x",
+      columns: [{ id: "c1", label: "Col" }],
+      rows: [{ id: "r1", label: "Fila", cells: [{ columnId: "c1", cellType: "texto" }] }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "tabla_datos") {
+      expect(result.data.rows[0]?.cells?.[0]?.editable).toBeUndefined();
+      expect(result.data.rows[0]?.cells?.[0]?.content).toBeUndefined();
+    }
+  });
+
+  it("acepta una celda no editable con content fijo", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "tabla_datos",
+      label: "x",
+      columns: [{ id: "c1", label: "Col" }],
+      rows: [
+        {
+          id: "r1",
+          label: "Fila",
+          cells: [{ columnId: "c1", cellType: "texto", editable: false, content: "<strong>Fijo</strong>" }],
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "tabla_datos") {
+      expect(result.data.rows[0]?.cells?.[0]?.editable).toBe(false);
+      expect(result.data.rows[0]?.cells?.[0]?.content).toBe("<strong>Fijo</strong>");
+    }
+  });
+
+  it("acepta cells con menos entradas que columns (celda en blanco, grilla irregular)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "tabla_datos",
+      label: "x",
+      columns: [
+        { id: "c1", label: "Col 1" },
+        { id: "c2", label: "Col 2" },
+      ],
+      rows: [{ id: "r1", label: "Fila", cells: [{ columnId: "c1", cellType: "texto" }] }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "tabla_datos") {
+      expect(result.data.rows[0]?.cells).toHaveLength(1);
+    }
+  });
+
   it("acepta una fila de tabla_datos con cellType legacy y cells de override juntos", () => {
     const result = formElement.safeParse({
       id: "1",

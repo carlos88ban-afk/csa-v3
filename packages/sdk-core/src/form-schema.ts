@@ -101,10 +101,18 @@ const formOptionBase = z.object({
 // (unit/availableUnits/options/maxLength), pero apuntando a una columna.
 // Si `cells` está presente en la fila, gana sobre `cellType` de la fila.
 // VS-043: `expression` es opcional y se valida cuando cellType === "calculado".
+// VS-047 (docs/engines/form.md "Editor de tabla_datos estilo grilla"):
+// `editable`/`content` — una celda con editable === false muestra `content`
+// (HTML sanitizado, fijo, escrito por el admin) en vez de un control que
+// llena el evaluado. Ausente = true (editable), mismo criterio que
+// subOptionsExclusive/startCollapsed en el resto del motor — no `.default()`
+// para no forzar el campo en cada literal existente.
 const formTableCell = z.object({
   columnId: z.string().min(1),
   cellType: formTableCellType,
   expression: z.string().optional(),
+  editable: z.boolean().optional(),
+  content: z.string().optional(),
   unit: z.string().min(1).optional(),
   availableUnits: z.array(z.string().min(1)).min(1).optional(),
   options: z.array(formOptionBase).min(1).optional(),

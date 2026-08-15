@@ -7,6 +7,7 @@ import {
   dimensionNumber,
   directSubindicatorNumber,
   evaluateExpression,
+  evaluateTableExpression,
   hasAnswer,
   indicatorNumber,
   isAnswered,
@@ -1265,6 +1266,44 @@ type FormTableViewProps = {
   locked?: boolean | undefined;
 };
 
+// VS-047 (docs/engines/form.md "Editor de tabla_datos estilo grilla"):
+// celda cellType "calculado" — mismo patrón que CalculadoView (arriba),
+// encapsulado aparte porque useEffect no puede vivir condicionalmente
+// dentro del .map de columnas de FormTableView.
+function TableCalculatedCell({
+  rowId,
+  columnId,
+  expression,
+  table,
+  onChange,
+}: {
+  rowId: string;
+  columnId: string;
+  expression: string | undefined;
+  table: TableValue;
+  onChange: (rowId: string, columnId: string, value: number) => void;
+}) {
+  const valuesByRow: Record<string, Record<string, number | undefined>> = {};
+  for (const [r, rowVals] of Object.entries(table)) {
+    const numRow: Record<string, number | undefined> = {};
+    for (const [c, v] of Object.entries(rowVals)) {
+      if (typeof v === "number") numRow[c] = v;
+    }
+    valuesByRow[r] = numRow;
+  }
+  const computed = expression ? evaluateTableExpression(expression, columnId, valuesByRow) : undefined;
+
+  useEffect(() => {
+    if (computed !== undefined && table[rowId]?.[columnId] !== computed) {
+      onChange(rowId, columnId, computed);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computed]);
+
+  const display = computed === undefined ? "" : String(Number(computed.toFixed(2)));
+  return <input value={display} disabled readOnly placeholder="(sin calcular)" />;
+}
+
 function FormTableView({
   label,
   unitKeyPrefix,
@@ -1320,10 +1359,47 @@ function FormTableView({
               {columns.map((col) => {
                 // VS-044: el tipo de una celda se resuelve por override
                 // (row.cells) y cae al atajo legacy de la fila si no hay
-                // override — una sola rama de resolución, el render no cambia.
-                const cellCfg = row.cells?.find((c) => c.columnId === col.id) ?? row;
+                // override. VS-047: si la fila está en modo celdas (sin
+                // cellType propio) y no hay override para esta columna, la
+                // celda queda en blanco — permite grillas irregulares (una
+                // columna con menos filas pobladas que otras).
+                const cellOverride = row.cells?.find((c) => c.columnId === col.id);
+                if (!cellOverride && row.cellType === undefined) {
+                  return <td key={col.id} className="runtime-table__blank" />;
+                }
+                // Se destructuran los campos con fallback explícito en vez de
+                // sostener un objeto `cellCfg = cellOverride ?? row` — row
+                // (formTableRow) no tiene editable/content/expression, solo
+                // formTableCell los tiene, así que la unión de ambos tipos no
+                // permite acceder a esos campos sin este paso.
+                const cellType = cellOverride?.cellType ?? row.cellType ?? "texto";
+                const editable = cellOverride ? cellOverride.editable !== false : true;
+                const content = cellOverride?.content;
+                const expression = cellOverride?.expression;
+                const cellMaxLength = cellOverride?.maxLength ?? row.maxLength;
+                const cellOptions = cellOverride?.options ?? row.options;
                 const cell = rowValue[col.id];
-                if (cellCfg.cellType === "seleccion_desplegable") {
+                if (!editable) {
+                  return (
+                    <td key={col.id}>
+                      <RichLabel html={content ?? ""} />
+                    </td>
+                  );
+                }
+                if (cellType === "calculado") {
+                  return (
+                    <td key={col.id}>
+                      <TableCalculatedCell
+                        rowId={row.id}
+                        columnId={col.id}
+                        expression={expression}
+                        table={table}
+                        onChange={(r, c, v) => updateCell(r, c, v)}
+                      />
+                    </td>
+                  );
+                }
+                if (cellType === "seleccion_desplegable") {
                   return (
                     <td key={col.id}>
                       <select
@@ -1332,7 +1408,7 @@ function FormTableView({
                         onChange={(e) => updateCell(row.id, col.id, e.target.value)}
                       >
                         <option value="">Seleccionar…</option>
-                        {(cellCfg.options ?? []).map((opt) => (
+                        {(cellOptions ?? []).map((opt) => (
                           <option key={opt.id} value={opt.id}>
                             {stripCommentHtml(opt.label)}
                           </option>
@@ -1341,7 +1417,7 @@ function FormTableView({
                     </td>
                   );
                 }
-                if (cellCfg.cellType === "numero") {
+                if (cellType === "numero") {
                   return (
                     <td key={col.id}>
                       <input
@@ -1357,7 +1433,7 @@ function FormTableView({
                   <td key={col.id}>
                     <input
                       value={(cell as string) ?? ""}
-                      maxLength={cellCfg.maxLength}
+                      maxLength={cellMaxLength}
                       disabled={locked}
                       onChange={(e) => updateCell(row.id, col.id, e.target.value)}
                     />

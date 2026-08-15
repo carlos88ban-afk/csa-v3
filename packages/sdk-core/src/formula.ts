@@ -278,35 +278,36 @@ export function evaluateExpression(
   return evaluateNode(node, values);
 }
 
-// VS-043 (docs/engines/form.md "Fila de fórmula dentro de tabla_datos"):
-// Motor de evaluación de fórmulas de tabla con contexto de fila/columna.
-// Resuelve referencias {rowId} (fila completa, columna activa) y
-// {rowId.columnId} (celda puntual). valuesByRow es un arreglo donde
-// valuesByRow[i] = valor numérico de la fila i (índice = posición en la tabla).
+// VS-043 (docs/engines/form.md "Fila de fórmula dentro de tabla_datos"),
+// corregido en VS-047 (docs/engines/form.md "Editor de tabla_datos estilo
+// grilla" — hallazgo: la versión anterior indexaba `valuesByRow` por
+// posición numérica con claves sintéticas `ref_N` que nunca podían calzar
+// con una referencia real `{rowId}` escrita por el admin; nunca tuvo tests
+// ni se conectó a ningún consumidor, así que el bug no se manifestó hasta
+// ahora). Motor de evaluación de fórmulas de tabla con contexto de
+// fila/columna: `{rowId}` resuelve el valor de esa fila en la COLUMNA que se
+// está evaluando (`columnId`); `{rowId.columnId}` resuelve una celda
+// puntual, columna explícita. `valuesByRow` es `rowId -> columnId -> valor`
+// (mismo shape que `TableValue` de `response.ts`, sin duplicar el tipo aquí
+// para no crear una dependencia circular entre paquetes).
 export function evaluateTableExpression(
   expression: string,
   columnId: string,
-  valuesByRow: number[],
+  valuesByRow: Record<string, Record<string, number | undefined>>,
 ): number | undefined {
-  // Construye un mapa de valores por fila: {rowId} → valor de esa fila
-  // y {rowId.columnId} → valor de esa celda específica.
-  // columnId identifica qué columna de la tabla estamos evaluando.
-  const values: Record<string, number> = {};
-
-  valuesByRow.forEach((rowValue, rowIdx) => {
-    // {rowId} → valor de la fila completa (el número de la fila)
-    values[`ref_${rowIdx}`] = rowValue ?? 0
-    // {rowId.columnId} → valor de la celda específica (columna dentro de la fila)
-    // Usamos columnId como identificador para mapear la celda
-    values[`ref_${rowIdx}_${columnId}`] = rowValue ?? 0
-  })
-
-  // Tokeniza y parsea la expresión
   let node: FormulaNode;
   try {
     node = parseFormula(expression);
   } catch {
     return undefined;
   }
-return evaluateNode(node, values)
+
+  const values: Record<string, number> = {};
+  for (const ref of extractExpressionReferences(expression)) {
+    const dotIdx = ref.indexOf(".");
+    const value =
+      dotIdx === -1 ? valuesByRow[ref]?.[columnId] : valuesByRow[ref.slice(0, dotIdx)]?.[ref.slice(dotIdx + 1)];
+    if (value !== undefined) values[ref] = value;
+  }
+  return evaluateNode(node, values);
 }

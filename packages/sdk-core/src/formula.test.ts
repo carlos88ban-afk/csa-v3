@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   FormulaSyntaxError,
   evaluateExpression,
+  evaluateTableExpression,
   extractExpressionReferences,
   parseFormula,
 } from "./formula.js";
@@ -113,5 +114,37 @@ describe("parseFormula", () => {
 
   it("lanza para '2 +' (expresión incompleta)", () => {
     expect(() => parseFormula("2 +")).toThrow(FormulaSyntaxError);
+  });
+});
+
+// VS-047 (docs/engines/form.md "Editor de tabla_datos estilo grilla"):
+// evaluateTableExpression reescrito — la versión de VS-043 indexaba
+// valuesByRow por posición numérica con claves sintéticas que nunca
+// calzaban con una referencia {rowId} real, y no tenía tests.
+describe("evaluateTableExpression", () => {
+  const table = {
+    r1: { c1: 4 },
+    r2: { c1: 6 },
+    r3: { c1: 10, c2: 100 },
+  };
+
+  it("resuelve {rowId} contra la columna activa", () => {
+    expect(evaluateTableExpression("{r1}+{r2}", "c1", table)).toBe(10);
+  });
+
+  it("resuelve {rowId.columnId} a una celda puntual, ignorando la columna activa", () => {
+    expect(evaluateTableExpression("{r3.c2}", "c1", table)).toBe(100);
+  });
+
+  it("mezcla {rowId} y {rowId.columnId} en la misma expresión", () => {
+    expect(evaluateTableExpression("{r1}+{r2}+{r3.c2}", "c1", table)).toBe(110);
+  });
+
+  it("undefined si falta la fila/celda referenciada", () => {
+    expect(evaluateTableExpression("{r1}+{r9}", "c1", table)).toBeUndefined();
+  });
+
+  it("undefined si la expresión no parsea", () => {
+    expect(evaluateTableExpression("{r1}+", "c1", table)).toBeUndefined();
   });
 });
