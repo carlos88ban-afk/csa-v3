@@ -711,6 +711,56 @@ const formTableRow = z.object({
 - **Funciones agregadas** (`SUM`, `AVG`, etc.) — mismo criterio que VS-013: aritmética directa con referencias explícitas; una `SUM` de rango no está pedida.
 - **Fila calculada referenciando otros Elementos** — solo celdas de la misma tabla (el Elemento `calculado` de VS-013 ya cubre referencias entre Elementos).
 
+## Formato en preguntas y opciones + referencias flexibles (VS-045, pendiente — spec doc-first)
+
+Hallazgo de la 6.ª inspección (2026-08-14, HTML real de la pregunta `COG_BoardIndependence_AttachmentBoardIndependenceStatement` del portal S&P enviado por el usuario):
+
+1. **El texto de la pregunta y de las opciones lleva formato**: negritas (`<strong>`) y múltiples párrafos dentro del label de la pregunta y de los labels de las opciones (ej. "Las empresas **cotizadas** deben proporcionar enlaces…" / "Las empresas **no cotizadas** están obligadas a…"). Pegar ese texto en un input plano lo aplanaba a texto corrido — mismo problema que `banner.content` antes de VS-038.
+2. **La fila de referencias de la opción "Sí" es `data-ref-type="flexible"` con `data-maxrefs="3"`**: admite URL pública O documento interno. VS-039 modeló solo URLs públicas (`refType: "public"` implícito); era ítem menor de la 5.ª inspección y el usuario pidió incluirlo.
+
+Alcance confirmado con el usuario (`AskUserQuestion`): rich text en **todas** las preguntas y opciones, y **sí** incluir referencias flexibles en el mismo slice.
+
+### Parte A — Labels con formato (rich text)
+
+Alcance: label de **todos** los tipos de Elemento (incluidas `instruccion` y `calculado`; **excluido `banner.label`** — decisión VS-038 explícita, el título sigue siendo texto plano) + labels de **todas las opciones en todos los niveles** (`formOption`, `subOption`, `subSubOption`, opciones de `subOptionField`, opciones de fila de tabla) + labels de **columnas y filas de tabla** (`formTableColumn`/`formTableRow`). `helpText` queda texto plano (fuera de alcance, aditivo si se pide).
+
+- **Sin cambio de tipo zod**: todos los labels siguen siendo `z.string()` — el string ahora es HTML sanitizado con la allowlist existente. VS-038 aplicó exactamente este criterio a `banner.content` (ver arriba): "no un tipo nuevo de dato, solo cambia qué significa esa cadena".
+- **Motor reusado**: `packages/sdk-core/src/rich-text.ts` (`sanitizeCommentHtml`/`stripCommentHtml`, allowlist `strong`/`em`/`p`/`br`/`ul`/`li`). No se crea motor nuevo ni se extiende la allowlist.
+- **Builder** (`subindicator-editor.tsx` y el editor legado de subindicadores directos): los `<input>` de label de Elemento/opción/sub-opción/columna/fila → `RichTextEditor` (mismo componente compartido del banner, ya reutilizable — paste con formato nativo de TipTap).
+- **Runtime/Preview**: helper compartido nuevo `RichLabel` (o equivalente) que renderiza con `dangerouslySetInnerHTML={{ __html: sanitizeCommentHtml(value) }}` — se re-sanitiza en el borde de lectura (defensa en profundidad, mismo criterio que banner/comentario). Reemplaza **todos** los renders de label (pregunta, opción, sub-opción, columna, fila, opción de select).
+- **Export CSV**: `stripCommentHtml` sobre cada label al serializar (opción elegida, opciones de selección múltiple, etc.).
+- **Sin migración de datos**: labels existentes en texto plano son HTML válido sin markup — se ven idénticos.
+
+### Parte B — Referencias flexibles
+
+`optionReferences` gana `refType`:
+
+```ts
+const optionReferences = z.object({
+  maxUrls: z.number().int().positive().optional(), // default 3 (límite observado en S&P)
+  position: z.enum(["before_suboptions", "after_suboptions"]).optional(),
+  refType: z.enum(["public", "flexible"]).optional(), // VS-045: default "public" (comportamiento VS-039)
+});
+```
+
+- **Compatible hacia atrás**: ausente = `public` (comportamiento actual). Un solo `refType` por bloque — S&P define el tipo a nivel de bloque, no por slot.
+- **Forma de respuesta**: la clave `` `${elementId}::${optionId}::refs` `` (y la de sub-opción, `` `${subKey}::${sub.id}::refs` ``) pasa a aceptar slots mixtos `(string | EvidenceRef)[]` — URL literal (public) o `EvidenceRef` (documento interno). `answerValue` gana el branch `z.array(z.union([z.string(), evidenceRef]))`; los arrays de strings guardados antes siguen validando (cada elemento valida contra la unión) — sin migración.
+- **Runtime** (`OptionReferencesView`): con `refType: "flexible"`, cada slot muestra un mini-select "URL pública / Documento interno"; en modo documento, mini-flujo de adjunto reutilizando el patrón de `evidencia` (upload directo a R2 con presigned URL — `docs/engines/evidences.md`; solo las refs `{key,name,size,mimeType}` viven en la Respuesta, el binario no pasa por el servidor Next.js). El slot guarda la `EvidenceRef` completa.
+- **Export CSV**: slot `string` → literal; slot `EvidenceRef` → `[Archivo: {name}]` (el binario no viaja en el CSV, mismo criterio que `evidencia`).
+- **Builder**: el bloque de configuración de referencias (opción y sub-opción) gana el selector "Tipo de referencia: URL pública / Flexible".
+
+### Fuera de alcance (explícito)
+
+- **`helpText` y `banner.label` con formato** — texto plano (aditivo si se pide).
+- **Previsualización/descarga del documento interno desde Revisión o CSV** — los binarios se descargan por el flujo de evidencias existente; el CSV lista nombres.
+- **Límites por tipo en flexible** (`maxRefsPublic`/`maxRefsDocs`) — `maxUrls` aplica a la suma de slots.
+- **Reuso de un documento entre respuestas** — cada slot sube su propio archivo.
+- **`data-non-listed` y otros atributos del bloque de S&P** sin contraparte funcional.
+
+### Tests
+
+- `packages/sdk-core`: `form-schema.test.ts` (refType válido/ausente/inválido + default), `response.test.ts` (union mixta acepta `string[]` legacy y array mixto), `rich-text.test.ts` ya cubre sanitize/strip (sin cambios).
+
 ## Tipo de celda mixto dentro de una fila (VS-044, pendiente — spec doc-first)
 
 Mismo HTML de la 5.ª inspección: la tabla de "SISTEMA DE DOS NIVELES" tiene por fila `[texto, texto, número]` — columnas "Tipo de tablero"/"Tipo de director" con labels de texto y columna "Número de miembros" con inputs numéricos. `tabla_datos` (VS-024) define `cellType` **por fila uniforme** — decisión de diseño que previó exactamente este caso: *"Si en el futuro aparece un caso real con tipo mixto dentro de una fila, es un cambio aditivo (mover `cellType` de la fila a la celda), no un rediseño"*.

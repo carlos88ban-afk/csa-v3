@@ -4,6 +4,7 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Siguiente
 
+- [ ] VS-045 — Formato (rich text) en preguntas y opciones + referencias flexibles (`refType: "public" | "flexible"`) — 6.ª inspección AN-001, 2026-08-14: HTML `COG_BoardIndependence_AttachmentBoardIndependenceStatement` con negritas/múltiples párrafos en labels y bloque de referencias `data-ref-type="flexible"`; alcance confirmado con el usuario (todas las preguntas/opciones + flexible incluido) — spec en `docs/engines/form.md` (antecede a VS-044/VS-043 por pedido explícito del usuario)
 - [ ] VS-044 — Tipo de celda mixto dentro de una fila de `tabla_datos` (override por celda, atajo por fila sigue siendo el default — 5.ª inspección AN-001, 2026-08-14: tabla "SISTEMA DE DOS NIVELES" con filas `[texto, texto, número]`; caso previsto por la decisión de diseño de VS-024 — spec en `docs/engines/form.md`)
 - [ ] VS-043 — Fila de fórmula dentro de `tabla_datos` (`cellType: "calculado"` con referencias a celdas de la misma tabla, 5.ª inspección AN-001, 2026-08-14: filas "Tamaño total de la tabla" readonly con `class="formula"` — spec en `docs/engines/form.md`)
 - [x] VS-042 — Tabla de datos embebida dentro de una sub-opción (`subOption.table`, 5.ª inspección AN-001, 2026-08-14: cada sub-opción del sub-radio trae su propia `form-table` — spec en `docs/engines/form.md`)

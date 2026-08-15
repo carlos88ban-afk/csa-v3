@@ -6,6 +6,7 @@ import {
   isElementVisible,
   questionNumber,
   sanitizeCommentHtml,
+  stripCommentHtml,
   type AnswerValue,
   type EvidenceRef,
   type FormElement,
@@ -15,6 +16,7 @@ import {
 } from "@plataforma-csa/sdk-core";
 import { useMemo, useState } from "react";
 import { Pill } from "@/components/ui";
+import { RichLabel } from "@/components/rich-label";
 
 // Vista previa en vivo del formulario tal como lo ve el evaluado (VS-032,
 // docs/slices/VS-032.md contrato 5). Sin acceso a red: respuestas en memoria
@@ -119,7 +121,11 @@ function PreviewElement({
   onAnswerChange: (key: string, value: AnswerValue) => void;
 }) {
   if (element.type === "instruccion") {
-    return <p className="runtime-instruction">{element.label}</p>;
+    return (
+      <p className="runtime-instruction">
+        <RichLabel html={element.label} />
+      </p>
+    );
   }
 
   if (element.type === "banner") {
@@ -133,7 +139,7 @@ function PreviewElement({
   const label = (
     <span className="field__label">
       {number && `${number} `}
-      {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
+      <RichLabel html={element.label} fallback={<em>(sin texto)</em>} /> {element.required && <Pill variant="warn">obligatorio</Pill>}
     </span>
   );
 
@@ -193,7 +199,7 @@ function PreviewElement({
             <option value="">Seleccionar…</option>
             {element.options.map((opt) => (
               <option key={opt.id} value={opt.id}>
-                {opt.label}
+                {stripCommentHtml(opt.label)}
               </option>
             ))}
           </select>
@@ -274,10 +280,11 @@ function PreviewElement({
                     : onChange(isSelected(opt.id) ? multiValue.filter((id) => id !== opt.id) : [...multiValue, opt.id])
                 }
               />
-              {opt.label}
+              <RichLabel html={opt.label} />
             </label>
             {isSelected(opt.id) && opt.references && opt.references.position !== "after_suboptions" && (
-              <PreviewUrlList
+              <PreviewOptionReferences
+                refType={opt.references.refType ?? "public"}
                 maxUrls={opt.references.maxUrls ?? 3}
                 value={answers[`${element.id}::${opt.id}::refs`]}
                 onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
@@ -297,7 +304,8 @@ function PreviewElement({
               />
             )}
             {isSelected(opt.id) && opt.references && opt.references.position === "after_suboptions" && (
-              <PreviewUrlList
+              <PreviewOptionReferences
+                refType={opt.references.refType ?? "public"}
                 maxUrls={opt.references.maxUrls ?? 3}
                 value={answers[`${element.id}::${opt.id}::refs`]}
                 onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
@@ -348,13 +356,13 @@ function PreviewTableView({
 }) {
   return (
     <table className="runtime-table">
-      <caption className="sr-only">{label}</caption>
+      <caption className="sr-only">{stripCommentHtml(label)}</caption>
       <thead>
         <tr>
           <th scope="col" />
           {columns.map((col) => (
             <th key={col.id} scope="col">
-              {col.label}
+              <RichLabel html={col.label} />
             </th>
           ))}
         </tr>
@@ -368,7 +376,7 @@ function PreviewTableView({
           return (
             <tr key={row.id}>
               <th scope="row">
-                {row.label}
+                <RichLabel html={row.label} />
                 {row.availableUnits && row.availableUnits.length > 0 && (
                   <select
                     value={rowUnit}
@@ -394,7 +402,7 @@ function PreviewTableView({
                         <option value="">Seleccionar…</option>
                         {(row.options ?? []).map((opt) => (
                           <option key={opt.id} value={opt.id}>
-                            {opt.label}
+                            {stripCommentHtml(opt.label)}
                           </option>
                         ))}
                       </select>
@@ -446,7 +454,7 @@ function PreviewSubOptionField({
         <option value="">Seleccionar…</option>
         {field.options.map((opt) => (
           <option key={opt.id} value={opt.id}>
-            {opt.label}
+            {stripCommentHtml(opt.label)}
           </option>
         ))}
       </select>
@@ -531,6 +539,97 @@ function PreviewUrlList({
   );
 }
 
+// Referencias por opción/sub-opción con `refType` (VS-045): con "public"
+// delega en PreviewUrlList (comportamiento VS-039/040). Con "flexible" cada
+// slot elige tipo (URL pública / Documento interno) — en el preview el
+// documento interno es solo de lectura: el editor no tiene R2 ni token
+// (mismo criterio que el slot de evidencia), se sube en la evaluación real.
+function PreviewOptionReferences({
+  refType,
+  maxUrls,
+  value,
+  onChange,
+  className,
+}: {
+  refType: "public" | "flexible";
+  maxUrls: number;
+  value: AnswerValue | undefined;
+  onChange: (value: AnswerValue) => void;
+  className: string;
+}) {
+  if (refType !== "flexible") {
+    return <PreviewUrlList maxUrls={maxUrls} value={value} onChange={onChange} className={className} />;
+  }
+
+  const slots = Array.isArray(value) ? value : [];
+  const [visibleCount, setVisibleCount] = useState(() => Math.max(slots.length, 1));
+  const [kinds, setKinds] = useState<("url" | "doc")[]>(() =>
+    Array.from({ length: Math.min(Math.max(slots.length, 1), maxUrls) }, (_, i) =>
+      typeof slots[i] === "string" ? "url" : "doc",
+    ),
+  );
+  const count = Math.min(visibleCount, maxUrls);
+
+  function updateSlot(index: number, next: string) {
+    const nextSlots = slots.map((s) => (typeof s === "string" ? s : ""));
+    nextSlots[index] = next;
+    onChange(nextSlots.map((s) => s.trim()).filter(Boolean));
+  }
+
+  function removeSlot(index: number) {
+    const nextSlots = slots.filter((_, i) => i !== index).map((s) => (typeof s === "string" ? s : ""));
+    onChange(nextSlots.map((s) => s.trim()).filter(Boolean));
+    setKinds((prev) => prev.filter((_, i) => i !== index));
+    setVisibleCount((c) => Math.max(c - 1, 1));
+  }
+
+  return (
+    <div className={className}>
+      {Array.from({ length: count }, (_, index) => {
+        const kind = kinds[index] ?? "url";
+        const url = typeof slots[index] === "string" ? (slots[index] as string) : "";
+        return (
+          <div key={index} className="option-row">
+            <select
+              className="option-row__kind"
+              value={kind}
+              onChange={(e) => {
+                const next = [...kinds];
+                next[index] = e.target.value as "url" | "doc";
+                setKinds(next);
+              }}
+            >
+              <option value="url">URL pública</option>
+              <option value="doc">Documento interno</option>
+            </select>
+            {kind === "doc" ? (
+              <span className="runtime-evidence">Documento interno (se adjunta en la evaluación)</span>
+            ) : (
+              <input
+                type="url"
+                placeholder="https://..."
+                value={url}
+                aria-label={`URL ${index + 1}`}
+                onChange={(e) => updateSlot(index, e.target.value)}
+              />
+            )}
+            {count > 1 && (
+              <button type="button" className="btn btn--danger btn--sm" onClick={() => removeSlot(index)}>
+                Quitar
+              </button>
+            )}
+          </div>
+        );
+      })}
+      {count < maxUrls && (
+        <button type="button" className="btn btn--secondary btn--sm" onClick={() => setVisibleCount((c) => Math.min(c + 1, maxUrls))}>
+          Agregar referencia
+        </button>
+      )}
+    </div>
+  );
+}
+
 function PreviewSubOptions({
   level,
   exclusive = false,
@@ -572,7 +671,7 @@ function PreviewSubOptions({
                     )
               }
             />
-            {sub.label}
+            <RichLabel html={sub.label} />
           </label>
           {isSelected(sub.id) && sub.field && (
             <PreviewSubOptionField
@@ -596,7 +695,8 @@ function PreviewSubOptions({
             />
           )}
           {isSelected(sub.id) && sub.references && sub.references.position !== "after_suboptions" && (
-            <PreviewUrlList
+            <PreviewOptionReferences
+              refType={sub.references.refType ?? "public"}
               maxUrls={sub.references.maxUrls ?? 3}
               value={answers[`${subKey}::${sub.id}::refs`]}
               onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::refs`, next)}
@@ -613,7 +713,8 @@ function PreviewSubOptions({
             onAnswerChange={onAnswerChange}
           />
           {isSelected(sub.id) && sub.references && sub.references.position === "after_suboptions" && (
-            <PreviewUrlList
+            <PreviewOptionReferences
+              refType={sub.references.refType ?? "public"}
               maxUrls={sub.references.maxUrls ?? 3}
               value={answers[`${subKey}::${sub.id}::refs`]}
               onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::refs`, next)}
@@ -662,7 +763,7 @@ function PreviewCalculado({
     <label className="field runtime-question">
       <span className="field__label">
         {number && `${number} `}
-        {element.label || <em>(sin texto)</em>}
+        <RichLabel html={element.label} fallback={<em>(sin texto)</em>} />
       </span>
       {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
       <input value={display} disabled readOnly placeholder="(sin calcular)" />

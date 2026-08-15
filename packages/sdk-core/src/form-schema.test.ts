@@ -452,6 +452,48 @@ describe("formElement", () => {
     expect(result.success).toBe(false);
   });
 
+  // Referencias flexibles (VS-045, docs/engines/form.md "Formato en preguntas
+  // y opciones + referencias flexibles").
+  it("acepta references sin refType (default public implícito, compatible con VS-039)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", references: {} }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "seleccion_unica") {
+      expect(result.data.options[0]?.references?.refType).toBeUndefined();
+    }
+  });
+
+  it("acepta references con refType public/flexible explícito", () => {
+    const pub = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", references: { refType: "public" } }],
+    });
+    const flex = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", references: { refType: "flexible" } }],
+    });
+    expect(pub.success).toBe(true);
+    expect(flex.success).toBe(true);
+  });
+
+  it("rechaza references con refType desconocido", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A", references: { refType: "internal" } }],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("rechaza una sub-opción de 2do nivel con id vacío (VS-026)", () => {
     const result = formElement.safeParse({
       id: "1",

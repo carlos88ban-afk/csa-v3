@@ -46,6 +46,11 @@ const subSubOption = z.object({ id: z.string().min(1), label: z.string() });
 const optionReferences = z.object({
   maxUrls: z.number().int().positive().optional(), // default 3 (límite observado en S&P)
   position: z.enum(["before_suboptions", "after_suboptions"]).optional(),
+  // VS-045 (docs/engines/form.md "Formato en preguntas y opciones +
+  // referencias flexibles"): `flexible` = cada slot admite URL pública O
+  // documento interno (adjunto R2). Ausente = `public` (comportamiento
+  // VS-039). Un solo refType por bloque — S&P lo define a nivel de bloque.
+  refType: z.enum(["public", "flexible"]).optional(),
 });
 
 // Campo embebido en una sub-opción (VS-040, docs/engines/form.md "Campos

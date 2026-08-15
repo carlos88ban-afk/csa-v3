@@ -15,6 +15,7 @@ import {
   questionNumber,
   sanitizeCommentHtml,
   statusKey,
+  stripCommentHtml,
   subindicatorNumber,
   unitKey,
   type AnswerValue,
@@ -32,6 +33,7 @@ import CharacterCount from "@tiptap/extension-character-count";
 import StarterKit from "@tiptap/starter-kit";
 import { api } from "@/lib/api-client";
 import { Pill } from "@/components/ui";
+import { RichLabel } from "@/components/rich-label";
 
 const COMMENT_MAX_CHARS = 5000;
 
@@ -548,7 +550,7 @@ function SubOptionFieldView({
         <option value="">Seleccionar…</option>
         {field.options.map((opt) => (
           <option key={opt.id} value={opt.id}>
-            {opt.label}
+            {stripCommentHtml(opt.label)}
           </option>
         ))}
       </select>
@@ -589,13 +591,22 @@ function SubOptionsView({
   answers,
   onAnswerChange,
   exclusive = false,
+  token,
+  subindicatorId,
+  elementId,
 }: {
   subKey: string;
   subOptions: {
     id: string;
     label: string;
     subOptions?: { id: string; label: string }[] | undefined;
-    references?: { maxUrls?: number | undefined; position?: "before_suboptions" | "after_suboptions" | undefined } | undefined;
+    references?:
+      | {
+          maxUrls?: number | undefined;
+          position?: "before_suboptions" | "after_suboptions" | undefined;
+          refType?: "public" | "flexible" | undefined;
+        }
+      | undefined;
     field?: SubOptionField | undefined;
     // VS-042 (docs/engines/form.md "Tabla dentro de una sub-opción"): mismo
     // shape que el Elemento tabla_datos, reutilizado tal cual — solo nivel 1
@@ -608,6 +619,11 @@ function SubOptionsView({
   answers: ResponseAnswers;
   onAnswerChange: (key: string, value: AnswerValue) => void;
   exclusive?: boolean;
+  // VS-045: necesarios para subir documentos internos en referencias
+  // flexibles (presign-ref); el sub-checklist recursivo los re-propaga.
+  token: string;
+  subindicatorId: string;
+  elementId: string;
 }) {
   const selectedMulti = Array.isArray(value) && typeof value[0] === "string" ? (value as string[]) : [];
   const selectedSingle = typeof value === "string" ? value : undefined;
@@ -629,7 +645,7 @@ function SubOptionsView({
                   : onChange(isSelected(sub.id) ? selectedMulti.filter((id) => id !== sub.id) : [...selectedMulti, sub.id])
               }
             />
-            {sub.label}
+            <RichLabel html={sub.label} />
           </label>
           {isSelected(sub.id) && sub.field && (
             <SubOptionFieldView
@@ -657,10 +673,14 @@ function SubOptionsView({
           )}
           {isSelected(sub.id) && sub.references && sub.references.position !== "after_suboptions" && (
             <OptionReferencesView
+              refType={sub.references.refType ?? "public"}
               maxUrls={sub.references.maxUrls ?? 3}
-              value={answers[`${subKey}::${sub.id}::refs`] as string[] | undefined}
+              value={answers[`${subKey}::${sub.id}::refs`] as (string | EvidenceRef)[] | undefined}
               onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::refs`, next)}
               locked={locked}
+              token={token}
+              subindicatorId={subindicatorId}
+              elementId={elementId}
             />
           )}
           {isSelected(sub.id) && sub.subOptions && sub.subOptions.length > 0 && (
@@ -672,14 +692,21 @@ function SubOptionsView({
               locked={locked}
               answers={answers}
               onAnswerChange={onAnswerChange}
+              token={token}
+              subindicatorId={subindicatorId}
+              elementId={elementId}
             />
           )}
           {isSelected(sub.id) && sub.references && sub.references.position === "after_suboptions" && (
             <OptionReferencesView
+              refType={sub.references.refType ?? "public"}
               maxUrls={sub.references.maxUrls ?? 3}
-              value={answers[`${subKey}::${sub.id}::refs`] as string[] | undefined}
+              value={answers[`${subKey}::${sub.id}::refs`] as (string | EvidenceRef)[] | undefined}
               onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::refs`, next)}
               locked={locked}
+              token={token}
+              subindicatorId={subindicatorId}
+              elementId={elementId}
             />
           )}
         </div>
@@ -971,23 +998,209 @@ function UrlPublicaView({
   );
 }
 
-// Referencias de URL por opción (VS-039, docs/engines/form.md "Referencias
-// de URL por opción"): mismo patrón de slots que UrlPublicaView arriba,
-// clave de respuesta `${elementId}::${optionId}::refs` en vez de un Elemento
-// propio — se renderiza debajo de la opción seleccionada.
+// Referencias por opción (VS-039, docs/engines/form.md "Referencias de URL
+// por opción"): mismo patrón de slots que UrlPublicaView arriba, clave de
+// respuesta `${elementId}::${optionId}::refs` en vez de un Elemento propio —
+// se renderiza debajo de la opción seleccionada.
+//
+// VS-045 ("Referencias flexibles"): `refType` decide el contenido de los
+// slots — "public" conserva el comportamiento VS-039/040 (solo URLs, sin
+// subida de archivo); "flexible" deja elegir por slot entre URL pública y
+// documento interno (adjunto a R2, mismo patrón de presigned upload que
+// `evidencia` — ver docs/engines/evidences.md). Un slot vacío de tipo
+// documento se representa como `null` en el estado local y nunca se
+// persiste: el commit filtra vacíos, así hasAnswer() no cuenta un slot en
+// blanco como respuesta (mismo criterio que UrlSlotsView).
+function isDocRef(slot: string | EvidenceRef | null | undefined): slot is EvidenceRef {
+  return typeof slot === "object" && slot !== null;
+}
+
 function OptionReferencesView({
+  refType,
   maxUrls,
   value,
   onChange,
   locked,
+  token,
+  subindicatorId,
+  elementId,
 }: {
+  refType: "public" | "flexible";
   maxUrls: number;
-  value: string[] | undefined;
-  onChange: (value: string[]) => void;
+  value: (string | EvidenceRef)[] | undefined;
+  onChange: (value: (string | EvidenceRef)[]) => void;
   locked?: boolean | undefined;
+  token: string;
+  subindicatorId: string;
+  elementId: string;
 }) {
+  const slots = Array.isArray(value) ? value : [];
+
+  // refType public: solo URLs (VS-039/040) — un array heredado que traiga
+  // refs de documento se filtra al render (nunca se guardaron con refType
+  // public, pero defensa en profundidad ante datos inconsistentes).
+  if (refType !== "flexible") {
+    const urls = slots.filter((s): s is string => typeof s === "string");
+    return (
+      <UrlSlotsView
+        maxUrls={maxUrls}
+        value={urls}
+        onChange={(next) => onChange([...next])}
+        locked={locked}
+        className="runtime-url-list sub-options"
+      />
+    );
+  }
+
+  // refType flexible: un mini-select por slot (URL pública / Documento
+  // interno) + upload de adjunto a R2 para los slots de documento.
+  const [visibleCount, setVisibleCount] = useState(() => Math.max(slots.length, 1));
+  const [uploading, setUploading] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const count = Math.min(visibleCount, maxUrls);
+  const localSlots: (string | EvidenceRef | null)[] = Array.from(
+    { length: count },
+    (_, i) => slots[i] ?? null,
+  );
+
+  function commit(nextSlots: (string | EvidenceRef | null)[]) {
+    onChange(
+      nextSlots.filter((s): s is string | EvidenceRef =>
+        typeof s === "string" ? s.trim() !== "" : s !== null,
+      ),
+    );
+  }
+
+  function updateSlot(index: number, next: string | EvidenceRef | null) {
+    const nextSlots = [...localSlots];
+    nextSlots[index] = next;
+    commit(nextSlots);
+  }
+
+  function removeSlot(index: number) {
+    const current = localSlots[index];
+    if (isDocRef(current)) {
+      // El binario ya no pertenece a la Respuesta: borrarlo de R2
+      // (idempotente — ver DELETE /evidences). El fallo no bloquea la
+      // remoción local; el objeto huérfano se limpia con la Evaluación.
+      void api.del(`/api/public/evaluations/${token}/evidences`, { key: current.key }).catch(() => {});
+    }
+    commit(localSlots.filter((_, i) => i !== index));
+    setVisibleCount((c) => Math.max(c - 1, 1));
+  }
+
+  function changeKind(index: number, kind: "url" | "doc") {
+    // Cambiar el tipo vacía el slot (una URL no es un documento y
+    // viceversa); un slot doc previo borra su binario de R2.
+    const current = localSlots[index];
+    if (isDocRef(current)) {
+      void api.del(`/api/public/evaluations/${token}/evidences`, { key: current.key }).catch(() => {});
+    }
+    updateSlot(index, kind === "doc" ? null : "");
+  }
+
+  async function handleDocFile(index: number, file: File) {
+    setUploadError(null);
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError(`${file.name} supera el máximo de 10 MB`);
+      return;
+    }
+    setUploading(index);
+    try {
+      const { key, url } = await api.post<{ key: string; url: string }>(
+        `/api/public/evaluations/${token}/evidences/presign-ref`,
+        {
+          subindicatorId,
+          elementId,
+          fileName: file.name,
+          contentType: file.type || "application/octet-stream",
+          size: file.size,
+        },
+      );
+      const putRes = await fetch(url, { method: "PUT", body: file });
+      if (!putRes.ok) throw new Error(`Upload HTTP_${putRes.status}`);
+      updateSlot(index, { key, name: file.name, size: file.size, mimeType: file.type || "application/octet-stream" });
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "No se pudo subir el archivo");
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  async function downloadDoc(ref: EvidenceRef) {
+    try {
+      const { url } = await api.post<{ url: string }>(
+        `/api/public/evaluations/${token}/evidences/download-url`,
+        { key: ref.key },
+      );
+      window.open(url, "_blank", "noopener");
+    } catch {
+      setUploadError("No se pudo generar el enlace de descarga");
+    }
+  }
+
   return (
-    <UrlSlotsView maxUrls={maxUrls} value={value} onChange={onChange} locked={locked} className="runtime-url-list sub-options" />
+    <div className="runtime-url-list sub-options">
+      {localSlots.map((slot, index) => {
+        const doc = isDocRef(slot);
+        return (
+          <div key={index} className="option-row">
+            <select
+              className="option-row__kind"
+              value={doc ? "doc" : "url"}
+              disabled={locked}
+              onChange={(e) => changeKind(index, e.target.value as "url" | "doc")}
+            >
+              <option value="url">URL pública</option>
+              <option value="doc">Documento interno</option>
+            </select>
+            {doc ? (
+              <span className="runtime-evidence">
+                {!locked && (
+                  <input
+                    type="file"
+                    disabled={uploading !== null}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void handleDocFile(index, file);
+                      e.target.value = "";
+                    }}
+                  />
+                )}
+                {slot.name} ({(slot.size / 1024).toFixed(0)} KB)
+                <button type="button" className="btn btn--secondary btn--sm" onClick={() => void downloadDoc(slot)}>
+                  Ver
+                </button>
+              </span>
+            ) : (
+              <input
+                type="url"
+                value={typeof slot === "string" ? slot : ""}
+                disabled={locked}
+                placeholder="https://..."
+                onChange={(e) => updateSlot(index, e.target.value)}
+              />
+            )}
+            {!locked && count > 1 && (
+              <button type="button" className="btn btn--danger btn--sm" onClick={() => removeSlot(index)}>
+                Quitar
+              </button>
+            )}
+          </div>
+        );
+      })}
+      {!locked && count < maxUrls && (
+        <button type="button" className="btn btn--secondary btn--sm" onClick={() => setVisibleCount((c) => Math.min(c + 1, maxUrls))}>
+          Agregar referencia
+        </button>
+      )}
+      {uploading !== null && <p className="runtime-evidence__uploading">Subiendo…</p>}
+      {uploadError && (
+        <p className="runtime-evidence__error" role="alert">
+          {uploadError}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -1041,13 +1254,13 @@ function FormTableView({
 
   return (
     <table className="runtime-table">
-      <caption className="sr-only">{label}</caption>
+      <caption className="sr-only">{stripCommentHtml(label)}</caption>
       <thead>
         <tr>
           <th scope="col" />
           {columns.map((col) => (
             <th key={col.id} scope="col">
-              {col.label}
+              <RichLabel html={col.label} />
             </th>
           ))}
         </tr>
@@ -1062,7 +1275,7 @@ function FormTableView({
           return (
             <tr key={row.id}>
               <th scope="row">
-                {row.label}
+                <RichLabel html={row.label} />
                 {row.availableUnits && row.availableUnits.length > 0 && (
                   <select value={rowUnit} disabled={locked} onChange={(e) => onAnswerChange(rowUnitKey, e.target.value)}>
                     {row.availableUnits.map((u) => (
@@ -1087,7 +1300,7 @@ function FormTableView({
                         <option value="">Seleccionar…</option>
                         {(row.options ?? []).map((opt) => (
                           <option key={opt.id} value={opt.id}>
-                            {opt.label}
+                            {stripCommentHtml(opt.label)}
                           </option>
                         ))}
                       </select>
@@ -1306,7 +1519,11 @@ function NaCommentRow({
 
 function ElementView({ token, subindicatorId, element, number, answers, value, onChange, onAnswerChange }: ElementViewProps) {
   if (element.type === "instruccion") {
-    return <p className="runtime-instruction">{element.label}</p>;
+    return (
+      <p className="runtime-instruction">
+        <RichLabel html={element.label} />
+      </p>
+    );
   }
 
   if (element.type === "banner") {
@@ -1349,7 +1566,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
       <fieldset className="field runtime-question">
         <legend className="field__label">
           {number && `${number} `}
-          {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
+          <RichLabel html={element.label} fallback={<em>(sin texto)</em>} /> {element.required && <Pill variant="warn">obligatorio</Pill>}
         </legend>
         {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
         <UrlPublicaView element={element} value={urls} onChange={(next) => onChange(next)} locked={locked} />
@@ -1365,7 +1582,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
       <fieldset className="field runtime-question">
         <legend className="field__label">
           {number && `${number} `}
-          {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
+          <RichLabel html={element.label} fallback={<em>(sin texto)</em>} /> {element.required && <Pill variant="warn">obligatorio</Pill>}
         </legend>
         {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
         <EvidenceView
@@ -1388,7 +1605,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
       <fieldset className="field runtime-question">
         <legend className="field__label">
           {number && `${number} `}
-          {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
+          <RichLabel html={element.label} fallback={<em>(sin texto)</em>} /> {element.required && <Pill variant="warn">obligatorio</Pill>}
         </legend>
         {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
 <FormTableView
@@ -1425,14 +1642,14 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
         <label className="field">
           <span className="field__label">
             {number && `${number} `}
-            {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
+            <RichLabel html={element.label} fallback={<em>(sin texto)</em>} /> {element.required && <Pill variant="warn">obligatorio</Pill>}
           </span>
           {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
           <select value={(value as string) ?? ""} disabled={locked} onChange={(e) => onChange(e.target.value)}>
             <option value="">Seleccionar…</option>
             {element.options.map((opt) => (
               <option key={opt.id} value={opt.id}>
-                {opt.label}
+                <RichLabel html={opt.label} />
               </option>
             ))}
           </select>
@@ -1454,7 +1671,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
         <label className="field">
           <span className="field__label">
             {number && `${number} `}
-            {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
+            <RichLabel html={element.label} fallback={<em>(sin texto)</em>} /> {element.required && <Pill variant="warn">obligatorio</Pill>}
           </span>
           {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
 
@@ -1517,7 +1734,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
     <fieldset className="field runtime-question">
       <legend className="field__label">
         {number && `${number} `}
-          {element.label || <em>(sin texto)</em>} {element.required && <Pill variant="warn">obligatorio</Pill>}
+          <RichLabel html={element.label} fallback={<em>(sin texto)</em>} /> {element.required && <Pill variant="warn">obligatorio</Pill>}
       </legend>
       {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
 
@@ -1533,14 +1750,18 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                   checked={value === opt.id}
                   onChange={() => onChange(opt.id)}
                 />
-                {opt.label}
+                <RichLabel html={opt.label} />
               </label>
               {value === opt.id && opt.references && opt.references.position !== "after_suboptions" && (
                 <OptionReferencesView
+                  refType={opt.references.refType ?? "public"}
                   maxUrls={opt.references.maxUrls ?? 3}
-                  value={answers[`${element.id}::${opt.id}::refs`] as string[] | undefined}
+                  value={answers[`${element.id}::${opt.id}::refs`] as (string | EvidenceRef)[] | undefined}
                   onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
                   locked={locked}
+                  token={token}
+                  subindicatorId={subindicatorId}
+                  elementId={element.id}
                 />
               )}
               {value === opt.id && opt.subOptions && opt.subOptions.length > 0 && (
@@ -1553,14 +1774,21 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                   answers={answers}
                   onAnswerChange={onAnswerChange}
                   exclusive={opt.subOptionsExclusive ?? false}
+                  token={token}
+                  subindicatorId={subindicatorId}
+                  elementId={element.id}
                 />
               )}
               {value === opt.id && opt.references && opt.references.position === "after_suboptions" && (
                 <OptionReferencesView
+                  refType={opt.references.refType ?? "public"}
                   maxUrls={opt.references.maxUrls ?? 3}
-                  value={answers[`${element.id}::${opt.id}::refs`] as string[] | undefined}
+                  value={answers[`${element.id}::${opt.id}::refs`] as (string | EvidenceRef)[] | undefined}
                   onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
                   locked={locked}
+                  token={token}
+                  subindicatorId={subindicatorId}
+                  elementId={element.id}
                 />
               )}
             </div>
@@ -1584,14 +1812,18 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                         onChange(e.target.checked ? [...selected, opt.id] : selected.filter((id) => id !== opt.id))
                       }
                     />
-                    {opt.label}
+                    <RichLabel html={opt.label} />
                   </label>
                   {selected.includes(opt.id) && opt.references && opt.references.position !== "after_suboptions" && (
                     <OptionReferencesView
+                      refType={opt.references.refType ?? "public"}
                       maxUrls={opt.references.maxUrls ?? 3}
-                      value={answers[`${element.id}::${opt.id}::refs`] as string[] | undefined}
+                      value={answers[`${element.id}::${opt.id}::refs`] as (string | EvidenceRef)[] | undefined}
                       onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
                       locked={locked}
+                      token={token}
+                      subindicatorId={subindicatorId}
+                      elementId={element.id}
                     />
                   )}
                   {selected.includes(opt.id) && opt.subOptions && opt.subOptions.length > 0 && (
@@ -1604,14 +1836,21 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                       answers={answers}
                       onAnswerChange={onAnswerChange}
                       exclusive={opt.subOptionsExclusive ?? false}
+                      token={token}
+                      subindicatorId={subindicatorId}
+                      elementId={element.id}
                     />
                   )}
                   {selected.includes(opt.id) && opt.references && opt.references.position === "after_suboptions" && (
                     <OptionReferencesView
+                      refType={opt.references.refType ?? "public"}
                       maxUrls={opt.references.maxUrls ?? 3}
-                      value={answers[`${element.id}::${opt.id}::refs`] as string[] | undefined}
+                      value={answers[`${element.id}::${opt.id}::refs`] as (string | EvidenceRef)[] | undefined}
                       onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
                       locked={locked}
+                      token={token}
+                      subindicatorId={subindicatorId}
+                      elementId={element.id}
                     />
                   )}
                 </div>

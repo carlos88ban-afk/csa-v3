@@ -43,19 +43,25 @@ function csvCell(value: string): string {
   return value;
 }
 
-// Referencias de URL por opción (VS-039, docs/engines/form.md "Referencias
-// de URL por opción"): sufijo del label de la opción elegida, mismo criterio
-// que url_publica ("; " join, sin resolución de labels — son URLs literales)
-// — no una fila/columna nueva, sigue siendo "una fila por Elemento".
+// Referencias por opción (VS-039, docs/engines/form.md "Referencias de URL
+// por opción"; VS-045 "Referencias flexibles"): sufijo del label de la
+// opción elegida, mismo criterio que url_publica ("; " join, sin resolución
+// de labels) — no una fila/columna nueva, sigue siendo "una fila por
+// Elemento". Con refType flexible un slot puede ser URL literal o documento
+// interno, que se serializa `[Archivo: {name}]` (el binario no viaja en
+// CSV).
 function formatOptionReferences(
-  opt: { id: string; references?: { maxUrls?: number | undefined } | undefined },
+  opt: { id: string; references?: { maxUrls?: number | undefined; refType?: "public" | "flexible" | undefined } | undefined },
   refsKey: string,
   answers: ResponseAnswers,
 ): string {
   if (!opt.references) return "";
   const refs = answers[refsKey];
-  const urls = Array.isArray(refs) ? refs.map((u) => String(u)) : [];
-  return urls.length > 0 ? ` (Referencias: ${urls.join("; ")})` : "";
+  const slots = Array.isArray(refs) ? refs : [];
+  const parts = slots.map((u) =>
+    u && typeof u === "object" && "name" in u ? `[Archivo: ${String((u as { name: unknown }).name)}]` : String(u),
+  );
+  return parts.length > 0 ? ` (Referencias: ${parts.join("; ")})` : "";
 }
 
 type SeleccionOption = Extract<FormElement, { type: "seleccion_unica" }>["options"][number];
@@ -78,8 +84,11 @@ function formatSubOptionExtras(sub: SubOptionNode, subOptionKey: string, answers
   }
   if (sub.references) {
     const refs = answers[`${subOptionKey}::refs`];
-    const urls = Array.isArray(refs) ? refs.map((u) => String(u)) : [];
-    if (urls.length > 0) parts.push(`Referencias: ${urls.join("; ")}`);
+    const slots = Array.isArray(refs) ? refs : [];
+    const refParts = slots.map((u) =>
+      u && typeof u === "object" && "name" in u ? `[Archivo: ${String((u as { name: unknown }).name)}]` : String(u),
+    );
+    if (refParts.length > 0) parts.push(`Referencias: ${refParts.join("; ")}`);
   }
   // Tabla embebida en una sub-opción (VS-042, docs/engines/form.md "Tabla
   // dentro de una sub-opción"): misma serialización que tabla_datos, con la
@@ -102,11 +111,11 @@ function formatSubOptionExtras(sub: SubOptionNode, subOptionKey: string, answers
               const cell = rowValue[col.id];
               if (cell === undefined || cell === "") return null;
               const resolved =
-                row.cellType === "seleccion_desplegable" ? (row.options?.find((o) => o.id === cell)?.label ?? String(cell)) : String(cell);
-              return `${col.label}=${resolved}${unit && row.cellType === "numero" ? ` ${unit}` : ""}`;
+                row.cellType === "seleccion_desplegable" ? (stripCommentHtml(row.options?.find((o) => o.id === cell)?.label ?? "") || String(cell)) : String(cell);
+              return `${stripCommentHtml(col.label)}=${resolved}${unit && row.cellType === "numero" ? ` ${unit}` : ""}`;
             })
             .filter((c): c is string => c !== null);
-          return cells.length > 0 ? `${row.label}: ${cells.join(", ")}` : null;
+          return cells.length > 0 ? `${stripCommentHtml(row.label)}: ${cells.join(", ")}` : null;
         })
         .filter((r): r is string => r !== null)
         .join("; ");
@@ -123,7 +132,7 @@ function formatSubOptionExtras(sub: SubOptionNode, subOptionKey: string, answers
 // misma celda Respuesta.
 function formatOptionLabel(opt: SeleccionOption, elementId: string, answers: ResponseAnswers): string {
   const optKey = `${elementId}::${opt.id}`;
-  let label = `${opt.label}${formatOptionReferences(opt, `${optKey}::refs`, answers)}`;
+  let label = `${stripCommentHtml(opt.label)}${formatOptionReferences(opt, `${optKey}::refs`, answers)}`;
   if (opt.subOptions && opt.subOptions.length > 0) {
     const subValue = answers[optKey];
     const selectedSubIds = Array.isArray(subValue)
@@ -134,7 +143,7 @@ function formatOptionLabel(opt: SeleccionOption, elementId: string, answers: Res
     const subParts = selectedSubIds
       .map((subId) => {
         const sub = opt.subOptions?.find((s) => s.id === subId);
-        return sub ? `${sub.label}${formatSubOptionExtras(sub, `${optKey}::${subId}`, answers)}` : null;
+        return sub ? `${stripCommentHtml(sub.label)}${formatSubOptionExtras(sub, `${optKey}::${subId}`, answers)}` : null;
       })
       .filter((s): s is string => s !== null);
     if (subParts.length > 0) label += ` — ${subParts.join("; ")}`;
@@ -155,7 +164,7 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
   }
   if (element.type === "seleccion_desplegable") {
     const opt = element.options.find((o) => o.id === value);
-    return opt?.label ?? String(value);
+    return opt ? stripCommentHtml(opt.label) : String(value);
   }
   if (element.type === "seleccion_multiple") {
     const ids = Array.isArray(value) ? value : [];
@@ -198,11 +207,11 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
             const cell = rowValue[col.id];
             if (cell === undefined || cell === "") return null;
             const resolved =
-              row.cellType === "seleccion_desplegable" ? (row.options?.find((o) => o.id === cell)?.label ?? String(cell)) : String(cell);
-            return `${col.label}=${resolved}${unit && row.cellType === "numero" ? ` ${unit}` : ""}`;
+              row.cellType === "seleccion_desplegable" ? (stripCommentHtml(row.options?.find((o) => o.id === cell)?.label ?? "") || String(cell)) : String(cell);
+            return `${stripCommentHtml(col.label)}=${resolved}${unit && row.cellType === "numero" ? ` ${unit}` : ""}`;
           })
           .filter((c): c is string => c !== null);
-        return cells.length > 0 ? `${row.label}: ${cells.join(", ")}` : null;
+        return cells.length > 0 ? `${stripCommentHtml(row.label)}: ${cells.join(", ")}` : null;
       })
       .filter((r): r is string => r !== null)
       .join("; ");
@@ -245,7 +254,7 @@ function subindicatorRows(
       indTitle,
       sub.title,
       questionNumber(qIndex),
-      el.label || "(sin texto)",
+      stripCommentHtml(el.label) || "(sin texto)",
       componentRegistry.find((c) => c.type === el.type)?.label ?? el.type,
       formatAnswer(el, answers[el.id], markedNA, answers),
       STATUS_LABEL[derived],

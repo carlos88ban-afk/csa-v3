@@ -4,6 +4,16 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-045 — Formato (rich text) en preguntas y opciones + referencias flexibles (2026-08-14)
+
+- 6.ª inspección AN-001: HTML real de la pregunta `COG_BoardIndependence_AttachmentBoardIndependenceStatement` enviado por el usuario — el texto de la pregunta y de las opciones lleva negritas y múltiples párrafos, y la fila de referencias de la opción "Sí" es `data-ref-type="flexible"` (admite URL pública O documento interno). Alcance confirmado con el usuario: rich text en todas las preguntas y opciones + referencias flexibles incluidas en el mismo slice.
+- `packages/sdk-core/src/form-schema.ts`: `optionReferences` gana `refType?: "public" | "flexible"` (default `public` = comportamiento VS-039, compatible hacia atrás; un solo refType por bloque, como en S&P). Labels sin cambio de tipo — siguen siendo `z.string()` (HTML sanitizado, mismo criterio que `banner.content` en VS-038, sin migración de datos).
+- `packages/sdk-core/src/response.ts`: `answerValue` gana el branch `z.array(z.union([z.string(), evidenceRef]))` — las refs de opción/sub-opción pasan a aceptar slots mixtos (URL literal o `EvidenceRef`); los arrays de strings guardados antes siguen validando contra la unión.
+- **Builder** (`subindicator-editor.tsx` + editor legado de subindicadores directos): los `<input>` de label (Elemento, opciones, sub-opciones, columnas, filas, opciones de campo) → `RichTextEditor` compartido (paste con formato nativo de TipTap, sanitizado con `sanitizeCommentHtml`). El bloque de referencias gana el selector "Tipo de referencia: URL pública / Flexible".
+- **Runtime/Preview**: nuevo `RichLabel` renderiza todos los labels con `dangerouslySetInnerHTML` + re-sanitización en el borde de lectura (defensa en profundidad, mismo criterio que banner). `OptionReferencesView` con `refType: "flexible"` muestra por slot un mini-select "URL pública / Documento interno" — en modo documento, mini-flujo de adjunto a R2 reutilizando el patrón de `evidencia` (presigned upload, solo `{key,name,size,mimeType}` en la Respuesta).
+- **Export CSV**: labels serializados con `stripCommentHtml`; slots de referencia: URL literal o `[Archivo: {name}]` (los binarios no viajan en el CSV, mismo criterio que `evidencia`).
+- Verificado: `pnpm typecheck`/`build`/`test` en verde.
+
 ### VS-042 — Tabla embebida dentro de una sub-opción (2026-08-14)
 
 - 5.ª inspección AN-001: el HTML real de S&P (pregunta 0.1 "COG_BoardType_Selection") anida una tabla con fila de fórmula DENTRO de una sub-opción marcada — el patrón completo era radio → sub-radio → tabla anidada. VS-040/041 ya cubrían radio → sub-radio; faltaba la tabla anidada.

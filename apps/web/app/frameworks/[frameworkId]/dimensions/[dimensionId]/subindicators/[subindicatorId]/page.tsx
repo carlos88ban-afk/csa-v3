@@ -479,7 +479,13 @@ export default function DirectSubindicatorFormEditorPage({ params }: Props) {
 
               <label className="field">
                 <span className="field__label">{el.type === "banner" ? "Título" : "Texto"}</span>
-                <input value={el.label} onChange={(e) => updateElement(el.id, { label: e.target.value })} />
+                {/* VS-045: labels con formato en todos los Elementos;
+                    banner.label queda texto plano (decisión VS-038) */}
+                {el.type === "banner" ? (
+                  <input value={el.label} onChange={(e) => updateElement(el.id, { label: e.target.value })} />
+                ) : (
+                  <RichTextEditor value={el.label} onChange={(html) => updateElement(el.id, { label: html })} ariaLabel="Texto del elemento" />
+                )}
               </label>
 
               {el.type === "banner" && (
@@ -652,7 +658,13 @@ export default function DirectSubindicatorFormEditorPage({ params }: Props) {
                   <span className="options__label">Opciones</span>
                   {el.options.map((opt) => (
                     <div className="option-row" key={opt.id}>
-                      <input value={opt.label} onChange={(e) => updateOption(el.id, opt.id, e.target.value)} />
+                      <div className="option-row__editor">
+                        <RichTextEditor
+                          value={opt.label}
+                          onChange={(html) => updateOption(el.id, opt.id, html)}
+                          ariaLabel="Texto de la opción"
+                        />
+                      </div>
                       <Button
                         type="button"
                         variant="danger"
@@ -676,7 +688,13 @@ export default function DirectSubindicatorFormEditorPage({ params }: Props) {
                   {el.options.map((opt) => (
                     <div className="option-row-group" key={opt.id}>
                       <div className="option-row">
-                        <input value={opt.label} onChange={(e) => updateOption(el.id, opt.id, e.target.value)} />
+                        <div className="option-row__editor">
+                          <RichTextEditor
+                            value={opt.label}
+                            onChange={(html) => updateOption(el.id, opt.id, html)}
+                            ariaLabel="Texto de la opción"
+                          />
+                        </div>
                         <Button
                           type="button"
                           variant="danger"
@@ -691,11 +709,13 @@ export default function DirectSubindicatorFormEditorPage({ params }: Props) {
                         {(opt.subOptions ?? []).map((sub) => (
                           <div key={sub.id}>
                             <div className="option-row option-row--sub">
-                              <input
-                                value={sub.label}
-                                placeholder="Sub-opción"
-                                onChange={(e) => updateSubOption(el.id, opt.id, sub.id, e.target.value)}
-                              />
+                              <div className="option-row__editor">
+                                <RichTextEditor
+                                  value={sub.label}
+                                  onChange={(html) => updateSubOption(el.id, opt.id, sub.id, html)}
+                                  ariaLabel="Texto de la sub-opción"
+                                />
+                              </div>
                               <Button
                                 type="button"
                                 variant="danger"
@@ -708,11 +728,13 @@ export default function DirectSubindicatorFormEditorPage({ params }: Props) {
                             <div className="sub-options" style={{ marginLeft: "var(--space-4)" }}>
                               {(sub.subOptions ?? []).map((subsub) => (
                                 <div className="option-row option-row--subsub" key={subsub.id}>
-                                  <input
-                                    value={subsub.label}
-                                    placeholder="Sub-sub-opción"
-                                    onChange={(e) => updateSubSubOption(el.id, opt.id, sub.id, subsub.id, e.target.value)}
-                                  />
+                                  <div className="option-row__editor">
+                                    <RichTextEditor
+                                      value={subsub.label}
+                                      onChange={(html) => updateSubSubOption(el.id, opt.id, sub.id, subsub.id, html)}
+                                      ariaLabel="Texto de la sub-sub-opción"
+                                    />
+                                  </div>
                                   <Button
                                     type="button"
                                     variant="danger"
@@ -860,11 +882,13 @@ export default function DirectSubindicatorFormEditorPage({ params }: Props) {
                     <span className="options__label">Columnas</span>
                     {el.columns.map((col) => (
                       <div className="option-row" key={col.id}>
-                        <input
-                          value={col.label}
-                          placeholder="Encabezado de columna, ej. FY 2024"
-                          onChange={(e) => updateColumn(el.id, col.id, e.target.value)}
-                        />
+                        <div className="option-row__editor">
+                          <RichTextEditor
+                            value={col.label}
+                            onChange={(html) => updateColumn(el.id, col.id, html)}
+                            ariaLabel="Encabezado de columna"
+                          />
+                        </div>
                         <Button
                           type="button"
                           variant="danger"
@@ -886,11 +910,13 @@ export default function DirectSubindicatorFormEditorPage({ params }: Props) {
                     {el.rows.map((row) => (
                       <div className="option-row-group" key={row.id}>
                         <div className="option-row">
-                          <input
-                            value={row.label}
-                            placeholder="Encabezado de fila, ej. Total Scope 1"
-                            onChange={(e) => updateRow(el.id, row.id, { label: e.target.value })}
-                          />
+                          <div className="option-row__editor">
+                            <RichTextEditor
+                              value={row.label}
+                              onChange={(html) => updateRow(el.id, row.id, { label: html })}
+                              ariaLabel="Encabezado de fila"
+                            />
+                          </div>
                           <select
                             value={row.cellType}
                             onChange={(e) =>
@@ -972,11 +998,13 @@ export default function DirectSubindicatorFormEditorPage({ params }: Props) {
                           <div className="sub-options">
                             {(row.options ?? []).map((opt) => (
                               <div className="option-row option-row--sub" key={opt.id}>
-                                <input
-                                  value={opt.label}
-                                  placeholder="Opción"
-                                  onChange={(e) => updateRowOption(el.id, row.id, opt.id, e.target.value)}
-                                />
+                                <div className="option-row__editor">
+                                  <RichTextEditor
+                                    value={opt.label}
+                                    onChange={(html) => updateRowOption(el.id, row.id, opt.id, html)}
+                                    ariaLabel="Texto de la opción"
+                                  />
+                                </div>
                                 <Button
                                   type="button"
                                   variant="danger"

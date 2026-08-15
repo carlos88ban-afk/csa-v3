@@ -202,11 +202,13 @@ function TableConfigEditor({
         <span className="options__label">Columnas</span>
         {columns.map((col) => (
           <div className="option-row" key={col.id}>
-            <input
-              value={col.label}
-              placeholder="Encabezado de columna, ej. FY 2024"
-              onChange={(e) => updateColumn(col.id, e.target.value)}
-            />
+            <div className="option-row__editor">
+              <RichTextEditor
+                value={col.label}
+                onChange={(html) => updateColumn(col.id, html)}
+                ariaLabel="Encabezado de columna"
+              />
+            </div>
             <Button type="button" variant="danger" size="sm" onClick={() => removeColumn(col.id)} disabled={columns.length <= 1}>
               Quitar
             </Button>
@@ -222,11 +224,9 @@ function TableConfigEditor({
         {rows.map((row) => (
           <div className="option-row-group" key={row.id}>
             <div className="option-row">
-              <input
-                value={row.label}
-                placeholder="Encabezado de fila, ej. Total Scope 1"
-                onChange={(e) => updateRow(row.id, { label: e.target.value })}
-              />
+              <div className="option-row__editor">
+                <RichTextEditor value={row.label} onChange={(html) => updateRow(row.id, { label: html })} ariaLabel="Encabezado de fila" />
+              </div>
               <select
                 value={row.cellType}
                 onChange={(e) =>
@@ -295,11 +295,13 @@ function TableConfigEditor({
               <div className="sub-options">
                 {(row.options ?? []).map((opt) => (
                   <div className="option-row option-row--sub" key={opt.id}>
-                    <input
-                      value={opt.label}
-                      placeholder="Opción"
-                      onChange={(e) => updateRowOption(row.id, opt.id, e.target.value)}
-                    />
+                    <div className="option-row__editor">
+                      <RichTextEditor
+                        value={opt.label}
+                        onChange={(html) => updateRowOption(row.id, opt.id, html)}
+                        ariaLabel="Opción de fila"
+                      />
+                    </div>
                     <Button
                       type="button"
                       variant="danger"
@@ -664,6 +666,22 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     );
   }
 
+  // VS-045 (docs/engines/form.md "Referencias flexibles"): un solo tipo por
+  // bloque de referencias — "public" (URLs solamente, comportamiento
+  // VS-039/040) o "flexible" (cada slot elige URL o documento interno).
+  function updateOptionReferencesRefType(elementId: string, optionId: string, refType: "public" | "flexible" | undefined) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return {
+          ...el,
+          options: el.options.map((opt) => (opt.id === optionId ? { ...opt, references: { ...opt.references, refType } } : opt)),
+        };
+      }),
+    );
+  }
+
   function toggleSubOptionsExclusive(elementId: string, optionId: string, exclusive: boolean) {
     commit(
       elements.map((el) => {
@@ -744,6 +762,17 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     position: "before_suboptions" | "after_suboptions" | undefined,
   ) {
     updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, references: { ...sub.references, position } }));
+  }
+
+  // VS-045: refType de las referencias de una sub-opción (ver
+  // updateOptionReferencesRefType arriba).
+  function updateSubOptionReferencesRefType(
+    elementId: string,
+    optionId: string,
+    subOptionId: string,
+    refType: "public" | "flexible" | undefined,
+  ) {
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, references: { ...sub.references, refType } }));
   }
 
   function addSubOptionField(elementId: string, optionId: string, subOptionId: string, type: SubOptionField["type"]) {
@@ -974,14 +1003,25 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                       <span className="field__label">
                         {isQuestion(el) ? "Texto de la pregunta" : el.type === "banner" ? "Título" : "Texto"}
                       </span>
-                      <input
-                        id={`element-label-${el.id}`}
-                        value={el.label}
-                        onChange={(e) => updateElement(el.id, { label: e.target.value })}
-                        ref={(node) => {
-                          labelRefs.current[el.id] = node;
-                        }}
-                      />
+                      {/* VS-045: labels con formato en todos los Elementos
+                          (docs/engines/form.md); banner.label queda texto plano
+                          (decisión VS-038: el título del banner no lleva HTML) */}
+                      {el.type === "banner" ? (
+                        <input
+                          id={`element-label-${el.id}`}
+                          value={el.label}
+                          onChange={(e) => updateElement(el.id, { label: e.target.value })}
+                          ref={(node) => {
+                            labelRefs.current[el.id] = node;
+                          }}
+                        />
+                      ) : (
+                        <RichTextEditor
+                          value={el.label}
+                          onChange={(html) => updateElement(el.id, { label: html })}
+                          ariaLabel={isQuestion(el) ? "Texto de la pregunta" : "Texto del elemento"}
+                        />
+                      )}
                     </label>
                     {el.type === "banner" && (
                       <RichTextEditor
@@ -1033,7 +1073,13 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                           <span className="options__label">Opciones</span>
                           {el.options.map((opt) => (
                             <div className="option-row" key={opt.id}>
-                              <input value={opt.label} onChange={(e) => updateOption(el.id, opt.id, e.target.value)} />
+                              <div className="option-row__editor">
+                                <RichTextEditor
+                                  value={opt.label}
+                                  onChange={(html) => updateOption(el.id, opt.id, html)}
+                                  ariaLabel="Texto de la opción"
+                                />
+                              </div>
                               <Button
                                 type="button"
                                 variant="danger"
@@ -1057,7 +1103,13 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                           {el.options.map((opt) => (
                             <div className="option-row-group" key={opt.id}>
                               <div className="option-row">
-                                <input value={opt.label} onChange={(e) => updateOption(el.id, opt.id, e.target.value)} />
+                                <div className="option-row__editor">
+                                  <RichTextEditor
+                                    value={opt.label}
+                                    onChange={(html) => updateOption(el.id, opt.id, html)}
+                                    ariaLabel="Texto de la opción"
+                                  />
+                                </div>
                                 <Button
                                   type="button"
                                   variant="danger"
@@ -1082,11 +1134,13 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                 {(opt.subOptions ?? []).map((sub) => (
                                   <div key={sub.id}>
                                     <div className="option-row option-row--sub">
-                                      <input
-                                        value={sub.label}
-                                        placeholder="Sub-opción"
-                                        onChange={(e) => updateSubOption(el.id, opt.id, sub.id, e.target.value)}
-                                      />
+                                      <div className="option-row__editor">
+                                        <RichTextEditor
+                                          value={sub.label}
+                                          onChange={(html) => updateSubOption(el.id, opt.id, sub.id, html)}
+                                          ariaLabel="Texto de la sub-opción"
+                                        />
+                                      </div>
                                       <Button
                                         type="button"
                                         variant="danger"
@@ -1135,10 +1189,13 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                             <div className="options" style={{ marginLeft: "var(--space-4)" }}>
                                               {selectField.options.map((fo) => (
                                                 <div className="option-row" key={fo.id}>
-                                                  <input
-                                                    value={fo.label}
-                                                    onChange={(e) => updateSubOptionFieldOption(el.id, opt.id, sub.id, fo.id, e.target.value)}
-                                                  />
+                                                  <div className="option-row__editor">
+                                                    <RichTextEditor
+                                                      value={fo.label}
+                                                      onChange={(html) => updateSubOptionFieldOption(el.id, opt.id, sub.id, fo.id, html)}
+                                                      ariaLabel="Texto de la opción del campo"
+                                                    />
+                                                  </div>
                                                   <Button
                                                     type="button"
                                                     variant="danger"
@@ -1278,6 +1335,23 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                               <option value="after_suboptions">Después de las sub-opciones</option>
                                             </select>
                                           </label>
+                                          <label className="field">
+                                            <span className="field__label">Tipo de referencia</span>
+                                            <select
+                                              value={sub.references.refType ?? "public"}
+                                              onChange={(e) =>
+                                                updateSubOptionReferencesRefType(
+                                                  el.id,
+                                                  opt.id,
+                                                  sub.id,
+                                                  e.target.value === "flexible" ? "flexible" : undefined,
+                                                )
+                                              }
+                                            >
+                                              <option value="public">URL pública</option>
+                                              <option value="flexible">Flexible (URL o documento interno)</option>
+                                            </select>
+                                          </label>
                                           <Button
                                             type="button"
                                             variant="danger"
@@ -1289,18 +1363,20 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                         </div>
                                       ) : (
                                         <Button type="button" size="sm" onClick={() => addSubOptionReferences(el.id, opt.id, sub.id)}>
-                                          Agregar referencias (URL)
+                                          Agregar referencias
                                         </Button>
                                       )}
                                     </div>
                                     <div className="sub-options" style={{ marginLeft: "var(--space-4)" }}>
                                       {(sub.subOptions ?? []).map((subsub) => (
                                         <div className="option-row option-row--subsub" key={subsub.id}>
-                                          <input
-                                            value={subsub.label}
-                                            placeholder="Sub-sub-opción"
-                                            onChange={(e) => updateSubSubOption(el.id, opt.id, sub.id, subsub.id, e.target.value)}
-                                          />
+                                          <div className="option-row__editor">
+                                            <RichTextEditor
+                                              value={subsub.label}
+                                              onChange={(html) => updateSubSubOption(el.id, opt.id, sub.id, subsub.id, html)}
+                                              ariaLabel="Texto de la sub-sub-opción"
+                                            />
+                                          </div>
                                           <Button
                                             type="button"
                                             variant="danger"
@@ -1341,21 +1417,37 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                       />
                                     </label>
                                     <label className="field">
-                                      <span className="field__label">Posición de las URLs</span>
-                                      <select
-                                        value={opt.references.position ?? "before_suboptions"}
-                                        onChange={(e) =>
-                                          updateOptionReferencesPosition(
-                                            el.id,
-                                            opt.id,
-                                            e.target.value === "after_suboptions" ? "after_suboptions" : undefined,
-                                          )
-                                        }
-                                      >
-                                        <option value="before_suboptions">Antes de las sub-opciones</option>
-                                        <option value="after_suboptions">Después de las sub-opciones</option>
-                                      </select>
-                                    </label>
+                                        <span className="field__label">Posición de las URLs</span>
+                                        <select
+                                          value={opt.references.position ?? "before_suboptions"}
+                                          onChange={(e) =>
+                                            updateOptionReferencesPosition(
+                                              el.id,
+                                              opt.id,
+                                              e.target.value === "after_suboptions" ? "after_suboptions" : undefined,
+                                            )
+                                          }
+                                        >
+                                          <option value="before_suboptions">Antes de las sub-opciones</option>
+                                          <option value="after_suboptions">Después de las sub-opciones</option>
+                                        </select>
+                                      </label>
+                                      <label className="field">
+                                        <span className="field__label">Tipo de referencia</span>
+                                        <select
+                                          value={opt.references.refType ?? "public"}
+                                          onChange={(e) =>
+                                            updateOptionReferencesRefType(
+                                              el.id,
+                                              opt.id,
+                                              e.target.value === "flexible" ? "flexible" : undefined,
+                                            )
+                                          }
+                                        >
+                                          <option value="public">URL pública</option>
+                                          <option value="flexible">Flexible (URL o documento interno)</option>
+                                        </select>
+                                      </label>
                                     <Button
                                       type="button"
                                       variant="danger"
@@ -1367,7 +1459,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                   </div>
                                 ) : (
                                   <Button type="button" size="sm" onClick={() => addOptionReferences(el.id, opt.id)}>
-                                    Agregar referencias (URL)
+                                    Agregar referencias
                                   </Button>
                                 )}
                               </div>

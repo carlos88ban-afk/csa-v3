@@ -43,6 +43,15 @@ describe("answerValue", () => {
     expect(answerValue.safeParse([sampleRef]).success).toBe(true);
   });
 
+  it("acepta un array mixto de URLs y refs de evidencia (referencias flexibles VS-045)", () => {
+    const result = answerValue.safeParse(["https://ejemplo.com/doc", sampleRef]);
+    expect(result.success).toBe(true);
+  });
+
+  it("acepta un array legacy de strings (refs URL pre-VS-045)", () => {
+    expect(answerValue.safeParse(["https://a.com", "https://b.com"]).success).toBe(true);
+  });
+
   it("rechaza un objeto de un solo nivel (no matriz fila->columna->valor)", () => {
     const result = answerValue.safeParse({ text: "x" });
     expect(result.success).toBe(false);

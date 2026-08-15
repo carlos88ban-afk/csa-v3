@@ -24,11 +24,20 @@ export const tableCellValue = z.union([z.string(), z.number()]);
 export const tableValue = z.record(z.string(), z.record(z.string(), tableCellValue));
 export type TableValue = z.infer<typeof tableValue>;
 
+// Referencias flexibles por opción/sub-opción (VS-045, docs/engines/form.md):
+// cada slot es una URL literal (refType "public") o una EvidenceRef
+// (refType "flexible", documento interno subido a R2). Los arrays de strings
+// guardados antes de VS-045 siguen validando contra esta unión (cada
+// elemento valida contra `z.string()`) — compatible sin migración.
+export const optionReferenceValue = z.union([z.string(), evidenceRef]);
+export type OptionReferenceValue = z.infer<typeof optionReferenceValue>;
+
 export const answerValue = z.union([
   z.string(),
   z.number(),
   z.array(z.string()),
   z.array(evidenceRef),
+  z.array(optionReferenceValue),
   tableValue,
 ]);
 export type AnswerValue = z.infer<typeof answerValue>;

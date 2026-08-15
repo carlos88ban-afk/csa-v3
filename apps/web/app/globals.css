@@ -743,6 +743,25 @@ input[type="checkbox"] {
   flex: 1;
 }
 
+/* VS-045: los labels con formato usan RichTextEditor envuelto en un div
+   (mismo comportamiento visual que el input de texto que reemplaza). */
+.option-row__editor {
+  flex: 1;
+  min-width: 0;
+}
+
+/* VS-045: selector de tipo de referencia (URL pública / Documento interno)
+   en el runtime y el preview — compacto, no crece. */
+.option-row__kind {
+  flex: 0 0 auto;
+  width: 12rem;
+}
+
+.option-row .runtime-evidence {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Opciones anidadas (docs/engines/form.md, "Opciones anidadas VS-016"):
    sub-lista visualmente sangrada bajo cada opción de primer nivel. */
 .option-row-group {

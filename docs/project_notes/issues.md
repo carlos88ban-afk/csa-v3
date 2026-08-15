@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-14 - VS-045 (spec doc-first): Formato en preguntas/opciones + referencias flexibles
+- **Status**: Spec escrita, sin implementar
+- **Description**: 6.ª inspección AN-001 contra el HTML real de la pregunta `COG_BoardIndependence_AttachmentBoardIndependenceStatement` enviado por el usuario. (A) El texto de la pregunta y de las opciones lleva negritas y múltiples párrafos — pegar en un `<input>` plano lo aplanaba (mismo problema que `banner.content` antes de VS-038). (B) El bloque de referencias de la opción "Sí" es `data-ref-type="flexible"` con `data-maxrefs="3"` — ítem menor de la 5.ª inspección que el usuario pidió incluir ahora.
+- **Notes**: Alcance confirmado con el usuario (`AskUserQuestion`): rich text en **todas** las preguntas y opciones (todos los Elementos salvo `banner.label` — decisión VS-038; `helpText` fuera de alcance) + referencias flexibles incluidas. Sin cambio de tipo zod para labels (`z.string()` = HTML sanitizado, motor `sanitizeCommentHtml`/`stripCommentHtml` existente, sin migración). `optionReferences.refType: "public" | "flexible"` (default `public`, compatible). Respuesta: `answerValue` gana `z.array(z.union([z.string(), evidenceRef]))` — refs mixtas (URL o adjunto R2 reusando el patrón de `evidencia`). Spec completa en `docs/engines/form.md` + entrada en `docs/BACKLOG.md` (antecede a VS-044/VS-043 por pedido explícito del usuario) + CHANGELOG + 6.ª inspección en `docs/analysis/csa-sp-global-comparison.md`.
+
 ### 2026-08-14 - VS-042: Tabla embebida dentro de una sub-opción
 - **Status**: Completed
 - **Description**: 5.ª inspección AN-001 contra el HTML real de S&P (pregunta 0.1 "COG_BoardType_Selection"): radio → sub-radio → tabla anidada con fila de fórmula. VS-040/041 ya cubrían radio → sub-radio; faltaba la tabla anidada (el usuario confirmó el alcance vía `AskUserQuestion`: tabla en sub-opción → VS-042, fórmula en celda → VS-043, overrides por celda → VS-044).
