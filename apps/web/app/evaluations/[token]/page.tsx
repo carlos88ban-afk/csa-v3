@@ -1324,60 +1324,23 @@ function FormTableView({
   return (
     <table className="runtime-table">
       <caption className="sr-only">{stripCommentHtml(label)}</caption>
-      <thead>
-        <tr>
-          <th scope="col" />
-          {columns.map((col) => (
-            <th key={col.id} scope="col">
-              <RichLabel html={col.label} />
-            </th>
-          ))}
-        </tr>
-      </thead>
       <tbody>
         {rows.map((row) => {
           const rowValue = table[row.id] ?? {};
-          const rowUnitKey = unitKey(`${unitKeyPrefix}::${row.id}`);
-          const rowUnit = row.availableUnits
-            ? ((answers[rowUnitKey] as string | undefined) ?? row.availableUnits[0])
-            : undefined;
           return (
             <tr key={row.id}>
-              <th scope="row">
-                <RichLabel html={row.label} />
-                {row.availableUnits && row.availableUnits.length > 0 && (
-                  <select value={rowUnit} disabled={locked} onChange={(e) => onAnswerChange(rowUnitKey, e.target.value)}>
-                    {row.availableUnits.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {!row.availableUnits && row.unit && <span className="runtime-question__unit"> ({row.unit})</span>}
-              </th>
               {columns.map((col) => {
-                // VS-044: el tipo de una celda se resuelve por override
-                // (row.cells) y cae al atajo legacy de la fila si no hay
-                // override. VS-047: si la fila está en modo celdas (sin
-                // cellType propio) y no hay override para esta columna, la
-                // celda queda en blanco — permite grillas irregulares (una
-                // columna con menos filas pobladas que otras).
-                const cellOverride = row.cells?.find((c) => c.columnId === col.id);
-                if (!cellOverride && row.cellType === undefined) {
+                // VS-048 (docs/engines/form.md "Grilla uniforme sin
+                // encabezados especiales"): sin fallback a un "tipo de fila
+                // legacy" — el tipo/config de CUALQUIER celda, incluida la
+                // esquina superior izquierda, vive siempre en row.cells. Sin
+                // entrada para esta columna = celda en blanco (grillas
+                // irregulares).
+                const cellCfg = row.cells.find((c) => c.columnId === col.id);
+                if (!cellCfg) {
                   return <td key={col.id} className="runtime-table__blank" />;
                 }
-                // Se destructuran los campos con fallback explícito en vez de
-                // sostener un objeto `cellCfg = cellOverride ?? row` — row
-                // (formTableRow) no tiene editable/content/expression, solo
-                // formTableCell los tiene, así que la unión de ambos tipos no
-                // permite acceder a esos campos sin este paso.
-                const cellType = cellOverride?.cellType ?? row.cellType ?? "texto";
-                const editable = cellOverride ? cellOverride.editable !== false : true;
-                const content = cellOverride?.content;
-                const expression = cellOverride?.expression;
-                const cellMaxLength = cellOverride?.maxLength ?? row.maxLength;
-                const cellOptions = cellOverride?.options ?? row.options;
+                const { cellType, editable, content, expression, maxLength: cellMaxLength, options: cellOptions, unit, availableUnits } = cellCfg;
                 const cell = rowValue[col.id];
                 // "calculado" siempre se evalúa dinámicamente sin importar
                 // `editable` — es de solo lectura por naturaleza (VS-047,
@@ -1396,7 +1359,7 @@ function FormTableView({
                     </td>
                   );
                 }
-                if (!editable) {
+                if (editable === false) {
                   return (
                     <td key={col.id}>
                       <RichLabel html={content ?? ""} />
@@ -1422,6 +1385,12 @@ function FormTableView({
                   );
                 }
                 if (cellType === "numero") {
+                  // VS-048: unidad por CELDA (antes era por fila) — clave
+                  // sintética un nivel más específica (`::row::col`), activa
+                  // el selector que existía en el schema desde VS-044 pero
+                  // nunca se había conectado a Runtime.
+                  const cellUnitKey = unitKey(`${unitKeyPrefix}::${row.id}::${col.id}`);
+                  const cellUnit = availableUnits ? ((answers[cellUnitKey] as string | undefined) ?? availableUnits[0]) : undefined;
                   return (
                     <td key={col.id}>
                       <input
@@ -1430,6 +1399,16 @@ function FormTableView({
                         disabled={locked}
                         onChange={(e) => updateCell(row.id, col.id, e.target.value === "" ? "" : Number(e.target.value))}
                       />
+                      {availableUnits && availableUnits.length > 0 && (
+                        <select value={cellUnit} disabled={locked} onChange={(e) => onAnswerChange(cellUnitKey, e.target.value)}>
+                          {availableUnits.map((u) => (
+                            <option key={u} value={u}>
+                              {u}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {!availableUnits && unit && <span className="runtime-question__unit"> ({unit})</span>}
                     </td>
                   );
                 }

@@ -407,56 +407,20 @@ function PreviewTableView({
   return (
     <table className="runtime-table">
       <caption className="sr-only">{stripCommentHtml(label)}</caption>
-      <thead>
-        <tr>
-          <th scope="col" />
-          {columns.map((col) => (
-            <th key={col.id} scope="col">
-              <RichLabel html={col.label} />
-            </th>
-          ))}
-        </tr>
-      </thead>
       <tbody>
         {rows.map((row) => {
           const rowValue = table[row.id] ?? {};
-          const rowUnit = row.availableUnits
-            ? ((answers[`${unitKeyPrefix}::${row.id}${UNIT_KEY}`] as string | undefined) ?? row.availableUnits[0])
-            : undefined;
           return (
             <tr key={row.id}>
-              <th scope="row">
-                <RichLabel html={row.label} />
-                {row.availableUnits && row.availableUnits.length > 0 && (
-                  <select
-                    value={rowUnit}
-                    onChange={(e) => onAnswerChange(`${unitKeyPrefix}::${row.id}${UNIT_KEY}`, e.target.value)}
-                  >
-                    {row.availableUnits.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </th>
               {columns.map((col) => {
-                // VS-044: override por celda (row.cells) gana sobre el atajo
-                // legacy de fila — misma resolución que el Runtime. VS-047:
-                // fila en modo celdas sin override para esta columna = blanco.
-                const cellOverride = row.cells?.find((c) => c.columnId === col.id);
-                if (!cellOverride && row.cellType === undefined) {
+                // VS-048 (docs/engines/form.md "Grilla uniforme sin
+                // encabezados especiales"): sin fallback a un "tipo de fila
+                // legacy" — ver misma nota en Runtime (page.tsx).
+                const cellCfg = row.cells.find((c) => c.columnId === col.id);
+                if (!cellCfg) {
                   return <td key={col.id} className="runtime-table__blank" />;
                 }
-                // Ver nota equivalente en evaluations/[token]/page.tsx: row
-                // (formTableRow) no tiene editable/content/expression, solo
-                // formTableCell — se destructura con fallback explícito.
-                const cellType = cellOverride?.cellType ?? row.cellType ?? "texto";
-                const editable = cellOverride ? cellOverride.editable !== false : true;
-                const content = cellOverride?.content;
-                const expression = cellOverride?.expression;
-                const cellMaxLength = cellOverride?.maxLength ?? row.maxLength;
-                const cellOptions = cellOverride?.options ?? row.options;
+                const { cellType, editable, content, expression, maxLength: cellMaxLength, options: cellOptions, unit, availableUnits } = cellCfg;
                 const cell = rowValue[col.id];
                 // "calculado" siempre se evalúa dinámicamente sin importar
                 // `editable` — ver misma nota en Runtime (page.tsx).
@@ -473,7 +437,7 @@ function PreviewTableView({
                     </td>
                   );
                 }
-                if (!editable) {
+                if (editable === false) {
                   return (
                     <td key={col.id}>
                       <RichLabel html={content ?? ""} />
@@ -497,15 +461,37 @@ function PreviewTableView({
                     </td>
                   );
                 }
+                if (cellType === "numero") {
+                  // VS-048: unidad por CELDA — ver misma nota en Runtime (page.tsx).
+                  const cellUnitKey = `${unitKeyPrefix}::${row.id}::${col.id}${UNIT_KEY}`;
+                  const cellUnit = availableUnits ? ((answers[cellUnitKey] as string | undefined) ?? availableUnits[0]) : undefined;
+                  return (
+                    <td key={col.id}>
+                      <input
+                        type="number"
+                        value={(cell as string | number | undefined) ?? ""}
+                        onChange={(e) => updateCell(row.id, col.id, e.target.value === "" ? "" : Number(e.target.value), table, onChange)}
+                      />
+                      {availableUnits && availableUnits.length > 0 && (
+                        <select value={cellUnit} onChange={(e) => onAnswerChange(cellUnitKey, e.target.value)}>
+                          {availableUnits.map((u) => (
+                            <option key={u} value={u}>
+                              {u}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {!availableUnits && unit && <span className="runtime-question__unit"> ({unit})</span>}
+                    </td>
+                  );
+                }
                 return (
                   <td key={col.id}>
                     <input
-                      type={cellType === "numero" ? "number" : "text"}
+                      type="text"
                       value={(cell as string | number | undefined) ?? ""}
                       maxLength={cellMaxLength}
-                      onChange={(e) =>
-                        updateCell(row.id, col.id, cellType === "numero" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value, table, onChange)
-                      }
+                      onChange={(e) => updateCell(row.id, col.id, e.target.value, table, onChange)}
                     />
                   </td>
                 );

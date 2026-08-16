@@ -946,6 +946,100 @@ Reemplaza las dos listas separadas ("Columnas" / "Filas") por una única tabla H
 
 Commit `c2ec968` + push a `main`, deploy Vercel READY (el webhook GitHub→Vercel volvió a demorarse ~10 min sin disparar — mismo síntoma ya documentado; se forzó con "Create Deployment" desde el dashboard, ya READY como Production antes de necesitarlo). Framework temporal "TEMP - VS-047 verificacion produccion" (creado en esta verificación): elemento `tabla_datos` con la grilla 1×1 inicial confirmada (celda "Texto" + botones "+ columna"/"+ fila" en los bordes), construida hasta reproducir la tabla real "SISTEMA DE UN SOLO NIVEL" — 3 filas numéricas + fila `calculado` con fórmula armada con los chips de autocompletado (`{id1}+{id2}+{id3}`, sin error de sintaxis). Runtime público: celda calculada renderizada `disabled` con "(sin calcular)" antes de llenar datos; al escribir 4/6/2 en las tres filas, "Tamaño total de la tabla" mostró **12** en vivo con autosave ("Guardado"); **persistencia confirmada tras recarga completa desde cero** (los 4 valores, incluido el calculado, se conservaron). Framework temporal borrado con confirmación explícita del usuario.
 
+### Estado (VS-047)
+
+Implementado y verificado en producción. **Superado por VS-048** (más abajo) — la decisión de diseño "se mantiene columns[]×rows[] con label" resultó no reflejar el pedido del usuario; VS-048 la reemplaza con una grilla uniforme sin encabezados especiales. Esta sección queda como registro histórico de la decisión original y por qué se descartó, no como spec vigente.
+
+## Grilla uniforme sin encabezados especiales (VS-048, supersede la decisión de diseño de VS-047 — implementado 2026-08-16)
+
+**Reporte del usuario tras probar VS-047 en producción**: "sigo sin ver lo que te pedí. Mi pedido fue que aparezca una sola celda, luego el usuario admin puede ir añadiendo celdas según requiera, sea para la derecha o para abajo. Ya que con el estilo actual, por ejemplo no podría armar una tabla doble entrada, ya que la celda superior izquierda nunca existe."
+
+VS-047 preservó el modelo `columns[] × rows[]` con `column.label`/`row.label` como conceptos separados de las celdas de datos — el Builder renderiza una fila de encabezados de columna (`<thead>`) y una columna de encabezados de fila (`<th scope="row">` por fila) SIEMPRE, con la esquina superior izquierda como un `<th />` vacío estructural, nunca una celda real. Eso contradice el pedido original ("aparezca una sola celda... para la derecha o para abajo"): lo que apareció fue un esqueleto de 2×2 con tres huecos ya presentes (encabezado de columna, encabezado de fila, esquina en blanco) más una celda de dato — no una sola celda. Y para una tabla de doble entrada real (cross-tab, ej. "Región × Año" con la esquina mostrando "Región / Año" o quedando vacía a propósito) la esquina nunca es direccionable: no se le puede poner contenido, tipo, ni quitarla.
+
+### Decisión de diseño
+
+**Se elimina la distinción entre "encabezado" y "celda de dato".** Una tabla es una grilla uniforme de celdas — CUALQUIER celda, incluida la que ocupa la posición (fila 0, columna 0), es una celda real y direccionable con el mismo control que cualquier otra: tipo (`texto`/`numero`/`seleccion_desplegable`/`calculado`), editable (la llena el evaluado) o solo lectura (contenido fijo que escribe el admin). Si el admin quiere que una celda actúe como encabezado de fila o columna, la marca "solo lectura" con el texto que corresponda — exactamente el mismo mecanismo `editable: false` + `content` que ya existe desde VS-047 para cualquier celda, sin un concepto nuevo.
+
+Confirmado con el usuario (`AskUserQuestion`, 2026-08-16): grilla uniforme sin encabezados especiales, y rediseño limpio del schema sin necesidad de migrar datos — no hay evaluaciones reales contestadas sobre `tabla_datos` en producción, todos los frameworks que la usan son de prueba (`TEMP -`, `VS-0xx verificación`).
+
+```ts
+// packages/sdk-core/src/form-schema.ts
+const formTableColumn = z.object({
+  id: z.string().min(1),
+  // VS-048: sin `label` — la grilla es uniforme, cualquier celda (incluida
+  // la esquina) puede actuar como encabezado marcándola "solo lectura" con
+  // contenido; no hay un concepto de "columna con etiqueta" aparte de las
+  // celdas. `id` es solo identidad/orden estable (usada por `cells[].columnId`
+  // y por las referencias `{rowId.columnId}` de la fórmula, VS-043).
+});
+
+const formTableRow = z.object({
+  id: z.string().min(1),
+  cells: z.array(formTableCell).min(1),
+  // VS-048: sin `label`, sin el atajo legacy uniforme (`cellType`/`unit`/
+  // `availableUnits`/`options`/`maxLength` a nivel de fila, VS-024) — toda
+  // fila se construye siempre celda por celda desde este slice. `cells` ya
+  // no es opcional: una fila sin ninguna celda no tiene sentido (no hay
+  // "modo legado" al que caer). El superRefine que exigía cellType-o-cells
+  // desaparece; el que exigía expression en calculado ya vivía en
+  // `formTableCell` (queda sin cambios, sigue validando por celda).
+});
+
+const tablaDatosConfig = z.object({
+  columns: z.array(formTableColumn).min(1),
+  rows: z.array(formTableRow).min(1),
+});
+```
+
+`formTableCell` (tipo/editable/content/expression/unit/availableUnits/options/maxLength, `.superRefine()` de `calculado`→`expression`) **no cambia** — ya era la unidad de configuración correcta desde VS-047, el problema nunca fue la celda en sí sino que la grilla forzaba dos filas/columnas estructurales que no eran celdas.
+
+### Semántica de celda en blanco — sin cambios
+
+Sigue igual que VS-047: si `row.cells` no tiene una entrada para una `columnId` dada, esa posición está en blanco (`<td>` vacío con un "+" para agregarla) — permite grillas irregulares. Como `cells` ahora es `.min(1)` en vez de opcional, la única diferencia es que una fila siempre tiene *al menos* una celda poblada en algún lado (nunca una fila 100% vacía) — no afecta el comportamiento de blanco por columna.
+
+### Unidad por celda — se activa el render que ya existía sin usar
+
+VS-023 (número con unidad) originalmente vivía a nivel de fila (`row.unit`/`row.availableUnits`, con un selector en el `<th scope="row">`). VS-044 agregó `unit`/`availableUnits` **por celda** en `formTableCell`, pero el selector de unidad en Runtime/Preview seguía leyendo solo `row.availableUnits` — el campo por celda se podía configurar en el Builder y se serializaba en el CSV, pero **nunca se renderizaba un selector para una celda individual** (gap preexistente, no causado por este slice). Al eliminar `row.unit`/`row.availableUnits` (ya no hay nivel de fila), este slice **completa** ese render pendiente: el selector de unidad ahora aparece junto a cualquier celda `numero` con `availableUnits`, clave sintética `${unitKeyPrefix}::${row.id}::${col.id}` (antes `${unitKeyPrefix}::${row.id}`, un nivel más específico — necesario porque ya no hay "la unidad de la fila", cada celda numérica puede tener la suya).
+
+### Builder (`TableConfigEditor`) — grilla verdaderamente uniforme
+
+- **Elemento nuevo `tabla_datos`**: arranca con exactamente **una celda** — `columns: [{ id }], rows: [{ id, cells: [{ columnId, cellType: "texto", editable: true }] }]`. Sin `label` en ningún lado.
+- **Render**: una sola `<table>` sin `<thead>` especial. Cada `<tr>` es una fila completa de celdas de datos — la primera fila (`rows[0]`) incluye la celda en la posición (0,0), que se edita con el mismo chip-expandible que cualquier otra celda (tipo/editable/contenido fijo/config según tipo). No existe ya `RichTextEditor` de "encabezado de columna" ni "encabezado de fila" como controles separados — si el admin quiere ese texto, lo escribe en la celda misma marcándola "solo lectura".
+- **"+ columna" / "+ fila"**: dos botones fijos en los bordes de la grilla (no en una fila/columna de encabezado, que ya no existe) — "+ columna" en una celda con `rowSpan={rows.length}` al final de cada `<tr>` (visualmente una franja vertical a la derecha de toda la grilla), "+ fila" en una fila final con `colSpan={columns.length}` debajo. Mismo comportamiento que antes: agrega una columna/fila y crea una celda `texto`/`editable` en cada intersección nueva (el admin puede quitarlas puntualmente después para grillas irregulares).
+- **Quitar columna/fila**: en vez de un control de borde, se resolvió como dos botones ("Quitar fila"/"Quitar columna") dentro del panel expandido de CUALQUIER celda de esa fila/columna — coherente con "toda celda es uniforme", no hace falta un control anclado a un borde específico; alcanzable desde cualquier celda de la fila/columna que se quiere quitar.
+- **Celda del cuerpo** (cualquier posición, incluida la esquina): sin cambios respecto al chip-expandible de VS-047 (tipo/editable/contenido fijo/config), simplemente ya no hay ninguna celda estructuralmente excluida de este control.
+- **`convertRowToCells`/modo legado**: se elimina — ya no existe una fila sin `cells`, no hay nada que convertir.
+- **Tabla embebida en sub-opción** (`subOption.table`, VS-042): mismo `TableConfigEditor`, mismo default de 1 celda.
+
+### Runtime (`FormTableView`) y Preview (`PreviewTableView`)
+
+Se elimina el `<thead>` con `column.label` y el `<th scope="row">` con `row.label`/selector de unidad de fila. Cada celda se resuelve así (simplifica la resolución de VS-047, que tenía que hacer fallback a la fila legacy):
+
+```ts
+const cellCfg = row.cells.find((c) => c.columnId === col.id);
+if (!cellCfg) return <td className="runtime-table__blank" />;
+if (cellCfg.cellType === "calculado") { /* TableCalculatedCell, sin cambios */ }
+if (cellCfg.editable === false) return <td><RichLabel html={cellCfg.content ?? ""} /></td>;
+// input/select según cellCfg.cellType, con selector de unidad si numero+availableUnits
+```
+
+### Export CSV
+
+`cellConfig(row, columnId)` se simplifica a `row.cells.find((c) => c.columnId === columnId)` (sin fallback a fila legacy). Como ya no hay `col.label`/`row.label`, la referencia humana en el CSV pasa a ser **posicional**: `Fila N: Columna M=valor unidad` (1-indexado sobre el orden de `rows[]`/`columns[]`) en vez de `{row.label}: {col.label}=valor`. La clave de unidad por celda pasa a `${prefix}::${row.id}::${col.id}` (antes `${prefix}::${row.id}`).
+
+### Fuera de alcance (explícito)
+
+- **Editor legado de subindicadores directos bajo Dimensión**: sigue sin actualizar (ya documentado como fuera de alcance en VS-047, sigue así).
+- **Insertar columna/fila en una posición intermedia**: igual que VS-047, solo al final desde el borde.
+- **`rowspan`/`colspan` real**: igual que VS-047, se resuelve con celdas en blanco o contenido fijo repetido.
+- **Migración de tablas VS-047 ya construidas**: no aplica — confirmado con el usuario que no hay datos reales que preservar; las tablas de prueba existentes en producción se recrean o se descartan.
+
+### Notas de implementación
+
+- **Tests**: `form-schema.test.ts` pierde los casos de compatibilidad hacia atrás de VS-047 (`row.cellType` legacy, `column.label`/`row.label`) y gana casos para el schema nuevo (columna sin `label`, fila `cells.min(1)`, esquina como celda editable/fija/calculada como cualquier otra).
+- **`formula.ts`/`evaluateTableExpression`**: sin cambios — nunca dependió de labels, solo de `rowId`/`columnId`.
+- **`response.ts`/`TableValue`**: sin cambios — sigue siendo un mapa disperso `rowId -> columnId -> valor`, ajeno a si esa posición es "dato" o "encabezado".
+
 ### Estado
 
-Implementado y verificado en producción. Cerrado.
+Implementado (`pnpm typecheck`/`build`/`test` en verde, 251 tests en `sdk-core`). Pendiente de verificación en producción.

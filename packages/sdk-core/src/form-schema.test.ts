@@ -40,12 +40,12 @@ describe("formElement", () => {
       type: "tabla_datos",
       id: "tbl-1",
       label: "Emisiones GHG Scope 1",
-      columns: [{ id: "fy2023", label: "FY 2023" }, { id: "fy2024", label: "FY 2024" }],
+      columns: [{ id: "fy2023" }, { id: "fy2024" }],
       rows: [
-        { id: "total", label: "Total Scope 1", cellType: "numero", unit: "met. ton. CO2e" },
-        { id: "coverage", label: "Coverage %", cellType: "numero", availableUnits: ["%"] },
-        { id: "moneda", label: "Moneda", cellType: "seleccion_desplegable", options: [{ id: "usd", label: "USD" }] },
-        { id: "nota", label: "Nota", cellType: "texto", maxLength: 200 },
+        { id: "total", cells: [{ columnId: "fy2023", cellType: "numero", unit: "met. ton. CO2e", editable: true }] },
+        { id: "coverage", cells: [{ columnId: "fy2023", cellType: "numero", availableUnits: ["%"], editable: true }] },
+        { id: "moneda", cells: [{ columnId: "fy2023", cellType: "seleccion_desplegable", options: [{ id: "usd", label: "USD" }], editable: true }] },
+        { id: "nota", cells: [{ columnId: "fy2023", cellType: "texto", maxLength: 200, editable: true }] },
       ],
     },
     {
@@ -134,8 +134,8 @@ describe("formElement", () => {
               id: "cobertura",
               label: "Cobertura",
               table: {
-                columns: [{ id: "fy2024", label: "FY 2024" }],
-                rows: [{ id: "pct", label: "%", cellType: "numero", unit: "%" }],
+                columns: [{ id: "fy2024" }],
+                rows: [{ id: "pct", cells: [{ columnId: "fy2024", cellType: "numero", unit: "%", editable: true }] }],
               },
             },
             { id: "sin-tabla", label: "Sin tabla" },
@@ -185,7 +185,7 @@ describe("formElement", () => {
       type: "tabla_datos",
       label: "x",
       columns: [],
-      rows: [{ id: "r1", label: "Fila", cellType: "texto" }],
+      rows: [{ id: "r1", cells: [{ columnId: "c1", cellType: "texto", editable: true }] }],
     });
     expect(result.success).toBe(false);
   });
@@ -195,39 +195,35 @@ describe("formElement", () => {
       id: "1",
       type: "tabla_datos",
       label: "x",
-      columns: [{ id: "c1", label: "Col" }],
+      columns: [{ id: "c1" }],
       rows: [],
     });
     expect(result.success).toBe(false);
   });
 
-  it("rechaza una fila de tabla_datos con cellType desconocido", () => {
+  it("rechaza una celda de tabla_datos con cellType desconocido", () => {
     const result = formElement.safeParse({
       id: "1",
       type: "tabla_datos",
       label: "x",
-      columns: [{ id: "c1", label: "Col" }],
-      rows: [{ id: "r1", label: "Fila", cellType: "fecha" }],
+      columns: [{ id: "c1" }],
+      rows: [{ id: "r1", cells: [{ columnId: "c1", cellType: "fecha", editable: true }] }],
     });
     expect(result.success).toBe(false);
   });
 
-  it("acepta una fila de tabla_datos con cells (overrides por celda) sin cellType", () => {
+  it("acepta una fila de tabla_datos con celdas de tipo mixto", () => {
     const result = formElement.safeParse({
       id: "1",
       type: "tabla_datos",
       label: "x",
-      columns: [
-        { id: "c1", label: "Tipo" },
-        { id: "c2", label: "Número" },
-      ],
+      columns: [{ id: "c1" }, { id: "c2" }],
       rows: [
         {
           id: "r1",
-          label: "Fila mixta",
           cells: [
-            { columnId: "c1", cellType: "texto", maxLength: 100 },
-            { columnId: "c2", cellType: "numero", unit: "miembros" },
+            { columnId: "c1", cellType: "texto", maxLength: 100, editable: true },
+            { columnId: "c2", cellType: "numero", unit: "miembros", editable: true },
           ],
         },
       ],
@@ -235,19 +231,19 @@ describe("formElement", () => {
     expect(result.success).toBe(true);
   });
 
-  // Editor de tabla_datos estilo grilla (VS-047, docs/engines/form.md).
-  it("acepta una celda de tabla_datos sin editable/content (compatible hacia atrás)", () => {
+  // Grilla uniforme sin encabezados especiales (VS-048, docs/engines/form.md).
+  it("acepta una celda de tabla_datos sin editable/content (compatible hacia atrás con VS-047)", () => {
     const result = formElement.safeParse({
       id: "1",
       type: "tabla_datos",
       label: "x",
-      columns: [{ id: "c1", label: "Col" }],
-      rows: [{ id: "r1", label: "Fila", cells: [{ columnId: "c1", cellType: "texto" }] }],
+      columns: [{ id: "c1" }],
+      rows: [{ id: "r1", cells: [{ columnId: "c1", cellType: "texto" }] }],
     });
     expect(result.success).toBe(true);
     if (result.success && result.data.type === "tabla_datos") {
-      expect(result.data.rows[0]?.cells?.[0]?.editable).toBeUndefined();
-      expect(result.data.rows[0]?.cells?.[0]?.content).toBeUndefined();
+      expect(result.data.rows[0]?.cells[0]?.editable).toBeUndefined();
+      expect(result.data.rows[0]?.cells[0]?.content).toBeUndefined();
     }
   });
 
@@ -256,19 +252,38 @@ describe("formElement", () => {
       id: "1",
       type: "tabla_datos",
       label: "x",
-      columns: [{ id: "c1", label: "Col" }],
+      columns: [{ id: "c1" }],
       rows: [
         {
           id: "r1",
-          label: "Fila",
           cells: [{ columnId: "c1", cellType: "texto", editable: false, content: "<strong>Fijo</strong>" }],
         },
       ],
     });
     expect(result.success).toBe(true);
     if (result.success && result.data.type === "tabla_datos") {
-      expect(result.data.rows[0]?.cells?.[0]?.editable).toBe(false);
-      expect(result.data.rows[0]?.cells?.[0]?.content).toBe("<strong>Fijo</strong>");
+      expect(result.data.rows[0]?.cells[0]?.editable).toBe(false);
+      expect(result.data.rows[0]?.cells[0]?.content).toBe("<strong>Fijo</strong>");
+    }
+  });
+
+  // Regresión directa del reporte del usuario: "la celda superior izquierda
+  // nunca existe" — la esquina (fila 0, columna 0) es una celda real como
+  // cualquier otra, puede ser fija con contenido igual que cualquier celda.
+  it("acepta la esquina superior izquierda (fila 0, columna 0) como celda fija con contenido — tabla de doble entrada", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "tabla_datos",
+      label: "x",
+      columns: [{ id: "c1" }, { id: "c2" }],
+      rows: [
+        { id: "r1", cells: [{ columnId: "c1", cellType: "texto", editable: false, content: "Región / Año" }, { columnId: "c2", cellType: "texto", editable: false, content: "2024" }] },
+        { id: "r2", cells: [{ columnId: "c1", cellType: "texto", editable: false, content: "Norte" }, { columnId: "c2", cellType: "numero", editable: true }] },
+      ],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "tabla_datos") {
+      expect(result.data.rows[0]?.cells[0]?.content).toBe("Región / Año");
     }
   });
 
@@ -277,11 +292,8 @@ describe("formElement", () => {
       id: "1",
       type: "tabla_datos",
       label: "x",
-      columns: [
-        { id: "c1", label: "Col 1" },
-        { id: "c2", label: "Col 2" },
-      ],
-      rows: [{ id: "r1", label: "Fila", cells: [{ columnId: "c1", cellType: "texto" }] }],
+      columns: [{ id: "c1" }, { id: "c2" }],
+      rows: [{ id: "r1", cells: [{ columnId: "c1", cellType: "texto", editable: true }] }],
     });
     expect(result.success).toBe(true);
     if (result.success && result.data.type === "tabla_datos") {
@@ -289,35 +301,39 @@ describe("formElement", () => {
     }
   });
 
-  it("acepta una fila de tabla_datos con cellType legacy y cells de override juntos", () => {
+  it("una columna/fila sin label es válida — ya no existe ese campo (columna/fila con etiqueta separada de las celdas)", () => {
     const result = formElement.safeParse({
       id: "1",
       type: "tabla_datos",
       label: "x",
-      columns: [{ id: "c1", label: "Col" }],
-      rows: [{ id: "r1", label: "Fila", cellType: "texto", cells: [{ columnId: "c1", cellType: "numero" }] }],
+      columns: [{ id: "c1" }],
+      rows: [{ id: "r1", cells: [{ columnId: "c1", cellType: "texto", editable: true }] }],
     });
     expect(result.success).toBe(true);
+    if (result.success && result.data.type === "tabla_datos") {
+      expect(result.data.columns[0]).not.toHaveProperty("label");
+      expect(result.data.rows[0]).not.toHaveProperty("label");
+    }
   });
 
-  it("rechaza una fila de tabla_datos sin cellType ni cells", () => {
+  it("rechaza una fila de tabla_datos sin cells (array vacío)", () => {
     const result = formElement.safeParse({
       id: "1",
       type: "tabla_datos",
       label: "x",
-      columns: [{ id: "c1", label: "Col" }],
-      rows: [{ id: "r1", label: "Fila", maxLength: 10 }],
+      columns: [{ id: "c1" }],
+      rows: [{ id: "r1", cells: [] }],
     });
     expect(result.success).toBe(false);
   });
 
-  it("rechaza una fila de tabla_datos con cells vacío y sin cellType", () => {
+  it("rechaza una fila de tabla_datos sin campo cells", () => {
     const result = formElement.safeParse({
       id: "1",
       type: "tabla_datos",
       label: "x",
-      columns: [{ id: "c1", label: "Col" }],
-      rows: [{ id: "r1", label: "Fila", cells: [] }],
+      columns: [{ id: "c1" }],
+      rows: [{ id: "r1" }],
     });
     expect(result.success).toBe(false);
   });
@@ -327,8 +343,8 @@ describe("formElement", () => {
       id: "1",
       type: "tabla_datos",
       label: "x",
-      columns: [{ id: "c1", label: "Col" }],
-      rows: [{ id: "r1", label: "Fila", cells: [{ columnId: "c1", cellType: "fecha" }] }],
+      columns: [{ id: "c1" }],
+      rows: [{ id: "r1", cells: [{ columnId: "c1", cellType: "fecha" }] }],
     });
     expect(result.success).toBe(false);
   });
@@ -338,8 +354,8 @@ describe("formElement", () => {
       id: "1",
       type: "tabla_datos",
       label: "x",
-      columns: [{ id: "c1", label: "Col" }],
-      rows: [{ id: "r1", label: "Fila", cells: [{ cellType: "texto" }] }],
+      columns: [{ id: "c1" }],
+      rows: [{ id: "r1", cells: [{ cellType: "texto" }] }],
     });
     expect(result.success).toBe(false);
   });
@@ -761,11 +777,11 @@ describe("formElement", () => {
               id: "sub-a",
               label: "Sub A",
               table: {
-                columns: [{ id: "c1", label: "FY 2024" }, { id: "c2", label: "FY 2025" }],
+                columns: [{ id: "c1" }, { id: "c2" }],
                 rows: [
-                  { id: "r1", label: "Total", cellType: "numero", unit: "met. ton. CO2e" },
-                  { id: "r2", label: "Nota", cellType: "texto", maxLength: 100 },
-                  { id: "r3", label: "Moneda", cellType: "seleccion_desplegable", options: [{ id: "usd", label: "USD" }] },
+                  { id: "r1", cells: [{ columnId: "c1", cellType: "numero", unit: "met. ton. CO2e", editable: true }] },
+                  { id: "r2", cells: [{ columnId: "c1", cellType: "texto", maxLength: 100, editable: true }] },
+                  { id: "r3", cells: [{ columnId: "c1", cellType: "seleccion_desplegable", options: [{ id: "usd", label: "USD" }], editable: true }] },
                 ],
               },
             },
@@ -791,8 +807,8 @@ describe("formElement", () => {
               label: "Sub A",
               field: { type: "numero", unit: "%" },
               table: {
-                columns: [{ id: "c1", label: "FY 2024" }],
-                rows: [{ id: "r1", label: "Total", cellType: "numero" }],
+                columns: [{ id: "c1" }],
+                rows: [{ id: "r1", cells: [{ columnId: "c1", cellType: "numero", editable: true }] }],
               },
             },
           ],
@@ -811,7 +827,7 @@ describe("formElement", () => {
         {
           id: "a",
           label: "A",
-          subOptions: [{ id: "sub-a", label: "Sub A", table: { columns: [], rows: [{ id: "r1", label: "Fila", cellType: "texto" }] } }],
+          subOptions: [{ id: "sub-a", label: "Sub A", table: { columns: [], rows: [{ id: "r1", cells: [{ columnId: "c1", cellType: "texto", editable: true }] }] } }],
         },
       ],
     });
@@ -827,7 +843,7 @@ describe("formElement", () => {
         {
           id: "a",
           label: "A",
-          subOptions: [{ id: "sub-a", label: "Sub A", table: { columns: [{ id: "c1", label: "Col" }], rows: [] } }],
+          subOptions: [{ id: "sub-a", label: "Sub A", table: { columns: [{ id: "c1" }], rows: [] } }],
         },
       ],
     });
@@ -844,7 +860,7 @@ describe("formElement", () => {
           id: "a",
           label: "A",
           subOptions: [
-            { id: "sub-a", label: "Sub A", table: { columns: [{ id: "c1", label: "Col" }], rows: [{ id: "r1", label: "Fila", cellType: "fecha" }] } },
+            { id: "sub-a", label: "Sub A", table: { columns: [{ id: "c1" }], rows: [{ id: "r1", cells: [{ columnId: "c1", cellType: "fecha", editable: true }] }] } },
           ],
         },
       ],
@@ -859,13 +875,18 @@ describe("formElement", () => {
       id: "1",
       type: "tabla_datos",
       label: "Tabla",
-      columns: [{ id: "c1", label: "Col" }],
+      columns: [{ id: "c1" }],
       rows: [
         {
           id: "r1",
-          label: "Fila",
-          cellType: "seleccion_desplegable",
-          options: [{ id: "o1", label: "O1", subOptions: [{ id: "s1", label: "S1" }] }],
+          cells: [
+            {
+              columnId: "c1",
+              cellType: "seleccion_desplegable",
+              editable: true,
+              options: [{ id: "o1", label: "O1", subOptions: [{ id: "s1", label: "S1" }] }],
+            },
+          ],
         },
       ],
     });
@@ -888,14 +909,10 @@ describe("formElement", () => {
               id: "sub-a",
               label: "Sub A",
               table: {
-                columns: [
-                  { id: "c1", label: "Tipo" },
-                  { id: "c2", label: "Número" },
-                ],
+                columns: [{ id: "c1" }, { id: "c2" }],
                 rows: [
                   {
                     id: "r1",
-                    label: "Fila",
                     cells: [
                       { columnId: "c1", cellType: "texto" },
                       { columnId: "c2", cellType: "numero" },
@@ -911,7 +928,7 @@ describe("formElement", () => {
     expect(result.success).toBe(true);
   });
 
-  it("rechaza una fila de tabla embebida sin cellType ni cells (VS-044)", () => {
+  it("rechaza una fila de tabla embebida sin cells", () => {
     const result = formElement.safeParse({
       id: "1",
       type: "seleccion_unica",
@@ -924,7 +941,7 @@ describe("formElement", () => {
             {
               id: "sub-a",
               label: "Sub A",
-              table: { columns: [{ id: "c1", label: "Col" }], rows: [{ id: "r1", label: "Fila" }] },
+              table: { columns: [{ id: "c1" }], rows: [{ id: "r1" }] },
             },
           ],
         },

@@ -69,17 +69,23 @@ const subOptionField = z.discriminatedUnion("type", [
   }),
 ]);
 
-// Tabla de datos (VS-024, docs/engines/form.md "Tabla de datos"): columnas
-// son solo encabezados, filas cargan el tipo/unidad de TODA la fila.
+// Tabla de datos (VS-024, luego VS-048 "Grilla uniforme sin encabezados
+// especiales"): grilla de celdas — cada celda tiene su propio tipo.
 // `options` solo aplica si cellType === "seleccion_desplegable", `unit`/
 // `availableUnits` solo si cellType === "numero", `maxLength` solo si
 // cellType === "texto" — no expresado como discriminated union anidado
 // (costo de complejidad no justificado, ver el doc), lo exige el Builder.
 const formTableCellType = z.enum(["texto", "numero", "seleccion_desplegable", "calculado"]);
 
+// VS-048 (docs/engines/form.md "Grilla uniforme sin encabezados especiales"):
+// sin `label` — la grilla es uniforme, cualquier celda (incluida la esquina
+// superior izquierda) puede actuar como encabezado marcándola "solo
+// lectura" con contenido (formTableCell.editable/content); no hay un
+// concepto de "columna con etiqueta" separado de las celdas. `id` es solo
+// identidad/orden estable, usada por `cells[].columnId` y por las
+// referencias `{rowId.columnId}` de la fórmula (VS-043).
 const formTableColumn = z.object({
   id: z.string().min(1),
-  label: z.string(),
 });
 
 // VS-042 (docs/engines/form.md "Tabla dentro de una sub-opción"): rompe el
@@ -97,9 +103,10 @@ const formOptionBase = z.object({
 });
 
 // VS-044 (docs/engines/form.md "Tipo de celda mixto dentro de una fila"):
-// override de tipo por CELDA — mismo shape de config que la fila legacy
-// (unit/availableUnits/options/maxLength), pero apuntando a una columna.
-// Si `cells` está presente en la fila, gana sobre `cellType` de la fila.
+// tipo/config por CELDA (unit/availableUnits/options/maxLength), apuntando
+// a una columna vía columnId. VS-048: desde este slice es la ÚNICA unidad
+// de configuración — ya no existe un "tipo de fila legacy" del que esto sea
+// un override.
 // VS-043: `expression` es opcional y se valida cuando cellType === "calculado".
 // VS-047 (docs/engines/form.md "Editor de tabla_datos estilo grilla"):
 // `editable`/`content` — una celda con editable === false muestra `content`
@@ -129,44 +136,17 @@ const formTableCell = z.object({
   }
 })
 
-// VS-043 (docs/engines/form.md "Fila de fórmula dentro de tabla_datos"):
-// cellType: "calculado" con expression {rowId} (fila completa) o {rowId.columnId} (celda puntual).
-// formTableRow y formTableCell ganan expression: z.string().optional().
-// .superRefine() exige expression no vacío cuando cellType === "calculado" (fila o celda).
-const formTableRow = z
-  .object({
-    id: z.string().min(1),
-    label: z.string(),
-    cellType: formTableCellType.optional(),
-    cells: z.array(formTableCell).optional(),
-    unit: z.string().min(1).optional(),
-    availableUnits: z.array(z.string().min(1)).min(1).optional(),
-    options: z.array(formOptionBase).min(1).optional(),
-    maxLength: z.number().int().positive().optional(),
-  })
-  .superRefine((row, ctx) => {
-    if (row.cellType === undefined && (row.cells === undefined || row.cells.length === 0)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "La fila necesita cellType o al menos una celda (cells)",
-        path: ["cellType"],
-      });
-    }
-    // VS-043: si la fila tiene cellType "calculado", verificar que las celdas tengan expression
-    if (row.cellType === "calculado" && row.cells) {
-      row.cells.forEach((cell, i) => {
-        if (cell.cellType === "calculado" && (!cell.expression || cell.expression.trim() === "")) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Se requiere expression en cells[${
-              i
-            }] cuando cellType es 'calculado'`,
-            path: ["cells", i, "expression"],
-          });
-        }
-      });
-    }
-  });
+// VS-048 (docs/engines/form.md "Grilla uniforme sin encabezados
+// especiales"): sin `label`, sin el atajo legacy uniforme (`cellType`/
+// `unit`/`availableUnits`/`options`/`maxLength` a nivel de fila, VS-024) —
+// toda fila se construye siempre celda por celda desde este slice. `cells`
+// ya no es opcional: una fila sin ninguna celda no tiene sentido, no hay
+// "modo legado" al que caer. La validación de `calculado` → `expression`
+// vive en `formTableCell` (arriba) y sigue aplicando por celda sin cambios.
+const formTableRow = z.object({
+  id: z.string().min(1),
+  cells: z.array(formTableCell).min(1),
+});
 
 // Shape reutilizado por el Elemento `tabla_datos` y por la tabla embebida de
 // una sub-opción (VS-042) — un solo tipo zod, sin duplicación. Sin

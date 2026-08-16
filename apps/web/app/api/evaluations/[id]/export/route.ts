@@ -18,27 +18,13 @@ import {
 } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
-// VS-044 (docs/engines/form.md "Tipo de celda mixto dentro de una fila"):
-// el tipo/config de una celda se resuelve por override (row.cells) y cae al
-// atajo legacy de la fila si no hay override — misma resolución que
-// Runtime/Preview, compartida por tabla_datos y tabla embebida. VS-047
-// (docs/engines/form.md "Editor de tabla_datos estilo grilla"): si la fila
-// está en modo celdas (sin cellType propio) y no hay override para esta
-// columna, no hay celda — undefined (mismo criterio de blank que
-// Runtime/Preview, permite grillas irregulares).
+// VS-048 (docs/engines/form.md "Grilla uniforme sin encabezados
+// especiales"): el tipo/config de una celda vive siempre en row.cells — sin
+// fallback a un "tipo de fila legacy" (ya no existe). Si no hay entrada
+// para esta columna, la celda está en blanco — undefined (mismo criterio de
+// blank que Runtime/Preview, permite grillas irregulares).
 function cellConfig(row: FormTableRow, columnId: string): FormTableCell | undefined {
-  const override = row.cells?.find((c) => c.columnId === columnId);
-  if (override) return override;
-  if (row.cellType === undefined) return undefined;
-  return {
-    columnId,
-    cellType: row.cellType,
-    editable: true,
-    unit: row.unit,
-    availableUnits: row.availableUnits,
-    options: row.options,
-    maxLength: row.maxLength,
-  };
+  return row.cells.find((c) => c.columnId === columnId);
 }
 
 // Motor engine/export v1 (ver docs/engines/export.md). Autenticado y
@@ -117,34 +103,32 @@ function formatSubOptionExtras(sub: SubOptionNode, subOptionKey: string, answers
   }
   // Tabla embebida en una sub-opción (VS-042, docs/engines/form.md "Tabla
   // dentro de una sub-opción"): misma serialización que tabla_datos, con la
-  // clave sintética `${subOptionKey}::table` y unidades por fila
-  // `${subOptionKey}::table::${row.id}` — sigue siendo "una fila por
-  // Elemento", se anexa a la celda Respuesta.
+  // clave sintética `${subOptionKey}::table`. VS-048: sin label de fila/
+  // columna — referencia posicional (Fila N: Columna M) — y unidad por
+  // celda `${subOptionKey}::table::${row.id}::${col.id}`.
   if (sub.table) {
     const table = sub.table;
     const tableValue = answers[`${subOptionKey}::table`];
     if (typeof tableValue === "object" && !Array.isArray(tableValue)) {
       const tableMap = tableValue as Record<string, Record<string, string | number>>;
       const serialized = table.rows
-        .map((row) => {
+        .map((row, rowIdx) => {
           const rowValue = tableMap[row.id] ?? {};
           const cells = table.columns
-            .map((col) => {
+            .map((col, colIdx) => {
               const cellCfg = cellConfig(row, col.id);
               if (!cellCfg || (cellCfg.editable === false && cellCfg.cellType !== "calculado")) return null;
               const cell = rowValue[col.id];
               if (cell === undefined || cell === "") return null;
               const unit = cellCfg.availableUnits
-                ? row.availableUnits
-                  ? ((answers[unitKey(`${subOptionKey}::table::${row.id}`)] as string | undefined) ?? cellCfg.availableUnits[0])
-                  : cellCfg.availableUnits[0]
+                ? ((answers[unitKey(`${subOptionKey}::table::${row.id}::${col.id}`)] as string | undefined) ?? cellCfg.availableUnits[0])
                 : cellCfg.unit;
               const resolved =
                 cellCfg.cellType === "seleccion_desplegable" ? (stripCommentHtml(cellCfg.options?.find((o) => o.id === cell)?.label ?? "") || String(cell)) : String(cell);
-              return `${stripCommentHtml(col.label)}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}`;
+              return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}`;
             })
             .filter((c): c is string => c !== null);
-          return cells.length > 0 ? `${stripCommentHtml(row.label)}: ${cells.join(", ")}` : null;
+          return cells.length > 0 ? `Fila ${rowIdx + 1}: ${cells.join(", ")}` : null;
         })
         .filter((r): r is string => r !== null)
         .join("; ");
@@ -234,25 +218,23 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
   if (element.type === "tabla_datos" && typeof value === "object" && !Array.isArray(value)) {
     const table = value as Record<string, Record<string, string | number>>;
     return element.rows
-      .map((row) => {
+      .map((row, rowIdx) => {
         const rowValue = table[row.id] ?? {};
         const cells = element.columns
-          .map((col) => {
+          .map((col, colIdx) => {
             const cellCfg = cellConfig(row, col.id);
             if (!cellCfg || (cellCfg.editable === false && cellCfg.cellType !== "calculado")) return null;
             const cell = rowValue[col.id];
             if (cell === undefined || cell === "") return null;
             const unit = cellCfg.availableUnits
-              ? row.availableUnits
-                ? ((answers[unitKey(`${element.id}::${row.id}`)] as string | undefined) ?? cellCfg.availableUnits[0])
-                : cellCfg.availableUnits[0]
+              ? ((answers[unitKey(`${element.id}::${row.id}::${col.id}`)] as string | undefined) ?? cellCfg.availableUnits[0])
               : cellCfg.unit;
             const resolved =
               cellCfg.cellType === "seleccion_desplegable" ? (stripCommentHtml(cellCfg.options?.find((o) => o.id === cell)?.label ?? "") || String(cell)) : String(cell);
-            return `${stripCommentHtml(col.label)}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}`;
+            return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}`;
           })
           .filter((c): c is string => c !== null);
-        return cells.length > 0 ? `${stripCommentHtml(row.label)}: ${cells.join(", ")}` : null;
+        return cells.length > 0 ? `Fila ${rowIdx + 1}: ${cells.join(", ")}` : null;
       })
       .filter((r): r is string => r !== null)
       .join("; ");

@@ -103,16 +103,17 @@ function newElement(type: FormElement["type"]): FormElement {
     case "banner":
       return { id, type, label: "", content: "", variant: "info", componentVersion };
     case "tabla_datos": {
-      // VS-047 (docs/engines/form.md "Editor de tabla_datos estilo grilla"):
-      // arranca en modo celdas (grilla de 1×1) — "empezar de una celda",
-      // no del atajo legacy uniforme (VS-024).
+      // VS-048 (docs/engines/form.md "Grilla uniforme sin encabezados
+      // especiales"): arranca con UNA celda real — sin encabezados
+      // especiales, la posición (fila 0, columna 0) es una celda como
+      // cualquier otra.
       const colId = crypto.randomUUID();
       return {
         id,
         type,
         label: "",
-        columns: [{ id: colId, label: "" }],
-        rows: [{ id: crypto.randomUUID(), label: "", cells: [{ columnId: colId, cellType: "texto", editable: true }] }],
+        columns: [{ id: colId }],
+        rows: [{ id: crypto.randomUUID(), cells: [{ columnId: colId, cellType: "texto", editable: true }] }],
         componentVersion,
       };
     }
@@ -137,22 +138,25 @@ function truncate(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max).trimEnd()}…`;
 }
 
-// Tabla de datos (VS-024 + VS-042, docs/engines/form.md "Tabla de datos" y
-// "Tabla dentro de una sub-opción"): mismo editor para el Elemento
-// `tabla_datos` y para la tabla embebida de una sub-opción — columnas +
-// filas con cellType/unit/availableUnits/options/maxLength. Controlado: las
-// mutaciones son internas, el padre recibe el estado completo (mismo patrón
-// inmutable que el resto del Builder).
+// Tabla de datos (VS-024 + VS-042 + VS-048, docs/engines/form.md "Tabla de
+// datos", "Tabla dentro de una sub-opción" y "Grilla uniforme sin
+// encabezados especiales"): mismo editor para el Elemento `tabla_datos` y
+// para la tabla embebida de una sub-opción. Controlado: las mutaciones son
+// internas, el padre recibe el estado completo (mismo patrón inmutable que
+// el resto del Builder).
 type TableConfigColumns = TablaDatosConfig["columns"];
 type TableConfigRows = TablaDatosConfig["rows"];
 
-// VS-047 (docs/engines/form.md "Editor de tabla_datos estilo grilla"):
-// reemplaza las dos listas separadas ("Columnas"/"Filas") de VS-024/044 por
-// una grilla real que refleja visualmente la tabla resultante — arrancar de
-// una celda, agregar columna a la derecha/fila abajo desde el borde,
-// agregar/quitar una celda puntual (grillas irregulares), y por celda:
-// tipo, editable/solo-lectura, contenido fijo o config según el tipo.
-type TableConfigCell = NonNullable<TableConfigRows[number]["cells"]>[number];
+// VS-048 (docs/engines/form.md "Grilla uniforme sin encabezados
+// especiales"): sin distinción entre "encabezado" y "celda de dato" — la
+// tabla es una grilla uniforme, arranca de UNA celda (la posición fila 0 /
+// columna 0 es una celda real como cualquier otra, no un hueco
+// estructural), "+" en los bordes para agregar columna a la derecha/fila
+// abajo, "+"/"×" por celda para grillas irregulares, y por celda: tipo,
+// editable/solo-lectura, contenido fijo o config según el tipo. Si el admin
+// quiere que una celda actúe como encabezado, la marca "solo lectura" con
+// el texto que corresponda — mismo mecanismo que cualquier otra celda fija.
+type TableConfigCell = TableConfigRows[number]["cells"][number];
 
 function TableConfigEditor({
   columns,
@@ -167,34 +171,24 @@ function TableConfigEditor({
   // persistido (mismo criterio que sectionOverrides del resto del Builder).
   const [expandedCell, setExpandedCell] = useState<string | null>(null);
 
-  function updateColumn(columnId: string, label: string) {
-    onChange({ columns: columns.map((c) => (c.id === columnId ? { ...c, label } : c)), rows });
-  }
-
   function removeColumn(columnId: string) {
     if (columns.length <= 1) return;
     onChange({
       columns: columns.filter((c) => c.id !== columnId),
-      rows: rows.map((r) => (r.cells ? { ...r, cells: r.cells.filter((c) => c.columnId !== columnId) } : r)),
+      rows: rows.map((r) => ({ ...r, cells: r.cells.filter((c) => c.columnId !== columnId) })),
     });
   }
 
-  // Agregar columna a la derecha: extiende cada fila ya en modo celdas con
-  // una celda default (texto, editable) — mismo criterio "Excel extiende la
-  // hoja" que agregar fila; el admin puede quitar celdas puntuales después
-  // si esa columna necesita menos filas que las demás.
+  // Agregar columna a la derecha: extiende cada fila con una celda default
+  // (texto, editable) — "Excel extiende la hoja"; el admin puede quitar
+  // celdas puntuales después si esa columna necesita menos filas que las
+  // demás.
   function addColumn() {
-    const column = { id: crypto.randomUUID(), label: "" };
+    const column = { id: crypto.randomUUID() };
     onChange({
       columns: [...columns, column],
-      rows: rows.map((r) =>
-        r.cells ? { ...r, cells: [...r.cells, { columnId: column.id, cellType: "texto", editable: true }] } : r,
-      ),
+      rows: rows.map((r) => ({ ...r, cells: [...r.cells, { columnId: column.id, cellType: "texto", editable: true }] })),
     });
-  }
-
-  function updateRow(rowId: string, patch: Partial<TableConfigRows[number]>) {
-    onChange({ columns, rows: rows.map((r) => (r.id === rowId ? { ...r, ...patch } : r)) });
   }
 
   function removeRow(rowId: string) {
@@ -202,55 +196,18 @@ function TableConfigEditor({
     onChange({ columns, rows: rows.filter((r) => r.id !== rowId) });
   }
 
-  // Agregar fila abajo: siempre en modo celdas (grilla desde el inicio).
+  // Agregar fila abajo: una celda default por columna existente.
   function addRow() {
     onChange({
       columns,
-      rows: [
-        ...rows,
-        { id: crypto.randomUUID(), label: "", cells: columns.map((c) => ({ columnId: c.id, cellType: "texto", editable: true })) },
-      ],
-    });
-  }
-
-  // Fila legacy (VS-024, cellType uniforme sin cells) — conversión a modo
-  // celdas para poder editarla en la grilla nueva; mismo criterio que
-  // enablePerCell de VS-044, ahora es el único camino de edición.
-  function convertRowToCells(rowId: string) {
-    onChange({
-      columns,
-      rows: rows.map((r) =>
-        r.id === rowId
-          ? {
-              ...r,
-              cells: columns.map((col) => ({
-                columnId: col.id,
-                cellType: r.cellType ?? "texto",
-                unit: r.unit,
-                availableUnits: r.availableUnits,
-                options: r.options,
-                maxLength: r.maxLength,
-                editable: true,
-              })),
-              cellType: undefined,
-              unit: undefined,
-              availableUnits: undefined,
-              options: undefined,
-              maxLength: undefined,
-            }
-          : r,
-      ),
+      rows: [...rows, { id: crypto.randomUUID(), cells: columns.map((c) => ({ columnId: c.id, cellType: "texto", editable: true })) }],
     });
   }
 
   function addCell(rowId: string, columnId: string) {
     onChange({
       columns,
-      rows: rows.map((r) =>
-        r.id === rowId
-          ? { ...r, cells: [...(r.cells ?? []), { columnId, cellType: "texto", editable: true }] }
-          : r,
-      ),
+      rows: rows.map((r) => (r.id === rowId ? { ...r, cells: [...r.cells, { columnId, cellType: "texto", editable: true }] } : r)),
     });
     setExpandedCell(`${rowId}:${columnId}`);
   }
@@ -258,18 +215,14 @@ function TableConfigEditor({
   function removeCell(rowId: string, columnId: string) {
     onChange({
       columns,
-      rows: rows.map((r) => (r.id === rowId && r.cells ? { ...r, cells: r.cells.filter((c) => c.columnId !== columnId) } : r)),
+      rows: rows.map((r) => (r.id === rowId ? { ...r, cells: r.cells.filter((c) => c.columnId !== columnId) } : r)),
     });
   }
 
   function updateCell(rowId: string, columnId: string, patch: Partial<TableConfigCell>) {
     onChange({
       columns,
-      rows: rows.map((r) =>
-        r.id === rowId
-          ? { ...r, cells: (r.cells ?? []).map((c) => (c.columnId === columnId ? { ...c, ...patch } : c)) }
-          : r,
-      ),
+      rows: rows.map((r) => (r.id === rowId ? { ...r, cells: r.cells.map((c) => (c.columnId === columnId ? { ...c, ...patch } : c)) } : r)),
     });
   }
 
@@ -296,58 +249,22 @@ function TableConfigEditor({
   return (
     <div className="table-config-grid-wrap">
       <table className="table-config-grid">
-        <thead>
-          <tr>
-            <th />
-            {columns.map((col) => (
-              <th key={col.id}>
-                <div className="table-config-grid__col-header">
-                  <RichTextEditor value={col.label} onChange={(html) => updateColumn(col.id, html)} ariaLabel="Encabezado de columna" />
-                  <Button type="button" variant="danger" size="sm" onClick={() => removeColumn(col.id)} disabled={columns.length <= 1}>
-                    Quitar
-                  </Button>
-                </div>
-              </th>
-            ))}
-            <th className="table-config-grid__add-col">
-              <Button type="button" size="sm" onClick={addColumn} title="Agregar columna a la derecha">
-                + columna
-              </Button>
-            </th>
-          </tr>
-        </thead>
         <tbody>
-          {rows.map((row) => (
+          {rows.map((row, rowIdx) => (
             <tr key={row.id}>
-              <th scope="row">
-                <div className="table-config-grid__row-header">
-                  <RichTextEditor value={row.label} onChange={(html) => updateRow(row.id, { label: html })} ariaLabel="Encabezado de fila" />
-                  <Button type="button" variant="danger" size="sm" onClick={() => removeRow(row.id)} disabled={rows.length <= 1}>
-                    Quitar
-                  </Button>
-                </div>
-              </th>
-              {!row.cells ? (
-                <td colSpan={columns.length + 1} className="table-config-grid__legacy">
-                  <span>Modo legado: toda la fila es {row.cellType}.</span>
-                  <Button type="button" size="sm" onClick={() => convertRowToCells(row.id)}>
-                    Configurar celdas individualmente
-                  </Button>
-                </td>
-              ) : (
-                columns.map((col) => {
-                  const cell = row.cells!.find((c) => c.columnId === col.id);
-                  const cellKey = `${row.id}:${col.id}`;
-                  if (!cell) {
-                    return (
-                      <td key={col.id} className="table-config-grid__blank">
-                        <button type="button" className="table-config-grid__add-cell" onClick={() => addCell(row.id, col.id)} title="Agregar celda aquí">
-                          +
-                        </button>
-                      </td>
-                    );
-                  }
-                  const editable = cell.editable !== false;
+              {columns.map((col) => {
+                const cell = row.cells.find((c) => c.columnId === col.id);
+                const cellKey = `${row.id}:${col.id}`;
+                if (!cell) {
+                  return (
+                    <td key={col.id} className="table-config-grid__blank">
+                      <button type="button" className="table-config-grid__add-cell" onClick={() => addCell(row.id, col.id)} title="Agregar celda aquí">
+                        +
+                      </button>
+                    </td>
+                  );
+                }
+                const editable = cell.editable !== false;
                   // "calculado" es de solo lectura por naturaleza (lo llena
                   // la fórmula, no el evaluado ni el admin) — es un tercer
                   // modo de renderizado, no un caso de "editable"/"fijo".
@@ -418,15 +335,16 @@ function TableConfigEditor({
                               )}
                               <div className="table-config-grid__formula-refs">
                                 {rows
-                                  .filter((r) => r.id !== row.id)
-                                  .map((r) => (
+                                  .map((r, i) => ({ r, i }))
+                                  .filter(({ r }) => r.id !== row.id)
+                                  .map(({ r, i }) => (
                                     <button
                                       type="button"
                                       key={r.id}
                                       className="table-config-grid__formula-ref"
                                       onClick={() => updateCell(row.id, col.id, { expression: `${cell.expression ?? ""}{${r.id}}` })}
                                     >
-                                      {stripCommentHtml(r.label).trim() || "(sin título)"}
+                                      Fila {i + 1}
                                     </button>
                                   ))}
                               </div>
@@ -524,22 +442,34 @@ function TableConfigEditor({
                               )}
                             </>
                           )}
+                          <div className="table-config-grid__cell-footer">
+                            <Button type="button" variant="danger" size="sm" onClick={() => removeRow(row.id)} disabled={rows.length <= 1}>
+                              Quitar fila
+                            </Button>
+                            <Button type="button" variant="danger" size="sm" onClick={() => removeColumn(col.id)} disabled={columns.length <= 1}>
+                              Quitar columna
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </td>
                   );
-                })
+                })}
+              {rowIdx === 0 && (
+                <td className="table-config-grid__add-col" rowSpan={rows.length}>
+                  <Button type="button" size="sm" onClick={addColumn} title="Agregar columna a la derecha">
+                    + columna
+                  </Button>
+                </td>
               )}
-              <td className="table-config-grid__add-col" />
             </tr>
           ))}
           <tr>
-            <th>
+            <td colSpan={columns.length + 1} className="table-config-grid__add-row">
               <Button type="button" size="sm" onClick={addRow} title="Agregar fila abajo">
                 + fila
               </Button>
-            </th>
-            <td colSpan={columns.length + 1} />
+            </td>
           </tr>
         </tbody>
       </table>
@@ -1036,8 +966,8 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
         return {
           ...sub,
           table: {
-            columns: [{ id: colId, label: "" }],
-            rows: [{ id: crypto.randomUUID(), label: "", cells: [{ columnId: colId, cellType: "texto", editable: true }] }],
+            columns: [{ id: colId }],
+            rows: [{ id: crypto.randomUUID(), cells: [{ columnId: colId, cellType: "texto", editable: true }] }],
           },
         };
       },
@@ -1331,7 +1261,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
               el.id,
               "options",
               el.type === "tabla_datos"
-                ? el.columns.some((c) => c.label.trim() === "") || el.rows.some((r) => r.label.trim() === "")
+                ? false // VS-048: sin label de columna/fila que pueda estar "incompleto"
                 : "options" in el
                   ? el.options.some((o) => o.label.trim() === "")
                   : false,
