@@ -1,11 +1,16 @@
-checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000028
+checkpoint: c9e1a1b0-0004-4a2b-8c3d-000000000029
 fecha: 2026-08-15
 estado: completo
-slice_actual: VS-047 (editor de `tabla_datos` estilo grilla) implementado, verificado en producción y CERRADO. Siguiente: sin ítem asignado en BACKLOG.md ("Siguiente") — revisar ROADMAP.md.
+slice_actual: fix(builder) posterior a VS-047 — celda `calculado` que perdía la fórmula al marcarla "solo lectura", CERRADO y verificado en producción. Siguiente: sin ítem asignado en BACKLOG.md ("Siguiente") — revisar ROADMAP.md.
 
 slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030, VS-031, VS-032, VS-033, VS-034, VS-035, VS-036, VS-037, VS-038, VS-039, VS-040, VS-041, VS-042, VS-043, VS-044, VS-045, VS-046, VS-047]
 
 decisiones_del_dia:
+  - **fix(builder) post-VS-047 — celda `calculado` perdía la fórmula al marcarla "solo lectura"**: reporte de usuario ("no me está permitiendo Construir tablas similares a esta", con HTML de una fila total `readonly`/`formula`) inmediatamente después de cerrar VS-047 y verificarlo en producción — contradecía esa verificación, así que se reprodujo el flujo exacto del usuario desde cero en un framework temporal nuevo, replicando la misma tabla del HTML (3 filas numéricas + fila total calculada). El paso que rompía todo: marcar la celda calculada como "solo lectura" (natural dado el `readonly` del HTML de referencia) — el Builder reemplazaba el selector de Tipo y el campo de fórmula por un editor de "Contenido fijo" vacío.
+  - **Root cause**: `editable` (booleano) y `cellType` (enum) se trataban como ejes cruzados en vez de reconocer que "calculado" es un tercer modo de render, ortogonal a ambos valores de `editable` — ni lo llena el evaluado, ni es contenido fijo estático, se computa solo. En Builder (`TableConfigEditor`) el selector de Tipo (y por tanto "Calculado") vivía anidado DENTRO de la rama `editable`; en Runtime/Preview (`FormTableView`/`PreviewTableView`) el check `!editable` se evaluaba ANTES que `cellType === "calculado"`; el export CSV tenía el mismo sesgo en su condición de omisión.
+  - **Fix**: en los 4 archivos, `cellType === "calculado"` se resuelve independiente de `editable` — Runtime/Preview lo chequean primero; el export excluye `calculado` de la omisión por `editable === false`; el Builder movió el selector de Tipo fuera de la rama editable/fijo (siempre visible) y, con tipo "calculado", muestra siempre la fórmula (sin casilla "Editable" ni "contenido fijo"). Cambiar el Tipo a "calculado" fuerza `editable: true` para normalizar datos previos. Sin cambios de schema ni de motor de fórmula — 250 tests `sdk-core` + 28 `db` sin regresiones, `pnpm typecheck` en verde.
+  - **Verificación en producción (completada)**: commit `10d6fe1` + push a `main`, deploy Vercel `dpl_FxU5Py3avjA2wfSujuqLWZFScuei` READY (esta vez el webhook disparó el build automáticamente, sin demora). En el mismo framework temporal usado para reproducir el bug, la celda que había quedado con `editable: false` mostró tras el fix: ficha "Calculado" (no "Fijo"), fórmula ya guardada intacta y visible en el panel — el dato nunca se corrompió, solo quedaba oculto por la UI vieja. Vista previa del Builder: "Total board size" pasó de "(sin calcular)" a **12** en vivo al escribir 4/6/2.
+  - Detalle completo en `docs/project_notes/bugs.md` y `docs/project_notes/issues.md` (entradas del 2026-08-15).
   - **VS-047 — Editor de `tabla_datos` estilo grilla**: pedido explícito del usuario tras probar VS-046 ("la creación de tablas no se siente intuitiva... quiero algo como Excel"). Al entrar a implementar se encontró que el usuario ya había intentado agregar un campo `editable` a mano en `form-schema.ts`, y había un WIP roto (`subindicator-editor.tsx` no compilaba — JSX corrupto, función `updateCellOptions` referenciada pero nunca definida) con archivos `.backup`/`.bak`/`.fixedbackup` sueltos. Restaurado a HEAD limpio (`git checkout HEAD --`) y reimplementado desde cero, preservando la intención (`editable`) pero con diseño propio.
   - **Hallazgo importante durante el análisis**: `evaluateTableExpression` (VS-043, "fila de fórmula dentro de tabla_datos") **nunca se había conectado a ningún consumidor de `apps/web`** pese a que `CHANGELOG.md`/`CHECKPOINT.md`/`issues.md` de ese mismo día documentaban "Runtime con input disabled + valor recalculado en vivo" y "Builder con campo expression y autocompletado" como verificados en producción con IDs de evaluación específicos. Además la función tenía un bug real (indexaba filas por posición numérica con claves `ref_N` que nunca calzaban con una referencia `{rowId}` real) y cero tests pese a que el registro decía "21 tests nuevos... todos verdes". Registrado en `docs/project_notes/bugs.md` como recordatorio de integridad de la documentación — no se investigó más a fondo el origen del registro incorrecto (fuera de alcance).
   - **Diseño**: se mantiene el modelo `columns[] × rows[]` (no se reemplaza por coordenadas libres) — preserva compatibilidad total con tablas ya publicadas y con la fórmula/export ya construidos sobre filas/columnas. `formTableCell` gana `editable`/`content`; nueva semántica: fila en modo celdas (VS-044) sin override para una columna = celda en blanco (antes cualquier hueco caía a un input "texto" por defecto) — permite grillas irregulares, compatible hacia atrás porque toda tabla existente ya tiene cobertura completa de `cells` por construcción del Builder anterior.
@@ -25,11 +30,14 @@ archivos_modificados:
   - apps/web/components/form-preview.tsx (VS-047: PreviewTableView ídem, PreviewTableCalculatedCell)
   - apps/web/components/subindicator-editor.tsx (VS-047: TableConfigEditor reescrito como grilla; restaurado a HEAD limpio antes de reimplementar)
   - apps/web/app/globals.css (VS-047: .table-config-grid y variantes, .runtime-table__blank)
-  - apps/web/app/api/evaluations/[id]/export/route.ts (VS-047: cellConfig devuelve undefined para blanco, omite no-editables)
+  - apps/web/app/api/evaluations/[id]/export/route.ts (VS-047: cellConfig devuelve undefined para blanco, omite no-editables; fix posterior: excluye `calculado` de la omisión por editable===false)
   - docs/engines/form.md, docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md, docs/project_notes/bugs.md
+  - apps/web/app/evaluations/[token]/page.tsx (fix posterior: `calculado` se chequea antes que `!editable`)
+  - apps/web/components/form-preview.tsx (fix posterior: ídem Runtime)
+  - apps/web/components/subindicator-editor.tsx (fix posterior: selector de Tipo/fórmula ya no anidados dentro de la rama editable)
 
 proximos_pasos:
-  - Sin ítem asignado en BACKLOG.md ("Siguiente"), sección vacía tras cerrar VS-047 — revisar `docs/ROADMAP.md` para el siguiente ítem por prioridad, o esperar un nuevo hallazgo/pedido del usuario (patrón habitual: HTML real de S&P pegado por el usuario).
+  - Sin ítem asignado en BACKLOG.md ("Siguiente"), sección vacía tras cerrar VS-047 y su fix posterior — revisar `docs/ROADMAP.md` para el siguiente ítem por prioridad, o esperar un nuevo hallazgo/pedido del usuario (patrón habitual: HTML real de S&P pegado por el usuario).
   - Pendientes no bloqueantes, siguen en BACKLOG.md: proveedor de email/SMTP (ADR); TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada); tabla de historial de revisiones de `formSchema`.
   - Editor legado de subindicadores directos bajo Dimensión sigue sin `cells`/grilla (nunca pasó de VS-024) — aditivo si se pide traerlo a paridad, ver `docs/engines/form.md` "Fuera de alcance" de VS-047.
   - Warning de SSL de Postgres (`sslmode=require` → deprecation warning de `pg`) visible en runtime logs de Vercel desde 2026-08-05 — no bloqueante, pendiente de decisión explícita del usuario antes de tocar `DATABASE_URL` en producción.
@@ -46,6 +54,21 @@ contexto_para_continuar: |
   recarga desde cero). El framework temporal de esta verificación fue
   borrado al terminar, con confirmación explícita — no queda dato de
   prueba de VS-047 en la DB real.
+
+  Justo después, el usuario reportó no poder construir una tabla
+  equivalente a un HTML de referencia con fila total `readonly`. Se
+  reprodujo el flujo exacto en un framework temporal nuevo
+  ("TEMP - validacion tabla usuario") y se encontró un bug real:
+  marcar una celda `calculado` como "solo lectura" en el Builder
+  ocultaba el selector de Tipo y la fórmula (los reemplazaba por un
+  editor de contenido fijo vacío) — mismo sesgo en Runtime/Preview
+  (celda calculada con editable:false se renderizaba como texto
+  fijo vacío en vez de evaluarse) y en el export CSV. Fix en 4
+  archivos, commit `10d6fe1`, deploy Vercel `dpl_FxU5Py3avjA2wfSujuqLWZFScuei`
+  READY, verificado en producción end-to-end (ver decisiones_del_dia
+  arriba). El framework temporal de esta verificación (`TEMP -
+  validacion tabla usuario`) sigue pendiente de borrado con
+  confirmación explícita del usuario.
 
   Antes de implementar, el repo tenía un WIP roto (código que no
   compilaba, archivos .backup/.bak sueltos) de un intento previo de

@@ -12,6 +12,7 @@ Formato: por slice, no por commit individual.
 - `FormTableView`/`PreviewTableView` (Runtime/Preview): `cellType === "calculado"` se resuelve antes que `!editable`, así una celda calculada con `editable: false` heredado sigue evaluando la fórmula en vez de mostrarse como texto fijo vacío.
 - Export CSV: excluida `calculado` de la condición de omisión por `editable === false`.
 - Ver detalle completo en `docs/project_notes/bugs.md` (2026-08-15). Sin cambios de schema ni de motor de fórmula — 250 tests `sdk-core` + 28 `db` sin regresiones.
+- **Verificación en producción**: commit `10d6fe1`, deploy Vercel `dpl_FxU5Py3avjA2wfSujuqLWZFScuei` READY. La celda que había quedado con `editable: false` durante la reproducción del bug mostró, tras el fix, la fórmula ya guardada intacta y visible; vista previa del Builder calculó **12** en vivo (4+6+2).
 
 ### VS-047 — Editor de `tabla_datos` estilo grilla (2026-08-15)
 
