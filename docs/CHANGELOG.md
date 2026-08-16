@@ -13,6 +13,7 @@ Formato: por slice, no por commit individual.
 - **Export CSV**: como ya no hay `label`, la referencia en el CSV pasa de `{row.label}: {col.label}=valor` a posicional `Fila N: Columna M=valor` (1-indexado).
 - **Limpieza incidental**: `apps/web/app/frameworks/[frameworkId]/dimensions/[dimensionId]/subindicators/[subindicatorId]/page.tsx` era una implementación completa y duplicada del editor de subindicador, huérfana desde VS-031 (ningún link en toda la app apunta a esa ruta) y nunca actualizada más allá de VS-024 — rompía la compilación al tocar el schema de `tabla_datos`. Convertida al mismo patrón de redirect que ya usan sus 3 rutas hermanas en vez de portar código muerto.
 - Tests de `form-schema.test.ts` actualizados al nuevo schema, más un caso de regresión directo del reporte del usuario (celda fija con contenido en la posición (fila 0, columna 0), tabla de doble entrada). 251 tests en `sdk-core` (antes 250), `pnpm typecheck`/`build`/`test` en verde. Detalle completo en `docs/engines/form.md` ("Grilla uniforme sin encabezados especiales").
+- **Verificación en producción**: commit `becef64`, deploy Vercel `dpl_37hNKdjyD3eogTStEMoD3kGPnixg` READY. Elemento nuevo confirmado con exactamente una celda (sin thead, sin encabezado); tabla de doble entrada real construida (esquina fija "Región / Año", "2024", "Norte", celda de dato Número) renderizó sin ningún hueco estructural.
 
 ### fix(builder): celda `calculado` de `tabla_datos` perdía la fórmula al marcarla "solo lectura" (2026-08-15)
 

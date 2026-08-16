@@ -1,7 +1,7 @@
 checkpoint: c9e1a1b0-0004-4a2b-8c3d-00000000002a
 fecha: 2026-08-16
 estado: completo
-slice_actual: VS-048 (grilla uniforme sin encabezados especiales en `tabla_datos`, supersede la decisión de diseño de VS-047) — implementado, `pnpm typecheck`/`build`/`test` en verde, pendiente de verificación en producción. Siguiente: verificar en producción, luego revisar `docs/BACKLOG.md`/`docs/ROADMAP.md` para el próximo ítem.
+slice_actual: VS-048 (grilla uniforme sin encabezados especiales en `tabla_datos`, supersede la decisión de diseño de VS-047) — implementado, verificado en producción y CERRADO. Siguiente: sin ítem asignado en BACKLOG.md ("Siguiente") — revisar ROADMAP.md.
 
 slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030, VS-031, VS-032, VS-033, VS-034, VS-035, VS-036, VS-037, VS-038, VS-039, VS-040, VS-041, VS-042, VS-043, VS-044, VS-045, VS-046, VS-047, VS-048]
 
@@ -14,6 +14,7 @@ decisiones_del_dia:
   - **Export CSV**: sin `label`, la referencia pasa de `{row.label}: {col.label}=valor` a posicional `Fila N: Columna M=valor` (1-indexado).
   - **Limpieza incidental**: `apps/web/app/frameworks/[frameworkId]/dimensions/[dimensionId]/subindicators/[subindicatorId]/page.tsx` era una implementación completa y duplicada del editor de subindicador, huérfana desde VS-031 (sin ningún link en toda la app, confirmado con grep) y nunca actualizada más allá de VS-024 — rompía la compilación al tocar el schema de `tabla_datos`. Convertida al mismo patrón de redirect que ya usan sus 3 rutas hermanas.
   - Tests de `form-schema.test.ts` actualizados al nuevo schema, más un caso de regresión directo del reporte del usuario (celda fija con contenido en la posición fila 0/columna 0, tabla de doble entrada). 251 tests en `sdk-core` (antes 250). `pnpm typecheck`/`build`/`test` en verde. Spec completa en `docs/engines/form.md` ("Grilla uniforme sin encabezados especiales") — el bug fix de celda calculado del día anterior sigue documentado abajo, sin cambios.
+  - **Verificación en producción (completada)**: commit `becef64` + push a `main`, deploy Vercel `dpl_37hNKdjyD3eogTStEMoD3kGPnixg` READY. Framework temporal "TEMP - VS-048 verificacion" (creado y **borrado al terminar, con confirmación explícita**): elemento `tabla_datos` nuevo confirmó arrancar con exactamente una celda (chip "Texto", sin `<thead>`, sin encabezado); tabla de doble entrada real construida — esquina (fila 0, columna 0) marcada "solo lectura" con contenido fijo "Región / Año", columna "2024" fija, fila "Norte" fija, celda de dato Número editable. La vista previa del Builder renderizó la grilla 2×2 sin ningún hueco estructural — se pudo escribir **42** en la celda de dato. Esto resuelve directamente el reporte original del usuario.
   - **fix(builder) post-VS-047 — celda `calculado` perdía la fórmula al marcarla "solo lectura"**: reporte de usuario ("no me está permitiendo Construir tablas similares a esta", con HTML de una fila total `readonly`/`formula`) inmediatamente después de cerrar VS-047 y verificarlo en producción — contradecía esa verificación, así que se reprodujo el flujo exacto del usuario desde cero en un framework temporal nuevo, replicando la misma tabla del HTML (3 filas numéricas + fila total calculada). El paso que rompía todo: marcar la celda calculada como "solo lectura" (natural dado el `readonly` del HTML de referencia) — el Builder reemplazaba el selector de Tipo y el campo de fórmula por un editor de "Contenido fijo" vacío.
   - **Root cause**: `editable` (booleano) y `cellType` (enum) se trataban como ejes cruzados en vez de reconocer que "calculado" es un tercer modo de render, ortogonal a ambos valores de `editable` — ni lo llena el evaluado, ni es contenido fijo estático, se computa solo. En Builder (`TableConfigEditor`) el selector de Tipo (y por tanto "Calculado") vivía anidado DENTRO de la rama `editable`; en Runtime/Preview (`FormTableView`/`PreviewTableView`) el check `!editable` se evaluaba ANTES que `cellType === "calculado"`; el export CSV tenía el mismo sesgo en su condición de omisión.
   - **Fix**: en los 4 archivos, `cellType === "calculado"` se resuelve independiente de `editable` — Runtime/Preview lo chequean primero; el export excluye `calculado` de la omisión por `editable === false`; el Builder movió el selector de Tipo fuera de la rama editable/fijo (siempre visible) y, con tipo "calculado", muestra siempre la fórmula (sin casilla "Editable" ni "contenido fijo"). Cambiar el Tipo a "calculado" fuerza `editable: true` para normalizar datos previos. Sin cambios de schema ni de motor de fórmula — 250 tests `sdk-core` + 28 `db` sin regresiones, `pnpm typecheck` en verde.
@@ -41,7 +42,6 @@ archivos_modificados:
   - docs/engines/form.md, docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md, docs/project_notes/bugs.md
 
 proximos_pasos:
-  - VS-048 pendiente de verificación en producción — construir una tabla de doble entrada real (esquina con contenido fijo) contra `csa-v3-web.vercel.app` antes de cerrar el slice.
   - Sin ítem asignado en BACKLOG.md ("Siguiente") tras VS-048 — revisar `docs/ROADMAP.md` para el siguiente ítem por prioridad, o esperar un nuevo hallazgo/pedido del usuario (patrón habitual: HTML real de S&P pegado por el usuario).
   - Pendientes no bloqueantes, siguen en BACKLOG.md: proveedor de email/SMTP (ADR); TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada); tabla de historial de revisiones de `formSchema`.
   - Warning de SSL de Postgres (`sslmode=require` → deprecation warning de `pg`) visible en runtime logs de Vercel desde 2026-08-05 — no bloqueante, pendiente de decisión explícita del usuario antes de tocar `DATABASE_URL` en producción.
@@ -94,11 +94,11 @@ contexto_para_continuar: |
   no hacía falta migrar datos. VS-048 implementa ese rediseño (ver
   decisiones_del_dia arriba): schema sin `label` en columna/fila,
   Builder/Runtime/Preview/export actualizados, `pnpm typecheck`/
-  `build`/`test` en verde (251 tests sdk-core). **Pendiente**:
-  verificar en producción construyendo una tabla de doble entrada real
-  (esquina con contenido fijo) antes de cerrar el slice — recién
-  entonces actualizar `docs/engines/form.md` "Estado" a "verificado" y
-  considerar el ítem cerrado en `BACKLOG.md`.
+  `build`/`test` en verde (251 tests sdk-core), **verificado en
+  producción y CERRADO**: tabla de doble entrada real construida
+  contra `csa-v3-web.vercel.app` (esquina fija "Región / Año", "2024",
+  "Norte", celda Número editable), sin ningún hueco estructural.
+  Framework temporal borrado con confirmación explícita.
 
   Hallazgo importante de este slice: una entrada de checkpoint/changelog
   que dice "verificado en producción" no siempre lo estuvo — VS-043

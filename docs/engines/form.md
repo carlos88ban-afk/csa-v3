@@ -1042,4 +1042,8 @@ if (cellCfg.editable === false) return <td><RichLabel html={cellCfg.content ?? "
 
 ### Estado
 
-Implementado (`pnpm typecheck`/`build`/`test` en verde, 251 tests en `sdk-core`). Pendiente de verificación en producción.
+Implementado y verificado en producción.
+
+### Verificación en producción (2026-08-16)
+
+Commit `becef64` + push a `main`, deploy Vercel `dpl_37hNKdjyD3eogTStEMoD3kGPnixg` READY. Framework temporal "TEMP - VS-048 verificacion": elemento `tabla_datos` nuevo confirmó arrancar con **exactamente una celda** — chip "Texto", sin `<thead>`, sin columna de encabezado, solo "+ columna"/"+ fila" en los bordes (regresión directa de lo que VS-047 hacía mal). Construida una tabla de doble entrada real: esquina (fila 0, columna 0) marcada "solo lectura" con contenido fijo "Región / Año", columna 2 fija "2024", fila 2 fija "Norte", celda de dato tipo Número editable. Vista previa del Builder renderizó la grilla 2×2 completa sin ningún hueco estructural — la esquina mostró "Región / Año" como cualquier otra celda fija, se pudo escribir **42** en la celda de dato y persistió en el estado. Framework temporal pendiente de borrado con confirmación explícita del usuario.
