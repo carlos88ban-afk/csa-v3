@@ -1261,6 +1261,45 @@ input[type="checkbox"] {
    derecha. Colapsable por dimensión/indicador; CRUD inline en hover;
    en móvil el árbol es un drawer deslizante con backdrop. */
 
+/* VS-054 (docs/domain/business-units.md, "Panel Publicar"): el drawer es
+   angosto (480px, .form-preview-drawer) — .entry-list__row es flex en fila
+   por defecto, pensado para 2 hijos (__main + __actions) en un layout
+   ancho. Acá cada fila de Evaluación tiene 2 hijos más (plazo/contacto,
+   unidades de negocio): sin esto, los 4 quedaban apretados en la misma
+   fila horizontal, superpuestos e ilegibles (bug real encontrado
+   verificando en producción). Se apilan en columna, con __main/__actions
+   como su propia sub-fila arriba de todo.
+   Bug adicional: la URL del token público, cuando cabía como enlace
+   único en .entry-list__main, no tenía como cortar — desbordaba el
+   drawer entero en vez de partir a la línea siguiente. */
+.publish-panel .entry-list__row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.publish-panel .entry-list__row > .entry-list__main,
+.publish-panel .entry-list__row > .entry-list__actions {
+  flex-wrap: wrap;
+}
+
+.publish-panel .entry-list__main a {
+  overflow-wrap: anywhere;
+}
+
+.publish-panel__deadline {
+  flex-wrap: wrap;
+}
+
+.publish-panel__unit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 /* VS-054 (docs/domain/business-units.md, "Panel Publicar"): barra superior
    con el breadcrumb a la izquierda y el botón Publicar a la derecha —
    reemplaza la sección "Publicación" de la pantalla eliminada. */
