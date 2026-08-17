@@ -9,3 +9,6 @@ export * from "./domain/service.js";
 export * from "./domain/evaluation-service.js";
 export * from "./domain/response-service.js";
 export * from "./test-utils.js";
+export * from "./domain/evaluation-assignment-service.js";
+export * from "./domain/business-unit-access.js";
+export * as evaluationAssignmentSchema from "./schema/evaluation-assignment.js";
