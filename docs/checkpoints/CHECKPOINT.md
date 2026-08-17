@@ -2,12 +2,20 @@
 
 **Última actualización**: 2026-08-17  
 **Branch activa**: main  
-**Último slice cerrado**: VS-054 (Runtime autenticado por unidad de negocio + panel Publicar en el Builder) — sin verificación en producción todavía, ver nota abajo.  
-**Slice en progreso**: ninguno asignado — siguiente candidato natural: editor de exclusiones (UI), dashboard por unidad, export XLSX consolidado (ver "Próximos pasos").
+**Último slice cerrado**: VS-054 (Runtime autenticado por unidad de negocio + panel Publicar en el Builder) — **verificado en producción end-to-end** (commit `f2acd7c`), ver "Verificación en producción" abajo.  
+**Slice en progreso**: ninguno asignado — siguiente candidato natural: dashboard por unidad, export XLSX consolidado, editor de exclusiones (UI) (ver "Próximos pasos").
 
 ## Resumen ejecutivo
 
-Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). Infraestructura de unidades de negocio (VS-050/051/052/053) y su primera UI real (VS-054: panel Publicar en el Builder + Runtime autenticado mínimo) están en el árbol, con `pnpm typecheck`/`build`/`test` (db) en verde. **Nota de integridad importante**: esta misma entrada de checkpoint tuvo una versión anterior (sobrescrita acá) que describía un refactor de UI (`runtime-shell.tsx`, evidencias autenticadas espejo, bloqueo de formulario en cliente) que NUNCA se llegó a commitear — quedó como archivo suelto sin trackear, se abandonó, y la documentación no se corrigió para reflejarlo. Se verificó directamente contra el código real (no contra el reporte de quien lo implementó) antes de reescribir esta sección — mismo patrón de riesgo ya documentado para VS-043/`evaluateTableExpression` en `bugs.md`. Lo que realmente hay en el árbol es más simple que lo que se había descrito: ver la sección "VS-054" abajo.
+Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). Infraestructura de unidades de negocio (VS-050 a VS-054: jerarquía de Organization, partición de Response, dueDate/contactEmail, acceso autenticado, panel Publicar) verificada de punta a punta en producción real — asignación de unidad, aislamiento de respuestas, bloqueo del link público en modo corporativo, y rechazo de organizaciones no asignadas confirmados con datos de prueba reales (borrados al terminar). **Nota de integridad histórica**: esta misma entrada de checkpoint tuvo una versión anterior que describía un refactor de UI (`runtime-shell.tsx`) que NUNCA se llegó a commitear — corregida verificando directamente contra el código real, ver `bugs.md` para el detalle completo (mismo patrón de riesgo que VS-043/`evaluateTableExpression`).
+
+## Verificación en producción (2026-08-17)
+
+Deploy `f2acd7c` en `csa-v3-web.vercel.app`. Framework temporal + 2 Evaluaciones + 2 organizaciones-unidad-de-negocio de prueba, borrados al terminar con confirmación explícita del usuario.
+
+- **Bug real encontrado y corregido**: filas del panel Publicar superpuestas/desbordadas en el drawer angosto (`.entry-list__row` diseñada para 2 hijos, el panel le agrega 2 más) — fix de CSS, ver `bugs.md`.
+- **Confirmado funcionando**: Publicar/Revocar; `dueDate`/`contactEmail` persisten tras recarga; Runtime público con autosave y persistencia; asignar unidad de negocio oculta el link público y lo hace 404 (VS-053); Runtime autenticado carga y guarda, con respuestas **aisladas** entre modo público y unidad de negocio sobre la misma Evaluación (confirma partición VS-051 en producción real, no solo en tests); organización no asignada recibe el mismo 404 genérico (sin fuga de información).
+- `parentOrganizationId` (Better Auth `additionalFields`, VS-050) confirmado funcional en producción vía `POST /api/auth/organization/update`.
 
 ## Stack técnico
 
@@ -47,18 +55,16 @@ Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`c
 - Bloqueo proactivo del formulario en el cliente cuando vence el plazo — hoy el bloqueo sigue siendo solo de servidor (403 al guardar, desde VS-052); el banner avisa pero no deshabilita inputs.
 - Editor de exclusiones por Subindicador/elemento (UI) y dashboard de progreso por unidad — el checklist del panel Publicar solo asigna/desasigna, no filtra preguntas.
 - Export XLSX consolidado.
-- **Verificación en producción, en navegador real** — nada de esto se probó todavía en `csa-v3-web.vercel.app` ni en un navegador local. `typecheck`/`build`/`test` en verde no reemplaza esa verificación (ver la lección de VS-043 en `bugs.md`).
 
-**Estado técnico**: 61/61 tests `db` (sin tests nuevos de UI — sin navegador en este entorno), 251/251 `sdk-core` sin cambios, typecheck y build limpios en los 3 paquetes.
+**Estado técnico**: 61/61 tests `db`, 251/251 `sdk-core`, typecheck y build limpios en los 3 paquetes. **Verificado en producción end-to-end** (ver sección arriba) — bug de CSS real encontrado y corregido en el camino.
 
 ## Próximos pasos inmediatos
 
-1. **Verificar en producción, en navegador**: flujo completo de punta a punta — crear una organización hija desde `/organizations`, asignarla a una Evaluación desde el panel Publicar, loguearse como esa unidad, abrir `/evaluations/authenticated/[id]`, guardar al menos una respuesta, confirmar que persiste tras recargar. Esto no se hizo todavía y es el paso que falta antes de considerar VS-054 realmente cerrado.
-2. Editor de exclusiones por Subindicador/elemento (UI) — backend ya existe desde VS-050.
-3. Dashboard de progreso por unidad (consolidado para la matriz).
-4. Export XLSX multi-pestaña (consolidado + una por unidad) — requiere instalar `exceljs`.
-5. Rutas de evidencia autenticadas (espejo de las públicas).
-6. Bloqueo proactivo del formulario en cliente cuando vence el plazo.
+1. Dashboard de progreso por unidad (consolidado para la matriz).
+2. Export XLSX multi-pestaña (consolidado + una por unidad) — requiere instalar `exceljs`.
+3. Editor de exclusiones por Subindicador/elemento (UI) — backend ya existe desde VS-050.
+4. Rutas de evidencia autenticadas (espejo de las públicas).
+5. Bloqueo proactivo del formulario en cliente cuando vence el plazo.
 
 ## Decisiones pendientes
 
