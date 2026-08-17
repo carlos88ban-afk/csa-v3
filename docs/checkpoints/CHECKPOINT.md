@@ -1,11 +1,23 @@
-checkpoint: c9e1a1b0-0005-4a2b-8c3d-00000000002c
+checkpoint: c9e1a1b0-0005-4a2b-8c3d-00000000002d
 fecha: 2026-08-17
 estado: en_progreso
-slice_actual: VS-052 (plazo de recepción — evaluation.dueDate/contactEmail + bloqueo de escritura tras vencer + PATCH /api/evaluations/[id]). CERRADO (tests/typecheck/build verdes, 50/50 db + 251 sdk-core, migración aplicada a Neon real). Feature completa "corporativo + unidades de negocio" sigue abierta — faltan VS-053+ (acceso autenticado del evaluado, dashboard corporativo, export XLSX, panel Publicar en el Builder + eliminar pantalla intermedia). Spec completa en docs/domain/business-units.md.
+slice_actual: VS-053 (acceso autenticado por unidad de negocio). CERRADO (tests/typecheck/build verdes, 60/60 db + 251 sdk-core). Feature completa "corporativo + unidades de negocio" sigue abierta — faltan VS-054+ (Runtime autenticado, banner dueDate/contactEmail, dashboard corporativo, export XLSX, panel Publicar en el Builder + eliminar pantalla intermedia). Spec completa en docs/domain/business-units.md.
 
-slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030, VS-031, VS-032, VS-033, VS-034, VS-035, VS-036, VS-037, VS-038, VS-039, VS-040, VS-041, VS-042, VS-043, VS-044, VS-045, VS-046, VS-047, VS-048, VS-049, VS-050, VS-051, VS-052]
+slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030, VS-031, VS-032, VS-033, VS-034, VS-035, VS-036, VS-037, VS-038, VS-039, VS-040, VS-041, VS-042, VS-043, VS-044, VS-045, VS-046, VS-047, VS-048, VS-049, VS-050, VS-051, VS-052, VS-053]
+
+estado_del_proyecto:
+  - tests db: 60/60 (auth 6, domain 10, evaluation 11, evaluation-assignment 7, business-unit-access 9, response 17)
+  - tests sdk-core: 251
+  - typecheck: verde (los 3 paquetes)
+  - build: verde (los 3 paquetes)
+  - feature "corporativo + unidades de negocio": EN PROGRESO — 4 slices cerrados (VS-050, VS-051, VS-052, VS-053), pendientes VS-054+ (ver proximos_pasos)
 
 decisiones_del_dia:
+  - **VS-053 — Acceso autenticado por unidad de negocio (cerrado)**: cuarto slice de la feature "corporativo + unidades de negocio" (spec `docs/domain/business-units.md`, sección "Acceso del evaluado"). **Modo corporativo vs modo público**: `isCorporateMode(evaluationId)` devuelve true si la Evaluación tiene AL MENOS UNA fila en `evaluation_assignment`; en ese caso el token público (`GET /api/public/evaluations/[token]` y `PUT .../responses/[subindicatorId]`) deja de resolver — mismo 404 genérico que un token revocado/inexistente, sin filtrar el motivo. Evaluaciones SIN asignaciones siguen funcionando exactamente igual que hoy, sin sesión (comportamiento público no roto).
+  - **Service nuevo `packages/db/src/domain/business-unit-access.ts`**: `getEvaluationForBusinessUnit(evaluationId, businessUnitOrganizationId)` (contexto = la UNIDAD = `session.activeOrganizationId`, no la matriz) resuelve el snapshot filtrado según exclusiones de esa unidad — 404 si la Evaluación no existe, 403 si la unidad no tiene asignación vigente. Filtrado: exclusión con `elementId = null` vacía `elements` del Subindicador completo (el nodo SIGUE apareciendo en el árbol con su numeración, solo sin contenido — decisión explícita del spec para evitar numeración discontinua); exclusión puntual quita solo ese elemento de `formSchema.elements`. `assertAnswersRespectExclusions` valida que ninguna clave de `answers` toque un elemento excluido (`ANSWER_TO_EXCLUDED_ELEMENT`) ni un Subindicador excluido completo (`ANSWER_TO_EXCLUDED_SUBINDICATOR`, lanza `ValidationError`). **Bug corregido durante el desarrollo**: el chequeo de claves sintéticas usaba `:status` en vez de `::status` — `statusKey` de sdk-core es `${elementId}::status` (sufijo de 8 chars, no 7); sin el fix, respuestas de estado a un elemento excluido pasaban de largo.
+  - **API autenticada**: `GET /api/evaluations/[id]/for-business-unit` (requireActiveMember, SIN requireWriteAccess a propósito — una unidad necesita leer su evaluación aunque su rol sea solo "evaluador") devuelve el snapshot filtrado (403 si no hay asignación); `PUT /api/evaluations/[id]/for-business-unit/responses/[subindicatorId]` (requireActiveMember) valida asignación + `assertAnswersRespectExclusions` antes de `upsertResponse` con `businessUnitOrganizationId = session.activeOrganizationId` (el bloqueo por `dueDate` de VS-052 ya lo hace `upsertResponse`, no se repite). `packages/db/src/index.ts` ahora exporta `evaluation-assignment-service` y `business-unit-access` (antes no estaban publicados).
+  - **9 tests nuevos de integración contra Neon real** (`business-unit-access.test.ts`): `isCorporateMode` false/true, snapshot sin exclusiones / con elemento excluido / con Subindicador excluido completo (nodo presente, `elements: []`), `assertAnswersRespectExclusions` OK / rechaza elemento / rechaza Subindicador completo / reconoce statusKey (`::status`), flujo completo (guardado válido persiste con `businessUnitOrganizationId` correcto; rechazo de la respuesta al elemento excluido antes de persistir). Suite completa 60/60 db + 251 sdk-core, typecheck y build verdes en los 3 paquetes.
+  - **Decisiones no especificadas (puntos abiertos del prompt)**: el banner de `dueDate`/`contactEmail` y la UI de Runtime autenticado quedaron FUERA de este slice (se priorizó el backend sólido, puntos 1-4) — pasan a VS-054+. `business-units.md` NO se modificó (esos puntos ya estaban marcados como "a decidir en implementación" en el prompt del usuario).
   - **VS-052 — Plazo de recepción (`dueDate`/`contactEmail`) + bloqueo de escritura (cerrado)**: ortogonal a las unidades de negocio (aplica también al uso general, documentado en `business-units.md` porque surgió del mismo pedido). Schema: `evaluation.dueDate` (timestamp nullable = sin plazo, comportamiento histórico) + `contactEmail` (text nullable). Reglas de `updateEvaluation` (nuevo, tenant-scoped) fieles a la spec: `dueDate: null` SOLO válido si nunca hubo plazo (400 `dueDate_CANNOT_CLEAR`); toda fijación — primera vez o extensión — debe ser fecha futura (400 `dueDate_MUST_BE_FUTURE`); `contactEmail` libremente editable/limpiable. `createEvaluation` acepta ambos opcionales (el panel Publicar los fija al publicar; un plazo ya vencido en creación solo deja la Evaluación en su estado de reposo natural, no rompe nada).
   - **Bloqueo de servidor, no solo de UI** (`response-service.ts`): `upsertResponse` lanza `EvaluationLockedError` (403 `evaluation_DUE_DATE_PASSED`) si `dueDate` existe y `now >= dueDate` — cubre también `setElementStatus` (delega en upsert). Lectura SIEMPRE permitida, incluso vencido el plazo. Errores de dominio nuevos en `service.ts`: `ValidationError` (400) y `EvaluationLockedError` (403), exportados vía `export *` y traducidos en `apps/web/lib/api-errors.ts`.
   - **API**: `PATCH /api/evaluations/[id]` con `requireWriteAccess` y body validado por `updateEvaluationInput` en sdk-core (`z.coerce.date()` + `z.string().email()`, ambos nullable/optional — `undefined` no toca, `null` limpia). La ruta pública de respuestas no cambió: el bloqueo vive en el service y fluye a 403 vía toErrorResponse.
@@ -53,6 +65,14 @@ decisiones_del_dia:
   - Fix del mismo día (post-VS-046, ya cerrado antes de empezar VS-047): radio/checkbox con label en línea siguiente — `className="field field--checkbox"` en 7 sitios de Runtime/preview (commit `07b74d8`), detalle completo ya en `docs/project_notes/bugs.md` y checkpoints previos.
 
 archivos_modificados:
+  - packages/db/src/domain/business-unit-access.ts (VS-053: nuevo — isCorporateMode, getEvaluationForBusinessUnit con filtrado por exclusiones, assertAnswersRespectExclusions, getEvaluationMatrizOrganizationId)
+  - packages/db/src/__tests__/business-unit-access.test.ts (VS-053: 9 tests nuevos contra Neon real)
+  - packages/db/src/index.ts (VS-053: export de evaluation-assignment-service y business-unit-access)
+  - apps/web/app/api/public/evaluations/[token]/route.ts (VS-053: isCorporateMode → 404 genérico)
+  - apps/web/app/api/public/evaluations/[token]/responses/[subindicatorId]/route.ts (VS-053: isCorporateMode → 404 genérico)
+  - apps/web/app/api/evaluations/[id]/for-business-unit/route.ts (VS-053: GET nuevo, snapshot filtrado autenticado)
+  - apps/web/app/api/evaluations/[id]/for-business-unit/responses/[subindicatorId]/route.ts (VS-053: PUT nuevo, validación de exclusiones)
+  - docs/CHANGELOG.md, docs/checkpoints/CHECKPOINT.md, docs/project_notes/issues.md (VS-053)
   - packages/db/src/schema/evaluation.ts (VS-052: dueDate/contactEmail nullable)
   - packages/db/src/domain/evaluation-service.ts (VS-052: createEvaluation con dueDate/contactEmail, updateEvaluation nuevo con reglas de la spec)
   - packages/db/src/domain/response-service.ts (VS-052: bloqueo EvaluationLockedError en upsertResponse)
@@ -87,7 +107,7 @@ archivos_modificados:
   - docs/engines/form.md, docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md, docs/project_notes/bugs.md
 
 proximos_pasos:
-  - **VS-053+ (continuación directa, feature "unidades de negocio" sin cerrar)**: acceso autenticado por unidad de negocio (reemplaza el token público solo en modo corporativo, usa `getAssignmentForBusinessUnit` + filtra elementos por exclusiones, con la validación de `evaluation_assignment` que se dejó fuera del service en VS-051); progreso agregado + dashboard corporativo; export XLSX consolidado (`exceljs`, dependencia nueva a instalar); panel "Publicar" en el Builder + eliminar `/frameworks/[frameworkId]`. Todo el diseño ya está en `docs/domain/business-units.md` — no hace falta volver a preguntar al usuario salvo que algo no cuadre al implementar.
+  - **VS-054+ (continuación directa, feature "unidades de negocio" sin cerrar — VS-053 cerrado, backend del acceso listo)**: para completar la feature falta, en orden: (1) **Runtime autenticado** que consuma `GET/PUT /api/evaluations/[id]/for-business-unit` en modo corporativo (en vez del token público, que ya devuelve 404 en modo corporativo); (2) **banner de plazo** `dueDate`/`contactEmail` en el Runtime (aviso 2-3 días antes + mensaje de vencido con el email de contacto, sobre el bloqueo de VS-052); (3) **dashboard corporativo** con progreso agregado por unidad de negocio; (4) **export XLSX consolidado** multi-hoja (`exceljs`, dependencia nueva a instalar); (5) **panel "Publicar" dentro del Builder** (moverlo desde `/frameworks/[frameworkId]` y luego eliminar esa pantalla intermedia) con: enlace público condicionado (visible solo si NO es modo corporativo — en modo corporativo el acceso es autenticado, sin token), `dueDate` editable, sección de unidades de negocio con exclusiones + progreso, export CSV o XLSX según modo, lista de evaluaciones + botón Revocar. Todo el diseño ya está en `docs/domain/business-units.md` — no hace falta volver a preguntar al usuario salvo que algo no cuadre al implementar.
   - Sin ítem asignado en BACKLOG.md ("Siguiente") tras VS-048/VS-049 — revisar `docs/ROADMAP.md` para el siguiente ítem por prioridad, o esperar un nuevo hallazgo/pedido del usuario (patrón habitual: HTML real de S&P pegado por el usuario), pero eso queda detrás de terminar VS-050+.
   - Pendientes no bloqueantes, siguen en BACKLOG.md: proveedor de email/SMTP (ADR); TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada); tabla de historial de revisiones de `formSchema`.
   - Warning de SSL de Postgres (`sslmode=require` → deprecation warning de `pg`) visible en runtime logs de Vercel desde 2026-08-05 — no bloqueante, pendiente de decisión explícita del usuario antes de tocar `DATABASE_URL` en producción.
@@ -98,14 +118,18 @@ bloqueos: []
 
 contexto_para_continuar: |
   La feature "corporativo + unidades de negocio" está EN PROGRESO con
-  tres slices CERRADOS: VS-050 (base de schema: Organization.
+  cuatro slices CERRADOS: VS-050 (base de schema: Organization.
   parentOrganizationId + evaluation_assignment/evaluation_assignment_exclusion),
   VS-051 (partición de response: businessUnitOrganizationId NOT NULL +
   unique de 3 columnas + service con unidad opcional + migración aplicada
-  a Neon real) y VS-052 (plazo de recepción: evaluation.dueDate/
+  a Neon real), VS-052 (plazo de recepción: evaluation.dueDate/
   contactEmail + bloqueo de escritura tras vencer + PATCH
-  /api/evaluations/[id] + migración aplicada a Neon real) — 50/50 tests
-  db, 251 sdk-core, typecheck y build verdes en los 3 paquetes. La
+  /api/evaluations/[id] + migración aplicada a Neon real) y VS-053
+  (acceso autenticado por unidad de negocio: isCorporateMode bloquea el
+  token público con 404 genérico, business-unit-access.ts con snapshot
+  filtrado por exclusiones + assertAnswersRespectExclusions, API
+  autenticada GET/PUT /api/evaluations/[id]/for-business-unit) — 60/60
+  tests db, 251 sdk-core, typecheck y build verdes en los 3 paquetes. La
   feature completa NO está cerrada — faltan varios slices más (ver
   proximos_pasos). NO se ha hecho verificación en producción de estas
   piezas porque no hay UI todavía que las ejerza (es puramente
@@ -280,8 +304,9 @@ contexto_para_continuar: |
     para que su snapshot incluya los elementos.
   - Verificar `netstat -ano | grep :3000` antes de levantar `next dev`.
 
-  Para retomar: este checkpoint YA tiene un slice en progreso (VS-053+,
-  unidades de negocio) — continuar ahí directamente, no ir a
+  Para retomar: este checkpoint YA tiene un slice en progreso (VS-054+,
+  unidades de negocio — VS-053 cerrado, backend del acceso listo) —
+  continuar ahí directamente, no ir a
   docs/BACKLOG.md/ROADMAP.md salvo que el usuario pida otra cosa. Leer
   `docs/domain/business-units.md` completo antes de seguir. Comando de
   verificación: pnpm install && pnpm slice:close. Al tocar `response`
