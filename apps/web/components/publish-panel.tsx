@@ -119,7 +119,11 @@ function EvaluationRow({
       </div>
       <div className="entry-list__actions">
         <a href={`/frameworks/${frameworkId}/evaluations/${evaluation.id}/review`}>Revisar</a>
-        <a href={`/api/evaluations/${evaluation.id}/export`}>Exportar CSV</a>
+        {hasAssignments ? (
+          <a href={`/api/evaluations/${evaluation.id}/export-xlsx`}>Exportar XLSX consolidado</a>
+        ) : (
+          <a href={`/api/evaluations/${evaluation.id}/export`}>Exportar CSV</a>
+        )}
         <Button type="button" variant="danger" size="sm" onClick={() => void handleRevoke()} disabled={revoking}>
           {revoking ? "Revocando..." : "Revocar"}
         </Button>
