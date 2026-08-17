@@ -7,8 +7,24 @@ import { formSchema } from "./form-schema.js";
 
 export const createEvaluationInput = z.object({
   frameworkId: z.string().min(1),
+  // VS-052 (docs/domain/business-units.md, "Plazo de recepción"): el panel
+  // Publicar fija el plazo (y el correo de contacto) al momento de crear la
+  // Evaluación. Sin plazo por defecto (`null`), mismo espíritu que la
+  // expiración por fecha de publishing.md.
+  dueDate: z.coerce.date().nullable().optional(),
+  contactEmail: z.string().email().nullable().optional(),
 });
 export type CreateEvaluationInput = z.infer<typeof createEvaluationInput>;
+
+// VS-052 — edición del plazo desde el panel Publicar. `undefined` = no tocar
+// el campo; `null` = limpiar. Las reglas de negocio (no volver a `null` una
+// vez fijado, solo fechas futuras) viven en evaluation-service.ts, no acá,
+// porque dependen del estado previo de la fila en la DB.
+export const updateEvaluationInput = z.object({
+  dueDate: z.coerce.date().nullable().optional(),
+  contactEmail: z.string().email().nullable().optional(),
+});
+export type UpdateEvaluationInput = z.infer<typeof updateEvaluationInput>;
 
 const evaluationSnapshotSubindicator = z.object({
   id: z.string(),
@@ -51,6 +67,10 @@ export interface Evaluation {
   snapshot: EvaluationSnapshot;
   publishedAt: Date;
   createdAt: Date;
+  // VS-052 — plazo de recepción y correo de contacto (ver business-units.md
+  // "Plazo de recepción (dueDate) y comportamiento del banner").
+  dueDate: Date | null;
+  contactEmail: string | null;
 }
 
 // Numeración automática del árbol (VS-021, ver

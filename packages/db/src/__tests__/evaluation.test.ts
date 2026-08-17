@@ -5,7 +5,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { auth } from "../auth.js";
 import { db } from "../client.js";
 import { createDimension, createFramework, createIndicator, createSubindicator, updateSubindicator } from "../domain/service.js";
-import { createEvaluation, deleteEvaluation, getEvaluation, getEvaluationByToken, listEvaluations } from "../domain/evaluation-service.js";
+import { createEvaluation, deleteEvaluation, getEvaluation, getEvaluationByToken, listEvaluations, updateEvaluation } from "../domain/evaluation-service.js";
+import { ValidationError } from "../domain/service.js";
 import { organization, user } from "../schema/auth.js";
 import { dimension, framework, indicator, subindicator } from "../schema/domain.js";
 import { evaluation } from "../schema/evaluation.js";
@@ -49,7 +50,7 @@ afterAll(async () => {
   for (const userId of createdUserIds) {
     await db.delete(user).where(eq(user.id, userId));
   }
-});
+}, 60000);
 
 describe("VS-009 — engine/publishing (contra Neon real)", () => {
   it("publicar genera un snapshot fiel al árbol actual", async () => {
@@ -139,5 +140,103 @@ describe("VS-009 — engine/publishing (contra Neon real)", () => {
     const fwInA = await createFramework(orgA, { name: "Framework Org A" });
 
     await expect(createEvaluation(orgB, { frameworkId: fwInA.id })).rejects.toThrow();
+  });
+
+  it("VS-052 — publicar persiste dueDate y contactEmail del panel Publicar", async () => {
+    const { organizationId } = await makeOrgWithOwner("due-create");
+    const fw = await createFramework(organizationId, { name: "Framework Due" });
+
+    const ev = await createEvaluation(organizationId, {
+      frameworkId: fw.id,
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      contactEmail: "admin@empresa.com",
+    });
+
+    expect(ev.dueDate).not.toBeNull();
+    expect(ev.contactEmail).toBe("admin@empresa.com");
+
+    const reloaded = await getEvaluation(organizationId, ev.id);
+    expect(reloaded?.dueDate?.getTime()).toBe(ev.dueDate!.getTime());
+    expect(reloaded?.contactEmail).toBe("admin@empresa.com");
+  });
+
+  it("VS-052 — updateEvaluation fija el plazo, lo extiende y edita el contacto", async () => {
+    const { organizationId } = await makeOrgWithOwner("due-update");
+    const fw = await createFramework(organizationId, { name: "Framework Due Update" });
+    const ev = await createEvaluation(organizationId, { frameworkId: fw.id });
+
+    const first = await updateEvaluation(organizationId, ev.id, {
+      dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+      contactEmail: "admin@empresa.com",
+    });
+    expect(first?.dueDate).not.toBeNull();
+    expect(first?.contactEmail).toBe("admin@empresa.com");
+
+    const extended = await updateEvaluation(organizationId, ev.id, {
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+    expect(extended?.dueDate).not.toBeNull();
+
+    const clearedContact = await updateEvaluation(organizationId, ev.id, { contactEmail: null });
+    expect(clearedContact?.contactEmail).toBeNull();
+    expect(clearedContact?.dueDate).not.toBeNull();
+  });
+
+  it("VS-052 — updateEvaluation rechaza limpiar dueDate una vez fijado", async () => {
+    const { organizationId } = await makeOrgWithOwner("due-clear");
+    const fw = await createFramework(organizationId, { name: "Framework Due Clear" });
+    const ev = await createEvaluation(organizationId, {
+      frameworkId: fw.id,
+      dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    });
+
+    await expect(updateEvaluation(organizationId, ev.id, { dueDate: null })).rejects.toThrow(
+      new ValidationError("dueDate_CANNOT_CLEAR"),
+    );
+
+    const untouched = await getEvaluation(organizationId, ev.id);
+    expect(untouched?.dueDate).not.toBeNull();
+  });
+
+  it("VS-052 — updateEvaluation rechaza fijar fechas no futuras (primera vez y extensión)", async () => {
+    const { organizationId } = await makeOrgWithOwner("due-future");
+    const fw = await createFramework(organizationId, { name: "Framework Due Future" });
+    const ev = await createEvaluation(organizationId, { frameworkId: fw.id });
+
+    const past = new Date(Date.now() - 60 * 1000);
+    await expect(updateEvaluation(organizationId, ev.id, { dueDate: past })).rejects.toThrow(
+      new ValidationError("dueDate_MUST_BE_FUTURE"),
+    );
+
+    const settled = await updateEvaluation(organizationId, ev.id, {
+      dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    });
+    expect(settled?.dueDate).not.toBeNull();
+
+    const againPast = new Date(Date.now() - 60 * 1000);
+    await expect(updateEvaluation(organizationId, ev.id, { dueDate: againPast })).rejects.toThrow(
+      new ValidationError("dueDate_MUST_BE_FUTURE"),
+    );
+  });
+
+  it("VS-052 — updateEvaluation permite dueDate null cuando nunca hubo plazo", async () => {
+    const { organizationId } = await makeOrgWithOwner("due-null-ok");
+    const fw = await createFramework(organizationId, { name: "Framework Due Null" });
+    const ev = await createEvaluation(organizationId, { frameworkId: fw.id });
+
+    const result = await updateEvaluation(organizationId, ev.id, { dueDate: null });
+    expect(result?.dueDate).toBeNull();
+  });
+
+  it("VS-052 — updateEvaluation es tenant-scoped y 404 para evaluaciones inexistentes", async () => {
+    const { organizationId: owner } = await makeOrgWithOwner("due-owner");
+    const { organizationId: intruder } = await makeOrgWithOwner("due-intruder");
+    const fw = await createFramework(owner, { name: "Framework Due Scope" });
+    const ev = await createEvaluation(owner, { frameworkId: fw.id });
+
+    expect(
+      await updateEvaluation(intruder, ev.id, { dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000) }),
+    ).toBeNull();
+    expect(await updateEvaluation(owner, "evaluation-que-nunca-existio", { contactEmail: "x@y.com" })).toBeNull();
   });
 });

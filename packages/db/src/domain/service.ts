@@ -19,6 +19,26 @@ export class NotFoundError extends Error {
   }
 }
 
+// VS-052 — regla de negocio rechazada (400). El `message` es el código de
+// error estable (p. ej. `dueDate_CANNOT_CLEAR`), mismo criterio de códigos
+// que NotFoundError/AuthzError — la capa de API lo traduce a HTTP.
+export class ValidationError extends Error {
+  constructor(code: string) {
+    super(code);
+    this.name = "ValidationError";
+  }
+}
+
+// VS-052 — bloqueo de escritura tras vencer el plazo (403, ver
+// business-units.md "Plazo de recepción"). Se lanza desde response-service;
+// la lectura SIEMPRE queda permitida.
+export class EvaluationLockedError extends Error {
+  constructor() {
+    super("evaluation_DUE_DATE_PASSED");
+    this.name = "EvaluationLockedError";
+  }
+}
+
 // Un INSERT con .returning() de un solo `values(...)` siempre produce
 // exactamente una fila si no lanza — esto lo hace explícito para el tipo.
 function firstOrThrow<T>(rows: T[], entity: string): T {

@@ -21,6 +21,13 @@ export const evaluation = pgTable(
     token: text("token").notNull(),
     title: text("title").notNull(),
     snapshot: jsonb("snapshot").notNull(),
+    // VS-052 (docs/domain/business-units.md, "Plazo de recepción (dueDate) y
+    // comportamiento del banner"): nullable = sin plazo (comportamiento
+    // histórico). Una vez fijado, solo se actualiza a fechas futuras — nunca
+    // vuelve a `null` (el bloqueo de escritura y el banner se derivan de
+    // comparar now contra este campo en cada request).
+    dueDate: timestamp("due_date"),
+    contactEmail: text("contact_email"),
     publishedAt: timestamp("published_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

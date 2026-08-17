@@ -7,6 +7,7 @@ import { db } from "../client.js";
 import { createEvaluation, deleteEvaluation } from "../domain/evaluation-service.js";
 import { createDimension, createFramework, createIndicator, createSubindicator, updateSubindicator } from "../domain/service.js";
 import { getResponse, listResponses, setElementStatus, upsertResponse } from "../domain/response-service.js";
+import { EvaluationLockedError } from "../domain/service.js";
 import { organization, user } from "../schema/auth.js";
 import { dimension, framework, indicator, subindicator } from "../schema/domain.js";
 import { evaluation } from "../schema/evaluation.js";
@@ -236,6 +237,59 @@ describe("VS-010 — engine/persistence (contra Neon real)", () => {
       expect(all).toHaveLength(1);
       expect(all[0]!.businessUnitOrganizationId).toBe(matriz);
       expect(all[0]!.answers).toEqual({ "el-1": "de la matriz" });
+    });
+  });
+
+  describe("VS-052 — bloqueo de escritura tras dueDate (docs/domain/business-units.md)", () => {
+    it("upsertResponse rechaza (EvaluationLockedError) una vez vencido el plazo", async () => {
+      const { organizationId } = await makeOrgWithOwner("due-locked");
+      const fw = await createFramework(organizationId, { name: "Framework Due Locked" });
+      const dim = await createDimension(organizationId, { frameworkId: fw.id, title: "Dim" });
+      const ind = await createIndicator(organizationId, { dimensionId: dim.id, title: "Ind" });
+      const sub = await createSubindicator(organizationId, { indicatorId: ind.id, title: "Sub" });
+      await updateSubindicator(organizationId, sub.id, {
+        formSchema: { schemaVersion: 1, elements: [{ id: "el-1", type: "texto_corto", label: "Nombre" }] },
+      });
+      const ev = await createEvaluation(organizationId, {
+        frameworkId: fw.id,
+        dueDate: new Date(Date.now() - 60 * 1000),
+      });
+
+      await expect(upsertResponse(ev.id, sub.id, { "el-1": "tarde" })).rejects.toThrow(EvaluationLockedError);
+    });
+
+    it("setElementStatus (que delega en upsertResponse) también queda bloqueado tras dueDate", async () => {
+      const { organizationId } = await makeOrgWithOwner("due-status");
+      const fw = await createFramework(organizationId, { name: "Framework Due Status" });
+      const dim = await createDimension(organizationId, { frameworkId: fw.id, title: "Dim" });
+      const ind = await createIndicator(organizationId, { dimensionId: dim.id, title: "Ind" });
+      const sub = await createSubindicator(organizationId, { indicatorId: ind.id, title: "Sub" });
+      await updateSubindicator(organizationId, sub.id, {
+        formSchema: { schemaVersion: 1, elements: [{ id: "el-1", type: "texto_corto", label: "Nombre" }] },
+      });
+      const ev = await createEvaluation(organizationId, {
+        frameworkId: fw.id,
+        dueDate: new Date(Date.now() - 60 * 1000),
+      });
+
+      await expect(setElementStatus(ev.id, sub.id, "el-1", "completed")).rejects.toThrow(EvaluationLockedError);
+    });
+
+    it("la lectura SIEMPRE queda permitida, incluso vencido el plazo", async () => {
+      const { ev, subindicatorId } = await publishedEvaluationWithSubindicator("due-read");
+      await upsertResponse(ev.id, subindicatorId, { "el-1": "antes de vencer" });
+      await db.update(evaluation).set({ dueDate: new Date(Date.now() - 60 * 1000) }).where(eq(evaluation.id, ev.id));
+
+      expect((await getResponse(ev.id, subindicatorId))?.answers).toEqual({ "el-1": "antes de vencer" });
+      expect(await listResponses(ev.id)).toHaveLength(1);
+    });
+
+    it("escritura permitida mientras el plazo no ha vencido", async () => {
+      const { ev, subindicatorId } = await publishedEvaluationWithSubindicator("due-open");
+      await db.update(evaluation).set({ dueDate: new Date(Date.now() + 60 * 60 * 1000) }).where(eq(evaluation.id, ev.id));
+
+      const created = await upsertResponse(ev.id, subindicatorId, { "el-1": "a tiempo" });
+      expect(created.answers).toEqual({ "el-1": "a tiempo" });
     });
   });
 });

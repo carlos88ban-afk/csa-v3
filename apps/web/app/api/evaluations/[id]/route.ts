@@ -1,4 +1,5 @@
-import { deleteEvaluation, getEvaluation, requireActiveMember, requireWriteAccess } from "@plataforma-csa/db";
+import { deleteEvaluation, getEvaluation, requireActiveMember, requireWriteAccess, updateEvaluation } from "@plataforma-csa/db";
+import { updateEvaluationInput } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
 interface Params {
@@ -14,6 +15,23 @@ export async function GET(request: Request, { params }: Params) {
     const { id } = await params;
     const { organizationId } = await requireActiveMember(request.headers);
     const evaluation = await getEvaluation(organizationId, id);
+    if (!evaluation) return Response.json({ error: "evaluation_NOT_FOUND" }, { status: 404 });
+    return Response.json({ evaluation });
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
+
+// VS-052 (docs/domain/business-units.md, "Plazo de recepción"): edición del
+// plazo/correo de contacto desde el panel Publicar — la matriz (write
+// access). Las reglas de negocio (no volver a null una vez fijado, solo
+// fechas futuras) se traducen a 400 vía ValidationError en toErrorResponse.
+export async function PATCH(request: Request, { params }: Params) {
+  try {
+    const { id } = await params;
+    const { organizationId } = await requireWriteAccess(request.headers);
+    const input = updateEvaluationInput.parse(await request.json());
+    const evaluation = await updateEvaluation(organizationId, id, input);
     if (!evaluation) return Response.json({ error: "evaluation_NOT_FOUND" }, { status: 404 });
     return Response.json({ evaluation });
   } catch (error) {

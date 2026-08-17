@@ -6,7 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../client.js";
 import { evaluation } from "../schema/evaluation.js";
 import { response } from "../schema/response.js";
-import { NotFoundError } from "./service.js";
+import { EvaluationLockedError, NotFoundError } from "./service.js";
 
 // Motor engine/persistence v1 (ver docs/engines/persistence.md). Sin
 // `organizationId`: el acceso a estas funciones ya fue resuelto vía token en
@@ -56,6 +56,16 @@ export async function upsertResponse(
 ) {
   const [ev] = await db.select().from(evaluation).where(eq(evaluation.id, evaluationId));
   if (!ev) throw new NotFoundError("evaluation");
+
+  // VS-052 (docs/domain/business-units.md, "Plazo de recepción (dueDate) y
+  // comportamiento del banner"): bloqueo de servidor, no solo de UI — pasado
+  // dueDate ya no se registra ni edita NINGUNA respuesta (tampoco estados de
+  // elementos vía setElementStatus, que delega en esta función). La lectura
+  // (listResponses/getResponse) queda SIEMPRE permitida, también vencido el
+  // plazo. El 403 lo traduce toErrorResponse en la capa de API.
+  if (ev.dueDate && Date.now() >= ev.dueDate.getTime()) {
+    throw new EvaluationLockedError();
+  }
 
   const snapshot = ev.snapshot as EvaluationSnapshot;
   if (!snapshotHasSubindicator(snapshot, subindicatorId)) throw new NotFoundError("subindicator");
