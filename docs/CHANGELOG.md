@@ -4,6 +4,18 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-049 — Numeración y orden persistido (drag-and-drop) en el Builder (2026-08-17)
+
+- Pedido explícito del usuario: que el panel de navegación del Builder muestre el mismo número que ve el evaluado (`1`, `1.1`, `1.1.1`), con drag-and-drop para reordenar Dimensión/Indicador/Subindicador, y que seleccionar un framework lleve directo al editor sin la pantalla intermedia de solo-Dimensiones.
+- Supera la decisión "derivada, no persistida" de VS-021: drag-and-drop es justamente elegir un orden que no se puede derivar de nada más. Columna `order` nueva (entero por-padre) en `dimension`/`indicator`/`subindicator`, backfilleada por `created_at` para filas existentes (todas de prueba, confirmado en VS-048). El número mostrado sigue siendo 100% derivado de la posición en el array — solo se persiste el orden elegido, no el string del número.
+- `packages/db`: `order` en las 3 tablas; `orderBy` en `listDimensions`/`listIndicators`/`listSubindicators`/`listDirectSubindicators`; `reorderDimensions`/`reorderIndicators`/`reorderSubindicators` (transacción, tenant-scoped, valida que todos los ids pertenezcan al padre indicado).
+- **API**: 3 endpoints nuevos `POST /api/{dimensions,indicators,subindicators}/reorder`.
+- **Builder**: números importados de `sdk-core` (elimina una copia local desactualizada con un bug real — `directSubindicatorNumber` local calculaba 3 niveles en vez de 2, nunca se notó porque nunca estaba conectada al render del árbol). Drag-and-drop nativo HTML5, sin librería nueva (mismo criterio que las flechas ↑/↓ de reordenar Elementos en `form.md`).
+- **Bug preexistente corregido al restructurar el render**: los Subindicadores directos de una Dimensión se renderizaban duplicados una vez por cada Indicador de esa Dimensión; y su renombrar/borrar nunca mostraba el formulario correspondiente.
+- `/frameworks` list enlaza directo a `/builder`; la pantalla intermedia sigue viva para Publicación, alcanzable desde el breadcrumb del Builder.
+- **Bug encontrado en la verificación en producción (corregido, commit separado)**: arrastrar un Indicador o Subindicador no reordenaba nada — el evento burbujeaba hasta el `div` arrastrable de la Dimensión/Indicador contenedor y pisaba el estado. Fix: `stopPropagation()` en los 3 handlers de cada nivel + verificación explícita de scope en `onDrop`. Detalle completo en `docs/domain/evaluation-hierarchy.md`.
+- Verificado en producción de punta a punta: navegación directa, numeración correcta con 2 Dimensiones × 2 Indicadores, drag-and-drop de ambos niveles con persistencia confirmada tras recarga completa. Framework temporal borrado al terminar.
+
 ### VS-048 — Grilla uniforme sin encabezados especiales en `tabla_datos` (2026-08-16)
 
 - Reporte del usuario tras probar VS-047 en producción: "sigo sin ver lo que te pedí... con el estilo actual no podría armar una tabla doble entrada, ya que la celda superior izquierda nunca existe". VS-047 mantuvo `columns[]`/`rows[]` con `label` propio y un `<thead>`/`<th scope="row">` siempre presentes — la esquina superior izquierda quedaba como un `<th />` vacío estructural, nunca una celda real, contradiciendo el pedido original ("una sola celda, agregar a la derecha/abajo").
