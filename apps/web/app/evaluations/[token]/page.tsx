@@ -1,4 +1,5 @@
 "use client";
+import { DueDateBanner } from "@/components/due-date-banner";
 
 import {
   commentKey,
@@ -471,6 +472,7 @@ export default function PublicEvaluationPage({ params }: Props) {
           {active.subNumber} {active.sub.title}
         </h1>
         {active.sub.description && <p>{active.sub.description}</p>}
+        <DueDateBanner dueDate={evaluation.dueDate} contactEmail={evaluation.contactEmail} />
 
         {!active.sub.formSchema || active.sub.formSchema.elements.length === 0 ? (
           <p className="empty">Este formulario todavía no tiene elementos.</p>

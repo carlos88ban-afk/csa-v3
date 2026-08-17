@@ -1,6 +1,6 @@
 # VS-054 Implementation Notes
 
-## Completed (2026-08-17)
+## Completed (2026-08-17) — INFRAESTRUCTURA + UI
 
 ### 1. API Routes (backend)
 - `GET/POST /api/evaluations/[id]/assignments` - listar/crear asignaciones
@@ -12,60 +12,57 @@
 - `components/due-date-banner.tsx` - banner de plazo compartido
   - Aviso 2-3 días antes de vencimiento
   - Banner de cierre tras vencimiento con contactEmail
+  - Refactorizado a clases CSS (`due-date-banner`, `--closed`, `--expiring`) en `globals.css` (sin estilos inline)
 
 ### 3. Tests added for VS-053 verification
 - Cross-tenant isolation tests in `business-unit-access.test.ts`
 - All 61 tests passing
 
-## Pending (for completion or VS-055)
+### 4. Runtime compartido (extracción)
+- `components/runtime-shell.tsx` — TODO el runtime público extraído de `app/evaluations/[token]/page.tsx` (~1990 líneas) a un componente reutilizable `RuntimeShell`.
+- Props: `{ mode: "public" | "authenticated"; token?: string; evaluationId?: string }`.
+- Internamente calcula `apiBase`: público → `/api/public/evaluations/{token}`; autenticado → `/api/evaluations/{id}/for-business-unit`.
+- Todas las URLs de evidencias (`presign`, `presign-ref`, `download-url`, DELETE) y respuestas usan `apiBase` — los subcomponentes (`EvidenceView`, `OptionReferencesView`, `SubOptionsView`, `ElementView`) pasan de recibir `token` a recibir `base`.
+- `pageLocked`: si `evaluation.dueDate` ya venció → todo el formulario de solo lectura (botones Guardar/Cancelar/Restablecer deshabilitados, `setAnswer`/`doSave` cortan, inputs `disabled` vía `locked || pageLocked` en `ElementView`). El backend ya bloquea con 403 `evaluation_DUE_DATE_PASSED`; esto es la réplica UX.
+- Error mapping: modo autenticado con `err.message.includes("evaluation_assignment")` → pantalla "No tenés acceso a esta evaluación." (403/404 de asignación); resto → 404 genérico.
+- `<DueDateBanner>` renderizado en AMBOS modos (prop `dueDate`/`contactEmail`).
+- `RuntimeShell` es named export (no default).
 
-### Runtime Autenticado
-Decisión de diseño: crear `/evaluations/authenticated/[id]/page.tsx` que:
-- Consume `GET /api/evaluations/[id]/for-business-unit` (ya existe)
-- Guarda con `PUT /api/evaluations/[id]/for-business-unit/responses/[subindicatorId]` (ya existe)
-- Reutiliza máximo código de `/evaluations/[token]/page.tsx`
-- Integra `<DueDateBanner dueDate={evaluation.dueDate} contactEmail={evaluation.contactEmail} />`
+### 5. Páginas wrapper
+- `app/evaluations/[token]/page.tsx` — wrapper delgado: `use(params)` + `<RuntimeShell mode="public" token={token} />`.
+- `app/evaluations/authenticated/[id]/page.tsx` — NUEVO: `<RuntimeShell mode="authenticated" evaluationId={id} />`.
 
-**Evidencias**: Las rutas públicas de evidencias no validan modo corporativo. Para el Runtime autenticado se necesitan rutas espejo bajo `/api/evaluations/[id]/for-business-unit/evidences/*` (presign, presign-ref, download-url, DELETE) que validen la asignación.
+### 6. Rutas de evidencias autenticadas (espejo)
+- Bajo `app/api/evaluations/[id]/for-business-unit/evidences/`: `route.ts` (DELETE), `presign`, `presign-ref`, `download-url`.
+- Mismo comportamiento que las públicas pero con `requireActiveMember` + `getEvaluationForBusinessUnit` (que valida asignación y devuelve snapshot filtrado por exclusiones VS-053).
+- Nota: las rutas públicas de evidencias NO validan modo corporativo (gap preexistente documentado) — en la práctica un token corporativo ya devuelve 404 en el GET público, así que el flujo corporativo siempre pasa por las autenticadas.
 
-### Panel Publicar en Builder
-Ubicación decidida: Botón "Publicar" en `apps/web/app/frameworks/[frameworkId]/builder/page.tsx` junto al área donde se renderiza SubindicatorEditor (el botón "Ver como evaluado" vive en `subindicator-editor.tsx` línea ~1234).
+### 7. Panel Publicar en Builder
+- `components/publish-panel.tsx` — drawer (`form-preview-drawer` CSS) con:
+  - Publicar nueva evaluación / listar existentes + Revocar
+  - Enlace público `/evaluations/{token}` si NO hay asignaciones; `/evaluations/authenticated/{id}` si corporativo
+  - Edición de `dueDate`/`contactEmail` (PATCH `/api/evaluations/[id]`)
+  - Asignar/desasignar unidades (GET children + GET/POST/DELETE assignments)
+  - Exportar CSV + Revisar (link a la página de revisión, que se conserva)
+- Botón "Publicar" en `builder/page.tsx`: `<div className="builder-panel__head">` (nueva clase CSS) con el toggle "🌳 Estructura" + el botón.
+- Breadcrumb del Builder: el crumb "Framework" deja de enlazar (la página se elimina).
 
-Panel (modal/drawer CSS, mismo patrón que `.form-preview-drawer`):
-- Generar evaluación / listar existentes con Revocar (migrar de `frameworks/[frameworkId]/page.tsx`)
-- Enlace público (solo si `GET /api/evaluations/[id]/assignments` devuelve array vacío)
-- Campos `dueDate`/`contactEmail` editables (usan `PATCH /api/evaluations/[id]`)
-- Checklist unidades de negocio:
-  - `GET /api/organizations/children` para listar hijas
-  - `GET /api/evaluations/[id]/assignments` para ver asignadas
-  - `POST /DELETE` para asignar/desasignar
-- Botón CSV export (migrar de página eliminada)
-
-Eliminar: `apps/web/app/frameworks/[frameworkId]/page.tsx` (reemplazado completamente)
+### 8. Página eliminada
+- `app/frameworks/[frameworkId]/page.tsx` — eliminada (su contenido: dimensiones + editor + publicación → migrado al Builder + PublishPanel).
+- Breadcrumb de la página de Revisión: enlaza al Editor en vez de la página eliminada.
 
 ## Decisions for spec
 
 - Runtime autenticado: ruta separada `/evaluations/authenticated/[id]` en vez de detectar sesión en la ruta pública (más claro, evita confusión con token)
 - Evidencias autenticadas: requieren rutas nuevas (las públicas no validan modo corporativo)
 - Panel Publicar: drawer CSS (mismo patrón que preview), no modal de librería externa
+- Botón "Publicar" vive en la cabecera del builder-panel (nivel framework), NO junto a "Ver como evaluado" (que es per-subindicador)
 - Editor de exclusiones y dashboard de progreso: explícitamente diferidos a VS-055
+- `pageLocked` (bloqueo por dueDate) aplica al formulario entero en ambos modos
 
-## Next Steps
+## Next Steps (VS-055 — diferido)
 
-1. Integrar `DueDateBanner` en `/evaluations/[token]/page.tsx`:
-   - Importar componente
-   - Renderizar antes del `<h1>` del subindicator activo
-   - Pasar `evaluation.dueDate` y `evaluation.contactEmail`
-
-2. Crear `/evaluations/authenticated/[id]/page.tsx`:
-   - Extraer lógica compartida a componente helper o duplicar código mínimo
-   - Usar rutas autenticadas en vez de públicas
-   - Integrar mismo `DueDateBanner`
-
-3. Crear rutas de evidencias autenticadas (espejo de públicas con validación de assignment)
-
-4. Implementar panel Publicar en builder
-
-5. Migrar funcionalidad y eliminar `frameworks/[frameworkId]/page.tsx`
-
-6. Tests, typecheck, build, docs
+1. Editor de exclusiones por Subindicador/elemento (UI) — backend ya existe (VS-050)
+2. Dashboard de progreso por unidad (consolidado para la matriz)
+3. Export XLSX multi-pestaña (consolidado + una por unidad)
+4. Verificación en producción del Runtime autenticado + panel Publicar

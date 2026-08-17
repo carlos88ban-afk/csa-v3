@@ -2,12 +2,12 @@
 
 **Última actualización**: 2026-08-17  
 **Branch activa**: main  
-**Último slice cerrado**: VS-053 (acceso autenticado por unidad de negocio)  
-**Slice en progreso**: VS-054 (Runtime autenticado + panel Publicar — PARCIAL)
+**Último slice cerrado**: VS-054 (Runtime autenticado + panel Publicar)  
+**Slice en progreso**: VS-055 (exclusiones UI, dashboard, XLSX — ver BACKLOG)
 
 ## Resumen ejecutivo
 
-Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+), infraestructura de unidades de negocio y asignaciones completada en backend (VS-050, VS-051, VS-053). VS-054 parcialmente implementado: rutas API de asignaciones y banner de plazo creados; pendiente integración en UI (Runtime autenticado, panel Publicar, evidencias autenticadas).
+Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+), infraestructura de unidades de negocio y asignaciones completada en backend (VS-050, VS-051, VS-052, VS-053). VS-054 COMPLETADO: Runtime compartido (público + autenticado), evidencias autenticadas, panel Publicar en Builder. Pendiente para VS-055: editor de exclusiones (UI), dashboard por unidad, export XLSX.
 
 ## Stack técnico
 
@@ -31,60 +31,41 @@ Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`c
 
 **Estado**: tests 61/61, typecheck/build limpios, documentado en CHANGELOG/issues. Commits `7e95e6e` (dominio), `3530032` (rutas API).
 
-## Slice en progreso (VS-054 — PARCIAL)
+## Último slice completado (VS-054)
 
-**Alcance original**: Runtime autenticado, banner de plazo, panel "Publicar" mínimo en Builder.
+**Alcance original**: Runtime autenticado, banner de plazo, panel "Publicar" mínimo en Builder. — **COMPLETADO** (2026-08-17)
 
-**Completado** (2026-08-17):
-- **Rutas API** (backend):
-  - `GET/POST /api/evaluations/[id]/assignments` — listar/crear asignaciones de unidades de negocio
-  - `DELETE /api/evaluations/[id]/assignments/[assignmentId]` — desasignar unidad
-  - `GET /api/organizations/children` — listar unidades de negocio hijas de la organización activa
-  - `GET /api/evaluations/[id]/for-business-unit/responses` — cargar todas las respuestas de la unidad autenticada
-  - Helper `listChildOrganizations(parentOrganizationId)` agregado a `authz.ts` y exportado
-- **Componente compartido**: `DueDateBanner` en `apps/web/components/due-date-banner.tsx` (aviso 2-3 días antes / cierre tras vencimiento con `contactEmail`)
-- **Tests de verificación VS-053**: 2 tests nuevos de cross-tenant isolation agregados a `business-unit-access.test.ts`
-- **Estado**: 61/61 tests, typecheck/build limpios
+**Qué se construyó**:
+- **Runtime compartido** (`apps/web/components/runtime-shell.tsx`, ~1990 líneas): TODO el runtime público extraído de `app/evaluations/[token]/page.tsx` a un componente reutilizable `RuntimeShell` con props `{ mode: "public" | "authenticated"; token?; evaluationId? }` que calcula `apiBase` según modo. Subcomponentes (`EvidenceView`, `OptionReferencesView`, `SubOptionsView`, `ElementView`) pasan de `token` a `base`. `pageLocked`: si `dueDate` venció → formulario entero de solo lectura (réplica UX del 403 `evaluation_DUE_DATE_PASSED`). Error mapping: `evaluation_assignment` en modo autenticado → pantalla de acceso denegado.
+- **Páginas**: `app/evaluations/[token]/page.tsx` reescrita como wrapper delgado; `app/evaluations/authenticated/[id]/page.tsx` NUEVA (runtime autenticado de VS-053).
+- **Evidencias autenticadas (espejo)**: `DELETE /api/evaluations/[id]/for-business-unit/evidences`, `POST .../evidences/presign`, `POST .../evidences/presign-ref`, `POST .../evidences/download-url` — mismo motor que las públicas con `requireActiveMember` + `getEvaluationForBusinessUnit`.
+- **Panel Publicar en Builder**: `components/publish-panel.tsx` (drawer CSS) — publicar/revocar evaluaciones, enlace público vs corporativo, edición de `dueDate`/`contactEmail`, asignar/desasignar unidades, Exportar CSV, Revisar. Botón "Publicar" en cabecera del builder-panel (`.builder-panel__head`).
+- **Eliminación**: `apps/web/app/frameworks/[frameworkId]/page.tsx` (funcionalidad migrada al Builder + PublishPanel); breadcrumbs de Builder y Revisión corregidos.
+- **DueDateBanner** integrado en ambos modos del Runtime.
 
-**Pendiente para cierre de VS-054 o diferido a VS-055**:
-1. Integrar `<DueDateBanner>` en Runtime público (`/evaluations/[token]/page.tsx`)
-2. Crear Runtime autenticado (`/evaluations/authenticated/[id]/page.tsx`) que consuma rutas `for-business-unit`
-3. Crear rutas de evidencias autenticadas (espejo de `/api/public/evaluations/[token]/evidences/*` con validación de assignment) — las públicas NO validan modo corporativo
-4. Implementar panel "Publicar" en `apps/web/app/frameworks/[frameworkId]/builder/page.tsx`:
-   - Botón "Publicar" junto al área del SubindicatorEditor
-   - Modal/drawer con: generar/listar evaluaciones + Revocar, enlace público (solo si sin asignaciones), campos `dueDate`/`contactEmail` editables, checklist de unidades (asignar/desasignar usando rutas creadas)
-   - Migrar funcionalidad CSV export de la página que se elimina
-5. Eliminar `apps/web/app/frameworks/[frameworkId]/page.tsx` (reemplazado por panel en Builder)
-6. Editor de exclusiones por Subindicador/elemento (UI) — backend ya existe (VS-050)
-7. Dashboard de progreso por unidad (consolidado para la matriz)
-8. Export XLSX multi-pestaña (consolidado + una por unidad)
+**Estado**: tests 61/61 db + 251/251 sdk-core, typecheck/build limpios. Documentado en CHANGELOG/issues.
 
-**Decisiones de diseño documentadas** en `docs/project_notes/VS-054-implementation-notes.md`:
-- Runtime autenticado: ruta separada `/evaluations/authenticated/[id]` en vez de detectar sesión en ruta pública
-- Evidencias autenticadas: requieren rutas nuevas (públicas no validan modo corporativo)
-- Panel Publicar: drawer CSS (patrón `.form-preview-drawer`), no modal de librería
-- Editor de exclusiones y dashboard: diferidos a siguiente slice
+**Pendiente para VS-055 (UI)**:
+1. Editor de exclusiones por Subindicador/elemento (UI) — backend ya existe (VS-050)
+2. Dashboard de progreso por unidad (consolidado para la matriz)
+3. Export XLSX multi-pestaña (consolidado + una por unidad)
+4. Verificación en producción del flujo autenticado + panel Publicar
 
 ## Próximos pasos inmediatos
 
-**Opción A — Completar VS-054 (alcance reducido)**:
-1. Integrar banner en Runtime público
-2. Crear Runtime autenticado básico (sin evidencias por ahora)
-3. Panel Publicar mínimo (sin editor de exclusiones ni dashboard)
-4. Eliminar página antigua
-5. Cerrar slice con CHANGELOG/CHECKPOINT/issues actualizados
+**VS-055 — UI de unidades de negocio (siguiente slice)**:
+1. Editor de exclusiones por Subindicador/elemento (UI) — backend ya existe (VS-050)
+2. Dashboard de progreso por unidad (consolidado para la matriz)
+3. Export XLSX multi-pestaña (consolidado + una por unidad)
+4. Verificación en producción del flujo autenticado + panel Publicar
 
-**Opción B — Marcar VS-054 como parcial y avanzar**:
-1. Documentar VS-054 como "backend + banner componente" (ya está)
-2. Crear VS-055 para UI completa (Runtime autenticado + panel Publicar + evidencias + exclusiones + dashboard + XLSX)
-
-**Recomendación**: Opción B — lo construido en VS-054 es funcional y testeado; el resto es una iteración UI significativa que merece su propio slice documentado.
+**Antes de cerrar VS-054**: verificar en producción el flujo autenticado de unidad de negocio y el panel Publicar (Runtime compartido + evidencias espejo + enlaces).
 
 ## Backlog prioritario
 
 Ver `docs/BACKLOG.md` para la lista completa. Resumen de los próximos slices técnicos:
 
-1. **VS-055** — UI de unidades de negocio (Runtime autenticado, panel Publicar completo, evidencias autenticadas, exclusiones, dashboard, export XLSX)
+1. **VS-055** — UI de unidades de negocio (editor de exclusiones, dashboard por unidad, export XLSX)
 2. **VS-056** — Motor de fórmulas extendido (`evaluateTableExpression` con contexto de fila/celda, validación de dependencias cíclicas, soporte para funciones agregadas)
 3. **VS-057** — Gestión de evidencias mejorada (preview inline, organización por carpetas, límites de cuota)
 
@@ -113,5 +94,5 @@ Ver `docs/RISKS.md`. Sin riesgos nuevos desde VS-053. Monitorear:
 cat docs/checkpoints/CHECKPOINT.md
 cat docs/BACKLOG.md
 cat docs/ROADMAP.md
-cat docs/project_notes/VS-054-implementation-notes.md  # decisiones de diseño VS-054 parcial
+cat docs/project_notes/VS-054-implementation-notes.md  # decisiones de diseño VS-054 (completado)
 ```

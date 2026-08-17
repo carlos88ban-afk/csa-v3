@@ -5,7 +5,7 @@
 // próximo o informa del cierre tras dueDate.
 
 interface DueDateBannerProps {
-  dueDate: string | null;
+  dueDate: string | Date | null;
   contactEmail: string | null;
 }
 
@@ -19,23 +19,15 @@ export function DueDateBanner({ dueDate, contactEmail }: DueDateBannerProps) {
   // Banner de cierre (tras vencimiento)
   if (now >= due) {
     return (
-      <div
-        style={{
-          background: "#fee",
-          border: "1px solid #c33",
-          borderRadius: "4px",
-          padding: "12px 16px",
-          marginBottom: "16px",
-        }}
-      >
+      <div className="due-date-banner due-date-banner--closed">
         <strong>Esta evaluación ha finalizado.</strong>
-        <p style={{ margin: "4px 0 0", fontSize: "14px" }}>
+        <p>
           El plazo de recepción venció el {due.toLocaleDateString()}.
           {contactEmail && (
             <>
               {" "}
               Si necesitas una extensión, contacta a{" "}
-              <a href={`mailto:${contactEmail}`} style={{ textDecoration: "underline" }}>
+              <a href={`mailto:${contactEmail}`}>
                 {contactEmail}
               </a>
               .
@@ -49,19 +41,9 @@ export function DueDateBanner({ dueDate, contactEmail }: DueDateBannerProps) {
   // Banner de aviso (2-3 días antes del vencimiento)
   if (now >= threeDaysBefore) {
     return (
-      <div
-        style={{
-          background: "#ffa",
-          border: "1px solid #cc9",
-          borderRadius: "4px",
-          padding: "12px 16px",
-          marginBottom: "16px",
-        }}
-      >
+      <div className="due-date-banner due-date-banner--expiring">
         <strong>El plazo está por vencer.</strong>
-        <p style={{ margin: "4px 0 0", fontSize: "14px" }}>
-          Esta evaluación debe completarse antes del {due.toLocaleDateString()}.
-        </p>
+        <p>Esta evaluación debe completarse antes del {due.toLocaleDateString()}.</p>
       </div>
     );
   }
