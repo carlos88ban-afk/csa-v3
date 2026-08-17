@@ -8,7 +8,7 @@ import type {
   UpdateFrameworkInput,
   UpdateIndicatorInput,
 } from "@plataforma-csa/sdk-core";
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "../client.js";
 import { dimension, framework, indicator, subindicator } from "../schema/domain.js";
 
@@ -92,6 +92,14 @@ export async function createDimension(organizationId: string, input: CreateDimen
   const parent = await getFramework(organizationId, input.frameworkId);
   if (!parent) throw new NotFoundError("framework");
 
+  // VS-049: una Dimensión nueva siempre va al final (mismo criterio "+" al
+  // final de la lista que el resto del Builder, VS-047/048).
+  const [maxRow] = await db
+    .select({ max: sql<number | null>`max(${dimension.order})` })
+    .from(dimension)
+    .where(eq(dimension.frameworkId, input.frameworkId));
+  const order = (maxRow?.max ?? -1) + 1;
+
   const rows = await db
     .insert(dimension)
     .values({
@@ -100,6 +108,7 @@ export async function createDimension(organizationId: string, input: CreateDimen
       frameworkId: input.frameworkId,
       title: input.title,
       description: input.description ?? null,
+      order,
     })
     .returning();
   return firstOrThrow(rows, "dimension");
@@ -128,6 +137,7 @@ export async function listDimensions(organizationId: string, frameworkId: string
       frameworkId: dimension.frameworkId,
       title: dimension.title,
       description: dimension.description,
+      order: dimension.order,
       createdAt: dimension.createdAt,
       updatedAt: dimension.updatedAt,
       indicatorCount: sql<number>`count(distinct ${indicator.id})::int`,
@@ -137,7 +147,29 @@ export async function listDimensions(organizationId: string, frameworkId: string
     .leftJoin(indicator, eq(indicator.dimensionId, dimension.id))
     .leftJoin(subindicator, eq(subindicator.dimensionId, dimension.id))
     .where(and(eq(dimension.frameworkId, frameworkId), eq(dimension.organizationId, organizationId)))
-    .groupBy(dimension.id);
+    .groupBy(dimension.id)
+    .orderBy(asc(dimension.order));
+}
+
+// VS-049 (docs/domain/evaluation-hierarchy.md "Numeración y orden
+// persistido en el Builder"): drag-and-drop de Dimensiones — valida que
+// TODOS los orderedIds pertenezcan al Framework y Organización indicados
+// antes de escribir nada (mismo criterio de tenant-scoping que el resto
+// del dominio, nunca confiar en que el cliente mandó IDs válidos).
+export async function reorderDimensions(organizationId: string, frameworkId: string, orderedIds: string[]) {
+  return db.transaction(async (tx) => {
+    const existing = await tx
+      .select({ id: dimension.id })
+      .from(dimension)
+      .where(and(eq(dimension.frameworkId, frameworkId), eq(dimension.organizationId, organizationId)));
+    const existingIds = new Set(existing.map((r) => r.id));
+    if (orderedIds.length !== existingIds.size || !orderedIds.every((id) => existingIds.has(id))) {
+      throw new Error("orderedIds no coincide con las dimensiones de este framework");
+    }
+    for (let i = 0; i < orderedIds.length; i++) {
+      await tx.update(dimension).set({ order: i }).where(eq(dimension.id, orderedIds[i]!));
+    }
+  });
 }
 
 export async function updateDimension(organizationId: string, id: string, input: UpdateDimensionInput) {
@@ -166,6 +198,12 @@ export async function createIndicator(organizationId: string, input: CreateIndic
   const parent = await getDimension(organizationId, input.dimensionId);
   if (!parent) throw new NotFoundError("dimension");
 
+  const [maxRow] = await db
+    .select({ max: sql<number | null>`max(${indicator.order})` })
+    .from(indicator)
+    .where(eq(indicator.dimensionId, input.dimensionId));
+  const order = (maxRow?.max ?? -1) + 1;
+
   const rows = await db
     .insert(indicator)
     .values({
@@ -174,6 +212,7 @@ export async function createIndicator(organizationId: string, input: CreateIndic
       dimensionId: input.dimensionId,
       title: input.title,
       description: input.description ?? null,
+      order,
     })
     .returning();
   return firstOrThrow(rows, "indicator");
@@ -191,7 +230,25 @@ export async function listIndicators(organizationId: string, dimensionId: string
   return db
     .select()
     .from(indicator)
-    .where(and(eq(indicator.dimensionId, dimensionId), eq(indicator.organizationId, organizationId)));
+    .where(and(eq(indicator.dimensionId, dimensionId), eq(indicator.organizationId, organizationId)))
+    .orderBy(asc(indicator.order));
+}
+
+// VS-049 — drag-and-drop de Indicadores, mismo criterio que reorderDimensions.
+export async function reorderIndicators(organizationId: string, dimensionId: string, orderedIds: string[]) {
+  return db.transaction(async (tx) => {
+    const existing = await tx
+      .select({ id: indicator.id })
+      .from(indicator)
+      .where(and(eq(indicator.dimensionId, dimensionId), eq(indicator.organizationId, organizationId)));
+    const existingIds = new Set(existing.map((r) => r.id));
+    if (orderedIds.length !== existingIds.size || !orderedIds.every((id) => existingIds.has(id))) {
+      throw new Error("orderedIds no coincide con los indicadores de esta dimensión");
+    }
+    for (let i = 0; i < orderedIds.length; i++) {
+      await tx.update(indicator).set({ order: i }).where(eq(indicator.id, orderedIds[i]!));
+    }
+  });
 }
 
 export async function updateIndicator(organizationId: string, id: string, input: UpdateIndicatorInput) {
@@ -231,6 +288,17 @@ export async function createSubindicator(organizationId: string, input: CreateSu
     if (!parent) throw new NotFoundError("dimension");
   }
 
+  // VS-049: `order` es por padre — bajo el mismo Indicador, o entre los
+  // directos de la misma Dimensión (dos listas separadas, nunca mezcladas).
+  const parentWhere = input.indicatorId
+    ? eq(subindicator.indicatorId, input.indicatorId)
+    : eq(subindicator.dimensionId, input.dimensionId!);
+  const [maxRow] = await db
+    .select({ max: sql<number | null>`max(${subindicator.order})` })
+    .from(subindicator)
+    .where(parentWhere);
+  const order = (maxRow?.max ?? -1) + 1;
+
   const rows = await db
     .insert(subindicator)
     .values({
@@ -240,6 +308,7 @@ export async function createSubindicator(organizationId: string, input: CreateSu
       dimensionId: input.dimensionId ?? null,
       title: input.title,
       description: input.description ?? null,
+      order,
     })
     .returning();
   return firstOrThrow(rows, "subindicator");
@@ -257,7 +326,8 @@ export async function listSubindicators(organizationId: string, indicatorId: str
   return db
     .select()
     .from(subindicator)
-    .where(and(eq(subindicator.indicatorId, indicatorId), eq(subindicator.organizationId, organizationId)));
+    .where(and(eq(subindicator.indicatorId, indicatorId), eq(subindicator.organizationId, organizationId)))
+    .orderBy(asc(subindicator.order));
 }
 
 // Subindicadores directos bajo Dimensión (VS-029) — misma forma que
@@ -266,7 +336,34 @@ export async function listDirectSubindicators(organizationId: string, dimensionI
   return db
     .select()
     .from(subindicator)
-    .where(and(eq(subindicator.dimensionId, dimensionId), eq(subindicator.organizationId, organizationId)));
+    .where(and(eq(subindicator.dimensionId, dimensionId), eq(subindicator.organizationId, organizationId)))
+    .orderBy(asc(subindicator.order));
+}
+
+// VS-049 — drag-and-drop de Subindicadores, mismo criterio que
+// reorderDimensions/reorderIndicators. `parentKind` distingue si
+// `parentId` es un Indicador o una Dimensión (subindicadores directos,
+// VS-029) — son dos listas de hermanos independientes, nunca mezcladas.
+export async function reorderSubindicators(
+  organizationId: string,
+  parentId: string,
+  parentKind: "indicator" | "dimension",
+  orderedIds: string[],
+) {
+  const parentWhere = parentKind === "indicator" ? eq(subindicator.indicatorId, parentId) : eq(subindicator.dimensionId, parentId);
+  return db.transaction(async (tx) => {
+    const existing = await tx
+      .select({ id: subindicator.id })
+      .from(subindicator)
+      .where(and(parentWhere, eq(subindicator.organizationId, organizationId)));
+    const existingIds = new Set(existing.map((r) => r.id));
+    if (orderedIds.length !== existingIds.size || !orderedIds.every((id) => existingIds.has(id))) {
+      throw new Error("orderedIds no coincide con los subindicadores de este padre");
+    }
+    for (let i = 0; i < orderedIds.length; i++) {
+      await tx.update(subindicator).set({ order: i }).where(eq(subindicator.id, orderedIds[i]!));
+    }
+  });
 }
 
 export interface UpdateSubindicatorServiceInput {

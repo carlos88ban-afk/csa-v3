@@ -60,8 +60,14 @@ export default function FrameworksPage() {
     {
       key: "name",
       header: "Nombre",
+      // VS-049 (docs/domain/evaluation-hierarchy.md "Navegación: framework
+      // list → Builder directo"): pedido explícito del usuario — salta la
+      // pantalla intermedia de solo-Dimensiones, confusa por duplicar el
+      // mismo destino que "Abrir editor". Esa pantalla
+      // (/frameworks/[frameworkId]) sigue existiendo para Publicación —
+      // alcanzable desde el breadcrumb del Builder.
       render: (fw) => (
-        <a className="entry-list__title" href={`/frameworks/${fw.id}`}>
+        <a className="entry-list__title" href={`/frameworks/${fw.id}/builder`}>
           {fw.name}
         </a>
       ),

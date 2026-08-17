@@ -66,10 +66,72 @@ Todas las superficies que ya cargan el árbol completo (`EvaluationSnapshot`) lo
 - **Revisión** (`../engines/persistence.md`, VS-018): mismos prefijos, para que un número mencionado en el Runtime sea encontrable ahí sin ambigüedad.
 - **Exportación CSV** (`../engines/export.md`): columna `Número` nueva, con el número de la pregunta (`0.N`) — no se numeran las columnas `Dimensión`/`Indicador`/`Subindicador` en sí, ya se identifican por nombre y numerarlas ahí sería redundante con las columnas de texto existentes.
 
-### Fuera de alcance (explícito)
+### Fuera de alcance (explícito) — SUPERADO por VS-049, ver más abajo
+
+- ~~**Numeración en el Builder**~~ — implementado en VS-049 ("Numeración y orden persistido en el Builder", más abajo). El Builder de VS-006/VS-031 (`apps/web/app/frameworks/[frameworkId]/builder/page.tsx`) ya carga el árbol completo por Framework en un solo fetch en cascada (a diferencia de las páginas legadas por nodo individual a las que se refería este párrafo originalmente) — el argumento de "requeriría fetches en cascada que hoy no se carga" ya no aplica.
+- ~~**Persistir el número como campo**~~ — VS-049 persiste el **orden** (no el número en sí, que sigue siendo derivado de la posición) como columna nueva — ver justificación abajo.
+
+*(Párrafo original, sin editar, como registro histórico de la decisión que se supera):*
 
 - **Numeración en el Builder** (páginas de Framework/Dimensión/Indicador/Subindicador bajo `apps/web/app/frameworks/...`). Cada página del Builder hoy solo carga su propio nodo + hijos directos — no la posición del nodo entre sus hermanos ni la de sus ancestros (por ejemplo, la página de un Indicador no sabe en qué posición está su Dimensión dentro del Framework). Lograrlo requeriría fetches en cascada de contexto que hoy no se carga, por un beneficio bajo en una pantalla de edición donde el título ya identifica al elemento sin ambigüedad — a diferencia del Runtime/Revisión/Export, que ya tienen el snapshot completo cargado de por sí. Aditivo si se pide más adelante.
 - **Persistir el número como campo** — ver "Derivada, no persistida" arriba; ya se descartó explícitamente.
+
+## Numeración y orden persistido en el Builder (VS-049, implementado 2026-08-17)
+
+Pedido explícito del usuario: que el panel de navegación del Builder (admin editando) muestre el mismo número que ve el evaluado (`1`, `1.1`, `1.1.1`), y que pueda reordenar Dimensión/Indicador/Subindicador con drag-and-drop.
+
+### Por qué se supera "Derivada, no persistida"
+
+La decisión original (arriba, VS-021) asumía que el **orden de presentación** siempre viene gratis del orden del array que ya devuelve la query — válido mientras nadie necesitara *elegir* ese orden explícitamente. Drag-and-drop es exactamente eso: el admin elige un orden que no tiene por qué coincidir con el orden de creación (`createdAt`) ni con ningún otro criterio derivable. Sin una columna persistida no hay dónde guardar esa elección. El **número que se muestra** (`1.1`, `1.1.1`) sigue siendo 100% derivado de la posición (0-based) dentro del array ya ordenado — no se persiste un string "1.1" en ningún lado, solo la posición vía la nueva columna `order`. Mismas funciones puras de siempre (`dimensionNumber`/`indicatorNumber`/`subindicatorNumber`/`directSubindicatorNumber`, sin cambios), ahora aplicadas también en el Builder importándolas de `packages/sdk-core/src/evaluation.ts` en vez de una copia local desactualizada que además tenía un bug (`directSubindicatorNumber` local en `builder/page.tsx` calculaba 3 niveles en vez de 2 — nunca se notó porque nunca estaba conectada al render del árbol, solo a breadcrumbs de búsqueda).
+
+### Schema (`packages/db/src/schema/domain.ts`)
+
+```ts
+export const dimension = pgTable("dimension", {
+  // ...campos existentes...
+  order: integer("order").notNull().default(0),
+});
+// mismo campo `order` en indicator y subindicator
+```
+
+- `order` es un entero por-padre (no global): dentro de un Framework, cada Dimensión tiene su propio `order` 0-based; dentro de una Dimensión, cada Indicador el suyo; dentro de un Indicador, cada Subindicador el suyo; los Subindicadores directos de una Dimensión (VS-029) tienen su propio `order` independiente del de los Indicadores de esa misma Dimensión (mismo criterio ya establecido de "sin caso mixto intercalado" — reordenar nunca mezcla Indicadores con Subindicadores directos entre sí, cada lista se reordena por separado).
+- Backfill de filas existentes (todas de prueba, sin evaluaciones reales — mismo criterio ya usado en VS-048): `order` asignado por posición dentro de `ORDER BY created_at ASC, id ASC` de cada grupo padre, vía script one-off ejecutado una sola vez tras el `db:push` (no un archivo de migración versionado — este proyecto usa `drizzle-kit push`, ver TD-001).
+
+### `packages/sdk-core`
+
+- `Dimension`/`Indicator`/`Subindicator` (interfaces en `domain.ts`) ganan `order: number`.
+- Nuevo `reorderInput = z.object({ orderedIds: z.array(z.string().min(1)).min(1) })` — reusado por los 3 endpoints de reorder (el `parentId` que acota el alcance del reorder viaja en la URL/query, no en el body).
+
+### `packages/db/src/domain/service.ts`
+
+- `listDimensions`/`listIndicators`/`listSubindicators`/`listDirectSubindicators`: ganan `.orderBy(tabla.order)`.
+- `createDimension`/`createIndicator`/`createSubindicator`: calculan el próximo `order` como `COALESCE(MAX(order), -1) + 1` dentro del mismo padre (una fila nueva siempre va al final, coherente con "+" al final de la lista en el resto del Builder — VS-047/048 ya usan ese mismo criterio para agregar columnas/filas).
+- Nuevas `reorderDimensions(organizationId, frameworkId, orderedIds)`, `reorderIndicators(organizationId, dimensionId, orderedIds)`, `reorderSubindicators(organizationId, parentId, parentKind, orderedIds)` (`parentKind: "indicator" | "dimension"` para distinguir subindicadores bajo Indicador vs. directos bajo Dimensión) — cada una, dentro de una transacción: valida que todos los `orderedIds` pertenezcan al padre y organización indicados (mismo criterio de tenant-scoping que el resto del dominio — nunca confiar en que el cliente mandó IDs válidos), y hace `UPDATE ... SET order = <índice> WHERE id = <id>` por cada uno.
+
+### API (`apps/web`)
+
+Tres endpoints nuevos, todos `requireWriteAccess` (mismo nivel que crear/editar/borrar):
+
+- `POST /api/dimensions/reorder?frameworkId=<id>` — body `{ orderedIds }`.
+- `POST /api/indicators/reorder?dimensionId=<id>` — body `{ orderedIds }`.
+- `POST /api/subindicators/reorder?indicatorId=<id>` **o** `?dimensionId=<id>` (uno de los dos, mismo criterio XOR que el resto de Subindicador) — body `{ orderedIds }`.
+
+### Builder (`apps/web/app/frameworks/[frameworkId]/builder/page.tsx`)
+
+- Cada fila del árbol (Dimensión/Indicador/Subindicador, incluidos los directos) muestra su número antes del título, usando las funciones importadas de `sdk-core` sobre el índice ya conocido (`di`/`ii`/`si`) del `.map()` que ya arma el árbol — sin fetch nuevo, el índice del array YA es la fuente del número (coherente con "derivada, no persistida": lo persistido es el `order` de la fila, el número se sigue derivando en cada render).
+- Drag-and-drop nativo (HTML5 `draggable`/`onDragStart`/`onDragOver`/`onDrop`, sin librería nueva — mismo criterio ya usado en `../engines/form.md` para justificar botones ↑/↓ en vez de una librería de dnd para reordenar Elementos dentro de un Subindicador; acá se logra drag-and-drop real sin librería porque el navegador ya lo provee nativamente). Cada nivel solo acepta soltar dentro de la misma lista de hermanos (no se puede arrastrar un Indicador fuera de su Dimensión ni una Dimensión fuera del Framework) — reordenar, no reparentar (reparentar sigue fuera de alcance, ver VS-029 "Fuera de alcance"). Al soltar: reordena el estado local de inmediato (optimista) y llama al endpoint de reorder correspondiente; si falla, revierte el estado local y muestra el error en `treeMessage` (mismo patrón que crear/renombrar/borrar).
+- **Corrección de un bug preexistente encontrado al tocar este render**: `d.directSubs.map(...)` vivía dentro del `.map()` de `d.indicators`, así que los Subindicadores directos de una Dimensión se renderizaban duplicados una vez por cada Indicador de esa Dimensión (invisible en la práctica porque ninguna Dimensión de prueba tenía Indicadores Y directos a la vez simultáneamente con más de un Indicador). Se mueve a un bloque hermano después del `.map()` de Indicadores, una sola vez por Dimensión — coherente con la convención de numeración ya documentada ("Indicadores primero, luego directos, sin intercalar").
+
+### Navegación: framework list → Builder directo
+
+Pedido explícito del usuario: saltar la pantalla intermedia `/frameworks/[frameworkId]` (que solo mostraba la tabla de Dimensiones + un botón "Abrir editor" separado) — confusa por tener dos pantallas distintas para lo mismo. `apps/web/app/frameworks/page.tsx`: el link de cada framework en la lista pasa de `href="/frameworks/${fw.id}"` a `href="/frameworks/${fw.id}/builder"`. La página `/frameworks/[frameworkId]` **no se elimina** — sigue siendo necesaria para "Publicación" (publicar, listar evaluaciones, revisar, exportar CSV, revocar), funcionalidad que no vive en el Builder — sigue alcanzable desde el breadcrumb "Framework" que el Builder ya tenía (`apps/web/app/frameworks/[frameworkId]/builder/page.tsx`, link `{ label: "Framework", href: `/frameworks/${frameworkId}` }`).
+
+### Fuera de alcance (explícito)
+
+- **Reordenar entre Frameworks** (mover una Dimensión de un Framework a otro) — sigue sin UI, no pedido.
+- **Reparentar** (mover un Indicador a otra Dimensión, un Subindicador a otro Indicador) — sigue fuera de alcance (VS-029), reordenar ≠ reparentar.
+- **Intercalar Indicadores y Subindicadores directos en una misma lista ordenable** — cada lista (Indicadores, directos) se reordena por separado, mismo criterio "sin caso mixto" ya documentado.
+- **Migraciones versionadas de Drizzle** para el backfill de `order` — sigue como TD-001/TD-002, backfill de este slice es un script one-off descartable (sin datos reales que migrar, confirmado con el usuario en VS-048).
 
 ## Subindicadores directos bajo Dimensión (VS-029)
 

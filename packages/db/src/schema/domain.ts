@@ -37,6 +37,12 @@ export const dimension = pgTable(
       .references(() => framework.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     description: text("description"),
+    // VS-049 (docs/domain/evaluation-hierarchy.md "Numeración y orden
+    // persistido en el Builder"): posición 0-based entre hermanos de la
+    // misma Framework — supera la decisión "derivada, no persistida" de
+    // VS-021 porque drag-and-drop es justamente elegir un orden que no se
+    // puede derivar de nada más.
+    order: integer("order").notNull().default(0),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -61,6 +67,8 @@ export const indicator = pgTable(
       .references(() => dimension.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     description: text("description"),
+    // VS-049 — posición 0-based entre hermanos de la misma Dimensión.
+    order: integer("order").notNull().default(0),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -90,6 +98,10 @@ export const subindicator = pgTable(
     description: text("description"),
     formSchema: jsonb("form_schema"),
     revisionNumber: integer("revision_number").default(1).notNull(),
+    // VS-049 — posición 0-based entre hermanos: bajo el mismo Indicador, o
+    // entre los directos de la misma Dimensión (dos listas separadas, ver
+    // docs/domain/evaluation-hierarchy.md "sin caso mixto intercalado").
+    order: integer("order").notNull().default(0),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

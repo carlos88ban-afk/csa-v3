@@ -1337,6 +1337,25 @@ input[type="checkbox"] {
   min-width: 0;
 }
 
+/* VS-049 (docs/domain/evaluation-hierarchy.md "Numeración y orden
+   persistido en el Builder"): mismo número que ve el evaluado (1, 1.1,
+   1.1.1), antepuesto al título en cada fila del árbol. */
+.builder-nav__number {
+  flex-shrink: 0;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Filas arrastrables (drag-and-drop nativo, sin librería) — cursor de
+   agarre para comunicar la afordancia sin agregar un ícono nuevo. */
+.builder-nav__row {
+  cursor: grab;
+}
+
+.builder-nav__row:active {
+  cursor: grabbing;
+}
+
 .builder-nav__actions {
   display: inline-flex;
   align-items: center;

@@ -2,6 +2,12 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import {
+  dimensionNumber,
+  directSubindicatorNumber,
+  indicatorNumber,
+  subindicatorNumber,
+} from "@plataforma-csa/sdk-core";
 import { api } from "@/lib/api-client";
 import { Breadcrumb, Button, Pill } from "@/components/ui";
 import { SubindicatorEditor } from "@/components/subindicator-editor";
@@ -39,24 +45,6 @@ type DeleteConfirmState = {
   busy: boolean;
   error: string | null;
 };
-
-// Numeración de subindicadores por posición global (misma convención que el
-// runtime y el motor de resultados — docs/engines/scoring.md).
-function dimensionNumber(index: number): string {
-  return String(index + 1);
-}
-
-function indicatorNumber(dimIndex: number, indIndex: number): string {
-  return `${dimIndex + 1}.${indIndex + 1}`;
-}
-
-function subindicatorNumber(dimIndex: number, indIndex: number, subIndex: number): string {
-  return `${dimIndex + 1}.${indIndex + 1}.${subIndex + 1}`;
-}
-
-function directSubindicatorNumber(dimIndex: number, indCount: number, subIndex: number): string {
-  return `${dimIndex + 1}.${indCount + 1}.${subIndex + 1}`;
-}
 
 // Resolución del foco ?s=: si apunta a un subindicador, ese; si apunta a una
 // dimensión/indicador, su primer subindicador (o null si no tiene contenido).
@@ -302,6 +290,128 @@ export default function BuilderPage() {
       else next.add(key);
       return next;
     });
+  }
+
+  function moveItem<T>(arr: T[], fromIndex: number, toIndex: number): T[] {
+    const next = [...arr];
+    const [item] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, item!);
+    return next;
+  }
+
+  // Drag-and-drop nativo (VS-049, docs/domain/evaluation-hierarchy.md
+  // "Numeración y orden persistido en el Builder"): sin librería nueva,
+  // igual criterio que las flechas ↑/↓ de reordenar Elementos dentro de un
+  // Subindicador (docs/engines/form.md). `dragScope` acota qué se puede
+  // soltar dónde — nunca se puede soltar un Indicador sobre la lista de
+  // Dimensiones, por ejemplo (reordenar, no reparentar).
+  const [dragScope, setDragScope] = useState<{ scope: string; id: string } | null>(null);
+
+  function startDrag(scope: string, id: string) {
+    return (e: React.DragEvent) => {
+      e.dataTransfer.effectAllowed = "move";
+      setDragScope({ scope, id });
+    };
+  }
+
+  function allowDrop(scope: string) {
+    return (e: React.DragEvent) => {
+      if (dragScope?.scope === scope) e.preventDefault();
+    };
+  }
+
+  async function moveDimension(draggedId: string, targetId: string) {
+    if (!dims || draggedId === targetId) return;
+    const fromIndex = dims.findIndex((d) => d.dimension.id === draggedId);
+    const toIndex = dims.findIndex((d) => d.dimension.id === targetId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const prev = dims;
+    const next = moveItem(dims, fromIndex, toIndex);
+    setDims(next);
+    try {
+      await api.post(`/api/dimensions/reorder?frameworkId=${frameworkId}`, {
+        orderedIds: next.map((d) => d.dimension.id),
+      });
+    } catch (err) {
+      setDims(prev);
+      setTreeMessage(err instanceof Error ? err.message : "No se pudo reordenar");
+    }
+  }
+
+  async function moveIndicator(dimensionId: string, draggedId: string, targetId: string) {
+    if (!dims || draggedId === targetId) return;
+    const di = dims.findIndex((d) => d.dimension.id === dimensionId);
+    if (di < 0) return;
+    const indicators = dims[di]!.indicators;
+    const fromIndex = indicators.findIndex((i) => i.indicator.id === draggedId);
+    const toIndex = indicators.findIndex((i) => i.indicator.id === targetId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const prev = dims;
+    const nextIndicators = moveItem(indicators, fromIndex, toIndex);
+    setDims(dims.map((d, i) => (i === di ? { ...d, indicators: nextIndicators } : d)));
+    try {
+      await api.post(`/api/indicators/reorder?dimensionId=${dimensionId}`, {
+        orderedIds: nextIndicators.map((i) => i.indicator.id),
+      });
+    } catch (err) {
+      setDims(prev);
+      setTreeMessage(err instanceof Error ? err.message : "No se pudo reordenar");
+    }
+  }
+
+  async function moveSub(indicatorId: string, draggedId: string, targetId: string) {
+    if (!dims || draggedId === targetId) return;
+    let di = -1;
+    let ii = -1;
+    for (let x = 0; x < dims.length; x++) {
+      const y = dims[x]!.indicators.findIndex((i) => i.indicator.id === indicatorId);
+      if (y >= 0) {
+        di = x;
+        ii = y;
+        break;
+      }
+    }
+    if (di < 0) return;
+    const subs = dims[di]!.indicators[ii]!.subs;
+    const fromIndex = subs.findIndex((s) => s.id === draggedId);
+    const toIndex = subs.findIndex((s) => s.id === targetId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const prev = dims;
+    const nextSubs = moveItem(subs, fromIndex, toIndex);
+    setDims(
+      dims.map((d, x) =>
+        x === di ? { ...d, indicators: d.indicators.map((ind, y) => (y === ii ? { ...ind, subs: nextSubs } : ind)) } : d,
+      ),
+    );
+    try {
+      await api.post(`/api/subindicators/reorder?indicatorId=${indicatorId}`, {
+        orderedIds: nextSubs.map((s) => s.id),
+      });
+    } catch (err) {
+      setDims(prev);
+      setTreeMessage(err instanceof Error ? err.message : "No se pudo reordenar");
+    }
+  }
+
+  async function moveDirectSub(dimensionId: string, draggedId: string, targetId: string) {
+    if (!dims || draggedId === targetId) return;
+    const di = dims.findIndex((d) => d.dimension.id === dimensionId);
+    if (di < 0) return;
+    const directSubs = dims[di]!.directSubs;
+    const fromIndex = directSubs.findIndex((s) => s.id === draggedId);
+    const toIndex = directSubs.findIndex((s) => s.id === targetId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const prev = dims;
+    const nextDirect = moveItem(directSubs, fromIndex, toIndex);
+    setDims(dims.map((d, x) => (x === di ? { ...d, directSubs: nextDirect } : d)));
+    try {
+      await api.post(`/api/subindicators/reorder?dimensionId=${dimensionId}`, {
+        orderedIds: nextDirect.map((s) => s.id),
+      });
+    } catch (err) {
+      setDims(prev);
+      setTreeMessage(err instanceof Error ? err.message : "No se pudo reordenar");
+    }
   }
 
   function selectSub(id: string) {
@@ -870,7 +980,17 @@ export default function BuilderPage() {
                   ? confirmingDelete
                   : null;
               return (
-                <div key={d.dimension.id}>
+                <div
+                  key={d.dimension.id}
+                  draggable
+                  onDragStart={startDrag("dim", d.dimension.id)}
+                  onDragOver={allowDrop("dim")}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragScope) moveDimension(dragScope.id, d.dimension.id);
+                    setDragScope(null);
+                  }}
+                >
                   <div className="builder-nav__row">
                     <button
                       type="button"
@@ -879,6 +999,7 @@ export default function BuilderPage() {
                       onClick={() => toggleDim(di)}
                     >
                       <span aria-hidden="true">{dimOpen ? "▾" : "▸"}</span>
+                      <span className="builder-nav__number">{dimensionNumber(di)}</span>
                       <span className="builder-nav__label">{d.dimension.title}</span>
                     </button>
                     <span className="builder-nav__actions">
@@ -1034,7 +1155,17 @@ export default function BuilderPage() {
                             ? confirmingDelete
                             : null;
                         return (
-                          <div key={ind.indicator.id}>
+                          <div
+                            key={ind.indicator.id}
+                            draggable
+                            onDragStart={startDrag(`ind:${d.dimension.id}`, ind.indicator.id)}
+                            onDragOver={allowDrop(`ind:${d.dimension.id}`)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              if (dragScope) moveIndicator(d.dimension.id, dragScope.id, ind.indicator.id);
+                              setDragScope(null);
+                            }}
+                          >
                             <div className="builder-nav__row">
                               <button
                                 type="button"
@@ -1043,6 +1174,7 @@ export default function BuilderPage() {
                                 onClick={() => toggleInd(di, ii)}
                               >
                                 <span aria-hidden="true">{indOpen ? "▾" : "▸"}</span>
+                                <span className="builder-nav__number">{indicatorNumber(di, ii)}</span>
                                 <span className="builder-nav__label">{ind.indicator.title}</span>
                               </button>
                               <span className="builder-nav__actions">
@@ -1155,7 +1287,7 @@ export default function BuilderPage() {
 
                             {indOpen && (
                               <div role="group" aria-label={`Subindicadores de ${ind.indicator.title}`}>
-                                {ind.subs.map((s) => {
+                                {ind.subs.map((s, si) => {
                                   const renamingSub = renaming?.kind === "sub" && renaming.id === s.id ? renaming : null;
                                   const confirmingSub =
                                     confirmingDelete?.kind === "sub" && confirmingDelete.id === s.id
@@ -1163,7 +1295,17 @@ export default function BuilderPage() {
                                       : null;
                                   const isActive = selectedId === s.id;
                                   return (
-                                    <div key={s.id}>
+                                    <div
+                                      key={s.id}
+                                      draggable
+                                      onDragStart={startDrag(`sub:${ind.indicator.id}`, s.id)}
+                                      onDragOver={allowDrop(`sub:${ind.indicator.id}`)}
+                                      onDrop={(e) => {
+                                        e.preventDefault();
+                                        if (dragScope) moveSub(ind.indicator.id, dragScope.id, s.id);
+                                        setDragScope(null);
+                                      }}
+                                    >
                                       <div
                                         className={`builder-nav__row builder-nav__row--sub${isActive ? " runtime-nav__sub--active" : ""}`}
                                       >
@@ -1174,6 +1316,7 @@ export default function BuilderPage() {
                                           onClick={() => selectSub(s.id)}
                                         >
                                           <span aria-hidden="true">●</span>
+                                          <span className="builder-nav__number">{subindicatorNumber(di, ii, si)}</span>
                                           <span className="builder-nav__label">{s.title}</span>
                                         </button>
                                         <span className="builder-nav__actions">
@@ -1250,44 +1393,7 @@ export default function BuilderPage() {
                                     </div>
                                   );
                                 })}
-                                {d.directSubs.map((s) => {
-                                  const isActive = selectedId === s.id;
-                                  return (
-                                    <div
-                                      className={`builder-nav__row builder-nav__row--sub${isActive ? " runtime-nav__sub--active" : ""}`}
-                                      key={s.id}
-                                    >
-                                      <button
-                                        type="button"
-                                        className="runtime-nav__sub"
-                                        aria-current={isActive ? "true" : undefined}
-                                        onClick={() => selectSub(s.id)}
-                                      >
-                                        <span aria-hidden="true">●</span>
-                                        <span className="builder-nav__label">{s.title}</span>
-                                      </button>
-                                      <span className="builder-nav__actions">
-                                        <button
-                                          type="button"
-                                          className="builder-nav__action"
-                                          aria-label={`Renombrar subindicador ${s.title}`}
-                                          onClick={() => startRename("sub", s.id, s.title)}
-                                        >
-                                          ✎
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="builder-nav__action builder-nav__action--danger"
-                                          aria-label={`Borrar subindicador ${s.title}`}
-                                          onClick={() => requestDelete("sub", s.id, s.title)}
-                                        >
-                                          🗑
-                                        </button>
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                                {ind.subs.length === 0 && d.directSubs.length === 0 && (
+                                {ind.subs.length === 0 && (
                                   <p className="builder-nav__empty">
                                     Sin subindicadores todavía — usá ＋ en el indicador.
                                   </p>
@@ -1299,6 +1405,122 @@ export default function BuilderPage() {
                       })}
                       {d.indicators.length === 0 && d.directSubs.length === 0 && (
                         <p className="builder-nav__empty">Sin indicadores todavía — usá ＋ en la dimensión.</p>
+                      )}
+                      {d.directSubs.length > 0 && (
+                        <div role="group" aria-label={`Subindicadores directos de ${d.dimension.title}`}>
+                          {d.directSubs.map((s, si2) => {
+                            const isActive = selectedId === s.id;
+                            // Bug preexistente encontrado al restructurar este
+                            // bloque (VS-049): el ✎/🗑 de un subindicador
+                            // directo llamaban a startRename/requestDelete,
+                            // pero el formulario nunca se renderizaba en ningún
+                            // lado — este bloque no comprobaba renaming/
+                            // confirmingDelete, y ind.subs.map tampoco (s.id
+                            // nunca calza con un sub de un Indicador). Se
+                            // agrega acá, mismo patrón que ind.subs.map.
+                            const renamingSub = renaming?.kind === "sub" && renaming.id === s.id ? renaming : null;
+                            const confirmingSub =
+                              confirmingDelete?.kind === "sub" && confirmingDelete.id === s.id ? confirmingDelete : null;
+                            return (
+                              <div
+                                key={s.id}
+                                draggable
+                                onDragStart={startDrag(`directSub:${d.dimension.id}`, s.id)}
+                                onDragOver={allowDrop(`directSub:${d.dimension.id}`)}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  if (dragScope) moveDirectSub(d.dimension.id, dragScope.id, s.id);
+                                  setDragScope(null);
+                                }}
+                              >
+                                <div
+                                  className={`builder-nav__row builder-nav__row--sub${isActive ? " runtime-nav__sub--active" : ""}`}
+                                >
+                                  <button
+                                    type="button"
+                                    className="runtime-nav__sub"
+                                    aria-current={isActive ? "true" : undefined}
+                                    onClick={() => selectSub(s.id)}
+                                  >
+                                    <span aria-hidden="true">●</span>
+                                    <span className="builder-nav__number">
+                                      {directSubindicatorNumber(di, d.indicators.length, si2)}
+                                    </span>
+                                    <span className="builder-nav__label">{s.title}</span>
+                                  </button>
+                                  <span className="builder-nav__actions">
+                                    <button
+                                      type="button"
+                                      className="builder-nav__action"
+                                      aria-label={`Renombrar subindicador ${s.title}`}
+                                      onClick={() => startRename("sub", s.id, s.title)}
+                                    >
+                                      ✎
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="builder-nav__action builder-nav__action--danger"
+                                      aria-label={`Borrar subindicador ${s.title}`}
+                                      onClick={() => requestDelete("sub", s.id, s.title)}
+                                    >
+                                      🗑
+                                    </button>
+                                  </span>
+                                </div>
+
+                                {renamingSub && (
+                                  <form className="builder-nav__form" onSubmit={submitRename}>
+                                    <label className="field__label" htmlFor="builder-rename-directsub">
+                                      Renombrar subindicador
+                                    </label>
+                                    <input
+                                      id="builder-rename-directsub"
+                                      autoFocus
+                                      value={renamingSub.title}
+                                      disabled={renamingSub.busy}
+                                      onChange={(e) => setRenaming({ ...renamingSub, title: e.target.value, error: null })}
+                                      required
+                                    />
+                                    {renamingSub.error && (
+                                      <p className="alert" role="alert">
+                                        {renamingSub.error}
+                                      </p>
+                                    )}
+                                    <div className="runtime-topbar__actions">
+                                      <Button type="submit" variant="primary" size="sm" disabled={renamingSub.busy}>
+                                        {renamingSub.busy ? "Guardando..." : "Guardar"}
+                                      </Button>
+                                      <Button type="button" size="sm" onClick={closeRename}>
+                                        Cancelar
+                                      </Button>
+                                    </div>
+                                  </form>
+                                )}
+
+                                {confirmingSub && (
+                                  <form className="builder-nav__confirm" onSubmit={submitDelete}>
+                                    <p>
+                                      Borrar el subindicador <strong>{confirmingSub.title}</strong>?
+                                    </p>
+                                    {confirmingSub.error && (
+                                      <p className="alert" role="alert">
+                                        {confirmingSub.error}
+                                      </p>
+                                    )}
+                                    <div className="runtime-topbar__actions">
+                                      <Button type="submit" variant="danger" size="sm" disabled={confirmingSub.busy}>
+                                        {confirmingSub.busy ? "Borrando..." : "Borrar"}
+                                      </Button>
+                                      <Button type="button" size="sm" onClick={cancelDelete}>
+                                        Cancelar
+                                      </Button>
+                                    </div>
+                                  </form>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
                   )}

@@ -72,6 +72,16 @@ export const updateSubindicatorInput = z.object({
 });
 export type UpdateSubindicatorInput = z.infer<typeof updateSubindicatorInput>;
 
+// VS-049 (docs/domain/evaluation-hierarchy.md "Numeración y orden persistido
+// en el Builder"): reordenar Dimensión/Indicador/Subindicador vía
+// drag-and-drop — el padre que acota el alcance (frameworkId/dimensionId/
+// indicatorId) viaja en la URL de cada endpoint, no en este body, porque es
+// el mismo shape para los 3 niveles.
+export const reorderInput = z.object({
+  orderedIds: z.array(z.string().min(1)).min(1),
+});
+export type ReorderInput = z.infer<typeof reorderInput>;
+
 export interface Framework {
   id: string;
   organizationId: string;
@@ -89,6 +99,8 @@ export interface Dimension {
   frameworkId: string;
   title: string;
   description: string | null;
+  /** VS-049 — posición 0-based entre hermanos de la misma Framework. */
+  order: number;
   createdAt: Date;
   updatedAt: Date;
   /** VS-035 — conteo de indicadores hijos, ver docs/architecture/design-system.md "Layout". */
@@ -103,6 +115,8 @@ export interface Indicator {
   dimensionId: string;
   title: string;
   description: string | null;
+  /** VS-049 — posición 0-based entre hermanos de la misma Dimensión. */
+  order: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -116,6 +130,8 @@ export interface Subindicator {
   description: string | null;
   formSchema: FormSchema | null;
   revisionNumber: number;
+  /** VS-049 — posición 0-based entre hermanos (bajo Indicador, o entre los directos de la misma Dimensión). */
+  order: number;
   createdAt: Date;
   updatedAt: Date;
 }
