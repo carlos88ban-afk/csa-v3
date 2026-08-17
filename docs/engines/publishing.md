@@ -25,7 +25,7 @@ Publicación, versionado y enlaces seguros (`../architecture/overview.md`; `../S
 
 - **Captura de respuestas** (`engine/persistence`, M7/M8) — la página pública de este slice es de solo lectura.
 - **Tabla de historial de revisiones** de `formSchema` — ver "Decisión central" arriba. El snapshot resuelve la inmutabilidad sin necesitarla.
-- **Expiración por fecha o límite de usos** del enlace — "seguro" en v1 significa token aleatorio de alta entropía + revocación manual; expiración automática no está pedida por `../SCOPE.md`/`../VISION.md` y se puede añadir después sin romper el modelo (sería una columna adicional).
+- ~~**Expiración por fecha o límite de usos** del enlace — "seguro" en v1 significa token aleatorio de alta entropía + revocación manual; expiración automática no está pedida por `../SCOPE.md`/`../VISION.md` y se puede añadir después sin romper el modelo (sería una columna adicional).~~ **SUPERADO por VS-050+**: `evaluation.dueDate` + banner de aviso/cierre, ver `../domain/business-units.md`, sección "Plazo de recepción". El acceso sigue sin expirar (el evaluado siempre puede abrir el link); lo que expira es la capacidad de enviar/editar respuestas.
 - **RBAC granular** sobre quién puede publicar/revocar — cualquier `member`/`owner` de la organización puede, igual que el resto del dominio hasta M11 (`engine/permission`, ya documentado como límite en `organization-user.md`).
 - **Congelar título/descripción de Dimensión/Indicador de forma distinta al contenido del formulario** — no aplica: al ser un snapshot completo, *todo* queda congelado por igual, no solo `formSchema`. Esto es más simple de razonar que congelar unos campos sí y otros no.
 - Si se borra el Framework original, sus Evaluaciones publicadas se borran en cascada (mismo patrón de `organizationId`/cascade ya usado en todo el dominio). Se acepta como simplificación v1 — no hay todavía respuestas de evaluados en juego (M7 no existe aún) que se perderían con esto.
@@ -66,6 +66,7 @@ Nuevo archivo `packages/sdk-core/src/evaluation.ts`: `createEvaluationInput` (`{
 - `GET /api/evaluations?frameworkId=...` (autenticado): lista para mostrar en el Builder.
 - `DELETE /api/evaluations/[id]` (autenticado, tenant-scoped): revoca.
 - `GET /api/public/evaluations/[token]` (**sin autenticación**, a propósito bajo el prefijo `public/` para que el límite sea visible en la estructura de carpetas y nadie le agregue `requireActiveMember` por reflejo): retorna el snapshot. 404 genérico si el token no resuelve.
+  **Matizado por VS-050+**: este flujo público solo aplica a Evaluaciones SIN asignación a unidades de negocio. Una Evaluación en "modo corporativo" (con filas en `evaluation_assignment`) usa exclusivamente el flujo autenticado nuevo — ver `../domain/business-units.md`, sección "Acceso del evaluado".
 
 ## UI
 

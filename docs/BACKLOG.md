@@ -4,6 +4,7 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Siguiente
 
+- [ ] VS-050+ — Unidades de negocio (EN PROGRESO): base de schema cerrada (jerarquía de Organization + evaluation_assignment/exclusion), faltan: partición de `response` por unidad, `dueDate`/banner/contactEmail, acceso autenticado del evaluado, progreso + dashboard corporativo, export XLSX consolidado (`exceljs`), panel "Publicar" en el Builder + eliminar `/frameworks/[frameworkId]` — spec completa en `docs/domain/business-units.md`
 - [x] VS-045 — Formato (rich text) en preguntas y opciones + referencias flexibles (`refType: "public" | "flexible"`) — 6.ª inspección AN-001, 2026-08-14: HTML `COG_BoardIndependence_AttachmentBoardIndependenceStatement` con negritas/múltiples párrafos en labels y bloque de referencias `data-ref-type="flexible"`; alcance confirmado con el usuario (todas las preguntas/opciones + flexible incluido) — spec en `docs/engines/form.md` (antecede a VS-044/VS-043 por pedido explícito del usuario) — 2026-08-14
 - [x] VS-042 — Tabla de datos embebida dentro de una sub-opción (`subOption.table`, 5.ª inspección AN-001, 2026-08-14: cada sub-opción del sub-radio trae su propia `form-table` — spec en `docs/engines/form.md`)
 - [ ] Decidir proveedor de email/SMTP (ADR) si se necesita invitación automática por correo — hoy el link se comparte manualmente (ver `docs/domain/organization-user.md`)

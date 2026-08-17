@@ -1,11 +1,19 @@
-checkpoint: c9e1a1b0-0004-4a2b-8c3d-00000000002b
+checkpoint: c9e1a1b0-0005-4a2b-8c3d-00000000002c
 fecha: 2026-08-17
-estado: completo
-slice_actual: VS-049 (numeración y orden persistido/drag-and-drop en el Builder) — implementado, verificado en producción y CERRADO. Siguiente: sin ítem asignado en BACKLOG.md ("Siguiente") — revisar ROADMAP.md.
+estado: en_progreso
+slice_actual: VS-051 (unidades de negocio — partición de Response por unidad: response.businessUnitOrganizationId NOT NULL + unique de 3 columnas + service con unidad opcional). CERRADO (tests/typecheck/build verdes, 40/40 db + 251 sdk-core, migración aplicada a Neon real). Feature completa "corporativo + unidades de negocio" sigue abierta — faltan VS-052+ (dueDate/banner, acceso autenticado del evaluado, dashboard, export XLSX, panel Publicar en el Builder + eliminar pantalla intermedia). Spec completa en docs/domain/business-units.md.
 
 slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030, VS-031, VS-032, VS-033, VS-034, VS-035, VS-036, VS-037, VS-038, VS-039, VS-040, VS-041, VS-042, VS-043, VS-044, VS-045, VS-046, VS-047, VS-048, VS-049]
 
 decisiones_del_dia:
+  - **VS-051 — Partición de `response` por unidad de negocio (cerrado)**: `response.businessUnitOrganizationId` NOT NULL (FK → `organization.id` cascade) + unique ampliado a 3 columnas. Decisión del spec confirmada al implementar: nullable descartado porque Postgres trata NULLs en unique compuesto como no-iguales — permitiría duplicados silenciosos; toda Evaluación tiene SIEMPRE un valor real (`evaluation.organizationId` si no tiene unidades). Service: unidad opcional en `upsertResponse`/`getResponse`/`setElementStatus` que resuelve a la org dueña (flujo público sin cambios); `listResponses` sin unidad = todas las filas (export CSV), con unidad = filtro. La validación de `evaluation_assignment` NO va en el service (sigue agnóstico de sesión) — vive en el endpoint autenticado de VS-052. 5 tests nuevos de integración contra Neon real (dos unidades sin pisarse, upsert repetido misma fila, getResponse filtra, cascade al borrar la unidad, default org dueña). Fix `afterAll` de response.test.ts: timeout 10s → 60s.
+  - **Migración aplicada a la Neon real con 2 hallazgos de tooling**: (1) nombres SQL crudos sin comillas se pliegan a minúsculas (constraint/índice no coincidían con el camelCase del schema) — renombrados citados con comillas dobles; (2) el nombre largo del unique de 3 columnas (74 chars) fue truncado por NAMEDATALEN=63 de Postgres, perdiendo el sufijo `_unique` — el schema y la DB ahora usan el nombre corto `response_evaluationId_subindicatorId_businessUnit_unique` (54 chars). El nombre correcto importa para la coincidencia exacta con drizzle-kit.
+  - **Falso positivo de drizzle-kit CONFIRMADO persistente (bugs.md, seguimiento VS-051)**: la predicción de VS-050 ("constraint genuinamente nuevo → no debería disparar el falso positivo") NO se cumplió — el `db:push` posterior al rename siguió pidiendo "add response_evaluationId_subindicatorId_businessUnit_unique ... Do you want to truncate response table?" pese a que el constraint existe exacto (verificado por introspección directa). Conclusión: drizzle-kit@0.31.10 parece no reconocer NINGÚN unique constraint de `response` introspeccionado de la Neon real. Procedimiento vigente sin cambios: SQL crudo idéntico al DDL de drizzle-kit + introspección directa como fuente de verdad; NUNCA aceptar el truncate; no usar `--force`.
+  - **VS-050 — Unidades de negocio (base de schema)**: pedido del usuario que escaló desde "mover Publicar al Builder" hasta un modelo completo de corporativo + unidades de negocio (un corporativo — ej. Intercorp Retail — publica UNA evaluación aplicada a MÚLTIPLES unidades de negocio — ej. Supermercados Peruanos, Farmacias Peruanas —, cada una viendo un subconjunto distinto de preguntas sin visibilidad cruzada, con export/dashboard consolidados solo para el corporativo). Se llegó al diseño final tras 4 rondas de `AskUserQuestion` (documentadas en la sesión anterior) — el usuario pidió explícitamente "diseñar todo junto desde ahora" en vez de diferir la complejidad. Spec completa escrita ANTES de tocar código: `docs/domain/business-units.md`, con supersesiones cruzadas en `docs/engines/publishing.md` (acceso por token → autenticado en modo corporativo; expiración por fecha ya no fuera de alcance) y `docs/domain/organization-user.md` (jerarquía de Organization).
+  - **Correcciones al spec tras una segunda ronda de preguntas** (antes de implementar): (1) el filtrado de preguntas por unidad es a nivel de ELEMENTO individual dentro de un Subindicador, no solo Subindicador completo — el usuario corrigió mi asunción inicial; (2) el plazo (`dueDate`) NUNCA puede quedar sin fecha una vez fijado — "ya no es posible completarlo" es simplemente el estado de reposo cuando el plazo vence y nadie lo extiende, no una acción separada de "quitar el plazo"; (3) `exceljs` confirmado para el export consolidado multi-hoja.
+  - **`Organization.parentOrganizationId`** (jerarquía de un nivel matriz↔unidad de negocio): añadida vía `additionalFields` del plugin `organization` de Better Auth (`packages/db/src/auth.ts`), verificado contra el paquete instalado (`better-auth@1.6.25`, `dist/plugins/organization/schema.d.mts`) antes de escribir el código — no una columna manual en `schema/auth.ts` (generado, se pierde en la próxima regeneración). **Hallazgo de tooling**: el CLI de Better Auth genera la self-reference sin anotar el tipo de retorno de `.references()`, rompiendo `tsc` (TS7022/TS7024, drizzle-orm no puede inferir el tipo de una self-reference circular) — requiere `import { type AnyPgColumn }` + `(): AnyPgColumn => organization.id` a mano tras CADA regeneración, documentado en `business-units.md` como la única edición manual tolerada sobre ese archivo.
+  - **`evaluation_assignment`/`evaluation_assignment_exclusion`**: nuevas tablas (`packages/db/src/schema/evaluation-assignment.ts`) + service (`evaluation-assignment-service.ts`, tenant-scoped contra la organización MATRIZ, valida que la unidad de negocio asignada sea hija real vía `parentOrganizationId`). Exclusión con `elementId` nullable (`null` = Subindicador completo, id puntual = solo ese elemento) — sin unique constraint a nivel DB para la fila "Subindicador completo" por la semántica de NULL en Postgres, deduplicado en el service. 7 tests de integración nuevos contra Neon real.
+  - **Incidente de tooling recurrente (no bloqueante)**: `drizzle-kit push` sigue bloqueado por el falso positivo ya conocido (`bugs.md`, entrada 2026-08-17 anterior) sobre `response_evaluationId_subindicatorId_unique` — prompt interactivo sin TTY en CADA push, constraint que ya existe correctamente en la DB (confirmado por introspección directa vía `pg_constraint`/`pg_indexes`). Ambos cambios de schema de este slice (columna `parentOrganizationId`, tablas nuevas) se aplicaron vía SQL crudo idéntico al que generaría drizzle-kit, con un push posterior confirmando que no queda ningún diff pendiente salvo ese falso positivo preexistente — mismo patrón ya establecido y documentado en el incidente anterior.
   - **VS-049 — Numeración y orden persistido (drag-and-drop) en el Builder**: pedido explícito del usuario, sin relación con un reporte de bug previo — quiere que el panel de navegación del Builder muestre el mismo número que ve el evaluado (`1`/`1.1`/`1.1.1`), drag-and-drop para reordenar Dimensión/Indicador/Subindicador, y que seleccionar un framework lleve directo al editor sin la pantalla intermedia de solo-Dimensiones (que ya se sentía confusa/redundante con "Abrir editor").
   - **Supera "derivada, no persistida" (VS-021)**: drag-and-drop es justamente elegir un orden que no se puede derivar de nada más — se agrega columna `order` (entero por-padre) a `dimension`/`indicator`/`subindicator`, backfilleada por `created_at` para las filas existentes (todas de prueba, confirmado en VS-048). El NÚMERO que se muestra sigue siendo 100% derivado de la posición en el array — solo se persiste el orden elegido, no el string.
   - **Schema/db**: `order` en las 3 tablas; `orderBy` en los 4 `list*`; `reorderDimensions`/`reorderIndicators`/`reorderSubindicators` (transacción, valida que todos los ids pertenezcan al padre y organización indicados). 3 endpoints API nuevos `POST .../reorder`.
@@ -39,6 +47,19 @@ decisiones_del_dia:
   - Fix del mismo día (post-VS-046, ya cerrado antes de empezar VS-047): radio/checkbox con label en línea siguiente — `className="field field--checkbox"` en 7 sitios de Runtime/preview (commit `07b74d8`), detalle completo ya en `docs/project_notes/bugs.md` y checkpoints previos.
 
 archivos_modificados:
+  - packages/db/src/schema/response.ts (VS-051: businessUnitOrganizationId NOT NULL + FK cascade + índice + unique 3 columnas con nombre corto)
+  - packages/db/src/domain/response-service.ts (VS-051: unidad opcional en upsert/get/setElementStatus, listResponses filtra)
+  - packages/db/src/__tests__/response.test.ts (VS-051: makeOrgWithOwner con parentOrganizationId + 5 tests de partición + afterAll 60s)
+  - docs/project_notes/bugs.md (VS-051: seguimiento falso positivo drizzle-kit persistente + regla NAMEDATALEN 63)
+  - docs/domain/business-units.md (VS-050: spec nueva, completa)
+  - docs/engines/publishing.md, docs/domain/organization-user.md (VS-050: supersesiones cruzadas)
+  - packages/db/src/auth.ts (VS-050: parentOrganizationId vía additionalFields del plugin organization)
+  - packages/db/src/schema/auth.ts (VS-050: regenerado + fix manual AnyPgColumn, ver decisiones_del_dia)
+  - packages/db/src/schema/evaluation-assignment.ts (VS-050: tablas evaluation_assignment/evaluation_assignment_exclusion, nuevo)
+  - packages/db/drizzle.config.ts (VS-050: agrega evaluation-assignment.ts al schema)
+  - packages/db/src/domain/evaluation-assignment-service.ts (VS-050: nuevo)
+  - packages/db/src/__tests__/evaluation-assignment.test.ts (VS-050: 7 tests nuevos)
+  - packages/sdk-core/src/evaluation-assignment.ts, index.ts (VS-050: contratos zod nuevos)
   - packages/sdk-core/src/form-schema.ts (VS-048: formTableColumn/formTableRow pierden label; formTableRow pierde el atajo legacy de fila, cells pasa a obligatorio)
   - packages/sdk-core/src/form-schema.test.ts (VS-048: casos actualizados al nuevo schema + 1 test nuevo de regresión — 251 total en sdk-core)
   - apps/web/app/evaluations/[token]/page.tsx (VS-048: FormTableView sin thead/th de fila, selector de unidad por celda)
@@ -50,7 +71,8 @@ archivos_modificados:
   - docs/engines/form.md, docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md, docs/project_notes/bugs.md
 
 proximos_pasos:
-  - Sin ítem asignado en BACKLOG.md ("Siguiente") tras VS-048 — revisar `docs/ROADMAP.md` para el siguiente ítem por prioridad, o esperar un nuevo hallazgo/pedido del usuario (patrón habitual: HTML real de S&P pegado por el usuario).
+  - **VS-052+ (continuación directa, feature "unidades de negocio" sin cerrar)**: evaluation.dueDate/contactEmail + bloqueo de escritura tras vencer; acceso autenticado por unidad de negocio (reemplaza el token público solo en modo corporativo, usa `getAssignmentForBusinessUnit` + filtra elementos por exclusiones, con la validación de `evaluation_assignment` que se dejó fuera del service en VS-051); progreso agregado + dashboard corporativo; export XLSX consolidado (`exceljs`, dependencia nueva a instalar); panel "Publicar" en el Builder + eliminar `/frameworks/[frameworkId]`. Todo el diseño ya está en `docs/domain/business-units.md` — no hace falta volver a preguntar al usuario salvo que algo no cuadre al implementar.
+  - Sin ítem asignado en BACKLOG.md ("Siguiente") tras VS-048/VS-049 — revisar `docs/ROADMAP.md` para el siguiente ítem por prioridad, o esperar un nuevo hallazgo/pedido del usuario (patrón habitual: HTML real de S&P pegado por el usuario), pero eso queda detrás de terminar VS-050+.
   - Pendientes no bloqueantes, siguen en BACKLOG.md: proveedor de email/SMTP (ADR); TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada); tabla de historial de revisiones de `formSchema`.
   - Warning de SSL de Postgres (`sslmode=require` → deprecation warning de `pg`) visible en runtime logs de Vercel desde 2026-08-05 — no bloqueante, pendiente de decisión explícita del usuario antes de tocar `DATABASE_URL` en producción.
   - Único fallo e2e conocido: `public-runtime.spec.ts:56` (comentario TipTap en negrita no persiste tras reload) — bug real ya documentado en `bugs.md` desde 2026-08-13, sin solución todavía.
@@ -59,6 +81,39 @@ proximos_pasos:
 bloqueos: []
 
 contexto_para_continuar: |
+  VS-050 (unidades de negocio) está EN PROGRESO — la base de schema
+  (Organization.parentOrganizationId + evaluation_assignment/
+  evaluation_assignment_exclusion) y la partición de response (VS-051:
+  businessUnitOrganizationId NOT NULL + unique de 3 columnas + service
+  con unidad opcional + migración aplicada a Neon real) están CERRADAS
+  (40/40 tests db, 251 sdk-core, typecheck y build verdes en los 3
+  paquetes). La feature completa ("corporativo + unidades de negocio")
+  NO está cerrada — faltan varios slices más (ver proximos_pasos). NO
+  se ha hecho verificación en producción de estas piezas porque no hay
+  UI todavía que las ejerza (es puramente backend/schema); la
+  verificación en producción real llega cuando se implemente el panel
+  Publicar (VS-052+, último ítem de proximos_pasos) y se pueda probar
+  el flujo de punta a punta con una organización matriz + unidades de
+  negocio reales.
+
+  El spec completo (`docs/domain/business-units.md`) ya pasó por dos
+  rondas de correcciones explícitas del usuario DESPUÉS de escrito —
+  ver decisiones_del_dia arriba (filtrado a nivel de elemento, no
+  Subindicador; dueDate nunca vuelve a null). Al retomar, leer ese
+  archivo completo antes de seguir implementando — tiene todas las
+  decisiones de diseño ya cerradas, no hace falta volver a preguntarle
+  al usuario salvo que la implementación revele algo que el spec no
+  cubre.
+
+  Nada de la DB real de producción fue tocado para datos de evaluados
+  (solo schema nuevo, columnas/tablas vacías) — no hay riesgo de haber
+  afectado datos reales en este slice. En VS-051 la migración hizo
+  backfill de las 3 filas existentes de `response` con
+  `evaluation.organization_id` (0 huérfanas, verificado) — esas filas
+  quedaron con la partición correcta y siguen respondiendo igual en el
+  flujo público (sin unidad indicada, el service resuelve a la org
+  dueña = mismo valor backfilleado).
+
   VS-047 (editor de `tabla_datos` estilo grilla) está CERRADO: commit
   `c2ec968` pusheado a main, deploy a Vercel READY, verificado de
   punta a punta en producción (Builder con la grilla nueva, celda
@@ -196,6 +251,13 @@ contexto_para_continuar: |
     para que su snapshot incluya los elementos.
   - Verificar `netstat -ano | grep :3000` antes de levantar `next dev`.
 
-  Para retomar sin un pedido específico: leer este archivo, luego
-  docs/BACKLOG.md ("Siguiente", vacío) y docs/ROADMAP.md. Comando de
-  verificación: pnpm install && pnpm slice:close.
+  Para retomar: este checkpoint YA tiene un slice en progreso (VS-052+,
+  unidades de negocio) — continuar ahí directamente, no ir a
+  docs/BACKLOG.md/ROADMAP.md salvo que el usuario pida otra cosa. Leer
+  `docs/domain/business-units.md` completo antes de seguir. Comando de
+  verificación: pnpm install && pnpm slice:close. Al tocar `response`
+  vía SQL crudo: citar SIEMPRE nombres camelCase con comillas dobles y
+  mantenerlos ≤63 chars (NAMEDATALEN), y verificar el resultado por
+  introspección directa (`pg_constraint`/`pg_indexes`) — `db:push` no
+  sirve de verificación para esta tabla (falso positivo conocido,
+  ver bugs.md).

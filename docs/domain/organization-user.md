@@ -12,6 +12,8 @@ Identidad de una persona. Gestionado por Better Auth (email/password). Un User p
 
 Tenant dueño de Frameworks y Evaluaciones (ver `ubiquitous-language.md`). Provista por el **plugin `organization` de Better Auth** (no se modela como tabla custom).
 
+**Extendido en VS-050+** con `parentOrganizationId` (nullable, self-reference, vía `additionalFields` del plugin — no se edita `schema/auth.ts` a mano, es generado): modela una jerarquía de un nivel matriz↔unidades de negocio. Ver `business-units.md` para el diseño completo (evaluación compartida entre unidades, filtrado de preguntas por unidad, aislamiento de progreso). Una Organization sin `parentOrganizationId` sigue siendo el caso normal (independiente o matriz); nada cambia para tenants que no usan jerarquía.
+
 ### Member
 
 Relación User ↔ Organization con un `role`. Provista por el plugin de Better Auth.
