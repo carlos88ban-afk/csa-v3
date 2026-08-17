@@ -1,12 +1,18 @@
 checkpoint: c9e1a1b0-0005-4a2b-8c3d-00000000002c
 fecha: 2026-08-17
 estado: en_progreso
-slice_actual: VS-051 (unidades de negocio — partición de Response por unidad: response.businessUnitOrganizationId NOT NULL + unique de 3 columnas + service con unidad opcional). CERRADO (tests/typecheck/build verdes, 40/40 db + 251 sdk-core, migración aplicada a Neon real). Feature completa "corporativo + unidades de negocio" sigue abierta — faltan VS-052+ (dueDate/banner, acceso autenticado del evaluado, dashboard, export XLSX, panel Publicar en el Builder + eliminar pantalla intermedia). Spec completa en docs/domain/business-units.md.
+slice_actual: VS-052 (plazo de recepción — evaluation.dueDate/contactEmail + bloqueo de escritura tras vencer + PATCH /api/evaluations/[id]). CERRADO (tests/typecheck/build verdes, 50/50 db + 251 sdk-core, migración aplicada a Neon real). Feature completa "corporativo + unidades de negocio" sigue abierta — faltan VS-053+ (acceso autenticado del evaluado, dashboard corporativo, export XLSX, panel Publicar en el Builder + eliminar pantalla intermedia). Spec completa en docs/domain/business-units.md.
 
-slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030, VS-031, VS-032, VS-033, VS-034, VS-035, VS-036, VS-037, VS-038, VS-039, VS-040, VS-041, VS-042, VS-043, VS-044, VS-045, VS-046, VS-047, VS-048, VS-049]
+slices_completados: [VS-001, VS-002, VS-003, VS-004, VS-006, VS-007, VS-008, VS-009, VS-010, VS-011, VS-012, VS-013, VS-014, VS-015, TD-003, VS-016, VS-017, VS-018, VS-019, VS-020, VS-021, VS-022, VS-023, VS-024, VS-025, VS-026, VS-027, VS-028, VS-029, VS-030, VS-031, VS-032, VS-033, VS-034, VS-035, VS-036, VS-037, VS-038, VS-039, VS-040, VS-041, VS-042, VS-043, VS-044, VS-045, VS-046, VS-047, VS-048, VS-049, VS-050, VS-051, VS-052]
 
 decisiones_del_dia:
-  - **VS-051 — Partición de `response` por unidad de negocio (cerrado)**: `response.businessUnitOrganizationId` NOT NULL (FK → `organization.id` cascade) + unique ampliado a 3 columnas. Decisión del spec confirmada al implementar: nullable descartado porque Postgres trata NULLs en unique compuesto como no-iguales — permitiría duplicados silenciosos; toda Evaluación tiene SIEMPRE un valor real (`evaluation.organizationId` si no tiene unidades). Service: unidad opcional en `upsertResponse`/`getResponse`/`setElementStatus` que resuelve a la org dueña (flujo público sin cambios); `listResponses` sin unidad = todas las filas (export CSV), con unidad = filtro. La validación de `evaluation_assignment` NO va en el service (sigue agnóstico de sesión) — vive en el endpoint autenticado de VS-052. 5 tests nuevos de integración contra Neon real (dos unidades sin pisarse, upsert repetido misma fila, getResponse filtra, cascade al borrar la unidad, default org dueña). Fix `afterAll` de response.test.ts: timeout 10s → 60s.
+  - **VS-052 — Plazo de recepción (`dueDate`/`contactEmail`) + bloqueo de escritura (cerrado)**: ortogonal a las unidades de negocio (aplica también al uso general, documentado en `business-units.md` porque surgió del mismo pedido). Schema: `evaluation.dueDate` (timestamp nullable = sin plazo, comportamiento histórico) + `contactEmail` (text nullable). Reglas de `updateEvaluation` (nuevo, tenant-scoped) fieles a la spec: `dueDate: null` SOLO válido si nunca hubo plazo (400 `dueDate_CANNOT_CLEAR`); toda fijación — primera vez o extensión — debe ser fecha futura (400 `dueDate_MUST_BE_FUTURE`); `contactEmail` libremente editable/limpiable. `createEvaluation` acepta ambos opcionales (el panel Publicar los fija al publicar; un plazo ya vencido en creación solo deja la Evaluación en su estado de reposo natural, no rompe nada).
+  - **Bloqueo de servidor, no solo de UI** (`response-service.ts`): `upsertResponse` lanza `EvaluationLockedError` (403 `evaluation_DUE_DATE_PASSED`) si `dueDate` existe y `now >= dueDate` — cubre también `setElementStatus` (delega en upsert). Lectura SIEMPRE permitida, incluso vencido el plazo. Errores de dominio nuevos en `service.ts`: `ValidationError` (400) y `EvaluationLockedError` (403), exportados vía `export *` y traducidos en `apps/web/lib/api-errors.ts`.
+  - **API**: `PATCH /api/evaluations/[id]` con `requireWriteAccess` y body validado por `updateEvaluationInput` en sdk-core (`z.coerce.date()` + `z.string().email()`, ambos nullable/optional — `undefined` no toca, `null` limpia). La ruta pública de respuestas no cambió: el bloqueo vive en el service y fluye a 403 vía toErrorResponse.
+  - **Migración a la Neon real** (script crudo idempotente): `ALTER TABLE evaluation ADD COLUMN due_date timestamp, contact_email text` — ambas nullable, sin backfill. Verificado por introspección `information_schema.columns`. Script temporal borrado al terminar.
+  - 10 tests nuevos de integración contra Neon real (6 en `evaluation.test.ts`: persistencia en create, fijar/extender/limpiar contacto, `dueDate_CANNOT_CLEAR`, `dueDate_MUST_BE_FUTURE` primera vez y extensión, null permitido sin plazo previo, tenant-scoping; 4 en `response.test.ts`: rechazo en upsert, rechazo vía setElementStatus, lectura siempre permitida, escritura antes de vencer). Fix `afterAll` de `evaluation.test.ts`: timeout 10s → 60s (mismo patrón que `response.test.ts` en VS-051).
+  - **Detalle de tooling local (Windows)**: el binario `dotenv` global del PATH no es el `dotenv-cli` que usan los scripts del repo (sintaxis distinta) — los scripts temporales contra Neon se resolvieron con import dinámico + parseo propio de `DATABASE_URL` del `.env` del repo (patrón a reutilizar en el próximo script temporal).
+  - **VS-051 — Partición de `response` por unidad de negocio (cerrado)**: `response.businessUnitOrganizationId` NOT NULL (FK → `organization.id` cascade) + unique ampliado a 3 columnas. Decisión del spec confirmada al implementar: nullable descartado porque Postgres trata NULLs en unique compuesto como no-iguales — permitiría duplicados silenciosos; toda Evaluación tiene SIEMPRE un valor real (`evaluation.organizationId` si no tiene unidades). Service: unidad opcional en `upsertResponse`/`getResponse`/`setElementStatus` que resuelve a la org dueña (flujo público sin cambios); `listResponses` sin unidad = todas las filas (export CSV), con unidad = filtro. La validación de `evaluation_assignment` NO va en el service (sigue agnóstico de sesión) — vive en el endpoint autenticado de VS-053. 5 tests nuevos de integración contra Neon real (dos unidades sin pisarse, upsert repetido misma fila, getResponse filtra, cascade al borrar la unidad, default org dueña). Fix `afterAll` de response.test.ts: timeout 10s → 60s.
   - **Migración aplicada a la Neon real con 2 hallazgos de tooling**: (1) nombres SQL crudos sin comillas se pliegan a minúsculas (constraint/índice no coincidían con el camelCase del schema) — renombrados citados con comillas dobles; (2) el nombre largo del unique de 3 columnas (74 chars) fue truncado por NAMEDATALEN=63 de Postgres, perdiendo el sufijo `_unique` — el schema y la DB ahora usan el nombre corto `response_evaluationId_subindicatorId_businessUnit_unique` (54 chars). El nombre correcto importa para la coincidencia exacta con drizzle-kit.
   - **Falso positivo de drizzle-kit CONFIRMADO persistente (bugs.md, seguimiento VS-051)**: la predicción de VS-050 ("constraint genuinamente nuevo → no debería disparar el falso positivo") NO se cumplió — el `db:push` posterior al rename siguió pidiendo "add response_evaluationId_subindicatorId_businessUnit_unique ... Do you want to truncate response table?" pese a que el constraint existe exacto (verificado por introspección directa). Conclusión: drizzle-kit@0.31.10 parece no reconocer NINGÚN unique constraint de `response` introspeccionado de la Neon real. Procedimiento vigente sin cambios: SQL crudo idéntico al DDL de drizzle-kit + introspección directa como fuente de verdad; NUNCA aceptar el truncate; no usar `--force`.
   - **VS-050 — Unidades de negocio (base de schema)**: pedido del usuario que escaló desde "mover Publicar al Builder" hasta un modelo completo de corporativo + unidades de negocio (un corporativo — ej. Intercorp Retail — publica UNA evaluación aplicada a MÚLTIPLES unidades de negocio — ej. Supermercados Peruanos, Farmacias Peruanas —, cada una viendo un subconjunto distinto de preguntas sin visibilidad cruzada, con export/dashboard consolidados solo para el corporativo). Se llegó al diseño final tras 4 rondas de `AskUserQuestion` (documentadas en la sesión anterior) — el usuario pidió explícitamente "diseñar todo junto desde ahora" en vez de diferir la complejidad. Spec completa escrita ANTES de tocar código: `docs/domain/business-units.md`, con supersesiones cruzadas en `docs/engines/publishing.md` (acceso por token → autenticado en modo corporativo; expiración por fecha ya no fuera de alcance) y `docs/domain/organization-user.md` (jerarquía de Organization).
@@ -47,6 +53,16 @@ decisiones_del_dia:
   - Fix del mismo día (post-VS-046, ya cerrado antes de empezar VS-047): radio/checkbox con label en línea siguiente — `className="field field--checkbox"` en 7 sitios de Runtime/preview (commit `07b74d8`), detalle completo ya en `docs/project_notes/bugs.md` y checkpoints previos.
 
 archivos_modificados:
+  - packages/db/src/schema/evaluation.ts (VS-052: dueDate/contactEmail nullable)
+  - packages/db/src/domain/evaluation-service.ts (VS-052: createEvaluation con dueDate/contactEmail, updateEvaluation nuevo con reglas de la spec)
+  - packages/db/src/domain/response-service.ts (VS-052: bloqueo EvaluationLockedError en upsertResponse)
+  - packages/db/src/domain/service.ts (VS-052: ValidationError y EvaluationLockedError nuevos)
+  - packages/db/src/__tests__/evaluation.test.ts (VS-052: 6 tests de updateEvaluation/create + afterAll 60s)
+  - packages/db/src/__tests__/response.test.ts (VS-052: 4 tests de bloqueo)
+  - packages/sdk-core/src/evaluation.ts (VS-052: createEvaluationInput/updateEvaluationInput con dueDate/contactEmail, interfaz Evaluation ampliada)
+  - apps/web/lib/api-errors.ts (VS-052: mapeos ValidationError→400, EvaluationLockedError→403)
+  - apps/web/app/api/evaluations/[id]/route.ts (VS-052: PATCH nuevo)
+  - docs/CHANGELOG.md, docs/checkpoints/CHECKPOINT.md, docs/project_notes/issues.md (VS-052)
   - packages/db/src/schema/response.ts (VS-051: businessUnitOrganizationId NOT NULL + FK cascade + índice + unique 3 columnas con nombre corto)
   - packages/db/src/domain/response-service.ts (VS-051: unidad opcional en upsert/get/setElementStatus, listResponses filtra)
   - packages/db/src/__tests__/response.test.ts (VS-051: makeOrgWithOwner con parentOrganizationId + 5 tests de partición + afterAll 60s)
@@ -71,7 +87,7 @@ archivos_modificados:
   - docs/engines/form.md, docs/CHANGELOG.md, docs/BACKLOG.md, docs/project_notes/issues.md, docs/project_notes/bugs.md
 
 proximos_pasos:
-  - **VS-052+ (continuación directa, feature "unidades de negocio" sin cerrar)**: evaluation.dueDate/contactEmail + bloqueo de escritura tras vencer; acceso autenticado por unidad de negocio (reemplaza el token público solo en modo corporativo, usa `getAssignmentForBusinessUnit` + filtra elementos por exclusiones, con la validación de `evaluation_assignment` que se dejó fuera del service en VS-051); progreso agregado + dashboard corporativo; export XLSX consolidado (`exceljs`, dependencia nueva a instalar); panel "Publicar" en el Builder + eliminar `/frameworks/[frameworkId]`. Todo el diseño ya está en `docs/domain/business-units.md` — no hace falta volver a preguntar al usuario salvo que algo no cuadre al implementar.
+  - **VS-053+ (continuación directa, feature "unidades de negocio" sin cerrar)**: acceso autenticado por unidad de negocio (reemplaza el token público solo en modo corporativo, usa `getAssignmentForBusinessUnit` + filtra elementos por exclusiones, con la validación de `evaluation_assignment` que se dejó fuera del service en VS-051); progreso agregado + dashboard corporativo; export XLSX consolidado (`exceljs`, dependencia nueva a instalar); panel "Publicar" en el Builder + eliminar `/frameworks/[frameworkId]`. Todo el diseño ya está en `docs/domain/business-units.md` — no hace falta volver a preguntar al usuario salvo que algo no cuadre al implementar.
   - Sin ítem asignado en BACKLOG.md ("Siguiente") tras VS-048/VS-049 — revisar `docs/ROADMAP.md` para el siguiente ítem por prioridad, o esperar un nuevo hallazgo/pedido del usuario (patrón habitual: HTML real de S&P pegado por el usuario), pero eso queda detrás de terminar VS-050+.
   - Pendientes no bloqueantes, siguen en BACKLOG.md: proveedor de email/SMTP (ADR); TD-001+TD-002 (migraciones versionadas de Drizzle + rama Neon de test aislada); tabla de historial de revisiones de `formSchema`.
   - Warning de SSL de Postgres (`sslmode=require` → deprecation warning de `pg`) visible en runtime logs de Vercel desde 2026-08-05 — no bloqueante, pendiente de decisión explícita del usuario antes de tocar `DATABASE_URL` en producción.
@@ -81,20 +97,24 @@ proximos_pasos:
 bloqueos: []
 
 contexto_para_continuar: |
-  VS-050 (unidades de negocio) está EN PROGRESO — la base de schema
-  (Organization.parentOrganizationId + evaluation_assignment/
-  evaluation_assignment_exclusion) y la partición de response (VS-051:
-  businessUnitOrganizationId NOT NULL + unique de 3 columnas + service
-  con unidad opcional + migración aplicada a Neon real) están CERRADAS
-  (40/40 tests db, 251 sdk-core, typecheck y build verdes en los 3
-  paquetes). La feature completa ("corporativo + unidades de negocio")
-  NO está cerrada — faltan varios slices más (ver proximos_pasos). NO
-  se ha hecho verificación en producción de estas piezas porque no hay
-  UI todavía que las ejerza (es puramente backend/schema); la
-  verificación en producción real llega cuando se implemente el panel
-  Publicar (VS-052+, último ítem de proximos_pasos) y se pueda probar
-  el flujo de punta a punta con una organización matriz + unidades de
-  negocio reales.
+  La feature "corporativo + unidades de negocio" está EN PROGRESO con
+  tres slices CERRADOS: VS-050 (base de schema: Organization.
+  parentOrganizationId + evaluation_assignment/evaluation_assignment_exclusion),
+  VS-051 (partición de response: businessUnitOrganizationId NOT NULL +
+  unique de 3 columnas + service con unidad opcional + migración aplicada
+  a Neon real) y VS-052 (plazo de recepción: evaluation.dueDate/
+  contactEmail + bloqueo de escritura tras vencer + PATCH
+  /api/evaluations/[id] + migración aplicada a Neon real) — 50/50 tests
+  db, 251 sdk-core, typecheck y build verdes en los 3 paquetes. La
+  feature completa NO está cerrada — faltan varios slices más (ver
+  proximos_pasos). NO se ha hecho verificación en producción de estas
+  piezas porque no hay UI todavía que las ejerza (es puramente
+  backend/schema); la verificación en producción real llega cuando se
+  implemente el panel Publicar (último ítem de proximos_pasos) y se
+  pueda probar el flujo de punta a punta con una organización matriz +
+  unidades de negocio reales. El bloqueo de escritura por dueDate SÍ es
+  verificable ya contra la evaluación real publicada si el usuario la
+  fija con un plazo vencido, pero no se tocó producción para eso.
 
   El spec completo (`docs/domain/business-units.md`) ya pasó por dos
   rondas de correcciones explícitas del usuario DESPUÉS de escrito —
@@ -106,13 +126,22 @@ contexto_para_continuar: |
   cubre.
 
   Nada de la DB real de producción fue tocado para datos de evaluados
-  (solo schema nuevo, columnas/tablas vacías) — no hay riesgo de haber
-  afectado datos reales en este slice. En VS-051 la migración hizo
-  backfill de las 3 filas existentes de `response` con
+  (solo schema nuevo, columnas/tablas vacías o nullable) — no hay
+  riesgo de haber afectado datos reales en estos slices. En VS-051 la
+  migración hizo backfill de las 3 filas existentes de `response` con
   `evaluation.organization_id` (0 huérfanas, verificado) — esas filas
   quedaron con la partición correcta y siguen respondiendo igual en el
   flujo público (sin unidad indicada, el service resuelve a la org
-  dueña = mismo valor backfilleado).
+  dueña = mismo valor backfilleado). VS-052 solo agregó columnas
+  nullable, sin tocar filas existentes.
+
+  Datos de prueba en la DB real de producción (NO borrar sin
+  confirmación explícita del usuario): además de los históricos
+  detallados abajo, quedó un residuo de los tests de VS-051:
+  la evaluación `f0107499-e3aa-4bf6-8d04-e1c2a0c60747` (token
+  `tAC0iqS-YX5Wfk7hsXYExezdEWTC0BaI`, org `WKMyZGD1jzKssIledToDBPt26NFZZXiA`)
+  con 1 respuesta, creada 2026-08-17T23:40 por una corrida cuyo afterAll
+  falló — borrarla requiere confirmación explícita del usuario.
 
   VS-047 (editor de `tabla_datos` estilo grilla) está CERRADO: commit
   `c2ec968` pusheado a main, deploy a Vercel READY, verificado de
@@ -251,7 +280,7 @@ contexto_para_continuar: |
     para que su snapshot incluya los elementos.
   - Verificar `netstat -ano | grep :3000` antes de levantar `next dev`.
 
-  Para retomar: este checkpoint YA tiene un slice en progreso (VS-052+,
+  Para retomar: este checkpoint YA tiene un slice en progreso (VS-053+,
   unidades de negocio) — continuar ahí directamente, no ir a
   docs/BACKLOG.md/ROADMAP.md salvo que el usuario pida otra cosa. Leer
   `docs/domain/business-units.md` completo antes de seguir. Comando de
@@ -260,4 +289,6 @@ contexto_para_continuar: |
   mantenerlos ≤63 chars (NAMEDATALEN), y verificar el resultado por
   introspección directa (`pg_constraint`/`pg_indexes`) — `db:push` no
   sirve de verificación para esta tabla (falso positivo conocido,
-  ver bugs.md).
+  ver bugs.md). Los scripts temporales contra Neon deben usar import
+  dinámico + parseo propio de `DATABASE_URL` del `.env` del repo (el
+  binario `dotenv` global no es el dotenv-cli de los scripts del repo).

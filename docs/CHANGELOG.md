@@ -4,6 +4,16 @@ Formato: por slice, no por commit individual.
 
 ## [Unreleased]
 
+### VS-052 — Plazo de recepción (`dueDate`/`contactEmail`) y bloqueo de escritura al vencer (2026-08-17)
+
+- Tercer slice de la feature "corporativo + unidades de negocio" (spec: `docs/domain/business-units.md`, "Plazo de recepción (`dueDate`) y comportamiento del banner"). Ortogonal a las unidades de negocio: aplica también al uso general, pero se documentó en ese archivo porque surgió en el mismo pedido.
+- **Schema** (`packages/db/src/schema/evaluation.ts`): `dueDate` (timestamp, nullable = sin plazo, comportamiento histórico) y `contactEmail` (text, nullable). El banner de aviso/cierre y el bloqueo de escritura se derivan de comparar `now` contra `dueDate` en cada request — no hay estado intermedio persistido.
+- **Service** (`packages/db/src/domain/evaluation-service.ts`): `updateEvaluation` (nuevo, tenant-scoped) con las reglas de la spec: `dueDate: null` SOLO válido si la Evaluación nunca tuvo plazo (400 `dueDate_CANNOT_CLEAR`); toda fijación (primera vez o extensión) debe ser fecha futura (400 `dueDate_MUST_BE_FUTURE`); `contactEmail` libremente editable/limpiable. `createEvaluation` acepta ambos campos opcionales (el panel Publicar los fija al publicar). Errores nuevos de dominio en `service.ts`: `ValidationError` (400) y `EvaluationLockedError` (403), traducidos en `apps/web/lib/api-errors.ts`.
+- **Bloqueo de servidor** (`packages/db/src/domain/response-service.ts`): `upsertResponse` lanza `EvaluationLockedError` (403 `evaluation_DUE_DATE_PASSED`) cuando `dueDate` existe y `now >= dueDate` — cubre también `setElementStatus` (delega en upsert). La lectura (`listResponses`/`getResponse`) SIEMPRE queda permitida, incluso vencido el plazo.
+- **API**: `PATCH /api/evaluations/[id]` (requireWriteAccess) con body validado por `updateEvaluationInput` (`z.coerce.date()` + `z.string().email()`, ambos nullable/optional) — `undefined` no toca el campo, `null` limpia.
+- **Migración a la DB real** (script crudo idempotente): `ALTER TABLE evaluation ADD COLUMN due_date timestamp, contact_email text` — ambas nullable, sin backfill necesario. Verificado por introspección de `information_schema.columns`.
+- 10 tests nuevos de integración contra Neon real (6 en `evaluation.test.ts` sobre las reglas de `updateEvaluation` + persistencia en create/tenant-scoping; 4 en `response.test.ts` sobre el bloqueo: rechazo en upsert, rechazo vía setElementStatus, lectura siempre permitida, escritura antes de vencer). Fix a `afterAll` de `evaluation.test.ts`: timeout 10s → 60s (misma limpieza que `response.test.ts`). Suite completa: 50/50 tests db + 251 sdk-core, typecheck y build verdes en los 3 paquetes.
+
 ### VS-051 — Partición de `response` por unidad de negocio (2026-08-17)
 
 - Segundo slice de la feature "corporativo + unidades de negocio" (spec: `docs/domain/business-units.md`). Cada `response` queda particionada por `businessUnitOrganizationId`: una misma Evaluación publicada para varias unidades de negocio tiene respuestas independientes por unidad, sin visibilidad cruzada, con el unique ampliado a `(evaluationId, subindicatorId, businessUnitOrganizationId)`.
