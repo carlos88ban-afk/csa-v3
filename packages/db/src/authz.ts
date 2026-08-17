@@ -64,3 +64,13 @@ export async function requireWriteAccess(
   }
   return ctx;
 }
+
+/**
+ * VS-054 (docs/domain/business-units.md, "Panel Publicar"): devuelve las
+ * organizaciones hijas (unidades de negocio) de una organización matriz.
+ */
+export async function listChildOrganizations(parentOrganizationId: string) {
+  const { organization } = await import("./schema/auth.js");
+  const { eq } = await import("drizzle-orm");
+  return db.select().from(organization).where(eq(organization.parentOrganizationId, parentOrganizationId));
+}

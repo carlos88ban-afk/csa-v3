@@ -220,3 +220,53 @@ describe("VS-053 — acceso del evaluado por unidad de negocio (contra Neon real
     ).rejects.toThrow(new ValidationError("ANSWER_TO_EXCLUDED_ELEMENT"));
   });
 });
+  it("getEvaluationForBusinessUnit rechaza acceso de unidad A a Evaluación asignada a unidad B", async () => {
+    const { organizationId: matriz } = await makeOrgWithOwner("cross-tenant");
+    const { organizationId: unidadA } = await makeOrgWithOwner("cross-tenant-A", matriz);
+    const { organizationId: unidadB } = await makeOrgWithOwner("cross-tenant-B", matriz);
+
+    const fw = await createFramework(matriz, { name: "Framework Cross Tenant" });
+    const ev = await createEvaluation(matriz, { frameworkId: fw.id });
+    
+    // Asignar la evaluación SOLO a unidad B
+    await assignEvaluation(matriz, ev.id, { businessUnitOrganizationId: unidadB });
+
+    // Unidad B puede acceder
+    const resultB = await getEvaluationForBusinessUnit(ev.id, unidadB);
+    expect(resultB.id).toBe(ev.id);
+
+    // Unidad A NO puede acceder (403 - assignment not found)
+    await expect(getEvaluationForBusinessUnit(ev.id, unidadA)).rejects.toThrow();
+  });
+
+  it("assertAnswersRespectExclusions rechaza que unidad A envíe respuestas a Evaluación asignada a unidad B", async () => {
+    const { organizationId: matriz } = await makeOrgWithOwner("cross-tenant-write");
+    const { organizationId: unidadA } = await makeOrgWithOwner("cross-tenant-write-A", matriz);
+    const { organizationId: unidadB } = await makeOrgWithOwner("cross-tenant-write-B", matriz);
+
+    const fw = await createFramework(matriz, { name: "Framework Cross Tenant Write" });
+    const dim = await createDimension(matriz, { frameworkId: fw.id, title: "Dim" });
+    const ind = await createIndicator(matriz, { dimensionId: dim.id, title: "Ind" });
+    const sub = await createSubindicator(matriz, { indicatorId: ind.id, title: "Sub" });
+    await updateSubindicator(matriz, sub.id, {
+      formSchema: {
+        schemaVersion: 1,
+        elements: [{ id: "el-1", type: "texto_corto", label: "Campo 1" }],
+      },
+    });
+
+    const ev = await createEvaluation(matriz, { frameworkId: fw.id });
+    
+    // Asignar la evaluación SOLO a unidad B
+    await assignEvaluation(matriz, ev.id, { businessUnitOrganizationId: unidadB });
+
+    // Unidad B puede escribir
+    await expect(
+      assertAnswersRespectExclusions(ev.id, sub.id, unidadB, { "el-1": "respuesta válida" })
+    ).resolves.toBeUndefined();
+
+    // Unidad A NO puede escribir (lanza NotFoundError "evaluation_assignment")
+    await expect(
+      assertAnswersRespectExclusions(ev.id, sub.id, unidadA, { "el-1": "intento de intrusión" })
+    ).rejects.toThrow();
+  });
