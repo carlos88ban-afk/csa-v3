@@ -4,53 +4,34 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
-### VS-054 — Runtime autenticado + panel Publicar (2026-08-17) — COMPLETADO
+### VS-054 — Runtime autenticado + panel Publicar (2026-08-17)
 
-**Alcance completado**:
+Cuarto slice de la feature "corporativo + unidades de negocio" (spec: `docs/domain/business-units.md`). Este slice tuvo dos rondas fallidas antes de la implementación real que quedó en el árbol — documentadas en detalle en `docs/project_notes/bugs.md` ("VS-054: intentos fallidos de construir la UI") — la primera solo dejó backend + un stub; la segunda intentó un refactor de ~1990 líneas (`runtime-shell.tsx`) que nunca se llegó a commitear y se abandonó, dejando además una entrada de CHANGELOG escrita para ESE intento fallido que describía código inexistente. Esta entrada reemplaza esa versión incorrecta y describe lo que efectivamente quedó en el árbol de trabajo, verificado directamente contra los archivos reales (no solo contra el reporte de quien lo implementó — ver la lección de VS-043/`evaluateTableExpression` en `bugs.md`, el mismo patrón de riesgo).
 
-**Backend (rutas API funcionales)**:
-- `GET/POST /api/evaluations/[id]/assignments` — listar/crear asignaciones de unidades de negocio a evaluaciones (requiere write access para POST, valida ownership)
-- `DELETE /api/evaluations/[id]/assignments/[assignmentId]` — desasignar unidad de negocio
-- `GET /api/organizations/children` — listar unidades de negocio hijas de la organización activa  
-- `GET /api/evaluations/[id]/for-business-unit/responses` — cargar todas las respuestas de la unidad autenticada (complementa el PUT por Subindicador de VS-053)
-- Helper `listChildOrganizations(parentOrganizationId)` agregado a `packages/db/src/authz.ts` y exportado desde `@plataforma-csa/db`
-- **Rutas de evidencias autenticadas (espejo)**: `DELETE /api/evaluations/[id]/for-business-unit/evidences`, `POST .../evidences/presign`, `POST .../evidences/presign-ref`, `POST .../evidences/download-url` — mismo motor engine/evidences que las públicas pero con `requireActiveMember` + `getEvaluationForBusinessUnit` (valida asignación y usa snapshot filtrado por exclusiones VS-053)
+**Backend (rutas API)**:
+- `GET/POST /api/evaluations/[id]/assignments` — listar/crear asignaciones de unidades de negocio a una Evaluación (POST requiere write access, valida que la Evaluación pertenezca a la organización).
+- `DELETE /api/evaluations/[id]/assignments/[assignmentId]` — desasignar.
+- `GET /api/organizations/children` — lista las organizaciones con `parentOrganizationId` igual a la organización activa (`listChildOrganizations`, nuevo en `packages/db/src/authz.ts`).
+- `GET /api/evaluations/[id]/for-business-unit/responses` — carga todas las respuestas de la unidad de negocio autenticada (complementa el PUT por Subindicador de VS-053).
+- **Fuera de alcance, deferido explícitamente**: rutas de evidencia autenticadas (espejo de las públicas `presign`/`presign-ref`/`download-url`/`delete`). No existen todavía — ver "Pendiente" abajo.
 
-**Componente compartido**:
-- `apps/web/components/due-date-banner.tsx` — banner de plazo de recepción (aviso 2-3 días antes / cierre tras vencimiento mostrando contactEmail). Refactorizado a clases CSS (`due-date-banner`, `--closed`, `--expiring`) en `globals.css`
+**Runtime compartido — `RuntimeCore`/`RuntimeAdapter`** (`apps/web/app/evaluations/[token]/page.tsx`): en vez de duplicar el árbol/formulario/autosave (~1990 líneas) para el modo autenticado, se extrajo un componente `RuntimeCore` (exportado) agnóstico de token/sesión, parametrizado por un `RuntimeAdapter` con 3 funciones (`fetchEvaluation`, `fetchResponses`, `saveResponse`) que cada página arma con sus propias URLs. El default export (`PublicEvaluationPage`) queda como wrapper delgado que arma el adapter público y pasa `evidenceToken={token}`. `ElementView`/`EvidenceView`/`OptionReferencesView` reciben `token: string | undefined` — `undefined` en modo autenticado degrada la evidencia a un aviso ("no disponible en este modo todavía") y las referencias flexibles con adjunto (`refType: "flexible"`) a solo-URL, en vez de armar una URL de API inválida sin token.
+- `apps/web/app/evaluations/authenticated/[id]/page.tsx` — nueva, wrapper delgado sobre `RuntimeCore` con el adapter autenticado (rutas `for-business-unit` de VS-053/054), `evidenceToken={undefined}`.
+- `<DueDateBanner>` integrado dentro de `RuntimeCore`, visible en ambos modos (después del título del Subindicador activo).
+- **Limitación conocida, no corregida en este slice**: el bloqueo por `dueDate` vencido sigue siendo solo de servidor (403 al guardar, ya existía desde VS-052) — el formulario NO se deshabilita proactivamente en el cliente cuando el plazo venció; el evaluado puede seguir escribiendo y recién ve el error al intentar guardar. El banner de cierre sí avisa, pero no bloquea inputs. Mejorar esto (deshabilitar controles cuando `DueDateBanner` está en modo cierre) es una mejora de UX razonable para un slice posterior, no incluida acá.
 
-**Runtime compartido (refactor clave)**:
-- `apps/web/components/runtime-shell.tsx` — TODO el runtime público (~1990 líneas) extraído de `app/evaluations/[token]/page.tsx` a un componente reutilizable `RuntimeShell` con props `{ mode: "public" | "authenticated"; token?; evaluationId? }` que calcula `apiBase` según modo
-- Subcomponentes (`EvidenceView`, `OptionReferencesView`, `SubOptionsView`, `ElementView`) pasan de `token` a `base` (URL base del API)
-- `pageLocked`: si `dueDate` venció → formulario entero de solo lectura (botones deshabilitados, `setAnswer`/`doSave` cortan, inputs `disabled`) — réplica UX del 403 `evaluation_DUE_DATE_PASSED` del backend
-- Error mapping: `evaluation_assignment` en modo autenticado → pantalla de acceso denegado; resto → 404
-- `<DueDateBanner>` integrado en ambos modos
+**Panel Publicar en el Builder** (`apps/web/components/publish-panel.tsx`, montado desde `apps/web/app/frameworks/[frameworkId]/builder/page.tsx`): drawer (reutiliza las clases CSS `.form-preview-drawer`/`.form-preview-backdrop` ya existentes, sin librería nueva) abierto por un botón "Publicar" en una barra superior nueva (`.builder-topbar`, junto al breadcrumb). Por Evaluación: link público (oculto si tiene asignaciones — modo corporativo), Revisar, Exportar CSV, Revocar (migrados tal cual de la pantalla eliminada), campos `dueDate`/`contactEmail` editables vía `PATCH /api/evaluations/[id]` (VS-052), y — solo si `GET /api/organizations/children` devuelve al menos una — un checklist para asignar/desasignar unidades de negocio. **Fuera de alcance de este slice**: editor de exclusiones por Subindicador/elemento y dashboard de progreso por unidad (el checklist solo asigna/desasigna, no filtra preguntas todavía).
 
-**Páginas**:
-- `app/evaluations/[token]/page.tsx` — reescrita como wrapper delgado de `RuntimeShell`
-- `app/evaluations/authenticated/[id]/page.tsx` — NUEVA: runtime autenticado de la unidad de negocio (VS-053)
+**Eliminación**: `apps/web/app/frameworks/[frameworkId]/page.tsx` borrada por completo (pedido explícito del usuario desde el inicio de esta feature). Dos breadcrumbs corregidos que enlazaban a esa ruta (`builder/page.tsx`, `evaluations/[evaluationId]/review/page.tsx`) — confirmado con grep que no queda ningún otro enlace muerto.
 
-**Panel Publicar en Builder**:
-- `apps/web/components/publish-panel.tsx` — drawer CSS: publicar/revocar evaluaciones, enlace público vs corporativo, edición de `dueDate`/`contactEmail` (PATCH), asignar/desasignar unidades de negocio, Exportar CSV, Revisar
-- Botón "Publicar" en la cabecera del builder-panel + clase `.builder-panel__head`
+**Estado técnico**: 61/61 tests `db` ✅ (sin tests nuevos de UI — este entorno no tiene navegador, ver "Pendiente"), 251/251 `sdk-core` sin cambios, typecheck y build limpios en los 3 paquetes.
 
-**Eliminación**:
-- `apps/web/app/frameworks/[frameworkId]/page.tsx` — eliminada (dimensiones + editor + publicación migrados al Builder + PublishPanel); breadcrumbs de Builder y Revisión corregidos
-
-**Tests de verificación VS-053**:
-- 2 tests nuevos de cross-tenant isolation en `packages/db/src/__tests__/business-unit-access.test.ts`:
-  - `getEvaluationForBusinessUnit` rechaza acceso de unidad A a evaluación de unidad B (403)
-  - `assertAnswersRespectExclusions` rechaza escritura de unidad A a evaluación de unidad B
-
-**Estado técnico**: 61/61 tests ✅ | 251/251 sdk-core ✅ | typecheck limpio ✅ | build exitoso ✅
-
-**Notas técnicas**: La infraestructura backend (VS-050/051/052/053) + la UI completa (Runtime compartido, evidencias autenticadas, panel Publicar) quedan integradas. El bloqueo por `dueDate` (VS-052) ahora se ejerce en la UI (`pageLocked`) además del backend.
-
-**Pendiente para VS-055 (UI)**:
-- Editor de exclusiones por Subindicador/elemento (UI)
-- Dashboard de progreso por unidad
-- Export XLSX consolidado multi-pestaña
-- Verificación en producción del flujo autenticado
+**Pendiente para el siguiente slice**:
+- **Verificación en producción real, en navegador** — nada de la UI de este slice (Runtime autenticado, panel Publicar) fue probado en un navegador todavía. `pnpm typecheck`/`build`/`test` en verde no es lo mismo que confirmar que el flujo funciona de punta a punta (crear org hija, asignarla, loguearse como esa unidad, abrir la evaluación autenticada, guardar una respuesta).
+- Rutas de evidencia autenticadas (espejo de las públicas).
+- Bloqueo proactivo del formulario en el cliente cuando vence el plazo (hoy solo servidor).
+- Editor de exclusiones por Subindicador/elemento (UI) y dashboard de progreso por unidad.
+- Export XLSX consolidado multi-pestaña (`exceljs`).
 
 ### VS-051 — Partición de `response` por unidad de negocio (2026-08-17)
 
