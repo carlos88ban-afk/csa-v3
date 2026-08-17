@@ -305,10 +305,22 @@ export default function BuilderPage() {
   // Subindicador (docs/engines/form.md). `dragScope` acota qué se puede
   // soltar dónde — nunca se puede soltar un Indicador sobre la lista de
   // Dimensiones, por ejemplo (reordenar, no reparentar).
+  //
+  // `stopPropagation()` en los 3 handlers es necesario: un Indicador vive
+  // DENTRO del div arrastrable de su Dimensión (misma anidación para
+  // Subindicador dentro de Indicador). Sin cortar la propagación, el evento
+  // nativo burbujea hasta el div arrastrable ancestro, que TAMBIÉN tiene su
+  // propio onDragStart/onDragOver/onDrop — el handler del ancestro se
+  // ejecuta después del hijo durante el burbujeo y pisa `dragScope` con sus
+  // propios datos (bug real encontrado en la verificación en producción:
+  // arrastrar un Indicador terminaba con `dragScope` apuntando a la
+  // Dimensión contenedora, no al Indicador, y el reordenamiento no hacía
+  // nada — silenciosamente, sin error visible).
   const [dragScope, setDragScope] = useState<{ scope: string; id: string } | null>(null);
 
   function startDrag(scope: string, id: string) {
     return (e: React.DragEvent) => {
+      e.stopPropagation();
       e.dataTransfer.effectAllowed = "move";
       setDragScope({ scope, id });
     };
@@ -316,6 +328,7 @@ export default function BuilderPage() {
 
   function allowDrop(scope: string) {
     return (e: React.DragEvent) => {
+      e.stopPropagation();
       if (dragScope?.scope === scope) e.preventDefault();
     };
   }
@@ -987,7 +1000,8 @@ export default function BuilderPage() {
                   onDragOver={allowDrop("dim")}
                   onDrop={(e) => {
                     e.preventDefault();
-                    if (dragScope) moveDimension(dragScope.id, d.dimension.id);
+                    e.stopPropagation();
+                    if (dragScope?.scope === "dim") moveDimension(dragScope.id, d.dimension.id);
                     setDragScope(null);
                   }}
                 >
@@ -1162,7 +1176,8 @@ export default function BuilderPage() {
                             onDragOver={allowDrop(`ind:${d.dimension.id}`)}
                             onDrop={(e) => {
                               e.preventDefault();
-                              if (dragScope) moveIndicator(d.dimension.id, dragScope.id, ind.indicator.id);
+                              e.stopPropagation();
+                              if (dragScope?.scope === `ind:${d.dimension.id}`) moveIndicator(d.dimension.id, dragScope.id, ind.indicator.id);
                               setDragScope(null);
                             }}
                           >
@@ -1302,7 +1317,8 @@ export default function BuilderPage() {
                                       onDragOver={allowDrop(`sub:${ind.indicator.id}`)}
                                       onDrop={(e) => {
                                         e.preventDefault();
-                                        if (dragScope) moveSub(ind.indicator.id, dragScope.id, s.id);
+                                        e.stopPropagation();
+                                        if (dragScope?.scope === `sub:${ind.indicator.id}`) moveSub(ind.indicator.id, dragScope.id, s.id);
                                         setDragScope(null);
                                       }}
                                     >
@@ -1429,7 +1445,8 @@ export default function BuilderPage() {
                                 onDragOver={allowDrop(`directSub:${d.dimension.id}`)}
                                 onDrop={(e) => {
                                   e.preventDefault();
-                                  if (dragScope) moveDirectSub(d.dimension.id, dragScope.id, s.id);
+                                  e.stopPropagation();
+                                  if (dragScope?.scope === `directSub:${d.dimension.id}`) moveDirectSub(d.dimension.id, dragScope.id, s.id);
                                   setDragScope(null);
                                 }}
                               >
