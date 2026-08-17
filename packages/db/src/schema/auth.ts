@@ -6,6 +6,7 @@ import {
   boolean,
   index,
   uniqueIndex,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
@@ -90,6 +91,14 @@ export const organization = pgTable(
     logo: text("logo"),
     createdAt: timestamp("created_at").notNull(),
     metadata: text("metadata"),
+    // Anotación de tipo manual (AnyPgColumn) requerida tras cada
+    // `pnpm db:generate-auth-schema`: el CLI de Better Auth no la añade,
+    // pero drizzle-orm no puede inferir el tipo de una self-reference sin
+    // ella (TS7022/TS7024). Ver docs/domain/business-units.md.
+    parentOrganizationId: text("parent_organization_id").references(
+      (): AnyPgColumn => organization.id,
+      { onDelete: "cascade" },
+    ),
   },
   (table) => [uniqueIndex("organization_slug_uidx").on(table.slug)],
 );
@@ -156,10 +165,17 @@ export const accountRelations = relations(account, ({ one }) => ({
   }),
 }));
 
-export const organizationRelations = relations(organization, ({ many }) => ({
-  members: many(member),
-  invitations: many(invitation),
-}));
+export const organizationRelations = relations(
+  organization,
+  ({ one, many }) => ({
+    organization: one(organization, {
+      fields: [organization.parentOrganizationId],
+      references: [organization.id],
+    }),
+    members: many(member),
+    invitations: many(invitation),
+  }),
+);
 
 export const memberRelations = relations(member, ({ one }) => ({
   organization: one(organization, {

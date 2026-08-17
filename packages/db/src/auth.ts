@@ -43,6 +43,23 @@ export const auth = betterAuth({
         editor: defaultRoles.member,
         evaluador: defaultRoles.member,
       },
+      // Jerarquía matriz/unidad de negocio de M14 (VS-050, ver
+      // docs/domain/business-units.md). `parentOrganizationId` vive en la
+      // tabla `organization` (generada por Better Auth) vía este mecanismo
+      // de extensión de schema del plugin, en vez de editar
+      // schema/auth.ts a mano — ese archivo se regenera con
+      // `pnpm db:generate-auth-schema` y perdería cualquier edición manual.
+      schema: {
+        organization: {
+          additionalFields: {
+            parentOrganizationId: {
+              type: "string",
+              required: false,
+              references: { model: "organization", field: "id" },
+            },
+          },
+        },
+      },
     }),
   ],
 });
