@@ -21,7 +21,7 @@ const PASSWORD = "Sup3rSecret!23";
 const createdUserIds = new Set<string>();
 const createdOrgIds = new Set<string>();
 
-async function makeOrgWithOwner(label: string) {
+async function makeOrgWithOwner(label: string, parentOrganizationId?: string) {
   const email = emailFor(label);
   const signUp = await auth.api.signUpEmail({ body: { email, password: PASSWORD, name: label } });
   createdUserIds.add(signUp.user.id);
@@ -31,7 +31,11 @@ async function makeOrgWithOwner(label: string) {
   applySetCookies(headers, signIn.headers.getSetCookie());
 
   const org = await auth.api.createOrganization({
-    body: { name: `Org ${label} ${runId}`, slug: `org-resp-${label}-${runId}` },
+    body: {
+      name: `Org ${label} ${runId}`,
+      slug: `org-resp-${label}-${runId}`,
+      ...(parentOrganizationId ? { parentOrganizationId } : {}),
+    },
     headers,
   });
   createdOrgIds.add(org!.id);
@@ -77,7 +81,7 @@ afterAll(async () => {
   for (const userId of createdUserIds) {
     await db.delete(user).where(eq(user.id, userId));
   }
-});
+}, 60000);
 
 describe("VS-010 — engine/persistence (contra Neon real)", () => {
   it("upsertResponse crea y luego actualiza sin duplicar fila", async () => {
@@ -162,5 +166,76 @@ describe("VS-010 — engine/persistence (contra Neon real)", () => {
 
     const reverted = await setElementStatus(ev.id, subindicatorId, "el-1", null);
     expect(reverted.answers).toEqual({ "el-1": "una respuesta" });
+  });
+
+  describe("VS-051 — partición de response por unidad de negocio (docs/domain/business-units.md)", () => {
+    it("sin unidad indicada, la fila queda en evaluation.organizationId (flujo público sin cambios)", async () => {
+      const { organizationId, ev, subindicatorId } = await publishedEvaluationWithSubindicator("unidad-default");
+
+      const created = await upsertResponse(ev.id, subindicatorId, { "el-1": "público" });
+      expect(created.businessUnitOrganizationId).toBe(organizationId);
+
+      const all = await listResponses(ev.id);
+      expect(all).toHaveLength(1);
+      expect(all[0]!.businessUnitOrganizationId).toBe(organizationId);
+    });
+
+    it("dos unidades de negocio responden el mismo Subindicador sin pisarse, y listResponses filtra por unidad", async () => {
+      const { organizationId: matriz, ev, subindicatorId } = await publishedEvaluationWithSubindicator("unidad-particion");
+      const { organizationId: unidadA } = await makeOrgWithOwner("unidadA", matriz);
+      const { organizationId: unidadB } = await makeOrgWithOwner("unidadB", matriz);
+
+      const rowA = await upsertResponse(ev.id, subindicatorId, { "el-1": "respuesta A" }, unidadA);
+      const rowB = await upsertResponse(ev.id, subindicatorId, { "el-1": "respuesta B" }, unidadB);
+      expect(rowA.id).not.toBe(rowB.id);
+      expect(rowA.businessUnitOrganizationId).toBe(unidadA);
+      expect(rowB.businessUnitOrganizationId).toBe(unidadB);
+
+      const all = await listResponses(ev.id);
+      expect(all).toHaveLength(2);
+
+      const onlyA = await listResponses(ev.id, unidadA);
+      expect(onlyA).toHaveLength(1);
+      expect(onlyA[0]!.answers).toEqual({ "el-1": "respuesta A" });
+    });
+
+    it("upsert repetido dentro de la misma unidad actualiza la misma fila (unique de 3 columnas)", async () => {
+      const { organizationId: matriz, ev, subindicatorId } = await publishedEvaluationWithSubindicator("unidad-upsert");
+      const { organizationId: unidadA } = await makeOrgWithOwner("unidadUpsert", matriz);
+
+      const first = await upsertResponse(ev.id, subindicatorId, { "el-1": "v1" }, unidadA);
+      const second = await upsertResponse(ev.id, subindicatorId, { "el-1": "v2" }, unidadA);
+      expect(second.id).toBe(first.id);
+      expect(second.answers).toEqual({ "el-1": "v2" });
+
+      expect(await listResponses(ev.id, unidadA)).toHaveLength(1);
+    });
+
+    it("getResponse filtra por unidad: la fila de una unidad no contamina la lectura de otra ni la del flujo público", async () => {
+      const { organizationId: matriz, ev, subindicatorId } = await publishedEvaluationWithSubindicator("unidad-get");
+      const { organizationId: unidadA } = await makeOrgWithOwner("unidadGet", matriz);
+      const { organizationId: unidadB } = await makeOrgWithOwner("unidadGetB", matriz);
+
+      await upsertResponse(ev.id, subindicatorId, { "el-1": "de A" }, unidadA);
+
+      expect((await getResponse(ev.id, subindicatorId, unidadA))?.answers).toEqual({ "el-1": "de A" });
+      expect(await getResponse(ev.id, subindicatorId, unidadB)).toBeNull();
+      expect(await getResponse(ev.id, subindicatorId)).toBeNull();
+    });
+
+    it("borrar la organización unidad de negocio borra en cascada sus respuestas, no las de la matriz", async () => {
+      const { organizationId: matriz, ev, subindicatorId } = await publishedEvaluationWithSubindicator("unidad-cascade");
+      const { organizationId: unidadA } = await makeOrgWithOwner("unidadCascade", matriz);
+
+      await upsertResponse(ev.id, subindicatorId, { "el-1": "de A" }, unidadA);
+      await upsertResponse(ev.id, subindicatorId, { "el-1": "de la matriz" });
+
+      await db.delete(organization).where(eq(organization.id, unidadA));
+
+      const all = await listResponses(ev.id);
+      expect(all).toHaveLength(1);
+      expect(all[0]!.businessUnitOrganizationId).toBe(matriz);
+      expect(all[0]!.answers).toEqual({ "el-1": "de la matriz" });
+    });
   });
 });
