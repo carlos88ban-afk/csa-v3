@@ -265,3 +265,23 @@ Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni
 - **Status**: Completed — service (`business-unit-access.ts`), rutas API autenticadas (`/evaluations/[id]/for-business-unit`, `.../responses/[subindicatorId]`), modificación de rutas públicas para bloquear modo corporativo, y 9 tests nuevos de integración (60/60 db + 251 sdk-core, typecheck/build verdes en los 3 paquetes). Feature "corporativo + unidades de negocio" sigue EN PROGRESO — faltan VS-054+ (Runtime autenticado, banner, dashboard, export XLSX, panel Publicar; ver `docs/checkpoints/CHECKPOINT.md`). Sin verificación en producción todavía (no hay UI consumiendo las rutas nuevas).
 - **Description**: spec `docs/domain/business-units.md` ("Acceso del evaluado") — flujo autenticado para unidades de negocio. `isCorporateMode` verifica si evaluación tiene asignaciones; `getEvaluationForBusinessUnit` devuelve snapshot filtrado (403 si no tiene asignación); `assertAnswersRespectExclusions` valida que respuestas no toquen elementos/subindicadores excluidos (lanza `ValidationError` específico). Modo corporativo: token público 404 (mismo que token revocado); evaluaciones sin asignaciones siguen público sin cambios. Ruta autenticada GET (`requireActiveMember`, no `requireWriteAccess` — un evaluador necesita leer) + PUT con validación previa de exclusiones + `upsertResponse` con `businessUnitOrganizationId = session.activeOrganizationId`.
 - **Notes**: bug inicial corregido en validación de `statusKey`: `:status` → `::status` (doble dos puntos, ver `sdk-core/src/response.ts`). Decisiones de diseño (puntos abiertos 5/6 del prompt): banner de `dueDate` FUERA de este slice (priorizando backend sólido 1-4), UI de Runtime autenticado y banner quedan para VS-054+ junto con dashboard/export XLSX/panel Publicar. Spec `business-units.md` NO modificada porque esos puntos ya estaban "a decidir en implementación".
+
+## VS-054 — Runtime autenticado + API de asignaciones (2026-08-17) — PARCIAL
+
+**Alcance completado**:
+- Rutas API: `GET/POST /api/evaluations/[id]/assignments`, `DELETE .../assignments/[assignmentId]`, `GET /api/organizations/children`, `GET .../for-business-unit/responses`
+- Helper `listChildOrganizations` en authz.ts
+- Componente `DueDateBanner` (aviso 2-3 días antes / cierre tras vencimiento)
+- Verificación de VS-053: 2 tests nuevos de cross-tenant isolation
+
+**Pendiente para VS-055**:
+- Integrar banner en Runtime público
+- Crear Runtime autenticado (`/evaluations/authenticated/[id]`)
+- Rutas de evidencias autenticadas
+- Panel Publicar en Builder
+- Eliminar `/frameworks/[frameworkId]/page.tsx`
+- Editor de exclusiones UI
+- Dashboard de progreso
+- Export XLSX
+
+**Resultado**: 61/61 tests, typecheck/build limpios. Backend de asignaciones completo y funcional.
