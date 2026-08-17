@@ -1261,6 +1261,22 @@ input[type="checkbox"] {
    derecha. Colapsable por dimensión/indicador; CRUD inline en hover;
    en móvil el árbol es un drawer deslizante con backdrop. */
 
+/* VS-054 (docs/domain/business-units.md, "Panel Publicar"): barra superior
+   con el breadcrumb a la izquierda y el botón Publicar a la derecha —
+   reemplaza la sección "Publicación" de la pantalla eliminada. */
+.builder-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.builder-topbar .breadcrumb {
+  margin: 0;
+}
+
 .builder-layout {
   display: flex;
   align-items: flex-start;

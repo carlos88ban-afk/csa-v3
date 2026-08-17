@@ -193,10 +193,13 @@ export default function ReviewPage({ params }: Props) {
 
   return (
     <main className="page">
+      {/* VS-054: la pantalla intermedia /frameworks/[frameworkId] se
+          eliminó (ver docs/domain/business-units.md, "Panel Publicar") —
+          "Framework" ahora enlaza al Builder, que reemplazó su función. */}
       <Breadcrumb
         items={[
           { label: "Frameworks", href: "/frameworks" },
-          { label: "Framework", href: `/frameworks/${frameworkId}` },
+          { label: "Framework", href: `/frameworks/${frameworkId}/builder` },
           { label: "Revisión" },
         ]}
       />

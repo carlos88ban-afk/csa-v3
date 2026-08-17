@@ -11,6 +11,7 @@ import {
 import { api } from "@/lib/api-client";
 import { Breadcrumb, Button, Pill } from "@/components/ui";
 import { SubindicatorEditor } from "@/components/subindicator-editor";
+import { PublishPanel } from "@/components/publish-panel";
 
 // Tipos del árbol: el builder trabaja sobre la misma forma que el runtime
 // (dimensiones → indicadores → subindicadores + subindicadores directos).
@@ -120,6 +121,15 @@ export default function BuilderPage() {
   const [query, setQuery] = useState("");
   const [wizardStep, setWizardStep] = useState(0);
   const [wizardSession, setWizardSession] = useState(true);
+
+  // VS-054 (docs/domain/business-units.md, "Panel Publicar"): reemplaza la
+  // pantalla /frameworks/[frameworkId] eliminada — botón en la barra
+  // superior, cerca de "Ver como evaluado" (que vive dentro del editor de
+  // subindicador, subindicator-editor.tsx) pero a nivel de página completa,
+  // ya que Publicar opera sobre el Framework, no sobre un Subindicador
+  // puntual, y debe quedar accesible sin depender de que haya uno
+  // seleccionado.
+  const [publishOpen, setPublishOpen] = useState(false);
 
   useEffect(() => {
     setTreeOpen(!window.matchMedia("(max-width: 860px)").matches);
@@ -876,13 +886,19 @@ export default function BuilderPage() {
 
   return (
     <main className="page page--wide">
-      <Breadcrumb
-        items={[
-          { label: "Frameworks", href: "/frameworks" },
-          { label: "Framework", href: `/frameworks/${frameworkId}` },
-          { label: "Editor" },
-        ]}
-      />
+      <div className="builder-topbar">
+        {/* VS-054: la pantalla intermedia /frameworks/[frameworkId] se
+            eliminó — "Framework" ya no tiene a dónde linkear salvo la lista. */}
+        <Breadcrumb
+          items={[
+            { label: "Frameworks", href: "/frameworks" },
+            { label: framework?.name ?? "Editor" },
+          ]}
+        />
+        <Button type="button" variant="primary" size="sm" onClick={() => setPublishOpen(true)}>
+          Publicar
+        </Button>
+      </div>
       <span className="sr-only" role="status" aria-live="polite">
         {treeMessage}
       </span>
@@ -1560,6 +1576,7 @@ export default function BuilderPage() {
           </section>
         </div>
       )}
+      <PublishPanel frameworkId={frameworkId} open={publishOpen} onClose={() => setPublishOpen(false)} />
     </main>
   );
 }

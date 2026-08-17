@@ -45,6 +45,21 @@ interface Props {
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
+// VS-054 (docs/domain/business-units.md, "Acceso del evaluado"): el Runtime
+// autenticado por unidad de negocio (`/evaluations/authenticated/[id]`)
+// necesita el mismo árbol/formulario/autosave que este Runtime público — la
+// única diferencia real son las 3 URLs de fetch/guardado (evaluación,
+// respuestas, PUT de respuesta) y que la evidencia todavía no tiene ruta
+// autenticada equivalente (ver guards de `token` más abajo). En vez de
+// duplicar ~1700 líneas de render, se extrae ese trío de operaciones a un
+// `RuntimeAdapter` que cada página arma con sus propias URLs — `RuntimeCore`
+// (exportado) es agnóstico de token/id/sesión.
+export interface RuntimeAdapter {
+  fetchEvaluation: () => Promise<Evaluation>;
+  fetchResponses: () => Promise<Array<{ subindicatorId: string; answers: ResponseAnswers }>>;
+  saveResponse: (subindicatorId: string, answers: ResponseAnswers) => Promise<unknown>;
+}
+
 type SnapshotSubindicator = EvaluationSnapshot["dimensions"][number]["indicators"][number]["subindicators"][number];
 type SnapshotIndicator = EvaluationSnapshot["dimensions"][number]["indicators"][number];
 type SnapshotDimension = EvaluationSnapshot["dimensions"][number];
@@ -159,8 +174,10 @@ function progressState(p: { answered: number; total: number }): "" | "neutral" |
   return "accent";
 }
 
-export default function PublicEvaluationPage({ params }: Props) {
-  const { token } = use(params);
+// VS-054: `evidenceToken` sigue siendo el prop que baja a EvidenceView/
+// OptionReferencesView (evidencia pública) — `undefined` cuando el llamador
+// es el Runtime autenticado, ver guards en esos componentes arriba.
+export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapter; evidenceToken: string | undefined }) {
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [answersBySub, setAnswersBySub] = useState<Record<string, ResponseAnswers>>({});
@@ -181,21 +198,19 @@ export default function PublicEvaluationPage({ params }: Props) {
   const lastSavedBySub = useRef<Record<string, ResponseAnswers>>({});
 
   useEffect(() => {
-    api
-      .get<{ evaluation: Evaluation }>(`/api/public/evaluations/${token}`)
-      .then((res) => {
-        setEvaluation(res.evaluation);
-        const first = flatten(res.evaluation.snapshot)[0];
+    adapter
+      .fetchEvaluation()
+      .then((ev) => {
+        setEvaluation(ev);
+        const first = flatten(ev.snapshot)[0];
         setActiveId(first ? first.sub.id : null);
       })
       .catch(() => setNotFound(true));
-    api
-      .get<{ responses: Array<{ subindicatorId: string; answers: ResponseAnswers }> }>(
-        `/api/public/evaluations/${token}/responses`,
-      )
-      .then((res) => {
+    adapter
+      .fetchResponses()
+      .then((responses) => {
         const map: Record<string, ResponseAnswers> = {};
-        for (const row of res.responses) map[row.subindicatorId] = row.answers;
+        for (const row of responses) map[row.subindicatorId] = row.answers;
         // El formulario ya es interactivo apenas carga `evaluation` (efecto
         // separado, en paralelo) — si el evaluado responde algo antes de que
         // ESTE fetch resuelva, un overwrite ciego perdería esa respuesta. Las
@@ -211,7 +226,8 @@ export default function PublicEvaluationPage({ params }: Props) {
         });
       })
       .catch(() => {});
-  }, [token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adapter]);
 
   const flat = useMemo(() => (evaluation ? flatten(evaluation.snapshot) : []), [evaluation]);
   const activeIndex = flat.findIndex((f) => f.sub.id === activeId);
@@ -240,7 +256,7 @@ export default function PublicEvaluationPage({ params }: Props) {
     setSaveStatus("saving");
     setSaveError(null);
     try {
-      await api.put(`/api/public/evaluations/${token}/responses/${subindicatorId}`, { answers });
+      await adapter.saveResponse(subindicatorId, answers);
       lastSavedBySub.current[subindicatorId] = answers;
       setSaveStatus("saved");
     } catch (err) {
@@ -491,7 +507,7 @@ export default function PublicEvaluationPage({ params }: Props) {
                 return (
                   <ElementView
                     key={el.id}
-                    token={token}
+                    token={evidenceToken}
                     subindicatorId={active.sub.id}
                     element={el}
                     {...(number ? { number } : {})}
@@ -510,8 +526,37 @@ export default function PublicEvaluationPage({ params }: Props) {
   );
 }
 
+// Página pública (ver docs/engines/persistence.md): sin sesión, sin
+// requireActiveMember del lado del API. Wrapper delgado sobre RuntimeCore —
+// arma el adapter con las 3 URLs públicas por token y pasa el mismo token
+// como evidenceToken (evidencia SÍ funciona en este modo).
+export default function PublicEvaluationPage({ params }: Props) {
+  const { token } = use(params);
+  const adapter = useMemo<RuntimeAdapter>(
+    () => ({
+      fetchEvaluation: () =>
+        api.get<{ evaluation: Evaluation }>(`/api/public/evaluations/${token}`).then((res) => res.evaluation),
+      fetchResponses: () =>
+        api
+          .get<{ responses: Array<{ subindicatorId: string; answers: ResponseAnswers }> }>(
+            `/api/public/evaluations/${token}/responses`,
+          )
+          .then((res) => res.responses),
+      saveResponse: (subindicatorId, answers) =>
+        api.put(`/api/public/evaluations/${token}/responses/${subindicatorId}`, { answers }),
+    }),
+    [token],
+  );
+  return <RuntimeCore adapter={adapter} evidenceToken={token} />;
+}
+
 interface ElementViewProps {
-  token: string;
+  // VS-054 (docs/domain/business-units.md, "Acceso del evaluado"): undefined
+  // en modo autenticado — evidencia/referencias flexibles con adjunto todavía
+  // no tienen ruta autenticada equivalente a la pública (deferido, ver spec),
+  // así que esos sub-componentes degradan a un aviso o al modo solo-URL en
+  // vez de intentar armar una URL de API inválida.
+  token: string | undefined;
   subindicatorId: string;
   element: FormElement;
   // VS-021 (docs/engines/form.md, "Numeración automática de preguntas"):
@@ -629,7 +674,8 @@ function SubOptionsView({
   exclusive?: boolean;
   // VS-045: necesarios para subir documentos internos en referencias
   // flexibles (presign-ref); el sub-checklist recursivo los re-propaga.
-  token: string;
+  // VS-054: undefined en modo autenticado, ver ElementViewProps.
+  token: string | undefined;
   subindicatorId: string;
   elementId: string;
 }) {
@@ -745,7 +791,8 @@ function EvidenceView({
   onChange,
   locked,
 }: {
-  token: string;
+  // VS-054: undefined en modo autenticado, ver ElementViewProps.
+  token: string | undefined;
   subindicatorId: string;
   element: Extract<FormElement, { type: "evidencia" }>;
   value: EvidenceRef[] | undefined;
@@ -819,6 +866,13 @@ function EvidenceView({
     } catch {
       setUploadError("No se pudo generar el enlace de descarga");
     }
+  }
+
+  // VS-054 (docs/domain/business-units.md): sin rutas de evidencia
+  // autenticadas todavía (deferido, ver spec "Acceso del evaluado") — se
+  // deja el aviso en vez de invocar rutas públicas que no aceptan sesión.
+  if (!token) {
+    return <p className="empty">Evidencias no disponibles en este modo todavía.</p>;
   }
 
   return (
@@ -1043,7 +1097,8 @@ function OptionReferencesView({
   value: (string | EvidenceRef)[] | undefined;
   onChange: (value: (string | EvidenceRef)[]) => void;
   locked?: boolean | undefined;
-  token: string;
+  // VS-054: undefined en modo autenticado, ver ElementViewProps.
+  token: string | undefined;
   subindicatorId: string;
   elementId: string;
 }) {
@@ -1052,7 +1107,10 @@ function OptionReferencesView({
   // refType public: solo URLs (VS-039/040) — un array heredado que traiga
   // refs de documento se filtra al render (nunca se guardaron con refType
   // public, pero defensa en profundidad ante datos inconsistentes).
-  if (refType !== "flexible") {
+  // VS-054: sin token (modo autenticado) degrada "flexible" a solo-URL —
+  // el adjunto de documento interno necesita las rutas de evidencia
+  // autenticadas, todavía no construidas (deferido, ver spec).
+  if (refType !== "flexible" || !token) {
     const urls = slots.filter((s): s is string => typeof s === "string");
     return (
       <UrlSlotsView
