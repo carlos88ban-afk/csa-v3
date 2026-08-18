@@ -4,6 +4,18 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-064 — Etiqueta propia de una celda casilla (2026-08-18)
+
+Corrección a pedido del usuario sobre VS-063: la etiqueta propia del checkbox ("La empresa cuenta con una cláusula de recuperación de recursos. Por favor, especifica:") estaba bakeada dentro de `content` (texto fijo compartido con el título/descripción de la celda) — el checkbox quedaba sin ninguna etiqueta propia. El evaluado necesita entender qué está marcando (motivo de accesibilidad real, no cosmético — un checkbox sin nombre accesible viola WCAG) y visualmente se ve mejor con el texto envuelto en el control.
+
+- `packages/sdk-core/src/form-schema.ts`: `formTableCell` gana `checkboxLabel?: string`, distinto de `content` — `content` sigue siendo el texto fijo ANTES del control (título/descripción), `checkboxLabel` es específico de `cellType === "casilla"` y viaja DENTRO de un `<label>` real envolviendo el checkbox.
+- Builder: nuevo `RichTextEditor` "Etiqueta de la casilla" en la config de celda `casilla`, antes del toggle "Permitir texto adicional al marcar".
+- Runtime/Preview: el checkbox pasa de `<input>` suelto a `<label className="field field--checkbox">` con `checkboxLabel` (o un `sr-only` "Marcar" si el admin no lo completó) — mismo patrón que el checkbox de N/A y de sub-opciones.
+- Export: sin cambios (presentación, igual que `content`).
+- Spec en `docs/engines/form.md`, "Etiqueta propia de una celda casilla".
+
+**Estado**: implementado siguiendo el proceso doc-first. Sin build/typecheck/tests locales por instrucción explícita del usuario.
+
 ### Verificación en producción — VS-063 (2026-08-18)
 
 Framework temporal ("QA VS-063 verificacion") con un elemento `tabla_datos` de 1 celda `casilla` (`revealText: true`) con `content` fijo reproduciendo el caso real del HTML de S&P ("Periodo de rendimiento..." + "La empresa cuenta con una cláusula de recuperación..." + checkbox + campo). Verificado con Playwright contra `csa-v3-web.vercel.app` (deploy `bf23569`, `READY`):

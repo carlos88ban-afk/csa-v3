@@ -311,6 +311,7 @@ function TableConfigEditor({
                                   maxLength: undefined,
                                   expression: undefined,
                                   revealText: undefined,
+                                  checkboxLabel: undefined,
                                   editable: nextType === "calculado" ? true : cell.editable,
                                 });
                               }}
@@ -457,14 +458,30 @@ function TableConfigEditor({
                                   )}
 
                                   {cell.cellType === "casilla" && (
-                                    <label className="field field--checkbox">
-                                      <input
-                                        type="checkbox"
-                                        checked={cell.revealText === true}
-                                        onChange={(e) => updateCell(row.id, col.id, { revealText: e.target.checked })}
-                                      />
-                                      <span className="field__label">Permitir texto adicional al marcar</span>
-                                    </label>
+                                    <>
+                                      {/* VS-064 (docs/engines/form.md "Etiqueta
+                                          propia de una celda casilla"): texto de
+                                          la propia casilla — distinto de "Texto
+                                          fijo antes del control" de arriba (ese
+                                          es el título/descripción de la celda,
+                                          este es lo que el evaluado marca). */}
+                                      <label className="field">
+                                        <span className="field__label">Etiqueta de la casilla</span>
+                                        <RichTextEditor
+                                          value={cell.checkboxLabel ?? ""}
+                                          onChange={(html) => updateCell(row.id, col.id, { checkboxLabel: html })}
+                                          ariaLabel="Etiqueta de la casilla"
+                                        />
+                                      </label>
+                                      <label className="field field--checkbox">
+                                        <input
+                                          type="checkbox"
+                                          checked={cell.revealText === true}
+                                          onChange={(e) => updateCell(row.id, col.id, { revealText: e.target.checked })}
+                                        />
+                                        <span className="field__label">Permitir texto adicional al marcar</span>
+                                      </label>
+                                    </>
                                   )}
                                 </>
                               )}

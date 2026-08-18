@@ -1509,21 +1509,21 @@ function FormTableView({
                   const revealKey = commentKey(`${unitKeyPrefix}::${row.id}::${col.id}`);
                   return (
                     <td key={col.id}>
-                      {/* VS-063 (docs/engines/form.md "Contenido fijo como
-                          prefijo de una celda editable"): `content` ya no se
-                          ignora cuando editable !== false — se renderiza
-                          fijo antes del control. La etiqueta propia del
-                          checkbox (si la hay) va incluida en ese mismo
-                          `content`, escrita por el admin junto al resto del
-                          texto fijo de la celda — el checkbox no lleva
-                          label propia acá. */}
+                      {/* VS-063: `content` es el título/descripción fijo de
+                          la celda, ANTES del control. VS-064: la casilla
+                          gana su PROPIA etiqueta (`checkboxLabel`) — el
+                          evaluado necesita entender qué está marcando,
+                          distinta del texto fijo de arriba. */}
                       {content && <RichLabel html={content} />}
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={locked}
-                        onChange={(e) => updateCell(row.id, col.id, e.target.checked ? "true" : "")}
-                      />
+                      <label className="field field--checkbox">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={locked}
+                          onChange={(e) => updateCell(row.id, col.id, e.target.checked ? "true" : "")}
+                        />
+                        {cellCfg.checkboxLabel ? <RichLabel html={cellCfg.checkboxLabel} /> : <span className="sr-only">Marcar</span>}
+                      </label>
                       {cellCfg.revealText && checked && (
                         <input
                           type="text"

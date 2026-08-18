@@ -532,17 +532,18 @@ function PreviewTableView({
                   const revealKey = `${unitKeyPrefix}::${row.id}::${col.id}${COMMENT_KEY}`;
                   return (
                     <td key={col.id}>
-                      {/* VS-063 (docs/engines/form.md "Contenido fijo como
-                          prefijo de una celda editable"): la etiqueta propia
-                          del checkbox (si la hay) va incluida en `content`,
-                          escrita por el admin — el checkbox no lleva label
-                          propia acá. */}
+                      {/* VS-063: `content` es el título/descripción fijo de
+                          la celda. VS-064: la casilla gana su PROPIA
+                          etiqueta (`checkboxLabel`). */}
                       {content && <RichLabel html={content} />}
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => updateCell(row.id, col.id, e.target.checked ? "true" : "", table, onChange)}
-                      />
+                      <label className="field field--checkbox">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => updateCell(row.id, col.id, e.target.checked ? "true" : "", table, onChange)}
+                        />
+                        {cellCfg.checkboxLabel ? <RichLabel html={cellCfg.checkboxLabel} /> : <span className="sr-only">Marcar</span>}
+                      </label>
                       {cellCfg.revealText && checked && (
                         <input
                           type="text"

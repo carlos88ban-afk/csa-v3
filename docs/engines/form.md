@@ -1296,3 +1296,39 @@ Las 4 ramas que ya renderizan un control editable (`seleccion_desplegable`, `num
 - **`content` en celdas `calculado`** — sin caso de uso observado, ver "Runtime" arriba; aditivo si aparece.
 - **Múltiples controles interactivos en una misma celda** (ej. dos checkboxes independientes) — sigue habiendo un solo control por celda; si una fila necesita más de un control mixto-con-texto, se modela como celdas adicionales (mismo mecanismo "+" ya usado en VS-047/048/061), cada una con su propio `content` de encabezado si corresponde.
 - **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que VS-060/061/062, por instrucción explícita del usuario.
+
+## Etiqueta propia de una celda casilla (VS-064)
+
+### Contexto y pedido
+
+VS-063 resolvió el caso mixto bakeando la etiqueta propia del checkbox (`"La empresa cuenta con una cláusula de recuperación de recursos. Por favor, especifica:"`) dentro de `content` (texto fijo compartido con el título/descripción de la celda) — el checkbox quedaba sin ninguna etiqueta propia (`<input type="checkbox">` desnudo). El usuario pidió corregirlo: **la casilla debe tener su propio texto tal cual el HTML compartido**, tanto porque el evaluado necesita entender qué está marcando (motivo funcional/de accesibilidad — un checkbox sin nombre accesible es una violación WCAG real, ver VS-015) como porque visualmente se ve mejor (el texto envuelto en un `<label>` junto al control, no una oración suelta arriba de un checkbox flotante).
+
+### Decisión de diseño
+
+Nuevo campo `checkboxLabel?: string` en `formTableCell`, **distinto de `content`**: `content` sigue siendo el texto fijo de la celda (título/descripción, ANTES del control — VS-063, aplica a cualquier `cellType`); `checkboxLabel` es específico de `cellType === "casilla"` y es el texto que el evaluado lee junto al checkbox, dentro de un `<label>` real (mismo patrón ya usado en el resto del motor — N/A, sub-opciones — `<label className="field field--checkbox"><input type="checkbox"/>{texto}</label>`). Si `checkboxLabel` está ausente, el checkbox cae a un `<span className="sr-only">Marcar</span>` (nombre accesible mínimo, no rompe accesibilidad aunque el admin no lo complete).
+
+```ts
+const formTableCell = z.object({
+  // ...campos existentes sin cambios...
+  revealText: z.boolean().optional(), // VS-061
+  checkboxLabel: z.string().optional(), // VS-064 — solo aplica si cellType === "casilla"
+});
+```
+
+Con esto, el caso real de S&P se modela como: `content` = `"<p><strong>Periodo de rendimiento para la remuneración variable del CEO</strong></p><p>Por favor, indique el periodo de desempeño más largo cubierto por el plan de compensación ejecutiva:</p>"` (título+descripción, fijo) y `checkboxLabel` = `"La empresa cuenta con una cláusula de recuperación de recursos. Por favor, especifica:"` (la etiqueta del checkbox) — exactamente la separación que tiene el HTML original entre el `<div class="level">` de arriba y el `<p>` que acompaña al `<input type="checkbox">`.
+
+### Builder (`TableConfigEditor`, `apps/web/components/subindicator-editor.tsx`)
+
+La rama `cell.cellType === "casilla"` gana un `RichTextEditor` nuevo, "Etiqueta de la casilla", ANTES del checkbox "Permitir texto adicional al marcar" — mismo componente ya usado para "Texto fijo antes del control", sin ambigüedad de cuál es cuál porque están en secciones separadas con label propia. El reset de campos al cambiar `cellType` gana `checkboxLabel: undefined`.
+
+### Runtime (`FormTableView`) y Preview (`PreviewTableView`)
+
+El checkbox pasa de `<input type="checkbox">` suelto a `<label className="field field--checkbox"><input type="checkbox" .../>{RichLabel de checkboxLabel, o "Marcar" sr-only}</label>` — mismo patrón que el checkbox de N/A (`persistence.md`) y de sub-opciones (VS-016). El input de texto revelado (`revealText`) sigue como hermano de ese `<label>`, sin cambios de posición.
+
+### Exportación
+
+**Sin cambios** — `checkboxLabel` es puramente de presentación, igual criterio que `content` (VS-063).
+
+### Fuera de alcance (explícito)
+
+- **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.

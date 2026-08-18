@@ -132,6 +132,11 @@ const formTableCell = z.object({
   options: z.array(formOptionBase).min(1).optional(),
   maxLength: z.number().int().positive().optional(),
   revealText: z.boolean().optional(), // VS-061 — solo aplica si cellType === "casilla"
+  // VS-064 (docs/engines/form.md "Etiqueta propia de una celda casilla"):
+  // texto de la propia casilla (el evaluado necesita entender qué está
+  // marcando) — distinto de `content` (título/descripción de la celda,
+  // ANTES del control). Solo aplica si cellType === "casilla".
+  checkboxLabel: z.string().optional(),
 })
 // VS-043: si cellType es "calculado", expression es obligatorio
 .superRefine((cell, ctx) => {

@@ -4,6 +4,7 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Siguiente
 
+- [ ] VS-064 — Etiqueta propia de una celda casilla (`formTableCell.checkboxLabel`, corrección a VS-063 pedida por el usuario: el checkbox necesita su propia etiqueta visible/accesible, distinta del texto fijo de la celda — spec en `docs/engines/form.md`) — implementado 2026-08-18, **pendiente de verificación en producción**
 - [ ] Hallazgo secundario sin implementar (VS-062): `refType: "private"` en referencias (HTML real `COG_DisclosureMedian_Selection`), no soportado por el Builder (solo `public`/`flexible` hoy) — sin priorizar por el usuario.
 - [x] VS-045 — Formato (rich text) en preguntas y opciones + referencias flexibles (`refType: "public" | "flexible"`) — 6.ª inspección AN-001, 2026-08-14: HTML `COG_BoardIndependence_AttachmentBoardIndependenceStatement` con negritas/múltiples párrafos en labels y bloque de referencias `data-ref-type="flexible"`; alcance confirmado con el usuario (todas las preguntas/opciones + flexible incluido) — spec en `docs/engines/form.md` (antecede a VS-044/VS-043 por pedido explícito del usuario) — 2026-08-14
 - [x] VS-042 — Tabla de datos embebida dentro de una sub-opción (`subOption.table`, 5.ª inspección AN-001, 2026-08-14: cada sub-opción del sub-radio trae su propia `form-table` — spec en `docs/engines/form.md`)
