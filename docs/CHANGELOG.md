@@ -16,6 +16,18 @@ HTML real de S&P (`COG_ESGGovernanceOversight_Selection`): la opción "Applicabl
 
 **Estado**: implementado siguiendo el proceso doc-first. Sin build/typecheck/tests locales por instrucción explícita del usuario.
 
+### Verificación en producción — VS-068 (2026-08-18)
+
+Framework temporal ("QA VS-068 verificacion") replicando la estructura completa de `COG_ESGGovernanceOversight_Selection`: opción "Aplicable" con bloque primario "Supervisión de la Junta" (1 checkbox revelando 2 radios) y bloque secundario "Supervisión ejecutiva" (1 checkbox revelando 2 radios). Verificado con Playwright.
+
+- **Builder**: campo "Encabezado del bloque de sub-opciones" y toggle "Sub-sub-opciones excluyentes" confirmados en el bloque primario; el bloque secundario ganó la UI de sub-sub-opciones que le faltaba (lista + "Agregar sub-sub-opción" + toggle excluyente), antes completamente ausente ahí.
+- **Vista previa del Builder**: ambos bloques renderizan con su encabezado propio; los grupos de nivel 2 renderizan como radio (no checkbox) en ambos bloques — confirma que `subOptionsExclusive` se respeta.
+- **Runtime público real**: misma estructura, gated correctamente detrás de la selección de nivel 1 (a diferencia de la Vista previa, que los muestra siempre); selección de un radio de nivel 2 en cada bloque, autosave, **persistencia confirmada tras recarga completa de página** (ambas selecciones exclusivas sobrevivieron).
+- **Export CSV**: `Aplicable — Existe responsabilidad a nivel de consejo (Sub-opciones: Otro comite del consejo); Existe un papel designado (Sub-opciones: C-suite)` — confirma el fix de `formatSubOptionExtras`, que antes nunca resolvía las sub-sub-opciones marcadas.
+- Framework/evaluación de prueba borrados al terminar.
+
+Slice cerrado y verificado end-to-end.
+
 ### VS-067 — Adjuntar archivos o enlaces por celda (2026-08-18)
 
 HTML real de S&P (`COG_ManagementOwnership_Selection`, tabla de propiedad accionaria de directivos): la columna "Pruebas que lo respaldan" es un campo de referencias por celda (archivo o enlace, hasta 3). Pedido explícito del usuario: "que las celdas de las tablas también permitan subir archivos adjunto o enlaces como ya lo hacemos en otras partes" — reutiliza `optionReferences` (VS-039/045/056) tal cual, sin un mecanismo nuevo.

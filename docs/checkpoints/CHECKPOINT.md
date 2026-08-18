@@ -2,14 +2,21 @@
 
 **Última actualización**: 2026-08-18  
 **Branch activa**: main  
-**Último slice cerrado**: VS-067 (adjuntar archivos o enlaces por celda de tabla) — commiteado y verificado en producción end-to-end, incluye 2 fixes de bugs reales encontrados en el camino, ver "Verificación en producción" abajo.  
-**Slice en progreso**: VS-068 (exclusividad y encabezado del bloque primario de sub-opciones — `subOption.subOptionsExclusive`/`formOption.subOptionsHeading`, spec en `docs/engines/form.md`) — implementado, pendiente de commit/push y verificación en producción.
+**Último slice cerrado**: VS-068 (exclusividad y encabezado del bloque primario de sub-opciones) — commiteado y verificado en producción end-to-end, incluye fix de un gap real de export encontrado en el camino, ver "Verificación en producción" abajo.  
+**Slice en progreso**: ninguno.
 
 ## Resumen ejecutivo
 
 Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). La feature "unidades de negocio" (VS-050 a VS-059: jerarquía de Organization, partición de Response, dueDate/contactEmail, acceso autenticado, panel Publicar, export XLSX, dashboard de progreso, bloqueo de cliente, evidencia autenticada, editor de exclusiones) está completa y **verificada de punta a punta en producción real** — asignación de unidad, aislamiento de respuestas y de progreso, bloqueo del link público en modo corporativo, rechazo de organizaciones no asignadas, export XLSX con datos reales, exclusión de Subindicador/pregunta individual reflejada en dashboard y Runtime autenticado, bloqueo de cliente por plazo vencido, y evidencia autenticada (subir/descargar/borrar + rechazo de elemento excluido) — todo confirmado con datos de prueba (borrados al terminar cada verificación). **Nota de integridad histórica**: esta misma entrada de checkpoint tuvo una versión anterior que describía un refactor de UI (`runtime-shell.tsx`) que NUNCA se llegó a commitear — corregida verificando directamente contra el código real, ver `bugs.md` para el detalle completo (mismo patrón de riesgo que VS-043/`evaluateTableExpression`).
 
 ## Verificación en producción (2026-08-18)
+
+**VS-068**: framework temporal ("QA VS-068 verificacion") replicando `COG_ESGGovernanceOversight_Selection` completo — opción "Aplicable" con bloque primario "Supervisión de la Junta" (checkbox → 2 radios) y bloque secundario "Supervisión ejecutiva" (checkbox → 2 radios). Verificado con Playwright.
+- Builder: encabezado propio del bloque primario y toggle "Sub-sub-opciones excluyentes" confirmados; el bloque secundario ganó la UI de sub-sub-opciones que le faltaba por completo.
+- Vista previa: ambos bloques con su encabezado, niveles 2 renderizan como radio (no checkbox) en ambos bloques.
+- Runtime público: mismo comportamiento, correctamente gated detrás de la selección de nivel 1, persistente tras recarga completa (selecciones exclusivas de ambos bloques sobrevivieron).
+- Export CSV: `Aplicable — Existe responsabilidad a nivel de consejo (Sub-opciones: Otro comite del consejo); Existe un papel designado (Sub-opciones: C-suite)` — confirma el fix de `formatSubOptionExtras` (antes nunca resolvía sub-sub-opciones).
+- Framework/evaluación de prueba borrados al terminar.
 
 **VS-067**: framework temporal ("QA VS-067 verificacion") con una celda `referencia` (`refType: "flexible"`, `maxUrls: 2`) reproduciendo la columna "Pruebas que lo respaldan" de `COG_ManagementOwnership_Selection`. Verificado con Playwright, incluyendo subida real de archivo vía `presign-ref`.
 - Builder: opción "Referencia (archivo o enlace)" + config "Máximo de referencias"/"Tipo de referencia" confirmados.
