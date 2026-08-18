@@ -1952,10 +1952,25 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                 />
                 <RichLabel html={opt.label} />
               </label>
+              {value === opt.id && opt.references && opt.references.position !== "after_suboptions" && (
+                <OptionReferencesView
+                  refType={opt.references.refType ?? "public"}
+                  maxUrls={opt.references.maxUrls ?? 3}
+                  value={answers[`${element.id}::${opt.id}::refs`] as (string | EvidenceRef)[] | undefined}
+                  onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
+                  locked={locked}
+                  token={token}
+                  subindicatorId={subindicatorId}
+                  elementId={element.id}
+                />
+              )}
               {/* VS-060 (docs/engines/form.md "Tabla embebida directamente en
                   una opción de nivel superior"): mismo FormTableView que
                   tabla_datos/subOption.table, clave sintética
-                  `${element.id}::${opt.id}::table`. */}
+                  `${element.id}::${opt.id}::table`. Va DESPUÉS de las
+                  referencias "before_suboptions" (HTML real S&P: referencias
+                  antes de la tabla) y ANTES de subOptions/secondaryOptions —
+                  `table` comparte el mismo criterio de posición que ellas. */}
               {value === opt.id && opt.table && (
                 <FormTableView
                   label={opt.label}
@@ -1967,18 +1982,6 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                   answers={answers}
                   onAnswerChange={onAnswerChange}
                   locked={locked}
-                />
-              )}
-              {value === opt.id && opt.references && opt.references.position !== "after_suboptions" && (
-                <OptionReferencesView
-                  refType={opt.references.refType ?? "public"}
-                  maxUrls={opt.references.maxUrls ?? 3}
-                  value={answers[`${element.id}::${opt.id}::refs`] as (string | EvidenceRef)[] | undefined}
-                  onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
-                  locked={locked}
-                  token={token}
-                  subindicatorId={subindicatorId}
-                  elementId={element.id}
                 />
               )}
               {value === opt.id && opt.subOptions && opt.subOptions.length > 0 && (
@@ -2047,6 +2050,18 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                     />
                     <RichLabel html={opt.label} />
                   </label>
+                  {selected.includes(opt.id) && opt.references && opt.references.position !== "after_suboptions" && (
+                    <OptionReferencesView
+                      refType={opt.references.refType ?? "public"}
+                      maxUrls={opt.references.maxUrls ?? 3}
+                      value={answers[`${element.id}::${opt.id}::refs`] as (string | EvidenceRef)[] | undefined}
+                      onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
+                      locked={locked}
+                      token={token}
+                      subindicatorId={subindicatorId}
+                      elementId={element.id}
+                    />
+                  )}
                   {/* VS-060: ver nota equivalente en seleccion_unica arriba. */}
                   {selected.includes(opt.id) && opt.table && (
                     <FormTableView
@@ -2059,18 +2074,6 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                       answers={answers}
                       onAnswerChange={onAnswerChange}
                       locked={locked}
-                    />
-                  )}
-                  {selected.includes(opt.id) && opt.references && opt.references.position !== "after_suboptions" && (
-                    <OptionReferencesView
-                      refType={opt.references.refType ?? "public"}
-                      maxUrls={opt.references.maxUrls ?? 3}
-                      value={answers[`${element.id}::${opt.id}::refs`] as (string | EvidenceRef)[] | undefined}
-                      onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
-                      locked={locked}
-                      token={token}
-                      subindicatorId={subindicatorId}
-                      elementId={element.id}
                     />
                   )}
                   {selected.includes(opt.id) && opt.subOptions && opt.subOptions.length > 0 && (

@@ -292,9 +292,20 @@ function PreviewElement({
               />
               <RichLabel html={opt.label} />
             </label>
+            {isSelected(opt.id) && opt.references && opt.references.position !== "after_suboptions" && (
+              <PreviewOptionReferences
+                refType={opt.references.refType ?? "public"}
+                maxUrls={opt.references.maxUrls ?? 3}
+                value={answers[`${element.id}::${opt.id}::refs`]}
+                onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
+                className="runtime-url-list sub-options"
+              />
+            )}
             {/* VS-060 (docs/engines/form.md "Tabla embebida directamente en
                 una opción de nivel superior"): mismo PreviewTableView que
-                tabla_datos/subOption.table. */}
+                tabla_datos/subOption.table. Va después de las referencias
+                "before_suboptions" (HTML real S&P: referencias antes de la
+                tabla) — mismo criterio de posición que subOptions. */}
             {isSelected(opt.id) && opt.table && (
               <PreviewTableView
                 label={opt.label}
@@ -305,15 +316,6 @@ function PreviewElement({
                 answers={answers}
                 onAnswerChange={onAnswerChange}
                 onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::table`, next)}
-              />
-            )}
-            {isSelected(opt.id) && opt.references && opt.references.position !== "after_suboptions" && (
-              <PreviewOptionReferences
-                refType={opt.references.refType ?? "public"}
-                maxUrls={opt.references.maxUrls ?? 3}
-                value={answers[`${element.id}::${opt.id}::refs`]}
-                onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::refs`, next)}
-                className="runtime-url-list sub-options"
               />
             )}
             {isSelected(opt.id) && (
