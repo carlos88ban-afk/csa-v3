@@ -2,14 +2,21 @@
 
 **Última actualización**: 2026-08-18  
 **Branch activa**: main  
-**Último slice cerrado**: VS-064 (etiqueta propia de una celda casilla) — commiteado y verificado en producción end-to-end, ver "Verificación en producción" abajo.  
-**Slice en progreso**: VS-065 (campo elegido por el admin al marcar una celda casilla + fix de alineación checkbox/texto — spec en `docs/engines/form.md`) — implementado, pendiente de commit/push y verificación en producción.
+**Último slice cerrado**: VS-065 (campo elegido por el admin al marcar una celda casilla + fix de alineación checkbox/texto) — commiteado y verificado en producción end-to-end, ver "Verificación en producción" abajo.  
+**Slice en progreso**: ninguno asignado.
 
 ## Resumen ejecutivo
 
 Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). La feature "unidades de negocio" (VS-050 a VS-059: jerarquía de Organization, partición de Response, dueDate/contactEmail, acceso autenticado, panel Publicar, export XLSX, dashboard de progreso, bloqueo de cliente, evidencia autenticada, editor de exclusiones) está completa y **verificada de punta a punta en producción real** — asignación de unidad, aislamiento de respuestas y de progreso, bloqueo del link público en modo corporativo, rechazo de organizaciones no asignadas, export XLSX con datos reales, exclusión de Subindicador/pregunta individual reflejada en dashboard y Runtime autenticado, bloqueo de cliente por plazo vencido, y evidencia autenticada (subir/descargar/borrar + rechazo de elemento excluido) — todo confirmado con datos de prueba (borrados al terminar cada verificación). **Nota de integridad histórica**: esta misma entrada de checkpoint tuvo una versión anterior que describía un refactor de UI (`runtime-shell.tsx`) que NUNCA se llegó a commitear — corregida verificando directamente contra el código real, ver `bugs.md` para el detalle completo (mismo patrón de riesgo que VS-043/`evaluateTableExpression`).
 
 ## Verificación en producción (2026-08-18)
+
+**VS-065** (deploy `6T9zbhcV`, `READY` — primer deploy de esta sesión con cambios de tipos TypeScript, `next build` tipó sin errores): misma celda casilla, ahora con `revealField: {type:"numero", unit:"anos"}` en vez de texto libre. Verificado con Playwright, incluyendo screenshot del fix de alineación.
+- Fix visual: checkbox en tamaño normal (16px), pegado a la izquierda de su texto, alineado arriba.
+- Builder: combobox "Agregar campo al marcar…" con los 3 tipos, config "Mínimo/Máximo/Unidad" tras elegir número.
+- Vista previa y Runtime público: campo revelado es un `spinbutton` con unidad al lado, autosave, persistente tras recarga completa.
+- Export CSV: `Fila 1: Columna 1=Sí: 3 anos`.
+- Framework/evaluación de prueba borrados al terminar.
 
 **VS-064** (deploy `4af1c4b`, `READY`): misma celda `casilla` de la verificación de VS-063, ahora con `checkboxLabel` propio ("La empresa cuenta con una cláusula de recuperación de recursos. Por favor, especifica:"), distinto de `content` (título/descripción). Verificado con Playwright.
 - Builder: campo "Etiqueta de la casilla" separado de "Texto fijo antes del control".

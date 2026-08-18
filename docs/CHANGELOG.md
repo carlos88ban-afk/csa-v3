@@ -4,6 +4,18 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### Verificación en producción — VS-065 (2026-08-18)
+
+Framework temporal ("QA VS-065 verificacion") con la misma celda casilla de las verificaciones anteriores, ahora con `revealField: { type: "numero", unit: "anos" }` en vez de texto libre. Verificado con Playwright contra `csa-v3-web.vercel.app` (deploy `6T9zbhcV`, `READY`, primer deploy de esta sesión con cambios de tipos TypeScript — build pasó el typecheck real de `next build` sin errores):
+
+- **Fix de alineación**: screenshot confirmó el checkbox en tamaño normal (16px), pegado a la izquierda de su texto, alineado arriba — ya no "muy separado"/desordenado.
+- **Builder**: combobox "Agregar campo al marcar…" (Selección desplegable/Texto corto/Número) confirmado en la config de la celda `casilla`, con "Campo: número" + Mínimo/Máximo/Unidad tras elegirlo.
+- **Vista previa y Runtime público real**: el campo revelado es un `spinbutton` con la unidad "anos" al lado (no un input de texto genérico), autosave, persistente tras recarga completa de página.
+- **Export CSV**: `Fila 1: Columna 1=Sí: 3 anos` — valor + unidad resueltos correctamente vía `resolveRevealField`.
+- Framework/evaluación de prueba borrados al terminar.
+
+Slice cerrado y verificado end-to-end.
+
 ### VS-065 — Campo elegido por el admin al marcar una celda casilla + fix de alineación (2026-08-18)
 
 Dos pedidos del usuario sobre VS-061/063/064:
