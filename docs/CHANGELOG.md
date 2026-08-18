@@ -4,6 +4,18 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### Verificación en producción — VS-063 (2026-08-18)
+
+Framework temporal ("QA VS-063 verificacion") con un elemento `tabla_datos` de 1 celda `casilla` (`revealText: true`) con `content` fijo reproduciendo el caso real del HTML de S&P ("Periodo de rendimiento..." + "La empresa cuenta con una cláusula de recuperación..." + checkbox + campo). Verificado con Playwright contra `csa-v3-web.vercel.app` (deploy `bf23569`, `READY`):
+
+- **Builder**: campo "Texto fijo antes del control (opcional)" visible en una celda `casilla` editable, junto al resto de su config.
+- **Vista previa del Builder**: la celda renderiza el texto fijo (con negrita), luego el checkbox; al marcarlo aparece "Especifique".
+- **Runtime público real**: misma estructura, autosave, **persistencia confirmada tras recarga completa de página**.
+- **Export CSV**: `Fila 1: Columna 1=Sí: 3 anos con extension` — el texto fijo NO se exporta (correcto, es solo presentación), solo el valor de la casilla + texto revelado.
+- Framework/evaluación de prueba borrados al terminar.
+
+Slice cerrado y verificado end-to-end.
+
 ### VS-063 — Contenido fijo como prefijo de una celda editable (2026-08-18)
 
 Mismo HTML real de S&P que originó VS-061 (`COG_AlignmentLongTermPerformance_Selection`, fila "Periodo de rendimiento"): la celda combina, DENTRO del mismo `<td>`, texto fijo (título+descripción) seguido de un checkbox `casilla` con su propia etiqueta y campo revelado — el caso "celda verdaderamente mixta" que VS-061 dejó explícitamente fuera de alcance. El usuario confirmó que lo necesita: "colocar texto, luego el checkbox con su contenido, y adicionarle el campo".
