@@ -52,7 +52,9 @@ function resolveExtraFields(cellCfg: FormTableCell, prefix: string, answers: Res
       const raw = answers[`${prefix}::field::${index}`];
       if (raw === undefined || raw === "") return null;
       const resolved =
-        field.type === "seleccion_desplegable" ? (field.options.find((o) => o.id === raw)?.label ?? String(raw)) : String(raw);
+        field.type === "seleccion_desplegable"
+          ? (stripCommentHtml(field.options.find((o) => o.id === raw)?.label ?? "") || String(raw))
+          : String(raw);
       const unit = field.type === "numero" && field.unit ? ` ${field.unit}` : "";
       return field.label ? `${field.label} ${resolved}${unit}` : `${resolved}${unit}`;
     })
@@ -169,7 +171,9 @@ function formatSubOptionExtras(sub: SubOptionNode, subOptionKey: string, answers
     const raw = answers[`${subOptionKey}::field`];
     if (raw !== undefined && raw !== "") {
       const resolved =
-        sub.field.type === "seleccion_desplegable" ? (sub.field.options.find((o) => o.id === raw)?.label ?? String(raw)) : String(raw);
+        sub.field.type === "seleccion_desplegable"
+          ? (stripCommentHtml(sub.field.options.find((o) => o.id === raw)?.label ?? "") || String(raw))
+          : String(raw);
       const unit = sub.field.type === "numero" && sub.field.unit ? ` ${sub.field.unit}` : "";
       parts.push(`${resolved}${unit}`);
     }
@@ -239,7 +243,9 @@ function formatOptionLabel(opt: SeleccionOption, elementId: string, answers: Res
     const raw = answers[`${optKey}::field`];
     if (raw !== undefined && raw !== "") {
       const resolvedField =
-        opt.field.type === "seleccion_desplegable" ? (opt.field.options.find((o) => o.id === raw)?.label ?? String(raw)) : String(raw);
+        opt.field.type === "seleccion_desplegable"
+          ? (stripCommentHtml(opt.field.options.find((o) => o.id === raw)?.label ?? "") || String(raw))
+          : String(raw);
       const fieldUnit = opt.field.type === "numero" && opt.field.unit ? ` ${opt.field.unit}` : "";
       label += ` (${resolvedField}${fieldUnit})`;
     }
