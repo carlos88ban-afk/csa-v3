@@ -232,6 +232,13 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
   const flat = useMemo(() => (evaluation ? flatten(evaluation.snapshot) : []), [evaluation]);
   const activeIndex = flat.findIndex((f) => f.sub.id === activeId);
   const active = activeIndex >= 0 ? flat[activeIndex] : null;
+  // VS-057 (docs/domain/business-units.md, "Plazo de recepción"): bloqueo
+  // proactivo en el cliente cuando `dueDate` ya venció — antes solo el
+  // servidor lo rechazaba (403 al guardar, VS-052); el evaluado podía
+  // seguir escribiendo y recién veía el error al intentar guardar. Réplica
+  // en UI de la misma regla, no la reemplaza (el servidor sigue siendo la
+  // fuente de verdad — este flag solo deshabilita inputs/botones).
+  const deadlineLocked = !!evaluation?.dueDate && new Date(evaluation.dueDate) <= new Date();
   // VS-020: "¿hay cambios pendientes?" — comparación superficial de JSON,
   // el mapa de answers de un Subindicador es chico (no justifica una
   // librería de diff). Gatea los tres botones Save/Cancel/Reset.
@@ -253,6 +260,10 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
   // VS-020: extraído de scheduleAutosave para que el botón "Guardar" pueda
   // forzar el mismo guardado ya, sin esperar el debounce.
   async function doSave(subindicatorId: string, answers: ResponseAnswers) {
+    // Defensa en profundidad: si el debounce de autosave quedó agendado
+    // justo antes de que el plazo venza, no dispararlo igual — el servidor
+    // lo rechazaría de todos modos (403 EvaluationLockedError, VS-052).
+    if (deadlineLocked) return;
     setSaveStatus("saving");
     setSaveError(null);
     try {
@@ -310,7 +321,7 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
   // sí es síncrona); un efecto separado dispara el autosave a partir del
   // estado ya comprometido por React, nunca por lectura especulativa.
   function setAnswer(elementId: string, value: AnswerValue) {
-    if (!active) return;
+    if (!active || deadlineLocked) return;
     const subId = active.sub.id;
     dirtySubRef.current = subId;
     setAnswersBySub((prev) => {
@@ -449,7 +460,7 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
               aditivo sobre el autosave — no lo reemplaza. Cancelar y
               Restablecer comparten la misma función a propósito. */}
           <div className="runtime-topbar__actions">
-            <button type="button" className="btn btn--primary btn--sm" onClick={handleSave} disabled={!dirty}>
+            <button type="button" className="btn btn--primary btn--sm" onClick={handleSave} disabled={!dirty || deadlineLocked}>
               Guardar
             </button>
             <button type="button" className="btn btn--secondary btn--sm" onClick={handleCancelOrReset} disabled={!dirty}>
@@ -515,6 +526,7 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
                     value={answersBySub[active.sub.id]?.[el.id]}
                     onChange={(value) => setAnswer(el.id, value)}
                     onAnswerChange={setAnswer}
+                    formLocked={deadlineLocked}
                   />
                 );
               });
@@ -571,6 +583,10 @@ interface ElementViewProps {
   // (que sigue siendo solo la respuesta del elemento padre) — por eso este
   // componente necesita poder escribir claves arbitrarias, no solo la propia.
   onAnswerChange: (key: string, value: AnswerValue) => void;
+  // VS-057 (docs/domain/business-units.md, "Plazo de recepción"): true si
+  // `evaluation.dueDate` ya venció — se OR-ea con el resto de motivos de
+  // bloqueo del elemento (approved/submitted/N/A), no los reemplaza.
+  formLocked: boolean;
 }
 
 // Campo embebido en una sub-opción (VS-040, docs/engines/form.md "Campos
@@ -1670,7 +1686,7 @@ function NaCommentRow({
   );
 }
 
-function ElementView({ token, subindicatorId, element, number, answers, value, onChange, onAnswerChange }: ElementViewProps) {
+function ElementView({ token, subindicatorId, element, number, answers, value, onChange, onAnswerChange, formLocked }: ElementViewProps) {
   if (element.type === "instruccion") {
     return (
       <p className="runtime-instruction">
@@ -1698,8 +1714,12 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
   // N/A deshabilita el control principal igual que approved/submitted —
   // son dos motivos independientes para el mismo bloqueo de edición (un
   // elemento puede estar N/A sin estar aprobado/enviado, y viceversa).
-  const locked = derived === "approved" || derived === "submitted" || markedNA;
-  const canComplete = answeredOrNA && (derived === "not_started" || derived === "in_progress");
+  // VS-057: `formLocked` (plazo vencido) es un cuarto motivo, independiente
+  // de los otros tres.
+  const locked = formLocked || derived === "approved" || derived === "submitted" || markedNA;
+  // VS-057: "Marcar como completo" también queda oculto con el plazo
+  // vencido — es otra forma de editar el estado de la respuesta.
+  const canComplete = !formLocked && answeredOrNA && (derived === "not_started" || derived === "in_progress");
   const statusRow = (
     <StatusRow elementId={element.id} derived={derived} canComplete={canComplete} onAnswerChange={onAnswerChange} />
   );
