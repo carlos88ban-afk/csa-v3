@@ -2,14 +2,21 @@
 
 **Última actualización**: 2026-08-18  
 **Branch activa**: main  
-**Último slice cerrado**: VS-065 (campo elegido por el admin al marcar una celda casilla + fix de alineación checkbox/texto) — commiteado y verificado en producción end-to-end, ver "Verificación en producción" abajo.  
-**Slice en progreso**: VS-066 (combinar columnas/colspan + vista previa de contenido en el chip de celda — spec en `docs/engines/form.md`) — implementado, pendiente de commit/push y verificación en producción.
+**Último slice cerrado**: VS-066 (combinar columnas/colspan + vista previa de contenido en el chip de celda) — commiteado y verificado en producción end-to-end, ver "Verificación en producción" abajo.  
+**Slice en progreso**: ninguno.
 
 ## Resumen ejecutivo
 
 Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). La feature "unidades de negocio" (VS-050 a VS-059: jerarquía de Organization, partición de Response, dueDate/contactEmail, acceso autenticado, panel Publicar, export XLSX, dashboard de progreso, bloqueo de cliente, evidencia autenticada, editor de exclusiones) está completa y **verificada de punta a punta en producción real** — asignación de unidad, aislamiento de respuestas y de progreso, bloqueo del link público en modo corporativo, rechazo de organizaciones no asignadas, export XLSX con datos reales, exclusión de Subindicador/pregunta individual reflejada en dashboard y Runtime autenticado, bloqueo de cliente por plazo vencido, y evidencia autenticada (subir/descargar/borrar + rechazo de elemento excluido) — todo confirmado con datos de prueba (borrados al terminar cada verificación). **Nota de integridad histórica**: esta misma entrada de checkpoint tuvo una versión anterior que describía un refactor de UI (`runtime-shell.tsx`) que NUNCA se llegó a commitear — corregida verificando directamente contra el código real, ver `bugs.md` para el detalle completo (mismo patrón de riesgo que VS-043/`evaluateTableExpression`).
 
 ## Verificación en producción (2026-08-18)
+
+**VS-066**: framework temporal ("QA VS-066 verificacion") con una tabla 2×3 replicando `COG_DisclosureMedian_Selection` — fila 1 con `colSpan: 2` en una celda "Fijo", fila 2 con `colSpan: 2` en una celda editable `numero` (unidad "años"). Verificado con Playwright.
+- Builder: chip de celda colapsada muestra tipo + extracto de contenido (`cellPreviewText` en producción, ej. `"Fijo" "Compensacion del CEO"`), campo "Combinar con columnas siguientes" aplica `colSpan` y elimina la celda cubierta automáticamente.
+- Vista previa del Builder: celda combinada renderiza como una sola celda ancha en ambas filas, sin ruptura de layout.
+- Runtime público: misma estructura combinada, input numérico editable, autosave, persistente tras recarga completa (valor "7", progreso 100%).
+- Export CSV: `Fila 2: Columna 2=7 años` — la columna cubierta por el colspan no aparece, sin cambios de código en el export.
+- Framework/evaluación de prueba borrados al terminar.
 
 **VS-065** (deploy `6T9zbhcV`, `READY` — primer deploy de esta sesión con cambios de tipos TypeScript, `next build` tipó sin errores): misma celda casilla, ahora con `revealField: {type:"numero", unit:"anos"}` en vez de texto libre. Verificado con Playwright, incluyendo screenshot del fix de alineación.
 - Fix visual: checkbox en tamaño normal (16px), pegado a la izquierda de su texto, alineado arriba.

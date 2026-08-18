@@ -17,6 +17,18 @@ Mismo HTML real de S&P que originó VS-062 (`COG_DisclosureMedian_Selection`): l
 
 **Estado**: implementado siguiendo el proceso doc-first. Sin build/typecheck/tests locales por instrucción explícita del usuario.
 
+### Verificación en producción — VS-066 (2026-08-18)
+
+Framework temporal ("QA VS-066 verificacion") con una tabla 2×3 replicando la estructura real de `COG_DisclosureMedian_Selection`: fila 1 con `colSpan: 2` combinando las columnas 2-3 en una celda "Fijo" ("Compensación total de los CEOs"), fila 2 con `colSpan: 2` en una celda editable `numero` (unidad "años"). Verificado con Playwright contra `csa-v3-web.vercel.app`:
+
+- **Builder**: chip de celda colapsada muestra tipo + extracto de contenido (`"Fijo" "Compensacion del CEO"`), confirmando `cellPreviewText` en producción — satisface el pedido explícito del usuario. Campo "Combinar con columnas siguientes" aplica `colSpan` y elimina automáticamente la celda de la columna cubierta.
+- **Vista previa del Builder**: ambas filas renderizan la celda combinada como una sola celda ancha abarcando las 2 columnas — sin ruptura de layout.
+- **Runtime público real**: misma estructura combinada, input numérico editable dentro de la celda combinada, autosave, **persistencia confirmada tras recarga completa de página** (valor "7" se mantuvo, progreso pasó a 100%).
+- **Export CSV**: `Fila 2: Columna 2=7 años` — la "Columna 3" (cubierta por el colspan) no aparece, confirmando que el filtro existente de "celda en blanco" salta las columnas combinadas sin cambios de código.
+- Framework/evaluación de prueba borrados al terminar.
+
+Slice cerrado y verificado end-to-end.
+
 ### Verificación en producción — VS-065 (2026-08-18)
 
 Framework temporal ("QA VS-065 verificacion") con la misma celda casilla de las verificaciones anteriores, ahora con `revealField: { type: "numero", unit: "anos" }` en vez de texto libre. Verificado con Playwright contra `csa-v3-web.vercel.app` (deploy `6T9zbhcV`, `READY`, primer deploy de esta sesión con cambios de tipos TypeScript — build pasó el typecheck real de `next build` sin errores):
