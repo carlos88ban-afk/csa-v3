@@ -849,6 +849,61 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     );
   }
 
+  // Tabla embebida directo en una opción de nivel superior (VS-060,
+  // docs/engines/form.md "Tabla embebida directamente en una opción de nivel
+  // superior"): mismo TableConfigEditor que subOption.table (VS-042), un
+  // nivel menos de anidación — la opción misma, no una sub-opción.
+  function addOptionTable(elementId: string, optionId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        const colId = crypto.randomUUID();
+        return {
+          ...el,
+          options: el.options.map((opt) =>
+            opt.id === optionId
+              ? {
+                  ...opt,
+                  table: {
+                    columns: [{ id: colId }],
+                    rows: [{ id: crypto.randomUUID(), cells: [{ columnId: colId, cellType: "texto" as const, editable: true }] }],
+                  },
+                }
+              : opt,
+          ),
+        };
+      }),
+    );
+  }
+
+  function removeOptionTable(elementId: string, optionId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return {
+          ...el,
+          options: el.options.map((opt) => {
+            if (opt.id !== optionId) return opt;
+            const { table: _table, ...rest } = opt;
+            return rest;
+          }),
+        };
+      }),
+    );
+  }
+
+  function updateOptionTable(elementId: string, optionId: string, next: TablaDatosConfig) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return { ...el, options: el.options.map((opt) => (opt.id === optionId ? { ...opt, table: next } : opt)) };
+      }),
+    );
+  }
+
   // VS-056 (docs/engines/form.md "Referencias a nivel de pregunta"): bloque
   // de referencias a nivel del Elemento (entre el texto de la pregunta y las
   // opciones), mismo shape que las de opción. Sin `position` — no hay
@@ -2076,6 +2131,31 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                 ) : (
                                   <Button type="button" size="sm" onClick={() => addSecondaryOptionsBlock(el.id, opt.id)}>
                                     Agregar bloque secundario de sub-opciones
+                                  </Button>
+                                )}
+                              </div>
+                              {/* VS-060 (docs/engines/form.md "Tabla embebida
+                                  directamente en una opción de nivel
+                                  superior"): mismo TableConfigEditor que
+                                  subOption.table (VS-042). */}
+                              <div style={{ marginTop: "var(--space-2)" }}>
+                                {opt.table ? (
+                                  <div className="option-row-group">
+                                    <div className="option-row">
+                                      <span className="field__label">Tabla embebida</span>
+                                      <Button type="button" variant="danger" size="sm" onClick={() => removeOptionTable(el.id, opt.id)}>
+                                        Quitar tabla
+                                      </Button>
+                                    </div>
+                                    <TableConfigEditor
+                                      columns={opt.table.columns}
+                                      rows={opt.table.rows}
+                                      onChange={(next) => updateOptionTable(el.id, opt.id, next)}
+                                    />
+                                  </div>
+                                ) : (
+                                  <Button type="button" size="sm" onClick={() => addOptionTable(el.id, opt.id)}>
+                                    Agregar tabla
                                   </Button>
                                 )}
                               </div>

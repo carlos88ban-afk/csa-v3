@@ -1952,6 +1952,23 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                 />
                 <RichLabel html={opt.label} />
               </label>
+              {/* VS-060 (docs/engines/form.md "Tabla embebida directamente en
+                  una opción de nivel superior"): mismo FormTableView que
+                  tabla_datos/subOption.table, clave sintética
+                  `${element.id}::${opt.id}::table`. */}
+              {value === opt.id && opt.table && (
+                <FormTableView
+                  label={opt.label}
+                  unitKeyPrefix={`${element.id}::${opt.id}::table`}
+                  columns={opt.table.columns}
+                  rows={opt.table.rows}
+                  value={answers[`${element.id}::${opt.id}::table`] as TableValue | undefined}
+                  onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::table`, next)}
+                  answers={answers}
+                  onAnswerChange={onAnswerChange}
+                  locked={locked}
+                />
+              )}
               {value === opt.id && opt.references && opt.references.position !== "after_suboptions" && (
                 <OptionReferencesView
                   refType={opt.references.refType ?? "public"}
@@ -2030,6 +2047,20 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                     />
                     <RichLabel html={opt.label} />
                   </label>
+                  {/* VS-060: ver nota equivalente en seleccion_unica arriba. */}
+                  {selected.includes(opt.id) && opt.table && (
+                    <FormTableView
+                      label={opt.label}
+                      unitKeyPrefix={`${element.id}::${opt.id}::table`}
+                      columns={opt.table.columns}
+                      rows={opt.table.rows}
+                      value={answers[`${element.id}::${opt.id}::table`] as TableValue | undefined}
+                      onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::table`, next)}
+                      answers={answers}
+                      onAnswerChange={onAnswerChange}
+                      locked={locked}
+                    />
+                  )}
                   {selected.includes(opt.id) && opt.references && opt.references.position !== "after_suboptions" && (
                     <OptionReferencesView
                       refType={opt.references.refType ?? "public"}

@@ -194,6 +194,11 @@ const formOption = formOptionBase.extend({
   secondaryOptionsHeading: z.string().optional(),
   secondaryOptions: z.array(subOption).optional(),
   secondaryOptionsExclusive: z.boolean().optional(),
+  // VS-060 (docs/engines/form.md "Tabla embebida directamente en una opción
+  // de nivel superior"): mismo campo que subOption.table (VS-042), un nivel
+  // menos de anidación — caso real: una opción de seleccion_unica trae una
+  // tabla completa colgando directo de ella, sin sub-radio intermedio.
+  table: tablaDatosConfig.optional(),
 });
 
 export const formElement = z.discriminatedUnion("type", [

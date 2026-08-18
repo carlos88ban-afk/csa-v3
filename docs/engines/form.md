@@ -683,6 +683,35 @@ const subOption = z.object({
 - **`visibleIf` sobre la tabla embebida** — misma limitación ya documentada para `references`/`field`: las condiciones operan sobre Elementos, no sobre partes de una opción. La visibilidad de la tabla la gobierna la sub-opción (marcada = visible), igual que S&P.
 - **Export CSV**: mismo criterio que VS-039/040 — sin fila/columna nueva; el contenido de la tabla (un `TableValue` completo) se anexa a la celda `Respuesta` existente (misma serialización de `tabla_datos`).
 
+## Tabla embebida directamente en una opción de nivel superior (VS-060, pendiente — spec doc-first)
+
+Hallazgo del análisis de capacidad (2026-08-18, HTML real de `COG_GenderDiversity_Selection`, portal S&P, enviado por el usuario): la opción "Sí, la empresa informa..." de una pregunta `seleccion_unica` trae, anidados **directamente dentro del `<li>` de la opción** (sin ningún `<li>` de sub-radio intermedio): un bloque de referencias flexibles (`data-ref-type="flexible"`, ya soportado desde VS-039/045 vía `formOption.references`) y una `table.form-table` completa (columna "Métrica"/"Valor", fila "Número de directoras" con un campo numérico). VS-042 ya resolvió el caso de una tabla embebida en una **sub-opción** (`subOption.table`, un nivel de anidación más adentro que la opción misma), pero `formOption` — la opción de nivel superior de `seleccion_unica`/`seleccion_multiple`/`seleccion_desplegable` — no tiene ese campo: no había caso real observado hasta ahora de una tabla colgando directo de la opción, sin sub-radio de por medio.
+
+### Decisión de diseño
+
+`formOption` gana el mismo campo opcional `table` que ya tiene `subOption` desde VS-042 — mismo shape (`tablaDatosConfig`), mismo criterio de reuso sin duplicar tipos:
+
+```ts
+const formOption = formOptionBase.extend({
+  subOptions: z.array(subOption).optional(),
+  secondaryOptionsHeading: z.string().optional(),
+  secondaryOptions: z.array(subOption).optional(),
+  secondaryOptionsExclusive: z.boolean().optional(),
+  table: tablaDatosConfig.optional(), // VS-060: tabla embebida directo en la opción (mismo shape que subOption.table de VS-042, un nivel menos de anidación)
+});
+```
+
+- **Compatible hacia atrás**: campo opcional, ningún `formSchema` existente cambia de forma.
+- **Respuesta**: misma convención de clave sintética ya usada por `references`/`subOptions` a este nivel: `` `${elementId}::${optionId}::table` `` → `TableValue`. Sin cambios en `response.ts`.
+- **Runtime/Preview**: al marcar la opción con `table`, se renderiza debajo (mismo `FormTableView`/`PreviewTableView` ya reutilizado por `tabla_datos` y `subOption.table`), orden dentro de la opción: `table → subOptions → secondaryOptions → references` cuando `references.position !== "after_suboptions"` (mismo criterio de VS-041: las referencias van al final salvo que se pida lo contrario explícitamente).
+- **Builder**: mismo botón "Agregar tabla" → `TableConfigEditor` ya usado para `subOption.table`, ahora también disponible en el editor de cada opción de nivel superior (junto al bloque de "Agregar referencias" ya existente).
+- **Export CSV/XLSX**: misma serialización que `subOption.table` (VS-042) — sin fila/columna nueva, el contenido se anexa a la celda `Respuesta` de la opción elegida. La lógica de serialización (antes solo en `formatSubOptionExtras`) se extrae a un helper compartido `formatEmbeddedTable`, reusado por `subOption.table` y `formOption.table` — el bloque de `tabla_datos` suelto en `formatAnswer` queda sin tocar (contrato de retorno distinto, sin necesidad real de unificarlo).
+
+### Fuera de alcance (explícito)
+
+- Mismas exclusiones ya documentadas para VS-042 (`visibleIf` sobre la tabla embebida).
+- Un tercer nivel de anidación (tabla embebida dentro de `subSubOption`) — sin caso observado.
+
 ## Fila de fórmula dentro de una tabla (VS-043, pendiente — spec doc-first)
 
 Mismo HTML de la 5.ª inspección: la última fila de cada tabla ("Tamaño total de la tabla" / "Tamaño total de ambos tableros") es un input **`readonly` con `class="formula"`** — valor calculado (suma) a partir de las celdas numéricas de la misma tabla, `data-dpd-name="COG_BoardType_BoardSize"`. La plataforma tiene el Elemento `calculado` (VS-013) a nivel de Subindicador con referencias a otros Elementos por `id`, pero `tabla_datos` no tiene filas calculadas ni el motor de fórmula puede referenciar celdas de tabla (`rowId.colId`).

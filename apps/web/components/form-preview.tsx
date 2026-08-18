@@ -292,6 +292,21 @@ function PreviewElement({
               />
               <RichLabel html={opt.label} />
             </label>
+            {/* VS-060 (docs/engines/form.md "Tabla embebida directamente en
+                una opción de nivel superior"): mismo PreviewTableView que
+                tabla_datos/subOption.table. */}
+            {isSelected(opt.id) && opt.table && (
+              <PreviewTableView
+                label={opt.label}
+                unitKeyPrefix={`${element.id}::${opt.id}::table`}
+                columns={opt.table.columns}
+                rows={opt.table.rows}
+                table={(answers[`${element.id}::${opt.id}::table`] as TableValue | undefined) ?? {}}
+                answers={answers}
+                onAnswerChange={onAnswerChange}
+                onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::table`, next)}
+              />
+            )}
             {isSelected(opt.id) && opt.references && opt.references.position !== "after_suboptions" && (
               <PreviewOptionReferences
                 refType={opt.references.refType ?? "public"}

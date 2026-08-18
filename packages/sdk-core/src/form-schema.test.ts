@@ -858,6 +858,60 @@ describe("formElement", () => {
     expect(result.success).toBe(true);
   });
 
+  // Tabla embebida directo en una opción de nivel superior (VS-060,
+  // docs/engines/form.md "Tabla embebida directamente en una opción de nivel
+  // superior") — mismo campo que subOption.table, un nivel menos anidado.
+  it("acepta una opción de nivel superior sin table (compatible hacia atrás)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A" }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "seleccion_unica") {
+      expect(result.data.options[0]?.table).toBeUndefined();
+    }
+  });
+
+  it("acepta una opción de nivel superior con tabla embebida directa", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [
+        {
+          id: "a",
+          label: "A",
+          table: {
+            columns: [{ id: "metrica" }, { id: "valor" }],
+            rows: [{ id: "r1", cells: [{ columnId: "valor", cellType: "numero", editable: true }] }],
+          },
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "seleccion_unica") {
+      expect(result.data.options[0]?.table?.rows[0]?.id).toBe("r1");
+    }
+  });
+
+  it("acepta una opción de seleccion_multiple con tabla embebida directa", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_multiple",
+      label: "Pregunta",
+      options: [
+        {
+          id: "a",
+          label: "A",
+          table: { columns: [{ id: "c1" }], rows: [{ id: "r1", cells: [{ columnId: "c1", cellType: "texto", editable: true }] }] },
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("acepta una sub-opción con field y table a la vez", () => {
     const result = formElement.safeParse({
       id: "1",

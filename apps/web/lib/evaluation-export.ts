@@ -14,6 +14,7 @@ import {
   type FormTableCell,
   type FormTableRow,
   type ResponseAnswers,
+  type TablaDatosConfig,
 } from "@plataforma-csa/sdk-core";
 
 // Motor engine/export v1 (ver docs/engines/export.md). Lógica de
@@ -66,6 +67,42 @@ function formatOptionReferences(
   return parts.length > 0 ? ` (Referencias: ${parts.join("; ")})` : "";
 }
 
+// Tabla embebida (VS-042 dentro de una sub-opción, VS-060 directo en una
+// opción de nivel superior): misma serialización "Fila N: Columna M=..." en
+// ambos casos — resuelve labels de columna (posicional, no id — VS-048 no
+// tiene label de columna) y unidad por celda vía la clave sintética
+// `${tableKey}::${row.id}::${col.id}`. Compartida entre
+// `formatSubOptionExtras` (sub.table) y `formatOptionLabel` (opt.table) para
+// no duplicar el bloque; el `tabla_datos` suelto en `formatAnswer` tiene
+// contrato de retorno distinto y queda sin tocar.
+function formatEmbeddedTable(table: TablaDatosConfig, tableKey: string, answers: ResponseAnswers): string | null {
+  const tableValue = answers[tableKey];
+  if (typeof tableValue !== "object" || tableValue === null || Array.isArray(tableValue)) return null;
+  const tableMap = tableValue as Record<string, Record<string, string | number>>;
+  const serialized = table.rows
+    .map((row, rowIdx) => {
+      const rowValue = tableMap[row.id] ?? {};
+      const cells = table.columns
+        .map((col, colIdx) => {
+          const cellCfg = cellConfig(row, col.id);
+          if (!cellCfg || (cellCfg.editable === false && cellCfg.cellType !== "calculado")) return null;
+          const cell = rowValue[col.id];
+          if (cell === undefined || cell === "") return null;
+          const unit = cellCfg.availableUnits
+            ? ((answers[unitKey(`${tableKey}::${row.id}::${col.id}`)] as string | undefined) ?? cellCfg.availableUnits[0])
+            : cellCfg.unit;
+          const resolved =
+            cellCfg.cellType === "seleccion_desplegable" ? (stripCommentHtml(cellCfg.options?.find((o) => o.id === cell)?.label ?? "") || String(cell)) : String(cell);
+          return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}`;
+        })
+        .filter((c): c is string => c !== null);
+      return cells.length > 0 ? `Fila ${rowIdx + 1}: ${cells.join(", ")}` : null;
+    })
+    .filter((r): r is string => r !== null)
+    .join("; ");
+  return serialized.length > 0 ? serialized : null;
+}
+
 type SeleccionOption = Extract<FormElement, { type: "seleccion_unica" }>["options"][number];
 type SubOptionNode = NonNullable<SeleccionOption["subOptions"]>[number];
 
@@ -94,37 +131,10 @@ function formatSubOptionExtras(sub: SubOptionNode, subOptionKey: string, answers
   }
   // Tabla embebida en una sub-opción (VS-042, docs/engines/form.md "Tabla
   // dentro de una sub-opción"): misma serialización que tabla_datos, con la
-  // clave sintética `${subOptionKey}::table`. VS-048: sin label de fila/
-  // columna — referencia posicional (Fila N: Columna M) — y unidad por
-  // celda `${subOptionKey}::table::${row.id}::${col.id}`.
+  // clave sintética `${subOptionKey}::table`.
   if (sub.table) {
-    const table = sub.table;
-    const tableValue = answers[`${subOptionKey}::table`];
-    if (typeof tableValue === "object" && !Array.isArray(tableValue)) {
-      const tableMap = tableValue as Record<string, Record<string, string | number>>;
-      const serialized = table.rows
-        .map((row, rowIdx) => {
-          const rowValue = tableMap[row.id] ?? {};
-          const cells = table.columns
-            .map((col, colIdx) => {
-              const cellCfg = cellConfig(row, col.id);
-              if (!cellCfg || (cellCfg.editable === false && cellCfg.cellType !== "calculado")) return null;
-              const cell = rowValue[col.id];
-              if (cell === undefined || cell === "") return null;
-              const unit = cellCfg.availableUnits
-                ? ((answers[unitKey(`${subOptionKey}::table::${row.id}::${col.id}`)] as string | undefined) ?? cellCfg.availableUnits[0])
-                : cellCfg.unit;
-              const resolved =
-                cellCfg.cellType === "seleccion_desplegable" ? (stripCommentHtml(cellCfg.options?.find((o) => o.id === cell)?.label ?? "") || String(cell)) : String(cell);
-              return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}`;
-            })
-            .filter((c): c is string => c !== null);
-          return cells.length > 0 ? `Fila ${rowIdx + 1}: ${cells.join(", ")}` : null;
-        })
-        .filter((r): r is string => r !== null)
-        .join("; ");
-      if (serialized.length > 0) parts.push(`Tabla: ${serialized}`);
-    }
+    const serialized = formatEmbeddedTable(sub.table, `${subOptionKey}::table`, answers);
+    if (serialized) parts.push(`Tabla: ${serialized}`);
   }
   return parts.length > 0 ? ` (${parts.join(", ")})` : "";
 }
@@ -156,6 +166,12 @@ function formatMarkedSubOptions(subOptions: SubOptionNode[] | undefined, key: st
 function formatOptionLabel(opt: SeleccionOption, elementId: string, answers: ResponseAnswers): string {
   const optKey = `${elementId}::${opt.id}`;
   let label = `${stripCommentHtml(opt.label)}${formatOptionReferences(opt.references, `${optKey}::refs`, answers)}`;
+  // Tabla embebida directo en la opción (VS-060, docs/engines/form.md "Tabla
+  // embebida directamente en una opción de nivel superior").
+  if (opt.table) {
+    const serialized = formatEmbeddedTable(opt.table, `${optKey}::table`, answers);
+    if (serialized) label += ` (Tabla: ${serialized})`;
+  }
   const subParts = formatMarkedSubOptions(opt.subOptions, optKey, answers);
   const secondaryParts = formatMarkedSubOptions(opt.secondaryOptions, `${optKey}::secondary`, answers);
   const allParts = [...subParts, ...secondaryParts];
