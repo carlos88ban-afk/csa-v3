@@ -1506,7 +1506,9 @@ function FormTableView({
                 }
                 if (cellType === "casilla") {
                   const checked = cell === "true";
-                  const revealKey = commentKey(`${unitKeyPrefix}::${row.id}::${col.id}`);
+                  // VS-065: clave sintética `::field`, mismo sufijo que
+                  // sub.field/opt.field (no `commentKey`, que es `::comment`).
+                  const revealKey = `${unitKeyPrefix}::${row.id}::${col.id}::field`;
                   return (
                     <td key={col.id}>
                       {/* VS-063: `content` es el título/descripción fijo de
@@ -1524,13 +1526,17 @@ function FormTableView({
                         />
                         {cellCfg.checkboxLabel ? <RichLabel html={cellCfg.checkboxLabel} /> : <span className="sr-only">Marcar</span>}
                       </label>
-                      {cellCfg.revealText && checked && (
-                        <input
-                          type="text"
-                          value={(answers[revealKey] as string | undefined) ?? ""}
-                          placeholder="Especifique"
-                          disabled={locked}
-                          onChange={(e) => onAnswerChange(revealKey, e.target.value)}
+                      {/* VS-065 (docs/engines/form.md "Campo elegido por el
+                          admin al marcar una celda casilla"): reemplaza el
+                          input de texto fijo de VS-061 — mismo
+                          SubOptionFieldView que sub.field/opt.field, el
+                          admin elige el tipo (texto/número/selección). */}
+                      {cellCfg.revealField && checked && (
+                        <SubOptionFieldView
+                          field={cellCfg.revealField}
+                          value={answers[revealKey]}
+                          onChange={(next) => onAnswerChange(revealKey, next)}
+                          locked={locked}
                         />
                       )}
                     </td>

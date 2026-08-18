@@ -3,7 +3,7 @@
 **Última actualización**: 2026-08-18  
 **Branch activa**: main  
 **Último slice cerrado**: VS-064 (etiqueta propia de una celda casilla) — commiteado y verificado en producción end-to-end, ver "Verificación en producción" abajo.  
-**Slice en progreso**: ninguno asignado.
+**Slice en progreso**: VS-065 (campo elegido por el admin al marcar una celda casilla + fix de alineación checkbox/texto — spec en `docs/engines/form.md`) — implementado, pendiente de commit/push y verificación en producción.
 
 ## Resumen ejecutivo
 

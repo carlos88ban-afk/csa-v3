@@ -1088,6 +1088,21 @@ input[type="checkbox"] {
   min-width: 8ch;
 }
 
+/* VS-065 (docs/engines/form.md "Campo elegido por el admin al marcar una
+   celda casilla"): la regla de arriba estira `input[type="checkbox"]` a
+   `width: 100%` (hereda ancho de columna) porque `.runtime-table input` con
+   selector de clase pisa a `input[type="checkbox"] { width: 16px }` (mismo
+   nivel de especificidad, gana el que aparece después en la hoja) — el
+   checkbox se veía enorme y su texto quedaba lejos a la derecha. */
+.runtime-table input[type="checkbox"] {
+  width: 16px;
+  min-width: 0;
+}
+
+.runtime-table .field--checkbox {
+  align-items: flex-start;
+}
+
 /* VS-047 (docs/engines/form.md "Editor de tabla_datos estilo grilla"):
    celda sin override en una fila en modo celdas — grilla irregular. */
 .runtime-table__blank {

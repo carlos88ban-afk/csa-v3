@@ -4,6 +4,21 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-065 — Campo elegido por el admin al marcar una celda casilla + fix de alineación (2026-08-18)
+
+Dos pedidos del usuario sobre VS-061/063/064:
+
+1. **Bug visual real, encontrado por el usuario**: el checkbox de una celda `casilla` se veía muy separado de su texto. Causa raíz: `.runtime-table input { width: 100% }` (VS-024) pisaba a `input[type="checkbox"] { width: 16px }` por orden de aparición en la hoja (misma especificidad) — el checkbox se estiraba al ancho completo de la columna. Fix: `apps/web/app/globals.css` gana `.runtime-table input[type="checkbox"] { width: 16px; min-width: 0; }` + `.runtime-table .field--checkbox { align-items: flex-start; }`.
+2. **`revealText: boolean` (VS-061, siempre texto libre) reemplazado por `revealField?: subOptionField`** — mismo tipo ya reutilizado por `subOption.field` (VS-040) y `formOption.field` (VS-062), a pedido explícito del usuario ("reutiliza esos componentes"). Reemplazo limpio, sin datos reales dependiendo del campo anterior (lanzado el mismo día).
+
+- `packages/sdk-core/src/form-schema.ts`: `revealText` → `revealField: subOptionField.optional()`.
+- Runtime/Preview: reemplazan el `<input type="text">` fijo por `SubOptionFieldView`/`PreviewSubOptionField` (mismos componentes de `sub.field`/`opt.field`), clave sintética `${prefix}::field` (antes `::comment`, prestado incorrectamente del patrón de comentario confidencial).
+- Builder: el checkbox "Permitir texto adicional al marcar" se reemplaza por el mismo `<select>` "Agregar campo…" ya usado en `sub.field`/`opt.field`.
+- Export: nueva función compartida `resolveRevealField` (reemplaza la resolución inline duplicada), misma lógica que `formatSubOptionExtras`.
+- Spec en `docs/engines/form.md`, "Campo elegido por el admin al marcar una celda casilla".
+
+**Estado**: implementado siguiendo el proceso doc-first. Sin build/typecheck/tests locales por instrucción explícita del usuario.
+
 ### Verificación en producción — VS-064 (2026-08-18)
 
 Framework temporal ("QA VS-064 verificacion") con la misma celda `casilla` de la verificación de VS-063, ahora con `checkboxLabel` propio ("La empresa cuenta con una cláusula de recuperación de recursos. Por favor, especifica:") distinto de `content` (título/descripción). Verificado con Playwright contra `csa-v3-web.vercel.app` (deploy `4af1c4b`, `READY`):

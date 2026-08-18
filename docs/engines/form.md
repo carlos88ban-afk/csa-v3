@@ -1139,6 +1139,8 @@ En `formatAnswer` de `seleccion_unica`/`seleccion_multiple`, anexar a la celda R
 
 ## Celda de tabla tipo casilla con texto revelado (VS-061)
 
+> **Actualizado en VS-065 (2026-08-18):** `revealText: boolean` (siempre un input de texto libre) fue reemplazado por `revealField?: subOptionField` — el admin ahora elige el TIPO de campo revelado (texto/número/selección), mismo tipo reutilizado en `subOption.field`/`formOption.field`. Ver "Campo elegido por el admin al marcar una celda casilla" más abajo. Esta sección queda como registro histórico de la decisión original.
+
 ### Contexto y pedido
 
 HTML real de S&P (`COG_AlignmentLongTermPerformance_Selection`, tabla embebida en la opción "Sí" de nivel superior, mismo patrón de `formOption.table` de VS-060): la celda "Aspectos" de la fila "Periodo de rendimiento" combina contenido fijo (título en negrita + descripción) con un control **propio e independiente** del evaluado — un checkbox `Yes_No` ("La empresa cuenta con una cláusula de recuperación de recursos") que, al marcarse, revela un input de texto ("Por favor, especifica:").
@@ -1331,4 +1333,49 @@ El checkbox pasa de `<input type="checkbox">` suelto a `<label className="field 
 
 ### Fuera de alcance (explícito)
 
+- **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.
+
+## Campo elegido por el admin al marcar una celda casilla (VS-065)
+
+### Contexto y pedido
+
+Dos pedidos del usuario sobre lo ya construido en VS-061/063/064:
+
+1. **Bug visual real**: el checkbox de una celda `casilla` se veía "muy separado" de su texto, desordenado. Causa raíz: `.runtime-table input, .runtime-table select { width: 100%; }` (VS-024) pisaba a la regla global `input[type="checkbox"] { width: 16px; }` — mismo nivel de especificidad (selector de clase + tipo vs. atributo + tipo), gana la que aparece después en la hoja (`.runtime-table`, más abajo en `globals.css`). El checkbox se estiraba al ancho completo de la columna, empujando su texto lejos a la derecha.
+2. **`revealText: boolean` es demasiado rígido**: VS-061 solo permitía revelar un input de texto libre. El usuario pidió que el admin elija el TIPO de campo (texto/número/selección) — "así como en las otras partes donde se agrega campos, reutiliza esos componentes" — es decir, el mismo mecanismo ya construido para `subOption.field` (VS-040) y `formOption.field` (VS-062), no uno nuevo.
+
+### Fix de CSS
+
+`apps/web/app/globals.css`: nueva regla `.runtime-table input[type="checkbox"] { width: 16px; min-width: 0; }` (misma especificidad que `.runtime-table input`, pero MÁS ABAJO en la hoja → gana) y `.runtime-table .field--checkbox { align-items: flex-start; }` (alineación arriba, no centrada — una etiqueta de casilla puede ser rich text de varios párrafos, centrar verticalmente se vería raro con texto largo). `.field--checkbox` en sí (`flex-direction: row; align-items: center; gap: var(--space-2)`, definida para el resto del motor — N/A, sub-opciones) no cambia.
+
+### Decisión de diseño — reemplazo, no adición
+
+`revealText: boolean` (VS-061) se reemplaza por `revealField?: subOptionField` — **mismo tipo `subOptionField` ya definido y reutilizado por `subOption.field`/`formOption.field`**, sin tipo nuevo. Reemplazo limpio (no aditivo/deprecado): el campo se lanzó el mismo día en esta sesión, sin datos reales dependiendo de él (los únicos usos fueron frameworks de QA ya borrados) — no hay costo de migración.
+
+```ts
+const formTableCell = z.object({
+  // ...campos existentes sin cambios (columnId, cellType, editable, content, checkboxLabel, etc.)...
+  revealField: subOptionField.optional(), // VS-065 — reemplaza revealText: boolean (VS-061). Solo aplica si cellType === "casilla".
+});
+```
+
+### Respuesta: misma convención de clave que `subOption.field`/`formOption.field`
+
+Cambia el sufijo de la clave sintética: antes `commentKey(...)` → `::comment` (VS-061, prestado del patrón de comentario confidencial, semánticamente incorrecto para este caso). Ahora `` `${prefix}::field` `` — idéntico sufijo que `subOption.field` (`` `${subOptionKey}::field` ``) y `formOption.field` (`` `${elementId}::${optionId}::field` ``), construido inline igual que esos dos (sin una función helper `fieldKey`, seguimos el mismo patrón: la clave se arma en el punto de uso). Valor: `string | number` según `revealField.type`, ya cubierto por `AnswerValue` sin cambios (mismo criterio que el resto del motor).
+
+### Builder (`TableConfigEditor`, `apps/web/components/subindicator-editor.tsx`)
+
+Nuevo alias local `CellRevealField = NonNullable<TableConfigCell["revealField"]>` (mismo tipo que `SubOptionField`, redeclarado porque `TableConfigEditor` es un componente hermano de `SubindicatorEditor`, sin acceso a sus alias internos — mismo criterio ya usado para `TableConfigCell` en este archivo). El checkbox "Permitir texto adicional al marcar" (VS-061) se reemplaza por el mismo patrón `<select>` "Agregar campo…" ya usado en `sub.field`/`opt.field`: sin campo → `<option value="">Agregar campo al marcar…</option>` + 3 tipos; con campo → chip "Campo: <tipo>" + "Quitar campo" + config condicional por tipo (longitud máxima / mín-máx-unidad / CRUD de opciones), idéntica a la de `sub.field`/`opt.field` pero implementada sobre el `updateCell(rowId, columnId, patch)` genérico ya existente en `TableConfigEditor` (más simple que `sub.field`, que necesitó su propio `updateSubOptionNode` por la anidación extra).
+
+### Runtime (`FormTableView`) y Preview (`PreviewTableView`)
+
+Reemplaza el `<input type="text" placeholder="Especifique">` fijo por el mismo `SubOptionFieldView`/`PreviewSubOptionField` ya usado para `sub.field`/`opt.field` — mismo componente, misma clave sintética `${prefix}::field`.
+
+### Exportación (`evaluation-export.ts`)
+
+Nueva función compartida `resolveRevealField(cellCfg, prefix, answers)` (reemplaza la resolución inline de VS-061 en las 2 ramas que serializan tablas) — misma lógica de resolución que `formatSubOptionExtras` para `sub.field` (label si `seleccion_desplegable`, valor + unidad si `numero`/`texto_corto`), evitando duplicar esa lógica una tercera vez.
+
+### Fuera de alcance (explícito)
+
+- **Migración de datos de `revealText`/`::comment` a `revealField`/`::field`** — sin datos reales, ver "Decisión de diseño".
 - **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.

@@ -157,6 +157,12 @@ type TableConfigRows = TablaDatosConfig["rows"];
 // quiere que una celda actúe como encabezado, la marca "solo lectura" con
 // el texto que corresponda — mismo mecanismo que cualquier otra celda fija.
 type TableConfigCell = TableConfigRows[number]["cells"][number];
+// VS-065 (docs/engines/form.md "Campo elegido por el admin al marcar una
+// celda casilla"): mismo tipo `subOptionField` que sub.field/opt.field,
+// alias local porque `TableConfigEditor` es un componente hermano de
+// `SubindicatorEditor` (donde vive el alias `SubOptionField` original), sin
+// acceso a sus tipos internos.
+type CellRevealField = NonNullable<TableConfigCell["revealField"]>;
 
 function TableConfigEditor({
   columns,
@@ -310,8 +316,8 @@ function TableConfigEditor({
                                   options: undefined,
                                   maxLength: undefined,
                                   expression: undefined,
-                                  revealText: undefined,
                                   checkboxLabel: undefined,
+                                  revealField: undefined,
                                   editable: nextType === "calculado" ? true : cell.editable,
                                 });
                               }}
@@ -473,14 +479,160 @@ function TableConfigEditor({
                                           ariaLabel="Etiqueta de la casilla"
                                         />
                                       </label>
-                                      <label className="field field--checkbox">
-                                        <input
-                                          type="checkbox"
-                                          checked={cell.revealText === true}
-                                          onChange={(e) => updateCell(row.id, col.id, { revealText: e.target.checked })}
-                                        />
-                                        <span className="field__label">Permitir texto adicional al marcar</span>
-                                      </label>
+                                      {/* VS-065 (docs/engines/form.md "Campo
+                                          elegido por el admin al marcar una
+                                          celda casilla"): mismo patrón "Agregar
+                                          campo…" que sub.field/opt.field — el
+                                          admin elige el TIPO de campo que se
+                                          revela al marcar. */}
+                                      {cell.revealField ? (
+                                        <div className="option-row">
+                                          <span className="field__label">
+                                            {cell.revealField.type === "seleccion_desplegable" && "Campo: selección desplegable"}
+                                            {cell.revealField.type === "texto_corto" && "Campo: texto corto"}
+                                            {cell.revealField.type === "numero" && "Campo: número"}
+                                          </span>
+                                          <Button
+                                            type="button"
+                                            variant="danger"
+                                            size="sm"
+                                            onClick={() => updateCell(row.id, col.id, { revealField: undefined })}
+                                          >
+                                            Quitar campo
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <select
+                                          value=""
+                                          onChange={(e) => {
+                                            if (!e.target.value) return;
+                                            const type = e.target.value as CellRevealField["type"];
+                                            const field: CellRevealField =
+                                              type === "seleccion_desplegable"
+                                                ? { type: "seleccion_desplegable", options: [{ id: crypto.randomUUID(), label: "" }] }
+                                                : type === "texto_corto"
+                                                  ? { type: "texto_corto" }
+                                                  : { type: "numero" };
+                                            updateCell(row.id, col.id, { revealField: field });
+                                          }}
+                                        >
+                                          <option value="">Agregar campo al marcar…</option>
+                                          <option value="seleccion_desplegable">Selección desplegable</option>
+                                          <option value="texto_corto">Texto corto</option>
+                                          <option value="numero">Número</option>
+                                        </select>
+                                      )}
+                                      {cell.revealField?.type === "seleccion_desplegable" &&
+                                        (() => {
+                                          const selectField = cell.revealField;
+                                          return (
+                                            <div className="options" style={{ marginLeft: "var(--space-4)" }}>
+                                              {selectField.options.map((fo) => (
+                                                <div className="option-row option-row--sub" key={fo.id}>
+                                                  <div className="option-row__editor">
+                                                    <RichTextEditor
+                                                      value={fo.label}
+                                                      onChange={(html) =>
+                                                        updateCell(row.id, col.id, {
+                                                          revealField: {
+                                                            ...selectField,
+                                                            options: selectField.options.map((o) => (o.id === fo.id ? { ...o, label: html } : o)),
+                                                          },
+                                                        })
+                                                      }
+                                                      ariaLabel="Texto de la opción del campo"
+                                                    />
+                                                  </div>
+                                                  <Button
+                                                    type="button"
+                                                    variant="danger"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                      updateCell(row.id, col.id, {
+                                                        revealField: { ...selectField, options: selectField.options.filter((o) => o.id !== fo.id) },
+                                                      })
+                                                    }
+                                                    disabled={selectField.options.length <= 1}
+                                                  >
+                                                    Quitar
+                                                  </Button>
+                                                </div>
+                                              ))}
+                                              <Button
+                                                type="button"
+                                                size="sm"
+                                                onClick={() =>
+                                                  updateCell(row.id, col.id, {
+                                                    revealField: { ...selectField, options: [...selectField.options, { id: crypto.randomUUID(), label: "" }] },
+                                                  })
+                                                }
+                                              >
+                                                Agregar opción
+                                              </Button>
+                                            </div>
+                                          );
+                                        })()}
+                                      {cell.revealField?.type === "texto_corto" &&
+                                        (() => {
+                                          const textoField = cell.revealField;
+                                          return (
+                                            <label className="field" style={{ marginLeft: "var(--space-4)" }}>
+                                              <span className="field__label">Longitud máxima</span>
+                                              <input
+                                                type="number"
+                                                value={textoField.maxLength ?? ""}
+                                                onChange={(e) =>
+                                                  updateCell(row.id, col.id, {
+                                                    revealField: { ...textoField, maxLength: e.target.value === "" ? undefined : Number(e.target.value) },
+                                                  })
+                                                }
+                                              />
+                                            </label>
+                                          );
+                                        })()}
+                                      {cell.revealField?.type === "numero" &&
+                                        (() => {
+                                          const numeroField = cell.revealField;
+                                          return (
+                                            <div className="field-grid" style={{ marginLeft: "var(--space-4)" }}>
+                                              <label className="field">
+                                                <span className="field__label">Mínimo</span>
+                                                <input
+                                                  type="number"
+                                                  value={numeroField.min ?? ""}
+                                                  onChange={(e) =>
+                                                    updateCell(row.id, col.id, {
+                                                      revealField: { ...numeroField, min: e.target.value === "" ? undefined : Number(e.target.value) },
+                                                    })
+                                                  }
+                                                />
+                                              </label>
+                                              <label className="field">
+                                                <span className="field__label">Máximo</span>
+                                                <input
+                                                  type="number"
+                                                  value={numeroField.max ?? ""}
+                                                  onChange={(e) =>
+                                                    updateCell(row.id, col.id, {
+                                                      revealField: { ...numeroField, max: e.target.value === "" ? undefined : Number(e.target.value) },
+                                                    })
+                                                  }
+                                                />
+                                              </label>
+                                              <label className="field">
+                                                <span className="field__label">Unidad</span>
+                                                <input
+                                                  value={numeroField.unit ?? ""}
+                                                  onChange={(e) =>
+                                                    updateCell(row.id, col.id, {
+                                                      revealField: { ...numeroField, unit: e.target.value === "" ? undefined : e.target.value },
+                                                    })
+                                                  }
+                                                />
+                                              </label>
+                                            </div>
+                                          );
+                                        })()}
                                     </>
                                   )}
                                 </>

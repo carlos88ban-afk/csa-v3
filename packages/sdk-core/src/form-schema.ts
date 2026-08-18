@@ -131,12 +131,17 @@ const formTableCell = z.object({
   availableUnits: z.array(z.string().min(1)).min(1).optional(),
   options: z.array(formOptionBase).min(1).optional(),
   maxLength: z.number().int().positive().optional(),
-  revealText: z.boolean().optional(), // VS-061 — solo aplica si cellType === "casilla"
   // VS-064 (docs/engines/form.md "Etiqueta propia de una celda casilla"):
   // texto de la propia casilla (el evaluado necesita entender qué está
   // marcando) — distinto de `content` (título/descripción de la celda,
   // ANTES del control). Solo aplica si cellType === "casilla".
   checkboxLabel: z.string().optional(),
+  // VS-065 (docs/engines/form.md "Campo elegido por el admin al marcar una
+  // celda casilla"): reemplaza el `revealText: boolean` de VS-061 (fijo a
+  // texto libre) — el admin ahora elige el TIPO de campo que se revela al
+  // marcar, mismo `subOptionField` ya usado por subOption.field (VS-040) y
+  // formOption.field (VS-062). Solo aplica si cellType === "casilla".
+  revealField: subOptionField.optional(),
 })
 // VS-043: si cellType es "calculado", expression es obligatorio
 .superRefine((cell, ctx) => {

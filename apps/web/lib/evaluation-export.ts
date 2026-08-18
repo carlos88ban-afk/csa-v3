@@ -35,6 +35,24 @@ function cellConfig(row: FormTableRow, columnId: string): FormTableCell | undefi
   return row.cells.find((c) => c.columnId === columnId);
 }
 
+// VS-065 (docs/engines/form.md "Campo elegido por el admin al marcar una
+// celda casilla"): resuelve `cellCfg.revealField` (mismo tipo
+// `subOptionField` que sub.field/opt.field) bajo la clave sintética
+// `${prefix}::field` — misma resolución que sub.field/opt.field (label si
+// es seleccion_desplegable, valor literal + unidad si es numero/texto_corto).
+// Compartida entre las 2 llamadas (tabla embebida y tabla_datos suelto) para
+// no duplicar la resolución.
+function resolveRevealField(cellCfg: FormTableCell, prefix: string, answers: ResponseAnswers): string | undefined {
+  if (cellCfg.cellType !== "casilla" || !cellCfg.revealField) return undefined;
+  const raw = answers[`${prefix}::field`];
+  if (raw === undefined || raw === "") return undefined;
+  const field = cellCfg.revealField;
+  const resolved =
+    field.type === "seleccion_desplegable" ? (field.options.find((o) => o.id === raw)?.label ?? String(raw)) : String(raw);
+  const unit = field.type === "numero" && field.unit ? ` ${field.unit}` : "";
+  return `${resolved}${unit}`;
+}
+
 type QuestionComponentType = Extract<(typeof componentRegistry)[number], { isQuestion: true }>["type"];
 const QUESTION_TYPES = new Set<QuestionComponentType>(
   componentRegistry
@@ -97,12 +115,10 @@ function formatEmbeddedTable(table: TablaDatosConfig, tableKey: string, answers:
               : cellCfg.cellType === "casilla"
                 ? "Sí"
                 : String(cell);
-          // VS-061: texto revelado de una celda "casilla", misma clave
-          // sintética compuesta que la unidad por celda (VS-048).
-          const revealed =
-            cellCfg.cellType === "casilla" && cellCfg.revealText
-              ? (answers[commentKey(`${tableKey}::${row.id}::${col.id}`)] as string | undefined)
-              : undefined;
+          // VS-065: campo revelado de una celda "casilla" — mismo tipo
+          // (`subOptionField`) y misma resolución que sub.field/opt.field,
+          // clave sintética `${tableKey}::${row.id}::${col.id}::field`.
+          const revealed = resolveRevealField(cellCfg, `${tableKey}::${row.id}::${col.id}`, answers);
           return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}${revealed ? `: ${revealed}` : ""}`;
         })
         .filter((c): c is string => c !== null);
@@ -268,12 +284,9 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
                 : cellCfg.cellType === "casilla"
                   ? "Sí"
                   : String(cell);
-            // VS-061: texto revelado de una celda "casilla", misma clave
-            // sintética compuesta que la unidad por celda (VS-048).
-            const revealed =
-              cellCfg.cellType === "casilla" && cellCfg.revealText
-                ? (answers[commentKey(`${element.id}::${row.id}::${col.id}`)] as string | undefined)
-                : undefined;
+            // VS-065: campo revelado de una celda "casilla" — ver nota
+            // equivalente en formatEmbeddedTable arriba.
+            const revealed = resolveRevealField(cellCfg, `${element.id}::${row.id}::${col.id}`, answers);
             return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}${revealed ? `: ${revealed}` : ""}`;
           })
           .filter((c): c is string => c !== null);

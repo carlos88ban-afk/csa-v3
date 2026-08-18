@@ -37,7 +37,6 @@ function isQuestion(el: FormElement): el is Extract<FormElement, { type: Questio
 }
 
 const UNIT_KEY = "::unit";
-const COMMENT_KEY = "::comment"; // VS-061 — texto revelado de una celda tipo "casilla"
 
 interface Props {
   elements: FormElement[];
@@ -529,7 +528,9 @@ function PreviewTableView({
                 }
                 if (cellType === "casilla") {
                   const checked = cell === "true";
-                  const revealKey = `${unitKeyPrefix}::${row.id}::${col.id}${COMMENT_KEY}`;
+                  // VS-065: clave sintética `::field`, mismo sufijo que
+                  // sub.field/opt.field.
+                  const revealKey = `${unitKeyPrefix}::${row.id}::${col.id}::field`;
                   return (
                     <td key={col.id}>
                       {/* VS-063: `content` es el título/descripción fijo de
@@ -544,12 +545,12 @@ function PreviewTableView({
                         />
                         {cellCfg.checkboxLabel ? <RichLabel html={cellCfg.checkboxLabel} /> : <span className="sr-only">Marcar</span>}
                       </label>
-                      {cellCfg.revealText && checked && (
-                        <input
-                          type="text"
-                          value={(answers[revealKey] as string | undefined) ?? ""}
-                          placeholder="Especifique"
-                          onChange={(e) => onAnswerChange(revealKey, e.target.value)}
+                      {/* VS-065: mismo PreviewSubOptionField que sub.field/opt.field. */}
+                      {cellCfg.revealField && checked && (
+                        <PreviewSubOptionField
+                          field={cellCfg.revealField}
+                          value={answers[revealKey]}
+                          onChange={(next) => onAnswerChange(revealKey, next)}
                         />
                       )}
                     </td>
