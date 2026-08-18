@@ -1501,6 +1501,29 @@ function FormTableView({
                     </td>
                   );
                 }
+                if (cellType === "casilla") {
+                  const checked = cell === "true";
+                  const revealKey = commentKey(`${unitKeyPrefix}::${row.id}::${col.id}`);
+                  return (
+                    <td key={col.id}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={locked}
+                        onChange={(e) => updateCell(row.id, col.id, e.target.checked ? "true" : "")}
+                      />
+                      {cellCfg.revealText && checked && (
+                        <input
+                          type="text"
+                          value={(answers[revealKey] as string | undefined) ?? ""}
+                          placeholder="Especifique"
+                          disabled={locked}
+                          onChange={(e) => onAnswerChange(revealKey, e.target.value)}
+                        />
+                      )}
+                    </td>
+                  );
+                }
                 return (
                   <td key={col.id}>
                     <input

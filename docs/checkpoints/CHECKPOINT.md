@@ -3,7 +3,7 @@
 **Última actualización**: 2026-08-18  
 **Branch activa**: main  
 **Último slice cerrado**: VS-060 (tabla embebida directamente en una opción de nivel superior, `seleccion_unica`/`seleccion_multiple`) — commiteado y verificado en producción end-to-end, ver "Verificación en producción" abajo.  
-**Slice en progreso**: ninguno asignado — la feature "unidades de negocio" (VS-050 a VS-059) está completa en su alcance central, sin pendientes conocidos.
+**Slice en progreso**: VS-061 (celda de tabla tipo casilla con texto revelado, `formTableCell.cellType: "casilla"` — spec en `docs/engines/form.md`) — implementado, pendiente de commit/push y verificación en producción.
 
 ## Resumen ejecutivo
 

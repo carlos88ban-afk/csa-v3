@@ -37,6 +37,7 @@ function isQuestion(el: FormElement): el is Extract<FormElement, { type: Questio
 }
 
 const UNIT_KEY = "::unit";
+const COMMENT_KEY = "::comment"; // VS-061 — texto revelado de una celda tipo "casilla"
 
 interface Props {
   elements: FormElement[];
@@ -508,6 +509,27 @@ function PreviewTableView({
                         </select>
                       )}
                       {!availableUnits && unit && <span className="runtime-question__unit"> ({unit})</span>}
+                    </td>
+                  );
+                }
+                if (cellType === "casilla") {
+                  const checked = cell === "true";
+                  const revealKey = `${unitKeyPrefix}::${row.id}::${col.id}${COMMENT_KEY}`;
+                  return (
+                    <td key={col.id}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => updateCell(row.id, col.id, e.target.checked ? "true" : "", table, onChange)}
+                      />
+                      {cellCfg.revealText && checked && (
+                        <input
+                          type="text"
+                          value={(answers[revealKey] as string | undefined) ?? ""}
+                          placeholder="Especifique"
+                          onChange={(e) => onAnswerChange(revealKey, e.target.value)}
+                        />
+                      )}
                     </td>
                   );
                 }

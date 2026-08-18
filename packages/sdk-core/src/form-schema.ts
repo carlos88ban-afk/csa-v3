@@ -75,7 +75,10 @@ const subOptionField = z.discriminatedUnion("type", [
 // `availableUnits` solo si cellType === "numero", `maxLength` solo si
 // cellType === "texto" — no expresado como discriminated union anidado
 // (costo de complejidad no justificado, ver el doc), lo exige el Builder.
-const formTableCellType = z.enum(["texto", "numero", "seleccion_desplegable", "calculado"]);
+// VS-061 (docs/engines/form.md "Celda de tabla tipo casilla con texto
+// revelado"): "casilla" es una celda editable de valor booleano ("true"/"")
+// — mismo patrón que naKey/markedNA, sin ensanchar tableCellValue.
+const formTableCellType = z.enum(["texto", "numero", "seleccion_desplegable", "calculado", "casilla"]);
 
 // VS-048 (docs/engines/form.md "Grilla uniforme sin encabezados especiales"):
 // sin `label` — la grilla es uniforme, cualquier celda (incluida la esquina
@@ -124,6 +127,7 @@ const formTableCell = z.object({
   availableUnits: z.array(z.string().min(1)).min(1).optional(),
   options: z.array(formOptionBase).min(1).optional(),
   maxLength: z.number().int().positive().optional(),
+  revealText: z.boolean().optional(), // VS-061 — solo aplica si cellType === "casilla"
 })
 // VS-043: si cellType es "calculado", expression es obligatorio
 .superRefine((cell, ctx) => {

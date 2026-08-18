@@ -4,6 +4,17 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-061 — Celda de tabla tipo casilla con texto revelado (2026-08-18)
+
+Hallazgo de capacidad (HTML real `COG_AlignmentLongTermPerformance_Selection`, portal S&P, enviado por el usuario): una celda de una tabla embebida (`formOption.table`, VS-060) combina texto fijo con un checkbox `Yes_No` independiente que revela un input de texto al marcarse ("cláusula de recuperación... especifica"). Se modela como un `cellType` nuevo (`"casilla"`), no como una celda mixta contenido-fijo-más-control — mantiene la invariante "una celda, un tipo" ya establecida en VS-024/044/047/048 (spec en `docs/engines/form.md`, "Celda de tabla tipo casilla con texto revelado").
+
+- `packages/sdk-core/src/form-schema.ts`: `formTableCellType` gana `"casilla"`; `formTableCell` gana `revealText?: boolean`. Valor de celda sin ensanchar `tableCellValue` (`"true"`/`""`, mismo patrón que `naKey`/`markedNA`); texto revelado bajo clave sintética `commentKey(`${elementId}::${rowId}::${colId}`)` reutilizada sin cambios (mismo patrón que `unitKey` de VS-048).
+- Builder (`subindicator-editor.tsx`, `TableConfigEditor`): quinta opción en el `<select>` "Tipo" ("Casilla de verificación") + un checkbox de config ("Permitir texto adicional al marcar") — mismo editor de grilla ya usado para `tabla_datos`, `subOption.table` y `formOption.table`, sin UI nueva.
+- Runtime (`evaluations/[token]/page.tsx`) y Preview (`form-preview.tsx`): rama nueva en `FormTableView`/`PreviewTableView`, checkbox + input condicional de texto, mismo patrón inmutable que el resto de celdas de la tabla.
+- Export (`evaluation-export.ts`): las 2 ramas existentes que serializan tablas (`formatEmbeddedTable` para tabla embebida en opción/sub-opción, bloque inline para `tabla_datos` suelto) resuelven `casilla` como "Sí" y anexan el texto revelado si corresponde.
+
+**Estado**: implementado siguiendo el proceso doc-first (spec antes que código). Por instrucción explícita del usuario, sin build/typecheck/tests locales ni tests nuevos en `form-schema.test.ts` — verificación funcional pendiente directamente en producción (`csa-v3-web.vercel.app`), mismo criterio ya documentado para VS-060.
+
 ### Fix — Orden de referencias flexibles vs. tabla embebida en una opción (2026-08-18) — verificado en producción
 
 Reportado por el usuario el mismo día de VS-060 contra el HTML real: el bloque de referencias flexibles de una opción va ANTES de la tabla embebida, pero la implementación inicial de VS-060 renderizaba la tabla de forma fija antes que las referencias "before_suboptions" (default), sin pasar por el criterio de posición ya existente (VS-041). Corregido en Runtime (`seleccion_unica`/`seleccion_multiple`) y Preview: `table` ahora respeta el mismo `references.position` que `subOptions`/`secondaryOptions` — orden correcto: referencias "before" → table → subOptions → secondaryOptions → referencias "after". Commit `0c1792f`. Verificado en producción con una opción real con referencias Y tabla simultáneas (el slot de URL aparece antes del input de la tabla). Ver `bugs.md`.

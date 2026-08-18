@@ -92,8 +92,18 @@ function formatEmbeddedTable(table: TablaDatosConfig, tableKey: string, answers:
             ? ((answers[unitKey(`${tableKey}::${row.id}::${col.id}`)] as string | undefined) ?? cellCfg.availableUnits[0])
             : cellCfg.unit;
           const resolved =
-            cellCfg.cellType === "seleccion_desplegable" ? (stripCommentHtml(cellCfg.options?.find((o) => o.id === cell)?.label ?? "") || String(cell)) : String(cell);
-          return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}`;
+            cellCfg.cellType === "seleccion_desplegable"
+              ? (stripCommentHtml(cellCfg.options?.find((o) => o.id === cell)?.label ?? "") || String(cell))
+              : cellCfg.cellType === "casilla"
+                ? "Sí"
+                : String(cell);
+          // VS-061: texto revelado de una celda "casilla", misma clave
+          // sintética compuesta que la unidad por celda (VS-048).
+          const revealed =
+            cellCfg.cellType === "casilla" && cellCfg.revealText
+              ? (answers[commentKey(`${tableKey}::${row.id}::${col.id}`)] as string | undefined)
+              : undefined;
+          return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}${revealed ? `: ${revealed}` : ""}`;
         })
         .filter((c): c is string => c !== null);
       return cells.length > 0 ? `Fila ${rowIdx + 1}: ${cells.join(", ")}` : null;
@@ -241,8 +251,18 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
               ? ((answers[unitKey(`${element.id}::${row.id}::${col.id}`)] as string | undefined) ?? cellCfg.availableUnits[0])
               : cellCfg.unit;
             const resolved =
-              cellCfg.cellType === "seleccion_desplegable" ? (stripCommentHtml(cellCfg.options?.find((o) => o.id === cell)?.label ?? "") || String(cell)) : String(cell);
-            return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}`;
+              cellCfg.cellType === "seleccion_desplegable"
+                ? (stripCommentHtml(cellCfg.options?.find((o) => o.id === cell)?.label ?? "") || String(cell))
+                : cellCfg.cellType === "casilla"
+                  ? "Sí"
+                  : String(cell);
+            // VS-061: texto revelado de una celda "casilla", misma clave
+            // sintética compuesta que la unidad por celda (VS-048).
+            const revealed =
+              cellCfg.cellType === "casilla" && cellCfg.revealText
+                ? (answers[commentKey(`${element.id}::${row.id}::${col.id}`)] as string | undefined)
+                : undefined;
+            return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}${revealed ? `: ${revealed}` : ""}`;
           })
           .filter((c): c is string => c !== null);
         return cells.length > 0 ? `Fila ${rowIdx + 1}: ${cells.join(", ")}` : null;

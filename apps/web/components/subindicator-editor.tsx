@@ -244,6 +244,7 @@ function TableConfigEditor({
     numero: "Número",
     seleccion_desplegable: "Selección",
     calculado: "Calculado",
+    casilla: "Casilla de verificación",
   };
 
   return (
@@ -309,6 +310,7 @@ function TableConfigEditor({
                                   options: undefined,
                                   maxLength: undefined,
                                   expression: undefined,
+                                  revealText: undefined,
                                   editable: nextType === "calculado" ? true : cell.editable,
                                 });
                               }}
@@ -317,6 +319,7 @@ function TableConfigEditor({
                               <option value="numero">Número</option>
                               <option value="seleccion_desplegable">Selección desplegable</option>
                               <option value="calculado">Calculado</option>
+                              <option value="casilla">Casilla de verificación</option>
                             </select>
                           </label>
 
@@ -437,6 +440,17 @@ function TableConfigEditor({
                                         Agregar opción
                                       </Button>
                                     </div>
+                                  )}
+
+                                  {cell.cellType === "casilla" && (
+                                    <label className="field field--checkbox">
+                                      <input
+                                        type="checkbox"
+                                        checked={cell.revealText === true}
+                                        onChange={(e) => updateCell(row.id, col.id, { revealText: e.target.checked })}
+                                      />
+                                      <span className="field__label">Permitir texto adicional al marcar</span>
+                                    </label>
                                   )}
                                 </>
                               )}

@@ -1136,3 +1136,62 @@ En `formatAnswer` de `seleccion_unica`/`seleccion_multiple`, anexar a la celda R
 - Otros tipos de pregunta (texto, número, dropdown, tabla, etc.).
 - `position` configurable a nivel de pregunta (siempre entre texto y opciones).
 - Verificación en producción en navegador: en este slice NO hay verificación funcional (el entorno no tiene navegador).
+
+## Celda de tabla tipo casilla con texto revelado (VS-061)
+
+### Contexto y pedido
+
+HTML real de S&P (`COG_AlignmentLongTermPerformance_Selection`, tabla embebida en la opción "Sí" de nivel superior, mismo patrón de `formOption.table` de VS-060): la celda "Aspectos" de la fila "Periodo de rendimiento" combina contenido fijo (título en negrita + descripción) con un control **propio e independiente** del evaluado — un checkbox `Yes_No` ("La empresa cuenta con una cláusula de recuperación de recursos") que, al marcarse, revela un input de texto ("Por favor, especifica:").
+
+No es una celda "mixta" en el sentido de contenido-fijo-más-input-en-la-misma-celda: es una pregunta de tipo casilla+texto-opcional que el HTML de S&P coloca visualmente junto al contenido fijo de la fila. Se modela como lo que es — una celda editable más, con su propio `cellType` — no como una extensión del modo `content` (que sigue siendo exclusivamente fijo/no-interactivo, sin cambios). El admin la ubica agregando una celda a esa fila (mismo mecanismo "+" ya existente desde VS-047/048 para grillas irregulares); si quiere reproducir la agrupación visual del HTML original, usa la columna existente o agrega una columna nueva — decisión de layout del admin, no un caso especial del motor.
+
+### Decisión de diseño — nueva variante de `cellType`, no un concepto de celda mixta
+
+Ya existen 4 decisiones de diseño en este documento que evitan combinatoria no observada (tipo por fila con override por celda, VS-024/044; `editable`/`content` binario, VS-047/048). Agregar "casilla" como quinto valor de `formTableCellType` mantiene esa misma invariante — **una celda, un tipo** — en vez de introducir una noción nueva de celda que sea simultáneamente contenido fijo Y control interactivo, que rompería esa invariante para un solo caso de uso observado.
+
+```ts
+const formTableCellType = z.enum(["texto", "numero", "seleccion_desplegable", "calculado", "casilla"]); // VS-061
+
+const formTableCell = z.object({
+  columnId: z.string().min(1),
+  cellType: formTableCellType,
+  expression: z.string().optional(),
+  editable: z.boolean().optional(),
+  content: z.string().optional(),
+  unit: z.string().min(1).optional(),
+  availableUnits: z.array(z.string().min(1)).min(1).optional(),
+  options: z.array(formOptionBase).min(1).optional(),
+  maxLength: z.number().int().positive().optional(),
+  revealText: z.boolean().optional(), // VS-061 — solo aplica si cellType === "casilla"
+});
+```
+
+`revealText` (default `false`/ausente = casilla simple sin texto adicional) es la única config nueva — mismo criterio de costo/beneficio que el resto de config por celda: no hay validación cruzada en zod (el Builder la exige solo como regla de UI), consistente con `options` de `seleccion_desplegable` (VS-024) y `expression` de `calculado` (VS-043, única celda con `.superRefine()` porque ahí sí hay una dependencia dura, no solo cosmética).
+
+### Respuesta: cero cambios de forma
+
+El valor de la celda sigue siendo `tableCellValue = string | number` (sin cambios): la casilla marcada se guarda como `"true"`, sin marcar como `""` — mismo patrón exacto que `naKey`/`markedNA` (`packages/sdk-core/src/response.ts`, `onAnswerChange(naKey(elementId), e.target.checked ? "true" : "")`), no un booleano nuevo en `tableCellValue`.
+
+El texto revelado (cuando `revealText === true` y la celda está marcada) se guarda bajo una clave sintética en el mapa `answers` de nivel superior, **reutilizando `commentKey` sin cambios** (`packages/sdk-core/src/response.ts`), con el mismo id compuesto de 3 segmentos ya usado por `unitKey` para unidad por celda (VS-048): `commentKey(`${element.id}::${row.id}::${col.id}`)` → `"${element.id}::${row.id}::${col.id}::comment"`. Cero cambios en `response.ts`.
+
+### Builder (`TableConfigEditor`, `apps/web/components/subindicator-editor.tsx`)
+
+- `CELL_TYPE_LABEL` gana `casilla: "Casilla de verificación"`.
+- El `<select>` "Tipo" gana la opción `<option value="casilla">Casilla de verificación</option>` — mismo `<select>` ya usado para texto/número/selección/calculado, sin un control nuevo.
+- Nueva rama condicional (hermana de las de `texto`/`numero`/`seleccion_desplegable`, dentro del bloque `editable`): un solo checkbox de config, `Permitir texto adicional al marcar` (`revealText`) — no hay más config posible para este tipo, así que no hay bloque adicional cuando está desmarcado.
+- El reset de campos al cambiar de tipo (`updateCell(..., { cellType: nextType, unit: undefined, availableUnits: undefined, options: undefined, maxLength: undefined, expression: undefined, ... })`) gana `revealText: undefined` en la misma línea — mismo criterio ya aplicado a los otros campos de config específica de tipo.
+
+### Runtime (`FormTableView`, `apps/web/app/evaluations/[token]/page.tsx`) y Preview (`PreviewTableView`, `apps/web/components/form-preview.tsx`)
+
+Nueva rama `if (cellType === "casilla")`, mismo punto donde ya viven las ramas de `seleccion_desplegable`/`numero` (antes del fallback de `texto`): `<input type="checkbox">` que lee/escribe `cell === "true"` vía `updateCell` (mismo `onChange` inmutable que el resto de la tabla); si `cellCfg.revealText` y la celda está marcada, un `<input type="text">` adicional debajo que lee/escribe `answers[commentKey(`${unitKeyPrefix}::${row.id}::${col.id}`)]` vía `onAnswerChange` — mismo patrón ya usado para el `<select>` de unidad condicional de la rama `numero` (VS-048), reemplazando `unitKey` por `commentKey`. Preview usa `previewAnswers`/`setPreviewAnswers` en vez de `answers`/`onAnswerChange`, sin otro cambio (mismo patrón que el resto de `PreviewTableView`).
+
+### Exportación (`apps/web/lib/evaluation-export.ts`)
+
+Las dos ramas que serializan una tabla ("fila N: columna M=valor", `formatEmbeddedTable` para tablas embebidas en opción/sub-opción y el bloque inline de `tabla_datos` suelto en `formatAnswer` — deliberadamente duplicadas desde VS-024, ver nota existente en el archivo) ganan una rama más en la resolución de `resolved`: `cellCfg.cellType === "casilla" ? "Sí" : ...` (una celda sin marcar ya no llega aquí — el filtro existente `cell === undefined || cell === ""` la descarta antes, igual que cualquier otro tipo sin responder). Si `cellCfg.revealText` y hay texto guardado bajo la clave `commentKey` compuesta, se anexa como `": ${texto}"` al final de esa columna — mismo separador conceptual (`:`) que el resto del formato, sin caracteres nuevos de sintaxis.
+
+### Fuera de alcance (explícito)
+
+- **Celda verdaderamente mixta** (contenido fijo Y control interactivo dentro de la misma celda `<td>`) — ver "Decisión de diseño" arriba: no hay caso observado que lo requiera una vez que "casilla" existe como celda propia; si aparece, es aditivo (un `content` que conviva con `cellType !== undefined` en la misma celda), no un rediseño de esta spec.
+- **Múltiples casillas independientes en una sola celda** — una celda `casilla` es una sola pregunta booleana; si una fila necesita más de una, se modela como celdas adicionales (mismo mecanismo "+" de VS-047/048), no como un array dentro de la celda.
+- **Validación de que `revealText` tenga contenido cuando la casilla está marcada** — igual criterio que el resto del motor (`persistence.md`, "Validación de reglas de contenido al guardar" fuera de alcance): se guarda lo que el evaluado escriba, vacío incluido.
+- **Verificación en producción con `pnpm dev`/typecheck/tests locales** — por instrucción explícita del usuario, este slice se verifica únicamente contra el deploy de Vercel (`csa-v3-web.vercel.app`) vía navegador real, mismo criterio ya documentado para VS-060.
