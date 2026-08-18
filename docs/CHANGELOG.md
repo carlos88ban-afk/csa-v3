@@ -4,6 +4,17 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-060 — Tabla embebida directamente en una opción de nivel superior (2026-08-18) — verificado en producción
+
+Hallazgo de capacidad (HTML real `COG_GenderDiversity_Selection`, portal S&P, enviado por el usuario): una opción de `seleccion_unica` trae una tabla completa colgando directo de ella (sin sub-radio intermedio) — VS-042 solo cubría el caso de tabla embebida en una **sub-opción** (`subOption.table`); `formOption` (la opción de nivel superior) no tenía ese campo.
+
+- `packages/sdk-core`: `formOption` gana `table: tablaDatosConfig.optional()` (mismo shape que `subOption.table`, VS-042). 3 tests nuevos en `form-schema.test.ts`.
+- Runtime/Preview (`evaluations/[token]/page.tsx`, `form-preview.tsx`): `FormTableView`/`PreviewTableView` reutilizados para `opt.table` en `seleccion_unica` y `seleccion_multiple`, clave sintética `${elementId}::${optionId}::table`.
+- Builder (`subindicator-editor.tsx`): `addOptionTable`/`removeOptionTable`/`updateOptionTable` + `TableConfigEditor` reutilizado, mismo patrón que `addOptionReferences`/`removeOptionReferences` ya existentes.
+- Export CSV/XLSX (`evaluation-export.ts`): `formatEmbeddedTable` extraído como helper compartido entre `subOption.table` y `formOption.table` (antes solo en `formatSubOptionExtras`); el `tabla_datos` suelto en `formatAnswer` queda sin tocar (contrato de retorno distinto).
+
+**Verificación en producción**: framework temporal con una pregunta `seleccion_unica` de 2 opciones, la primera con tabla embebida (celda numérica) — confirmado en los 4 puntos: Builder muestra "Agregar tabla" en la opción y la UI de configuración reutilizada funciona; Vista previa del Builder renderiza la tabla al marcar la opción y acepta el valor; Runtime público guarda el valor (autosave), sobrevive a recarga completa de página, y el valor de la tabla persiste incluso mientras la opción está temporalmente desmarcada; export CSV incluye `(Tabla: Fila 1: Columna 1=4)` anexado a la celda Respuesta de la opción elegida. Framework y evaluación de prueba borrados al terminar.
+
 ### VS-057/058/059 — Bloqueo de cliente por plazo vencido, evidencia autenticada, editor de exclusiones (2026-08-18) — verificado en producción
 
 Cierra los 3 pendientes que quedaban del "Próximos pasos" de VS-055 (spec: `docs/domain/business-units.md`). Los 3 commiteados, desplegados y **verificados end-to-end en `csa-v3-web.vercel.app`** con framework/evaluaciones/organización de prueba temporales (borrados al terminar).

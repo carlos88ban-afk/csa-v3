@@ -2,7 +2,7 @@
 
 **Última actualización**: 2026-08-18  
 **Branch activa**: main  
-**Último slice cerrado**: VS-057/058/059 (bloqueo de cliente por plazo vencido, evidencia autenticada, editor de exclusiones UI) — **las 3 commiteadas y verificadas en producción end-to-end**, ver "Verificación en producción" abajo.  
+**Último slice cerrado**: VS-060 (tabla embebida directamente en una opción de nivel superior, `seleccion_unica`/`seleccion_multiple`) — commiteado y verificado en producción end-to-end, ver "Verificación en producción" abajo.  
 **Slice en progreso**: ninguno asignado — la feature "unidades de negocio" (VS-050 a VS-059) está completa en su alcance central, sin pendientes conocidos.
 
 ## Resumen ejecutivo
@@ -10,6 +10,13 @@
 Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). La feature "unidades de negocio" (VS-050 a VS-059: jerarquía de Organization, partición de Response, dueDate/contactEmail, acceso autenticado, panel Publicar, export XLSX, dashboard de progreso, bloqueo de cliente, evidencia autenticada, editor de exclusiones) está completa y **verificada de punta a punta en producción real** — asignación de unidad, aislamiento de respuestas y de progreso, bloqueo del link público en modo corporativo, rechazo de organizaciones no asignadas, export XLSX con datos reales, exclusión de Subindicador/pregunta individual reflejada en dashboard y Runtime autenticado, bloqueo de cliente por plazo vencido, y evidencia autenticada (subir/descargar/borrar + rechazo de elemento excluido) — todo confirmado con datos de prueba (borrados al terminar cada verificación). **Nota de integridad histórica**: esta misma entrada de checkpoint tuvo una versión anterior que describía un refactor de UI (`runtime-shell.tsx`) que NUNCA se llegó a commitear — corregida verificando directamente contra el código real, ver `bugs.md` para el detalle completo (mismo patrón de riesgo que VS-043/`evaluateTableExpression`).
 
 ## Verificación en producción (2026-08-18)
+
+**VS-060**: framework temporal con 1 pregunta `seleccion_unica` de 2 opciones (la primera con tabla embebida de una celda numérica), evaluación pública publicada, borrados al terminar.
+- Builder: botón "Agregar tabla" visible en la opción de nivel superior, mismo `TableConfigEditor` reutilizado (cambio de tipo de celda a Número confirmado).
+- Vista previa del Builder: tabla se renderiza al marcar la opción, acepta el valor.
+- Runtime público: valor guardado (autosave), confirmado persistente tras recarga completa de página real (no solo estado en memoria), y el valor sobrevive aunque la opción quede temporalmente desmarcada (el answer no se borra al ocultar).
+- Export CSV: `(Tabla: Fila 1: Columna 1=4)` anexado correctamente a la celda Respuesta de la opción elegida.
+- Deploy Vercel confirmado `READY` antes de la verificación funcional (sin build/typecheck local, por instrucción del usuario).
 
 **VS-057/058/059**: framework temporal (1 Dimensión, 1 Subindicador directo, 2 preguntas + 1 Evidencia agregada durante la verificación) + 2 Evaluaciones + 1 organización-unidad-de-negocio, todo borrado al terminar.
 - **Bug real encontrado y corregido**: editor de exclusiones mostraba preguntas sin texto como el string literal `<p></p>` en vez de "(sin texto)" — fix con `stripCommentHtml`, ver `bugs.md`.
@@ -89,9 +96,15 @@ Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`c
 
 **Estado técnico**: **verificado en producción end-to-end** (ver sección arriba) — bug real de label vacío encontrado y corregido en el camino.
 
+## Último slice completado (VS-060)
+
+**Tabla embebida directo en una opción de nivel superior**: `formOption` gana `table` (mismo shape que `subOption.table` de VS-042). Runtime/Preview reutilizan `FormTableView`/`PreviewTableView`, clave `${elementId}::${optionId}::table`. Builder: `addOptionTable`/`removeOptionTable`/`updateOptionTable` + `TableConfigEditor` reutilizado. Export: `formatEmbeddedTable` extraído como helper compartido con `subOption.table`.
+
+**Estado técnico**: **verificado en producción end-to-end** (ver sección arriba) — Builder, Vista previa, Runtime público (con recarga completa) y export CSV confirmados con datos reales.
+
 ## Próximos pasos inmediatos
 
-Sin pendientes conocidos de la feature "unidades de negocio" (VS-050 a VS-059 completos y verificados). Próximo trabajo a definir con el usuario.
+Sin pendientes conocidos. Próximo trabajo a definir con el usuario.
 
 ## Decisiones pendientes
 

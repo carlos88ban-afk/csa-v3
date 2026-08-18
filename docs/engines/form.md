@@ -683,7 +683,7 @@ const subOption = z.object({
 - **`visibleIf` sobre la tabla embebida** — misma limitación ya documentada para `references`/`field`: las condiciones operan sobre Elementos, no sobre partes de una opción. La visibilidad de la tabla la gobierna la sub-opción (marcada = visible), igual que S&P.
 - **Export CSV**: mismo criterio que VS-039/040 — sin fila/columna nueva; el contenido de la tabla (un `TableValue` completo) se anexa a la celda `Respuesta` existente (misma serialización de `tabla_datos`).
 
-## Tabla embebida directamente en una opción de nivel superior (VS-060, pendiente — spec doc-first)
+## Tabla embebida directamente en una opción de nivel superior (VS-060, verificado en producción)
 
 Hallazgo del análisis de capacidad (2026-08-18, HTML real de `COG_GenderDiversity_Selection`, portal S&P, enviado por el usuario): la opción "Sí, la empresa informa..." de una pregunta `seleccion_unica` trae, anidados **directamente dentro del `<li>` de la opción** (sin ningún `<li>` de sub-radio intermedio): un bloque de referencias flexibles (`data-ref-type="flexible"`, ya soportado desde VS-039/045 vía `formOption.references`) y una `table.form-table` completa (columna "Métrica"/"Valor", fila "Número de directoras" con un campo numérico). VS-042 ya resolvió el caso de una tabla embebida en una **sub-opción** (`subOption.table`, un nivel de anidación más adentro que la opción misma), pero `formOption` — la opción de nivel superior de `seleccion_unica`/`seleccion_multiple`/`seleccion_desplegable` — no tiene ese campo: no había caso real observado hasta ahora de una tabla colgando directo de la opción, sin sub-radio de por medio.
 
