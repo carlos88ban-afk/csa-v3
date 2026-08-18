@@ -117,6 +117,10 @@ const formOptionBase = z.object({
 // llena el evaluado. Ausente = true (editable), mismo criterio que
 // subOptionsExclusive/startCollapsed en el resto del motor — no `.default()`
 // para no forzar el campo en cada literal existente.
+// VS-063 (docs/engines/form.md "Contenido fijo como prefijo de una celda
+// editable"): `content` ya no se ignora cuando editable !== false — si está
+// presente en una celda editable, se renderiza como texto fijo ANTES del
+// control interactivo (mismo `content`, mismo campo, sin cambio de schema).
 const formTableCell = z.object({
   columnId: z.string().min(1),
   cellType: formTableCellType,

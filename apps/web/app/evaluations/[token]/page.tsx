@@ -1458,6 +1458,8 @@ function FormTableView({
                 if (cellType === "seleccion_desplegable") {
                   return (
                     <td key={col.id}>
+                      {/* VS-063: contenido fijo como prefijo, ver nota en casilla abajo. */}
+                      {content && <RichLabel html={content} />}
                       <select
                         value={(cell as string) ?? ""}
                         disabled={locked}
@@ -1482,6 +1484,7 @@ function FormTableView({
                   const cellUnit = availableUnits ? ((answers[cellUnitKey] as string | undefined) ?? availableUnits[0]) : undefined;
                   return (
                     <td key={col.id}>
+                      {content && <RichLabel html={content} />}
                       <input
                         type="number"
                         value={cell === undefined ? "" : (cell as number)}
@@ -1506,6 +1509,15 @@ function FormTableView({
                   const revealKey = commentKey(`${unitKeyPrefix}::${row.id}::${col.id}`);
                   return (
                     <td key={col.id}>
+                      {/* VS-063 (docs/engines/form.md "Contenido fijo como
+                          prefijo de una celda editable"): `content` ya no se
+                          ignora cuando editable !== false — se renderiza
+                          fijo antes del control. La etiqueta propia del
+                          checkbox (si la hay) va incluida en ese mismo
+                          `content`, escrita por el admin junto al resto del
+                          texto fijo de la celda — el checkbox no lleva
+                          label propia acá. */}
+                      {content && <RichLabel html={content} />}
                       <input
                         type="checkbox"
                         checked={checked}
@@ -1526,6 +1538,7 @@ function FormTableView({
                 }
                 return (
                   <td key={col.id}>
+                    {content && <RichLabel html={content} />}
                     <input
                       value={(cell as string) ?? ""}
                       maxLength={cellMaxLength}

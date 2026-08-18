@@ -3,7 +3,7 @@
 **Última actualización**: 2026-08-18  
 **Branch activa**: main  
 **Último slice cerrado**: VS-061 (celda de tabla tipo casilla con texto revelado) y VS-062 (campo embebido directo en una opción de nivel superior) — ambos commiteados y verificados en producción end-to-end en el mismo caso combinado, ver "Verificación en producción" abajo.  
-**Slice en progreso**: ninguno asignado.
+**Slice en progreso**: VS-063 (contenido fijo como prefijo de una celda editable — spec en `docs/engines/form.md`) — implementado, pendiente de commit/push y verificación en producción.
 
 ## Resumen ejecutivo
 

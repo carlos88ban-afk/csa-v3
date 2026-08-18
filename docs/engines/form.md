@@ -1242,3 +1242,57 @@ Reusa `SubOptionFieldView`/`PreviewSubOptionField` (VS-040) tal cual — mismo c
 - **Variante de solo lectura/contenido fijo para este campo** — decisión confirmada con el usuario (ver "Decisión de diseño"): se modela como campo editable normal, no como una réplica del cálculo automático de S&P.
 - **`refType: "private"` en el bloque de referencias** — hallazgo secundario del mismo HTML (el selector "Tipo de referencia" del Builder solo ofrece `URL pública`/`Flexible`); no priorizado por el usuario en este slice, queda anotado para un gap futuro si se confirma que se necesita.
 - **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que VS-060/061, por instrucción explícita del usuario.
+
+## Contenido fijo como prefijo de una celda editable (VS-063)
+
+### Contexto y pedido
+
+Mismo HTML real de S&P que originó VS-061 (`COG_AlignmentLongTermPerformance_Selection`, fila "Periodo de rendimiento para la remuneración variable del CEO"): la celda combina, en este orden, **dentro de un mismo `<td>`**:
+
+1. Texto fijo (`<strong>` título + `<p>` descripción) — contenido del admin.
+2. Un checkbox `Yes_No` con su propia etiqueta ("La empresa cuenta con una cláusula de recuperación de recursos. Por favor, especifica:") — la celda `casilla` de VS-061.
+3. Un input de texto revelado al marcar — `revealText` de VS-061.
+
+VS-061 explícitamente dejó esto fuera de alcance ("Celda verdaderamente mixta — contenido fijo Y control interactivo dentro de la misma celda"), con la nota de que sería aditivo si aparecía un caso real. El usuario confirmó que necesita construir exactamente esto: "colocar texto, luego el checkbox con su contenido, y adicionarle el campo" — el texto fijo hace de encabezado/etiqueta de la celda, el checkbox (con su propia etiqueta ya incluida en ese texto fijo) y el campo revelado son la parte interactiva.
+
+### Decisión de diseño — relajar una restricción existente, no agregar campos nuevos
+
+`formTableCell.content` (VS-047) ya existe con el shape correcto (HTML sanitizado, mismo motor que el resto de labels). La única restricción a remover es semántica, no de schema: **`content` deja de ignorarse cuando `editable !== false`** — si está presente en una celda editable, se renderiza como texto fijo (rich label) inmediatamente ANTES del control interactivo de esa celda, sea cual sea su `cellType`. Cero cambios en `packages/sdk-core/src/form-schema.ts` (el campo `content: z.string().optional()` ya estaba ahí desde VS-047) — solo cambia dónde se lee en Runtime/Preview y dónde se expone en el Builder.
+
+La etiqueta propia del checkbox ("La empresa cuenta con... especifica:") **no es un campo nuevo** — el admin la escribe como parte del mismo `content` (junto con el título/descripción), ya que rich text ya soporta múltiples párrafos (VS-045). El checkbox en sí se renderiza sin label propia (ya la trae `content`), igual criterio que cualquier control sin `<label>` visible cuando el texto ya está cubierto por contexto inmediato anterior.
+
+```ts
+// packages/sdk-core/src/form-schema.ts — formTableCell, sin cambios de forma:
+const formTableCell = z.object({
+  columnId: z.string().min(1),
+  cellType: formTableCellType,
+  expression: z.string().optional(),
+  editable: z.boolean().optional(),
+  content: z.string().optional(), // VS-047, reinterpretado en VS-063: ya no exclusivo de editable === false
+  unit: z.string().min(1).optional(),
+  availableUnits: z.array(z.string().min(1)).min(1).optional(),
+  options: z.array(formOptionBase).min(1).optional(),
+  maxLength: z.number().int().positive().optional(),
+  revealText: z.boolean().optional(),
+});
+```
+
+**Compatible hacia atrás**: ninguna celda existente cambia de comportamiento — las celdas `editable === false` siguen mostrando solo `content` (sin control, sin cambios); las celdas `editable === true` sin `content` siguen sin mostrar nada antes del control (sin cambios). Solo la combinación nueva (`editable: true` + `content` presente) es la que antes se ignoraba y ahora se renderiza.
+
+### Builder (`TableConfigEditor`, `apps/web/components/subindicator-editor.tsx`)
+
+La rama `editable` (que hoy salta directo a la config específica de `cellType`) gana, como primer campo, un editor de rich text opcional **"Texto fijo antes del control"** (mismo `RichTextEditor` ya usado para el `content` de una celda `editable: false`) — visible siempre que la celda sea editable, sin un toggle adicional que complique el flujo: es un campo más, en blanco por defecto, igual costo cognitivo que "Ayuda" en una pregunta suelta. `calculado` queda sin este campo (una fórmula no necesita texto de encabezado propio — su resultado ya es autoexplicativo por la fila/columna, y agregar el campo ahí sería ruido sin caso de uso).
+
+### Runtime (`FormTableView`, `apps/web/app/evaluations/[token]/page.tsx`) y Preview (`PreviewTableView`, `apps/web/components/form-preview.tsx`)
+
+Las 4 ramas que ya renderizan un control editable (`seleccion_desplegable`, `numero`, `casilla` [VS-061], y el fallback `texto`) ganan, como primer hijo del `<td>`, `{content && <RichLabel html={content} />}` antes del control — mismo componente `RichLabel` ya usado para el modo `editable === false`. La rama `calculado` (siempre de solo lectura, se evalúa antes del chequeo de `editable`) queda sin cambios — no hay caso de uso observado ahí.
+
+### Exportación (`evaluation-export.ts`)
+
+**Sin cambios** — `content` es puramente de presentación (la etiqueta que ve el evaluado), nunca formó parte de la resolución de la celda Respuesta ni siquiera en su uso original (VS-047, celda `editable: false`); las 2 ramas que serializan tablas siguen resolviendo únicamente el valor de la celda (`cell`), no su `content`.
+
+### Fuera de alcance (explícito)
+
+- **`content` en celdas `calculado`** — sin caso de uso observado, ver "Runtime" arriba; aditivo si aparece.
+- **Múltiples controles interactivos en una misma celda** (ej. dos checkboxes independientes) — sigue habiendo un solo control por celda; si una fila necesita más de un control mixto-con-texto, se modela como celdas adicionales (mismo mecanismo "+" ya usado en VS-047/048/061), cada una con su propio `content` de encabezado si corresponde.
+- **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que VS-060/061/062, por instrucción explícita del usuario.

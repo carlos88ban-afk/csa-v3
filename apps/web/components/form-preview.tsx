@@ -486,6 +486,8 @@ function PreviewTableView({
                 if (cellType === "seleccion_desplegable") {
                   return (
                     <td key={col.id}>
+                      {/* VS-063: contenido fijo como prefijo, ver nota en casilla abajo. */}
+                      {content && <RichLabel html={content} />}
                       <select
                         value={(cell as string) ?? ""}
                         onChange={(e) => updateCell(row.id, col.id, e.target.value, table, onChange)}
@@ -506,6 +508,7 @@ function PreviewTableView({
                   const cellUnit = availableUnits ? ((answers[cellUnitKey] as string | undefined) ?? availableUnits[0]) : undefined;
                   return (
                     <td key={col.id}>
+                      {content && <RichLabel html={content} />}
                       <input
                         type="number"
                         value={(cell as string | number | undefined) ?? ""}
@@ -529,6 +532,12 @@ function PreviewTableView({
                   const revealKey = `${unitKeyPrefix}::${row.id}::${col.id}${COMMENT_KEY}`;
                   return (
                     <td key={col.id}>
+                      {/* VS-063 (docs/engines/form.md "Contenido fijo como
+                          prefijo de una celda editable"): la etiqueta propia
+                          del checkbox (si la hay) va incluida en `content`,
+                          escrita por el admin — el checkbox no lleva label
+                          propia acá. */}
+                      {content && <RichLabel html={content} />}
                       <input
                         type="checkbox"
                         checked={checked}
@@ -547,6 +556,7 @@ function PreviewTableView({
                 }
                 return (
                   <td key={col.id}>
+                    {content && <RichLabel html={content} />}
                     <input
                       type="text"
                       value={(cell as string | number | undefined) ?? ""}

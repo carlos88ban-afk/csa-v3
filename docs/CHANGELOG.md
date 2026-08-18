@@ -4,6 +4,18 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-063 — Contenido fijo como prefijo de una celda editable (2026-08-18)
+
+Mismo HTML real de S&P que originó VS-061 (`COG_AlignmentLongTermPerformance_Selection`, fila "Periodo de rendimiento"): la celda combina, DENTRO del mismo `<td>`, texto fijo (título+descripción) seguido de un checkbox `casilla` con su propia etiqueta y campo revelado — el caso "celda verdaderamente mixta" que VS-061 dejó explícitamente fuera de alcance. El usuario confirmó que lo necesita: "colocar texto, luego el checkbox con su contenido, y adicionarle el campo".
+
+- **Sin cambio de schema**: `formTableCell.content` (VS-047) ya existía — se relaja la restricción de que solo aplicaba cuando `editable === false`. Ahora, si una celda editable tiene `content`, se renderiza como texto fijo ANTES del control interactivo (checkbox, select, input). La etiqueta propia del checkbox va incluida en ese mismo `content` (rich text, admite varios párrafos desde VS-045) — el checkbox no lleva label propia.
+- Builder (`TableConfigEditor`): la rama `editable` gana un campo opcional "Texto fijo antes del control", mismo `RichTextEditor` ya usado para `content` en el modo solo-lectura.
+- Runtime/Preview: las 4 ramas de celda editable (`seleccion_desplegable`, `numero`, `casilla`, `texto`) renderizan `content` (si está presente) antes del control, mismo `RichLabel` ya usado en el modo solo-lectura.
+- Export: sin cambios — `content` es puramente de presentación, nunca formó parte de la celda Respuesta.
+- Spec en `docs/engines/form.md`, "Contenido fijo como prefijo de una celda editable".
+
+**Estado**: implementado siguiendo el proceso doc-first. Sin build/typecheck/tests locales por instrucción explícita del usuario.
+
 ### Verificación en producción — VS-061 y VS-062 (2026-08-18)
 
 Framework temporal ("QA VS-061-062 verificacion") con 1 pregunta `seleccion_unica` cuya opción trae, a la vez, un campo embebido `texto_corto` (VS-062) y una tabla embebida con una celda `casilla` con `revealText` (VS-061) — mismo caso combinado del HTML real de S&P (`COG_DisclosureMedian_Selection`/`COG_AlignmentLongTermPerformance_Selection`). Verificado con Playwright contra `csa-v3-web.vercel.app` (deploy `10ff761`, `READY`):

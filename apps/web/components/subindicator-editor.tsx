@@ -374,6 +374,20 @@ function TableConfigEditor({
                                 </label>
                               ) : (
                                 <>
+                                  {/* VS-063 (docs/engines/form.md "Contenido
+                                      fijo como prefijo de una celda
+                                      editable"): mismo `content` que la rama
+                                      !editable, ahora renderizado ANTES del
+                                      control en vez de reemplazarlo. */}
+                                  <label className="field">
+                                    <span className="field__label">Texto fijo antes del control (opcional)</span>
+                                    <RichTextEditor
+                                      value={cell.content ?? ""}
+                                      onChange={(html) => updateCell(row.id, col.id, { content: html })}
+                                      ariaLabel="Texto fijo antes del control de la celda"
+                                    />
+                                  </label>
+
                                   {cell.cellType === "texto" && (
                                     <label className="field">
                                       <span className="field__label">Longitud máxima</span>
