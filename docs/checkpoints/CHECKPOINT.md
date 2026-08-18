@@ -3,7 +3,7 @@
 **Última actualización**: 2026-08-18  
 **Branch activa**: main  
 **Último slice cerrado**: VS-060 (tabla embebida directamente en una opción de nivel superior, `seleccion_unica`/`seleccion_multiple`) — commiteado y verificado en producción end-to-end, ver "Verificación en producción" abajo.  
-**Slice en progreso**: VS-061 (celda de tabla tipo casilla con texto revelado, `formTableCell.cellType: "casilla"` — spec en `docs/engines/form.md`) — implementado, pendiente de commit/push y verificación en producción.
+**Slice en progreso**: VS-061 (celda de tabla tipo casilla, commiteado/pusheado, deploy READY, verificación en producción interrumpida por indisponibilidad temporal del clasificador de seguridad del navegador) y VS-062 (campo embebido directo en una opción de nivel superior, `formOption.field` — spec en `docs/engines/form.md`) — ambos implementados, pendientes de commit/push+verificación conjunta.
 
 ## Resumen ejecutivo
 

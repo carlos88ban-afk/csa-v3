@@ -302,6 +302,18 @@ function PreviewElement({
                 className="runtime-url-list sub-options"
               />
             )}
+            {/* VS-062 (docs/engines/form.md "Campo embebido directo en una
+                opción de nivel superior"): mismo PreviewSubOptionField que
+                sub.field. Va antes de la tabla — mismo orden visual que el
+                HTML real de S&P (COG_DisclosureMedian_Selection: "Moneda:"
+                antes de la tabla). */}
+            {isSelected(opt.id) && opt.field && (
+              <PreviewSubOptionField
+                field={opt.field}
+                value={answers[`${element.id}::${opt.id}::field`]}
+                onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::field`, next)}
+              />
+            )}
             {/* VS-060 (docs/engines/form.md "Tabla embebida directamente en
                 una opción de nivel superior"): mismo PreviewTableView que
                 tabla_datos/subOption.table. Va después de las referencias

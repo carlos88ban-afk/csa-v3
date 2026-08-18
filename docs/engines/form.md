@@ -1195,3 +1195,50 @@ Las dos ramas que serializan una tabla ("fila N: columna M=valor", `formatEmbedd
 - **Múltiples casillas independientes en una sola celda** — una celda `casilla` es una sola pregunta booleana; si una fila necesita más de una, se modela como celdas adicionales (mismo mecanismo "+" de VS-047/048), no como un array dentro de la celda.
 - **Validación de que `revealText` tenga contenido cuando la casilla está marcada** — igual criterio que el resto del motor (`persistence.md`, "Validación de reglas de contenido al guardar" fuera de alcance): se guarda lo que el evaluado escriba, vacío incluido.
 - **Verificación en producción con `pnpm dev`/typecheck/tests locales** — por instrucción explícita del usuario, este slice se verifica únicamente contra el deploy de Vercel (`csa-v3-web.vercel.app`) vía navegador real, mismo criterio ya documentado para VS-060.
+
+## Campo embebido directo en una opción de nivel superior (VS-062)
+
+### Contexto y pedido
+
+HTML real de S&P (`COG_DisclosureMedian_Selection`, "Ratio salarial CEO-empleado"): la opción "Sí" de un `seleccion_unica` trae, entre el bloque de referencias (`data-ref-type="private"`) y la tabla embebida (`formOption.table`, VS-060), un campo suelto — `"Moneda:"` + un `<input>` (`data-dpd-type="Text"`, marcado `readonly`/`disabled` en el HTML fuente, con el hint "no editable, calculado a partir de los datos del cuestionario"). No es una fila de la tabla ni depende de un sub-radio: cuelga directo de la opción.
+
+Verificado en producción (Builder real, framework temporal): el editor de una opción de `seleccion_unica`/`seleccion_multiple` solo ofrece "Agregar sub-opción", "Agregar bloque secundario de sub-opciones", "Agregar tabla" y "Agregar referencias" — **no existe forma de agregar un campo suelto directo a la opción**. El campo embebido con tipo (select/texto/número) ya existe (`subOptionField`, VS-040) pero está atado exclusivamente a `subOption`, no a `formOption` — a diferencia de `references`/`table`, que VS-039/042/060 sí extendieron a ambos niveles.
+
+### Decisión de diseño
+
+**Reusar `subOptionField` tal cual en `formOption`, mismo patrón ya usado para `references`/`table`** — no un tipo nuevo, un campo más compartido entre `subOption` y `formOption`.
+
+Sobre el carácter "de solo lectura/calculado" del campo real de S&P: el motor no tiene (ni construye acá) un mecanismo de cálculo cruzado entre preguntas — `engine/formula` opera sobre referencias dentro del mismo Elemento/tabla (VS-013/043), y VS-023 ya dejó "conversión entre unidades" fuera de alcance explícito por el mismo motivo. Replicar el cálculo real de S&P (moneda derivada de datos externos al cuestionario) no es viable con lo que existe. Se modela como campo **editable normal** (`texto_corto`, el evaluado escribe la moneda) — decisión confirmada con el usuario, quien prefirió esto a una variante de solo lectura para no introducir un mecanismo de contenido fijo nuevo a nivel de campo (ya existe uno a nivel de celda de tabla, VS-047, que no aplica acá porque no hay tabla involucrada).
+
+```ts
+const formOption = formOptionBase.extend({
+  subOptions: z.array(subOption).optional(),
+  secondaryOptionsHeading: z.string().optional(),
+  secondaryOptions: z.array(subOption).optional(),
+  secondaryOptionsExclusive: z.boolean().optional(),
+  table: tablaDatosConfig.optional(),
+  field: subOptionField.optional(), // VS-062 — mismo tipo que subOption.field (VS-040)
+});
+```
+
+### Respuesta: misma clave sintética que `subOption.field`, un nivel menos
+
+Cero cambios en `response.ts`: clave sintética `` `${elementId}::${optionId}::field` `` → `string | number` (según `field.type`) — mismo patrón ya usado por `subOption.field` (`` `${subOptionKey}::field` ``, VS-040) y por `opt.table`/`opt.references` (VS-060/039), un segmento menos de anidación.
+
+### Builder (`subindicator-editor.tsx`)
+
+`addOptionField`/`removeOptionField`/`updateOptionFieldMaxLength`/`updateOptionFieldNumero`/`addOptionFieldOption`/`updateOptionFieldOption`/`removeOptionFieldOption` — mismas 7 funciones que `addSubOptionField`/etc (VS-040), sin el parámetro `subOptionId`/`block`, operando un nivel más arriba (`el.options.map(opt => ...)` en vez de `opt[block].map(sub => ...)`). JSX idéntico al de `sub.field` (`<select>` "Agregar campo…" con 3 tipos, config condicional por tipo), insertado en el editor de la opción de nivel superior **antes del bloque de tabla** (mismo orden visual que el HTML de S&P: campo antes de la tabla) — la referencia sigue yendo antes según su propio `position` (VS-041), sin cambios ahí.
+
+### Runtime (`evaluations/[token]/page.tsx`) y Preview (`form-preview.tsx`)
+
+Reusa `SubOptionFieldView`/`PreviewSubOptionField` (VS-040) tal cual — mismo componente, ahora también invocado a nivel de opción con la clave de 2 segmentos en vez de 3. Insertado entre el bloque de referencias "before_suboptions" y el de tabla (VS-060), tanto en `seleccion_unica` como en `seleccion_multiple`.
+
+### Exportación (`evaluation-export.ts`)
+
+`formatOptionLabel` gana una rama que resuelve `opt.field` con la misma lógica ya usada en `formatSubOptionExtras` para `sub.field` (resuelve label si es `seleccion_desplegable`, valor literal + unidad si es `numero`/`texto_corto`), anexada a la celda de Respuesta como `" (valor)"` — antes del sufijo de tabla, mismo orden visual que el Builder/Runtime.
+
+### Fuera de alcance (explícito)
+
+- **Variante de solo lectura/contenido fijo para este campo** — decisión confirmada con el usuario (ver "Decisión de diseño"): se modela como campo editable normal, no como una réplica del cálculo automático de S&P.
+- **`refType: "private"` en el bloque de referencias** — hallazgo secundario del mismo HTML (el selector "Tipo de referencia" del Builder solo ofrece `URL pública`/`Flexible`); no priorizado por el usuario en este slice, queda anotado para un gap futuro si se confirma que se necesita.
+- **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que VS-060/061, por instrucción explícita del usuario.

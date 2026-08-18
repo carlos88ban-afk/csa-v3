@@ -918,6 +918,77 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     );
   }
 
+  // Campo embebido directo en una opción de nivel superior (VS-062,
+  // docs/engines/form.md "Campo embebido directo en una opción de nivel
+  // superior"): mismo tipo `SubOptionField` que VS-040 (subOption.field), un
+  // nivel menos de anidación — la opción misma, no una sub-opción. Mismo
+  // patrón de funciones que addSubOptionField/removeSubOptionField/etc, sin
+  // el parámetro `subOptionId`/`block`.
+  type FormOption = Extract<FormElement, { type: "seleccion_unica" }>["options"][number];
+
+  function updateOptionNode(elementId: string, optionId: string, updater: (opt: FormOption) => FormOption) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return { ...el, options: el.options.map((opt) => (opt.id === optionId ? updater(opt) : opt)) };
+      }),
+    );
+  }
+
+  function addOptionField(elementId: string, optionId: string, type: SubOptionField["type"]) {
+    const field: SubOptionField =
+      type === "seleccion_desplegable"
+        ? { type: "seleccion_desplegable", options: [{ id: crypto.randomUUID(), label: "" }] }
+        : type === "texto_corto"
+          ? { type: "texto_corto" }
+          : { type: "numero" };
+    updateOptionNode(elementId, optionId, (opt) => ({ ...opt, field }));
+  }
+
+  function removeOptionField(elementId: string, optionId: string) {
+    updateOptionNode(elementId, optionId, (opt) => {
+      const { field: _field, ...rest } = opt;
+      return rest;
+    });
+  }
+
+  function updateOptionFieldMaxLength(elementId: string, optionId: string, maxLength: number | undefined) {
+    updateOptionNode(elementId, optionId, (opt) => (opt.field?.type === "texto_corto" ? { ...opt, field: { ...opt.field, maxLength } } : opt));
+  }
+
+  function updateOptionFieldNumero(
+    elementId: string,
+    optionId: string,
+    patch: { min?: number | undefined; max?: number | undefined; unit?: string | undefined },
+  ) {
+    updateOptionNode(elementId, optionId, (opt) => (opt.field?.type === "numero" ? { ...opt, field: { ...opt.field, ...patch } } : opt));
+  }
+
+  function addOptionFieldOption(elementId: string, optionId: string) {
+    updateOptionNode(elementId, optionId, (opt) =>
+      opt.field?.type === "seleccion_desplegable"
+        ? { ...opt, field: { ...opt.field, options: [...opt.field.options, { id: crypto.randomUUID(), label: "" }] } }
+        : opt,
+    );
+  }
+
+  function updateOptionFieldOption(elementId: string, optionId: string, fieldOptionId: string, label: string) {
+    updateOptionNode(elementId, optionId, (opt) =>
+      opt.field?.type === "seleccion_desplegable"
+        ? { ...opt, field: { ...opt.field, options: opt.field.options.map((o) => (o.id === fieldOptionId ? { ...o, label } : o)) } }
+        : opt,
+    );
+  }
+
+  function removeOptionFieldOption(elementId: string, optionId: string, fieldOptionId: string) {
+    updateOptionNode(elementId, optionId, (opt) =>
+      opt.field?.type === "seleccion_desplegable" && opt.field.options.length > 1
+        ? { ...opt, field: { ...opt.field, options: opt.field.options.filter((o) => o.id !== fieldOptionId) } }
+        : opt,
+    );
+  }
+
   // VS-056 (docs/engines/form.md "Referencias a nivel de pregunta"): bloque
   // de referencias a nivel del Elemento (entre el texto de la pregunta y las
   // opciones), mismo shape que las de opción. Sin `position` — no hay
@@ -2146,6 +2217,115 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                   <Button type="button" size="sm" onClick={() => addSecondaryOptionsBlock(el.id, opt.id)}>
                                     Agregar bloque secundario de sub-opciones
                                   </Button>
+                                )}
+                              </div>
+                              {/* VS-062 (docs/engines/form.md "Campo embebido
+                                  directo en una opción de nivel superior"):
+                                  mismo patrón que sub.field (VS-040), antes de
+                                  la tabla — mismo orden visual que el HTML de
+                                  S&P (COG_DisclosureMedian_Selection). */}
+                              <div className="sub-option-field" style={{ marginTop: "var(--space-2)" }}>
+                                {opt.field ? (
+                                  <div className="option-row">
+                                    <span className="field__label">
+                                      {opt.field.type === "seleccion_desplegable" && "Campo: selección desplegable"}
+                                      {opt.field.type === "texto_corto" && "Campo: texto corto"}
+                                      {opt.field.type === "numero" && "Campo: número"}
+                                    </span>
+                                    <Button type="button" variant="danger" size="sm" onClick={() => removeOptionField(el.id, opt.id)}>
+                                      Quitar campo
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <select
+                                    value=""
+                                    onChange={(e) => {
+                                      if (e.target.value) {
+                                        addOptionField(el.id, opt.id, e.target.value as SubOptionField["type"]);
+                                      }
+                                    }}
+                                  >
+                                    <option value="">Agregar campo…</option>
+                                    <option value="seleccion_desplegable">Selección desplegable</option>
+                                    <option value="texto_corto">Texto corto</option>
+                                    <option value="numero">Número</option>
+                                  </select>
+                                )}
+                                {opt.field?.type === "seleccion_desplegable" &&
+                                  (() => {
+                                    const selectField = opt.field;
+                                    return (
+                                      <div className="options" style={{ marginLeft: "var(--space-4)" }}>
+                                        {selectField.options.map((fo) => (
+                                          <div className="option-row" key={fo.id}>
+                                            <div className="option-row__editor">
+                                              <RichTextEditor
+                                                value={fo.label}
+                                                onChange={(html) => updateOptionFieldOption(el.id, opt.id, fo.id, html)}
+                                                ariaLabel="Texto de la opción del campo"
+                                              />
+                                            </div>
+                                            <Button
+                                              type="button"
+                                              variant="danger"
+                                              size="sm"
+                                              onClick={() => removeOptionFieldOption(el.id, opt.id, fo.id)}
+                                              disabled={selectField.options.length <= 1}
+                                            >
+                                              Quitar
+                                            </Button>
+                                          </div>
+                                        ))}
+                                        <Button type="button" size="sm" onClick={() => addOptionFieldOption(el.id, opt.id)}>
+                                          Agregar opción
+                                        </Button>
+                                      </div>
+                                    );
+                                  })()}
+                                {opt.field?.type === "texto_corto" && (
+                                  <label className="field" style={{ marginLeft: "var(--space-4)" }}>
+                                    <span className="field__label">Longitud máxima</span>
+                                    <input
+                                      type="number"
+                                      value={opt.field.maxLength ?? ""}
+                                      onChange={(e) =>
+                                        updateOptionFieldMaxLength(el.id, opt.id, e.target.value === "" ? undefined : Number(e.target.value))
+                                      }
+                                    />
+                                  </label>
+                                )}
+                                {opt.field?.type === "numero" && (
+                                  <div className="field-grid" style={{ marginLeft: "var(--space-4)" }}>
+                                    <label className="field">
+                                      <span className="field__label">Mínimo</span>
+                                      <input
+                                        type="number"
+                                        value={opt.field.min ?? ""}
+                                        onChange={(e) =>
+                                          updateOptionFieldNumero(el.id, opt.id, { min: e.target.value === "" ? undefined : Number(e.target.value) })
+                                        }
+                                      />
+                                    </label>
+                                    <label className="field">
+                                      <span className="field__label">Máximo</span>
+                                      <input
+                                        type="number"
+                                        value={opt.field.max ?? ""}
+                                        onChange={(e) =>
+                                          updateOptionFieldNumero(el.id, opt.id, { max: e.target.value === "" ? undefined : Number(e.target.value) })
+                                        }
+                                      />
+                                    </label>
+                                    <label className="field">
+                                      <span className="field__label">Unidad</span>
+                                      <input
+                                        value={opt.field.unit ?? ""}
+                                        onChange={(e) =>
+                                          updateOptionFieldNumero(el.id, opt.id, { unit: e.target.value === "" ? undefined : e.target.value })
+                                        }
+                                      />
+                                    </label>
+                                  </div>
                                 )}
                               </div>
                               {/* VS-060 (docs/engines/form.md "Tabla embebida

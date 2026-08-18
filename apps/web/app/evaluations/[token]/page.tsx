@@ -1987,6 +1987,22 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                   elementId={element.id}
                 />
               )}
+              {/* VS-062 (docs/engines/form.md "Campo embebido directo en una
+                  opción de nivel superior"): mismo SubOptionFieldView que
+                  sub.field (VS-040), clave sintética
+                  `${element.id}::${opt.id}::field`. Va DESPUÉS de las
+                  referencias "before_suboptions" y ANTES de la tabla — mismo
+                  orden visual que el HTML real de S&P
+                  (COG_DisclosureMedian_Selection: "Moneda:" antes de la
+                  tabla). */}
+              {value === opt.id && opt.field && (
+                <SubOptionFieldView
+                  field={opt.field}
+                  value={answers[`${element.id}::${opt.id}::field`]}
+                  onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::field`, next)}
+                  locked={locked}
+                />
+              )}
               {/* VS-060 (docs/engines/form.md "Tabla embebida directamente en
                   una opción de nivel superior"): mismo FormTableView que
                   tabla_datos/subOption.table, clave sintética
@@ -2083,6 +2099,15 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                       token={token}
                       subindicatorId={subindicatorId}
                       elementId={element.id}
+                    />
+                  )}
+                  {/* VS-062: ver nota equivalente en seleccion_unica arriba. */}
+                  {selected.includes(opt.id) && opt.field && (
+                    <SubOptionFieldView
+                      field={opt.field}
+                      value={answers[`${element.id}::${opt.id}::field`]}
+                      onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::field`, next)}
+                      locked={locked}
                     />
                   )}
                   {/* VS-060: ver nota equivalente en seleccion_unica arriba. */}

@@ -176,6 +176,18 @@ function formatMarkedSubOptions(subOptions: SubOptionNode[] | undefined, key: st
 function formatOptionLabel(opt: SeleccionOption, elementId: string, answers: ResponseAnswers): string {
   const optKey = `${elementId}::${opt.id}`;
   let label = `${stripCommentHtml(opt.label)}${formatOptionReferences(opt.references, `${optKey}::refs`, answers)}`;
+  // Campo embebido directo en la opción (VS-062, docs/engines/form.md "Campo
+  // embebido directo en una opción de nivel superior") — misma resolución
+  // que formatSubOptionExtras para sub.field, un nivel menos de anidación.
+  if (opt.field) {
+    const raw = answers[`${optKey}::field`];
+    if (raw !== undefined && raw !== "") {
+      const resolvedField =
+        opt.field.type === "seleccion_desplegable" ? (opt.field.options.find((o) => o.id === raw)?.label ?? String(raw)) : String(raw);
+      const fieldUnit = opt.field.type === "numero" && opt.field.unit ? ` ${opt.field.unit}` : "";
+      label += ` (${resolvedField}${fieldUnit})`;
+    }
+  }
   // Tabla embebida directo en la opción (VS-060, docs/engines/form.md "Tabla
   // embebida directamente en una opción de nivel superior").
   if (opt.table) {

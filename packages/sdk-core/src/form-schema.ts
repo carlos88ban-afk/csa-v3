@@ -203,6 +203,12 @@ const formOption = formOptionBase.extend({
   // menos de anidación — caso real: una opción de seleccion_unica trae una
   // tabla completa colgando directo de ella, sin sub-radio intermedio.
   table: tablaDatosConfig.optional(),
+  // VS-062 (docs/engines/form.md "Campo embebido directo en una opción de
+  // nivel superior"): mismo campo que subOption.field (VS-040), un nivel
+  // menos de anidación — caso real: la opción "Sí" de
+  // COG_DisclosureMedian_Selection trae un campo "Moneda:" colgando directo
+  // de ella, antes de la tabla, sin sub-radio intermedio.
+  field: subOptionField.optional(),
 });
 
 export const formElement = z.discriminatedUnion("type", [

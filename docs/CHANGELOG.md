@@ -4,6 +4,17 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-062 — Campo embebido directo en una opción de nivel superior (2026-08-18)
+
+Hallazgo de capacidad (HTML real `COG_DisclosureMedian_Selection`, "Ratio salarial CEO-empleado", portal S&P, enviado por el usuario): la opción "Sí" de un `seleccion_unica` trae un campo suelto ("Moneda:") entre el bloque de referencias y la tabla embebida, colgando directo de la opción — no de una sub-opción ni de una fila de tabla. Confirmado el gap navegando el Builder real en producción con Playwright: el editor de opción solo ofrecía "Agregar sub-opción"/"bloque secundario"/"tabla"/"referencias", sin forma de agregar un campo suelto (spec en `docs/engines/form.md`, "Campo embebido directo en una opción de nivel superior").
+
+- `packages/sdk-core/src/form-schema.ts`: `formOption` gana `field: subOptionField.optional()` — reusa el tipo de VS-040 (`subOption.field`) tal cual, mismo patrón ya usado para `references`/`table`. Se modela como campo editable normal (el evaluado escribe la moneda), no como el cálculo automático de solo lectura del HTML original — el motor no tiene cálculo cruzado entre preguntas (mismo alcance ya excluido en VS-023).
+- Builder (`subindicator-editor.tsx`): `addOptionField`/`removeOptionField`/`updateOptionFieldMaxLength`/`updateOptionFieldNumero`/`addOptionFieldOption`/`updateOptionFieldOption`/`removeOptionFieldOption`, mismo patrón que las 7 funciones equivalentes de `subOption.field` (VS-040) un nivel menos de anidación. UI insertada antes del bloque de tabla, mismo orden visual que el HTML de S&P.
+- Runtime/Preview: reusan `SubOptionFieldView`/`PreviewSubOptionField` (VS-040) tal cual, clave sintética `${elementId}::${optionId}::field`.
+- Export (`evaluation-export.ts`): `formatOptionLabel` resuelve `opt.field` con la misma lógica de `formatSubOptionExtras`.
+
+**Estado**: implementado siguiendo el proceso doc-first. Hallazgo secundario anotado (no implementado): el mismo HTML trae `data-ref-type="private"`, un tercer valor de `refType` que el Builder no ofrece hoy (solo `public`/`flexible`). Sin build/typecheck/tests locales por instrucción explícita del usuario; verificación funcional pendiente en producción.
+
 ### VS-061 — Celda de tabla tipo casilla con texto revelado (2026-08-18)
 
 Hallazgo de capacidad (HTML real `COG_AlignmentLongTermPerformance_Selection`, portal S&P, enviado por el usuario): una celda de una tabla embebida (`formOption.table`, VS-060) combina texto fijo con un checkbox `Yes_No` independiente que revela un input de texto al marcarse ("cláusula de recuperación... especifica"). Se modela como un `cellType` nuevo (`"casilla"`), no como una celda mixta contenido-fijo-más-control — mantiene la invariante "una celda, un tipo" ya establecida en VS-024/044/047/048 (spec en `docs/engines/form.md`, "Celda de tabla tipo casilla con texto revelado").
