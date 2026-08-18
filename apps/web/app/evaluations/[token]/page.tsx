@@ -1416,9 +1416,23 @@ function FormTableView({
       <tbody>
         {rows.map((row) => {
           const rowValue = table[row.id] ?? {};
+          // VS-066 (docs/engines/form.md "Combinar columnas (colspan)"):
+          // columnas cubiertas por el colSpan de una celda anterior EN ESTA
+          // FILA no se renderizan como <td> propio — el colSpan de la celda
+          // anchor ya ocupa ese espacio visualmente.
+          const coveredColumnIds = new Set<string>();
+          row.cells.forEach((c) => {
+            if (!c.colSpan || c.colSpan < 2) return;
+            const anchorIdx = columns.findIndex((col) => col.id === c.columnId);
+            if (anchorIdx === -1) return;
+            for (let i = anchorIdx + 1; i < Math.min(anchorIdx + c.colSpan, columns.length); i++) {
+              coveredColumnIds.add(columns[i]!.id);
+            }
+          });
           return (
             <tr key={row.id}>
               {columns.map((col) => {
+                if (coveredColumnIds.has(col.id)) return null;
                 // VS-048 (docs/engines/form.md "Grilla uniforme sin
                 // encabezados especiales"): sin fallback a un "tipo de fila
                 // legacy" — el tipo/config de CUALQUIER celda, incluida la
@@ -1437,7 +1451,7 @@ function FormTableView({
                 // y la mostraba como contenido fijo estático vacío).
                 if (cellType === "calculado") {
                   return (
-                    <td key={col.id}>
+                    <td key={col.id} colSpan={cellCfg.colSpan}>
                       <TableCalculatedCell
                         rowId={row.id}
                         columnId={col.id}
@@ -1450,14 +1464,14 @@ function FormTableView({
                 }
                 if (editable === false) {
                   return (
-                    <td key={col.id}>
+                    <td key={col.id} colSpan={cellCfg.colSpan}>
                       <RichLabel html={content ?? ""} />
                     </td>
                   );
                 }
                 if (cellType === "seleccion_desplegable") {
                   return (
-                    <td key={col.id}>
+                    <td key={col.id} colSpan={cellCfg.colSpan}>
                       {/* VS-063: contenido fijo como prefijo, ver nota en casilla abajo. */}
                       {content && <RichLabel html={content} />}
                       <select
@@ -1483,7 +1497,7 @@ function FormTableView({
                   const cellUnitKey = unitKey(`${unitKeyPrefix}::${row.id}::${col.id}`);
                   const cellUnit = availableUnits ? ((answers[cellUnitKey] as string | undefined) ?? availableUnits[0]) : undefined;
                   return (
-                    <td key={col.id}>
+                    <td key={col.id} colSpan={cellCfg.colSpan}>
                       {content && <RichLabel html={content} />}
                       <input
                         type="number"
@@ -1510,7 +1524,7 @@ function FormTableView({
                   // sub.field/opt.field (no `commentKey`, que es `::comment`).
                   const revealKey = `${unitKeyPrefix}::${row.id}::${col.id}::field`;
                   return (
-                    <td key={col.id}>
+                    <td key={col.id} colSpan={cellCfg.colSpan}>
                       {/* VS-063: `content` es el título/descripción fijo de
                           la celda, ANTES del control. VS-064: la casilla
                           gana su PROPIA etiqueta (`checkboxLabel`) — el
@@ -1543,7 +1557,7 @@ function FormTableView({
                   );
                 }
                 return (
-                  <td key={col.id}>
+                  <td key={col.id} colSpan={cellCfg.colSpan}>
                     {content && <RichLabel html={content} />}
                     <input
                       value={(cell as string) ?? ""}

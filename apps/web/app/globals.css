@@ -2120,13 +2120,32 @@ input[type="checkbox"] {
 }
 
 .table-config-grid__chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  max-width: 220px;
   border: 1px solid var(--border);
   background: var(--accent-soft);
   color: var(--ink);
-  border-radius: 999px;
+  border-radius: var(--radius);
   padding: 2px var(--space-2);
   font-size: var(--text-xs, 0.75rem);
   cursor: pointer;
+  text-align: left;
+}
+
+/* VS-066 (docs/engines/form.md "Vista previa de contenido en el chip de
+   celda"): tipo + extracto del texto real, sin expandir la celda. */
+.table-config-grid__chip-type {
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.table-config-grid__chip-preview {
+  color: var(--ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .table-config-grid__remove-cell {

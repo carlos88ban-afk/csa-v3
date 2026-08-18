@@ -4,6 +4,19 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-066 — Combinar columnas (colspan) + vista previa de contenido en el chip de celda (2026-08-18)
+
+Mismo HTML real de S&P que originó VS-062 (`COG_DisclosureMedian_Selection`): la tabla embebida combina las 2 últimas columnas en su encabezado y en la fila de compensación del CEO (`<th colspan="2">`/`<td colspan="2">`). Sin esto, el admin podía crear la tabla pero no replicarla fielmente. Pedido adicional del usuario: ver un extracto del contenido real en el chip colapsado de cada celda, sin tener que expandirla.
+
+- `packages/sdk-core/src/form-schema.ts`: `formTableCell` gana `colSpan?: number` (mín. 2, ausente = 1). Las columnas cubiertas por un combinado no llevan celda propia en esa fila — mismo criterio "grillas irregulares" de VS-048.
+- Builder/Runtime/Preview: las 3 superficies que dibujan la tabla precomputan, por fila, qué columnas están cubiertas por un colspan anterior y las saltan al iterar; la celda ancla recibe `colSpan` real en su `<td>` (las 6 ramas por `cellType` de cada superficie).
+- Builder: nuevo campo "Combinar con columnas siguientes" + `updateCellColSpan` (clampea y limpia celdas huérfanas en las columnas recién cubiertas).
+- Export: sin cambios — las columnas cubiertas ya no tienen entrada en `cells[]`, el filtro existente de "celda en blanco" ya las salta.
+- Chip de celda: nueva función `cellPreviewText` — muestra tipo + extracto de `content`/`checkboxLabel`/`expression` (ej. "Fijo — Compensación del CEO") en vez de solo el tipo.
+- Spec en `docs/engines/form.md`, "Combinar columnas — colspan".
+
+**Estado**: implementado siguiendo el proceso doc-first. Sin build/typecheck/tests locales por instrucción explícita del usuario.
+
 ### Verificación en producción — VS-065 (2026-08-18)
 
 Framework temporal ("QA VS-065 verificacion") con la misma celda casilla de las verificaciones anteriores, ahora con `revealField: { type: "numero", unit: "anos" }` en vez de texto libre. Verificado con Playwright contra `csa-v3-web.vercel.app` (deploy `6T9zbhcV`, `READY`, primer deploy de esta sesión con cambios de tipos TypeScript — build pasó el typecheck real de `next build` sin errores):

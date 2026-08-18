@@ -232,6 +232,26 @@ function TableConfigEditor({
     });
   }
 
+  // VS-066 (docs/engines/form.md "Combinar columnas (colspan)"): réplica
+  // fiel de tablas reales con encabezados/celdas que abarcan varias
+  // columnas. Al combinar, las columnas cubiertas pierden su propia celda EN
+  // ESTA FILA (si tenían una) — evita datos huérfanos que nunca se
+  // renderizarían. Clampeado a las columnas que realmente existen a la
+  // derecha de esta celda.
+  function updateCellColSpan(rowId: string, columnId: string, colSpan: number | undefined) {
+    const anchorIdx = columns.findIndex((c) => c.id === columnId);
+    const span = colSpan && colSpan > 1 && anchorIdx !== -1 ? Math.min(colSpan, columns.length - anchorIdx) : undefined;
+    const coveredIds = new Set(span ? columns.slice(anchorIdx + 1, anchorIdx + span).map((c) => c.id) : []);
+    onChange({
+      columns,
+      rows: rows.map((r) =>
+        r.id === rowId
+          ? { ...r, cells: r.cells.filter((c) => !coveredIds.has(c.columnId)).map((c) => (c.columnId === columnId ? { ...c, colSpan: span } : c)) }
+          : r,
+      ),
+    });
+  }
+
   function addCellOption(rowId: string, columnId: string, current: TableConfigCell | undefined) {
     updateCell(rowId, columnId, { options: [...(current?.options ?? []), { id: crypto.randomUUID(), label: "" }] });
   }
@@ -253,13 +273,45 @@ function TableConfigEditor({
     casilla: "Casilla de verificación",
   };
 
+  // VS-066 (docs/engines/form.md "Vista previa de contenido en el chip de
+  // celda"): antes el chip colapsado solo mostraba el tipo ("Fijo",
+  // "Texto"...) — el admin tenía que expandir cada celda para recordar qué
+  // había puesto. Ahora agrega un extracto del texto real de la celda, para
+  // que la grilla completa sea legible sin expandir nada.
+  function cellPreviewText(cell: TableConfigCell): string | undefined {
+    const raw =
+      cell.content ??
+      (cell.cellType === "casilla" ? cell.checkboxLabel : undefined) ??
+      (cell.cellType === "calculado" ? cell.expression : undefined);
+    if (!raw) return undefined;
+    const plain = stripCommentHtml(raw).trim();
+    if (!plain) return undefined;
+    return plain.length > 40 ? `${plain.slice(0, 40)}…` : plain;
+  }
+
   return (
     <div className="table-config-grid-wrap">
       <table className="table-config-grid">
         <tbody>
-          {rows.map((row, rowIdx) => (
+          {rows.map((row, rowIdx) => {
+            // VS-066 (docs/engines/form.md "Combinar columnas (colspan)"):
+            // columnas cubiertas por el colSpan de una celda anterior EN
+            // ESTA FILA no se renderizan como celda propia — mismo criterio
+            // que "grillas irregulares" (VS-048), precomputado por fila para
+            // no mutar un contador durante el .map() de columnas.
+            const coveredColumnIds = new Set<string>();
+            row.cells.forEach((c) => {
+              if (!c.colSpan || c.colSpan < 2) return;
+              const anchorIdx = columns.findIndex((col) => col.id === c.columnId);
+              if (anchorIdx === -1) return;
+              for (let i = anchorIdx + 1; i < Math.min(anchorIdx + c.colSpan, columns.length); i++) {
+                coveredColumnIds.add(columns[i]!.id);
+              }
+            });
+            return (
             <tr key={row.id}>
-              {columns.map((col) => {
+              {columns.map((col, colIdx) => {
+                if (coveredColumnIds.has(col.id)) return null;
                 const cell = row.cells.find((c) => c.columnId === col.id);
                 const cellKey = `${row.id}:${col.id}`;
                 if (!cell) {
@@ -283,14 +335,19 @@ function TableConfigEditor({
                   // de usuario: "no me permite construir tablas" con una
                   // fila calculada de solo lectura).
                   const isCalculado = cell.cellType === "calculado";
+                  const preview = cellPreviewText(cell);
                   return (
-                    <td key={col.id} className="table-config-grid__cell">
+                    <td key={col.id} className="table-config-grid__cell" colSpan={cell.colSpan}>
                       <button
                         type="button"
                         className="table-config-grid__chip"
                         onClick={() => setExpandedCell(expandedCell === cellKey ? null : cellKey)}
+                        title={preview}
                       >
-                        {isCalculado ? "Calculado" : editable ? CELL_TYPE_LABEL[cell.cellType] : "Fijo"}
+                        <span className="table-config-grid__chip-type">
+                          {isCalculado ? "Calculado" : editable ? CELL_TYPE_LABEL[cell.cellType] : "Fijo"}
+                        </span>
+                        {preview && <span className="table-config-grid__chip-preview">{preview}</span>}
                       </button>
                       <button
                         type="button"
@@ -329,6 +386,23 @@ function TableConfigEditor({
                               <option value="casilla">Casilla de verificación</option>
                             </select>
                           </label>
+
+                          {columns.length - colIdx > 1 && (
+                            <label className="field">
+                              <span className="field__label">Combinar con columnas siguientes</span>
+                              <input
+                                type="number"
+                                min={1}
+                                max={columns.length - colIdx}
+                                value={cell.colSpan ?? 1}
+                                onChange={(e) => {
+                                  const n = e.target.value === "" ? 1 : Number(e.target.value);
+                                  updateCellColSpan(row.id, col.id, n > 1 ? n : undefined);
+                                }}
+                              />
+                              <span className="hint">1 = sin combinar (celda normal)</span>
+                            </label>
+                          )}
 
                           {isCalculado ? (
                             <label className="field">
@@ -660,7 +734,8 @@ function TableConfigEditor({
                 </td>
               )}
             </tr>
-          ))}
+            );
+          })}
           <tr>
             <td colSpan={columns.length + 1} className="table-config-grid__add-row">
               <Button type="button" size="sm" onClick={addRow} title="Agregar fila abajo">

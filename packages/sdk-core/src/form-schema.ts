@@ -142,6 +142,14 @@ const formTableCell = z.object({
   // marcar, mismo `subOptionField` ya usado por subOption.field (VS-040) y
   // formOption.field (VS-062). Solo aplica si cellType === "casilla".
   revealField: subOptionField.optional(),
+  // VS-066 (docs/engines/form.md "Combinar columnas (colspan)"): réplica
+  // fiel de tablas reales de S&P con encabezados/celdas que abarcan más de
+  // una columna (`<th colspan="2">`, `<td colspan="2">`). Ausente = 1 (sin
+  // combinar), mismo criterio que el resto del motor — no `.default()`.
+  // Las columnas cubiertas por el span de una celda anterior en la misma
+  // fila no llevan celda propia (mismo criterio "grillas irregulares" de
+  // VS-048: sin entrada = celda en blanco/cubierta).
+  colSpan: z.number().int().min(2).optional(),
 })
 // VS-043: si cellType es "calculado", expression es obligatorio
 .superRefine((cell, ctx) => {

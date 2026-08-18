@@ -1379,3 +1379,49 @@ Nueva función compartida `resolveRevealField(cellCfg, prefix, answers)` (reempl
 
 - **Migración de datos de `revealText`/`::comment` a `revealField`/`::field`** — sin datos reales, ver "Decisión de diseño".
 - **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.
+
+## Combinar columnas — colspan (VS-066)
+
+### Contexto y pedido
+
+Mismo HTML real de S&P (`COG_DisclosureMedian_Selection`, tabla de compensación CEO-empleados) que originó VS-062: la tabla embebida es un grid de 3 columnas donde algunas celdas explícitamente combinan las 2 últimas (`<th colspan="2">Compensación total de los CEOs</th>`, y su fila de dato correspondiente `<td colspan="2">` con el input de compensación del CEO). Sin esto, el admin podía crear la tabla pero no replicarla fielmente — el motor no tenía forma de decir "esta celda ocupa 2 columnas", forzando o una columna de más sin uso real, o perder la fila de encabezado combinado.
+
+Segundo pedido, ortogonal: en el editor de grilla (`TableConfigEditor`), una celda colapsada solo mostraba su tipo genérico ("Fijo", "Texto"...) — el admin tenía que expandir cada celda para recordar qué contenido puso, incluso en tablas de varias filas/columnas donde eso se vuelve tedioso. Pidió ver un extracto del contenido real directamente en el chip colapsado.
+
+### Decisión de diseño — colSpan por celda, mismo criterio "grillas irregulares" de VS-048
+
+`formTableCell` gana `colSpan?: number` (entero, mínimo 2 — ausente = 1, sin combinar). Una celda con `colSpan: N` combina, a partir de su propia columna (`columnId`), las siguientes `N-1` columnas. **Las columnas cubiertas por ese combinado NO llevan celda propia en esa fila** — mismo criterio que ya existía para "grillas irregulares" (VS-048: sin entrada en `cells[]` = celda en blanco/cubierta), no un concepto nuevo. Esto evita datos huérfanos: una celda escondida detrás de un colspan nunca se renderiza ni se puede editar, así que no tiene sentido que exista.
+
+```ts
+const formTableCell = z.object({
+  // ...campos existentes sin cambios...
+  colSpan: z.number().int().min(2).optional(), // VS-066 — ausente = 1 (sin combinar)
+});
+```
+
+**Sin `rowSpan`**: el HTML real inspeccionado solo usa `colspan`, nunca `rowspan` — mismo criterio de "no diseñar para hipotéticos" (`CLAUDE.md`) ya aplicado repetidamente en este documento (ej. sub-opciones de un solo nivel en VS-016, tipo de celda por fila en VS-024). Aditivo si aparece un caso real.
+
+### Renderizado: columnas cubiertas se saltan, no solo el atajo del `<td colSpan>`
+
+En las 3 superficies que dibujan la grilla como `<table>` real (Builder `TableConfigEditor`, Runtime `FormTableView`, Preview `PreviewTableView`) hace falta más que agregar el atributo HTML `colSpan` a la celda combinada — si las columnas cubiertas siguen intentando renderizar su propio `<td>` (aunque esté vacío/en blanco), la fila termina con más `<td>`s que columnas visuales, rompiendo la grilla. Cada una de las 3 superficies precomputa, **por fila**, un `Set` de `columnId`s cubiertos (recorriendo `row.cells` buscando entradas con `colSpan >= 2` y marcando las columnas siguientes según su posición en `columns[]`), y salta esas columnas al iterar (`if (coveredColumnIds.has(col.id)) return null;`) — precomputado antes del `.map()` de columnas en vez de un contador mutable durante la iteración, para no depender de mutación dentro de un `.map()`.
+
+La celda ancla sí recibe `colSpan={cellCfg.colSpan}` en su `<td>` real — en las 6 ramas de render por `cellType` de cada superficie (calculado, contenido fijo, selección, número, casilla, texto).
+
+### Exportación (`evaluation-export.ts`)
+
+**Sin cambios** — las columnas cubiertas por un colspan ya no tienen entrada en `cells[]` (por diseño, ver arriba), así que `cellConfig(row, columnId)` ya devuelve `undefined` para ellas y el filtro existente (`if (!cellCfg) return null`) ya las salta — mismo camino que cualquier celda en blanco de una grilla irregular, sin rama nueva. La numeración `Columna N` en el CSV queda con huecos donde había una columna cubierta (ej. "Columna 1=X, Columna 3=Y" si la columna 2 estaba combinada dentro de la 1) — mismo comportamiento ya aceptado para grillas irregulares en general.
+
+### Builder (`TableConfigEditor`)
+
+Nuevo campo "Combinar con columnas siguientes" (`<input type="number">`, min 1, max = columnas restantes a la derecha de esa celda) en la config de cada celda, oculto si la celda ya es la última columna (nada que combinar). Función `updateCellColSpan(rowId, columnId, colSpan)`: clampea el valor a las columnas realmente disponibles y, en el mismo cambio, **elimina** cualquier entrada de celda que exista en las columnas recién cubiertas (evita datos huérfanos, ver "Decisión de diseño"). Reducir el colspan de vuelta a 1 no restaura celdas previamente cubiertas — quedan en blanco, el admin las agrega de nuevo con el mismo "+" ya existente si las necesita (mismo criterio de simplicidad que el resto de la grilla).
+
+### Vista previa de contenido en el chip de celda (mismo slice, VS-066)
+
+Nueva función `cellPreviewText(cell)`: extrae un extracto de texto plano (máx. 40 caracteres + "…") del primer campo con contenido real — `content` (celdas fijas o con texto-prefijo, VS-063), si no `checkboxLabel` (celdas `casilla`, VS-064), si no `expression` (celdas `calculado`). El chip colapsado pasa de mostrar solo el tipo a mostrar tipo + extracto (ej. "Fijo — Compensación del CEO"), con el texto completo como `title` (tooltip nativo) para celdas truncadas. Sin cambios de comportamiento en la config expandida — es puramente una mejora de legibilidad de la grilla colapsada.
+
+### Fuera de alcance (explícito)
+
+- **`rowSpan`** — sin caso de uso observado, ver "Decisión de diseño" arriba.
+- **Restaurar automáticamente celdas cubiertas al reducir el colspan** — quedan en blanco, se re-agregan a mano con el "+" existente.
+- **Preview de contenido para celdas editables sin `content`/`checkboxLabel`/`expression`** (ej. una celda `numero` simple sin texto-prefijo) — el chip sigue mostrando solo el tipo, no hay texto real que extraer.
+- **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.
