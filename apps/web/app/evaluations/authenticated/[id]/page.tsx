@@ -1,13 +1,14 @@
 "use client";
 
-// VS-054 (docs/domain/business-units.md, "Acceso del evaluado"): Runtime
+// VS-054/058 (docs/domain/business-units.md, "Acceso del evaluado"): Runtime
 // autenticado por unidad de negocio — reemplaza el token público para
 // Evaluaciones en modo corporativo (con asignaciones). Wrapper delgado sobre
 // RuntimeCore (misma UI/autosave que el Runtime público, ver
 // evaluations/[token]/page.tsx), armando el adapter con las rutas
-// autenticadas de VS-053/054. `evidenceToken={undefined}`: la evidencia
-// todavía no tiene ruta autenticada equivalente (deferido a un slice
-// posterior) — EvidenceView/OptionReferencesView ya degradan con un aviso.
+// autenticadas de VS-053/054. `evidenceToken` acá es la URL base de las
+// rutas espejo for-business-unit/evidences (VS-058) — mismo valor que el
+// Runtime público le pasa a EvidenceView/OptionReferencesView, apuntando a
+// rutas distintas.
 import type { Evaluation, ResponseAnswers } from "@plataforma-csa/sdk-core";
 import { use, useMemo } from "react";
 import { api } from "@/lib/api-client";
@@ -34,5 +35,6 @@ export default function AuthenticatedEvaluationPage({ params }: Props) {
     }),
     [id],
   );
-  return <RuntimeCore adapter={adapter} evidenceToken={undefined} />;
+  const evidenceBase = `/api/evaluations/${id}/for-business-unit/evidences`;
+  return <RuntimeCore adapter={adapter} evidenceToken={evidenceBase} />;
 }

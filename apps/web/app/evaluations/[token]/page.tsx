@@ -540,8 +540,7 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
 
 // Página pública (ver docs/engines/persistence.md): sin sesión, sin
 // requireActiveMember del lado del API. Wrapper delgado sobre RuntimeCore —
-// arma el adapter con las 3 URLs públicas por token y pasa el mismo token
-// como evidenceToken (evidencia SÍ funciona en este modo).
+// arma el adapter con las 3 URLs públicas por token.
 export default function PublicEvaluationPage({ params }: Props) {
   const { token } = use(params);
   const adapter = useMemo<RuntimeAdapter>(
@@ -559,15 +558,29 @@ export default function PublicEvaluationPage({ params }: Props) {
     }),
     [token],
   );
-  return <RuntimeCore adapter={adapter} evidenceToken={token} />;
+  // VS-058 (docs/domain/business-units.md, "Acceso del evaluado"): el prop
+  // `evidenceToken` de ElementView (y de ahí para abajo) en realidad pasó a
+  // contener la URL BASE de las rutas de evidencia, no el token pelado — acá
+  // se arma con el token público; en el modo autenticado
+  // (AuthenticatedEvaluationPage) se arma con el id de la Evaluación contra
+  // las rutas for-business-unit/evidences. El nombre del prop quedó como
+  // "token" en toda la cadena de componentes para no tocar cada call site
+  // recursivo (SubOptionsView/OptionReferencesView) — mismo valor, semántica
+  // ampliada, ver el comentario en ElementViewProps más abajo.
+  const evidenceBase = `/api/public/evaluations/${token}/evidences`;
+  return <RuntimeCore adapter={adapter} evidenceToken={evidenceBase} />;
 }
 
 interface ElementViewProps {
-  // VS-054 (docs/domain/business-units.md, "Acceso del evaluado"): undefined
-  // en modo autenticado — evidencia/referencias flexibles con adjunto todavía
-  // no tienen ruta autenticada equivalente a la pública (deferido, ver spec),
-  // así que esos sub-componentes degradan a un aviso o al modo solo-URL en
-  // vez de intentar armar una URL de API inválida.
+  // VS-054/058 (docs/domain/business-units.md, "Acceso del evaluado"): pese
+  // al nombre, desde VS-058 este valor es la URL BASE de las rutas de
+  // evidencia (`/api/public/evaluations/{token}/evidences` en modo público,
+  // `/api/evaluations/{id}/for-business-unit/evidences` en modo autenticado)
+  // — no el token pelado. Se mantuvo el nombre `token` para no tocar cada
+  // call site recursivo (SubOptionsView/OptionReferencesView, que solo lo
+  // re-propagan sin usarlo). `undefined` significa "sin evidencia
+  // disponible" (no debería pasar en ningún modo real hoy, pero los
+  // sub-componentes degradan con un aviso por las dudas).
   token: string | undefined;
   subindicatorId: string;
   element: FormElement;
@@ -690,7 +703,7 @@ function SubOptionsView({
   exclusive?: boolean;
   // VS-045: necesarios para subir documentos internos en referencias
   // flexibles (presign-ref); el sub-checklist recursivo los re-propaga.
-  // VS-054: undefined en modo autenticado, ver ElementViewProps.
+  // VS-054/058: URL base de evidencias, ver ElementViewProps.
   token: string | undefined;
   subindicatorId: string;
   elementId: string;
@@ -807,7 +820,7 @@ function EvidenceView({
   onChange,
   locked,
 }: {
-  // VS-054: undefined en modo autenticado, ver ElementViewProps.
+  // VS-054/058: URL base de evidencias, ver ElementViewProps.
   token: string | undefined;
   subindicatorId: string;
   element: Extract<FormElement, { type: "evidencia" }>;
@@ -830,7 +843,7 @@ function EvidenceView({
 
   function removeRef(key: string) {
     void api
-      .del(`/api/public/evaluations/${token}/evidences`, { key })
+      .del(`${token}`, { key })
       .then(() => onChange(refs.filter((r) => r.key !== key)))
       .catch(() => {});
   }
@@ -851,7 +864,7 @@ function EvidenceView({
       setUploading(file.name);
       try {
         const { key, url } = await api.post<{ key: string; url: string }>(
-          `/api/public/evaluations/${token}/evidences/presign`,
+          `${token}/presign`,
           {
             subindicatorId,
             elementId: element.id,
@@ -875,7 +888,7 @@ function EvidenceView({
   async function downloadRef(ref: EvidenceRef) {
     try {
       const { url } = await api.post<{ url: string }>(
-        `/api/public/evaluations/${token}/evidences/download-url`,
+        `${token}/download-url`,
         { key: ref.key },
       );
       window.open(url, "_blank", "noopener");
@@ -1113,7 +1126,7 @@ function OptionReferencesView({
   value: (string | EvidenceRef)[] | undefined;
   onChange: (value: (string | EvidenceRef)[]) => void;
   locked?: boolean | undefined;
-  // VS-054: undefined en modo autenticado, ver ElementViewProps.
+  // VS-054/058: URL base de evidencias, ver ElementViewProps.
   token: string | undefined;
   subindicatorId: string;
   elementId: string;
@@ -1182,7 +1195,7 @@ function OptionReferencesView({
       // El binario ya no pertenece a la Respuesta: borrarlo de R2
       // (idempotente — ver DELETE /evidences). El fallo no bloquea la
       // remoción local; el objeto huérfano se limpia con la Evaluación.
-      void api.del(`/api/public/evaluations/${token}/evidences`, { key: current.key }).catch(() => {});
+      void api.del(`${token}`, { key: current.key }).catch(() => {});
     }
     commit(localSlots.filter((_, i) => i !== index));
     setPendingKinds((prev) => prev.filter((_, i) => i !== index));
@@ -1194,7 +1207,7 @@ function OptionReferencesView({
     // viceversa); un slot doc previo borra su binario de R2.
     const current = localSlots[index];
     if (isDocRef(current)) {
-      void api.del(`/api/public/evaluations/${token}/evidences`, { key: current.key }).catch(() => {});
+      void api.del(`${token}`, { key: current.key }).catch(() => {});
     }
     setPendingKinds((prev) => prev.map((k, i) => (i === index ? kind : k)));
     updateSlot(index, kind === "doc" ? null : "");
@@ -1209,7 +1222,7 @@ function OptionReferencesView({
     setUploading(index);
     try {
       const { key, url } = await api.post<{ key: string; url: string }>(
-        `/api/public/evaluations/${token}/evidences/presign-ref`,
+        `${token}/presign-ref`,
         {
           subindicatorId,
           elementId,
@@ -1231,7 +1244,7 @@ function OptionReferencesView({
   async function downloadDoc(ref: EvidenceRef) {
     try {
       const { url } = await api.post<{ url: string }>(
-        `/api/public/evaluations/${token}/evidences/download-url`,
+        `${token}/download-url`,
         { key: ref.key },
       );
       window.open(url, "_blank", "noopener");
