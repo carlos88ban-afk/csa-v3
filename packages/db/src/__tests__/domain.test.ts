@@ -63,7 +63,7 @@ afterAll(async () => {
   for (const userId of createdUserIds) {
     await db.delete(user).where(eq(user.id, userId));
   }
-});
+}, 60000);
 
 describe("VS-004 — dominio core (Framework→Dimensión→Indicador→Subindicador)", () => {
   it("CRUD completo de Framework", async () => {

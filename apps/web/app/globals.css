@@ -1300,6 +1300,16 @@ input[type="checkbox"] {
   gap: var(--space-1);
 }
 
+/* VS-055 (docs/domain/business-units.md, "Dashboard de avance
+   corporativo"): pills de progreso/plazo junto al checkbox de cada unidad
+   asignada. */
+.publish-panel__unit-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: var(--space-2);
+}
+
 /* VS-054 (docs/domain/business-units.md, "Panel Publicar"): barra superior
    con el breadcrumb a la izquierda y el botón Publicar a la derecha —
    reemplaza la sección "Publicación" de la pantalla eliminada. */

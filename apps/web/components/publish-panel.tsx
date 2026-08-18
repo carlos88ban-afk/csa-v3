@@ -1,13 +1,14 @@
 "use client";
 
-// VS-054 (docs/domain/business-units.md, "Panel Publicar"): reemplaza la
-// pantalla /frameworks/[frameworkId] (eliminada) — Publicación completa
+// VS-054/055 (docs/domain/business-units.md, "Panel Publicar" +
+// "Dashboard de avance corporativo"): reemplaza la pantalla
+// /frameworks/[frameworkId] (eliminada) — Publicación completa
 // (generar/listar/revocar Evaluaciones, plazo/contacto, asignación de
-// unidades de negocio) vive ahora en un panel del Builder. Export XLSX
-// consolidado y el editor de exclusiones por Subindicador/elemento + el
-// dashboard de progreso quedan para un slice posterior (ver spec) — este
-// panel cubre CSV (comportamiento actual sin cambios) y asignar/desasignar
-// unidades sin editor de exclusiones todavía.
+// unidades de negocio, progreso por unidad, export XLSX consolidado) vive
+// ahora en un panel del Builder. El editor de exclusiones por
+// Subindicador/elemento (UI) queda para un slice posterior — hoy solo se
+// puede asignar/desasignar unidades completas, sin filtrar preguntas desde
+// acá (el backend de exclusiones ya existe desde VS-050).
 
 import { useEffect, useState } from "react";
 import type { Evaluation, EvaluationAssignment } from "@plataforma-csa/sdk-core";
@@ -17,6 +18,14 @@ import { Button, Pill } from "@/components/ui";
 interface ChildOrganization {
   id: string;
   name: string;
+}
+
+interface UnitProgress {
+  businessUnitOrganizationId: string;
+  name: string;
+  total: number;
+  answered: number;
+  percent: number;
 }
 
 function toDateInputValue(dueDate: unknown): string {
@@ -36,6 +45,7 @@ function EvaluationRow({
   onRevoke: (id: string) => void;
 }) {
   const [assignments, setAssignments] = useState<EvaluationAssignment[] | null>(null);
+  const [progress, setProgress] = useState<UnitProgress[] | null>(null);
   const [dueDate, setDueDate] = useState(toDateInputValue(evaluation.dueDate));
   const [contactEmail, setContactEmail] = useState(evaluation.contactEmail ?? "");
   const [savingDeadline, setSavingDeadline] = useState(false);
@@ -50,6 +60,24 @@ function EvaluationRow({
       .then((res) => setAssignments(res.assignments))
       .catch(() => setAssignments([]));
   }, [evaluation.id]);
+
+  // Dashboard de progreso (VS-055): solo tiene sentido pedirlo si hay al
+  // menos una unidad asignada — recién se sabe eso después de que
+  // `assignments` resuelve. Se refetchea con la longitud de assignments
+  // (no la referencia, que cambia en cada asignar/desasignar) para no
+  // perder la actualización cuando el admin marca/desmarca un checkbox.
+  useEffect(() => {
+    if (!assignments || assignments.length === 0) {
+      setProgress(null);
+      return;
+    }
+    api
+      .get<{ units: UnitProgress[] }>(`/api/evaluations/${evaluation.id}/progress`)
+      .then((res) => setProgress(res.units))
+      .catch(() => setProgress(null));
+  }, [evaluation.id, assignments?.length]);
+
+  const deadlinePassed = !!evaluation.dueDate && new Date(evaluation.dueDate) <= new Date();
 
   // dueDate solo se envía si el admin escribió algo — el service rechaza
   // (400 dueDate_CANNOT_CLEAR) intentar volver a null un plazo ya fijado, y
@@ -163,6 +191,7 @@ function EvaluationRow({
             <ul className="publish-panel__unit-list">
               {childOrgs.map((org) => {
                 const assigned = assignments.some((a) => a.businessUnitOrganizationId === org.id);
+                const unitProgress = progress?.find((p) => p.businessUnitOrganizationId === org.id);
                 return (
                   <li key={org.id}>
                     <label className="field field--checkbox">
@@ -174,6 +203,17 @@ function EvaluationRow({
                       />
                       {org.name}
                     </label>
+                    {/* Dashboard de avance (VS-055, docs/domain/business-units.md
+                        "Dashboard de avance corporativo"): progreso por unidad
+                        + si el plazo (compartido por toda la Evaluación) venció. */}
+                    {assigned && unitProgress && (
+                      <span className="publish-panel__unit-progress">
+                        <Pill variant={unitProgress.percent === 100 ? "good" : "accent"}>
+                          {unitProgress.percent}% ({unitProgress.answered}/{unitProgress.total})
+                        </Pill>
+                        {deadlinePassed && <Pill variant="warn">Plazo vencido</Pill>}
+                      </span>
+                    )}
                   </li>
                 );
               })}

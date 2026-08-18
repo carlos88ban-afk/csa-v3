@@ -9,7 +9,12 @@ import { db } from "../client.js";
 import { createDimension, createFramework, createIndicator, createSubindicator, updateSubindicator, ValidationError } from "../domain/service.js";
 import { createEvaluation } from "../domain/evaluation-service.js";
 import { assignEvaluation, setExclusion } from "../domain/evaluation-assignment-service.js";
-import { assertAnswersRespectExclusions, getEvaluationForBusinessUnit, isCorporateMode } from "../domain/business-unit-access.js";
+import {
+  assertAnswersRespectExclusions,
+  getBusinessUnitProgress,
+  getEvaluationForBusinessUnit,
+  isCorporateMode,
+} from "../domain/business-unit-access.js";
 import { upsertResponse } from "../domain/response-service.js";
 import { organization, user } from "../schema/auth.js";
 import { dimension, framework, indicator, subindicator } from "../schema/domain.js";
@@ -219,7 +224,7 @@ describe("VS-053 — acceso del evaluado por unidad de negocio (contra Neon real
       assertAnswersRespectExclusions(ev.id, subindicatorId, unidad, { "el-2": "no debería guardarse" }),
     ).rejects.toThrow(new ValidationError("ANSWER_TO_EXCLUDED_ELEMENT"));
   });
-});
+
   it("getEvaluationForBusinessUnit rechaza acceso de unidad A a Evaluación asignada a unidad B", async () => {
     const { organizationId: matriz } = await makeOrgWithOwner("cross-tenant");
     const { organizationId: unidadA } = await makeOrgWithOwner("cross-tenant-A", matriz);
@@ -270,3 +275,46 @@ describe("VS-053 — acceso del evaluado por unidad de negocio (contra Neon real
       assertAnswersRespectExclusions(ev.id, sub.id, unidadA, { "el-1": "intento de intrusión" })
     ).rejects.toThrow();
   });
+
+  it("getBusinessUnitProgress cuenta preguntas totales/respondidas sobre el snapshot filtrado por exclusiones", async () => {
+    const { matriz, unidad, ev, assignment, subindicatorId } = await setupCorporateEvaluation("progress-basic");
+
+    // Sin respuestas todavía: 3 preguntas totales (el-1/el-2/el-3), 0 respondidas.
+    const initial = await getBusinessUnitProgress(ev.id, unidad);
+    expect(initial).toEqual({ total: 3, answered: 0, percent: 0 });
+
+    await upsertResponse(ev.id, subindicatorId, { "el-1": "respuesta" }, unidad);
+    const afterOne = await getBusinessUnitProgress(ev.id, unidad);
+    expect(afterOne).toEqual({ total: 3, answered: 1, percent: 33 });
+
+    // Excluir el-2 puntualmente: el total baja a 2, la respuesta ya guardada
+    // en el-1 sigue contando.
+    await setExclusion(matriz, ev.id, assignment.id, { subindicatorId, elementId: "el-2" });
+    const afterExclusion = await getBusinessUnitProgress(ev.id, unidad);
+    expect(afterExclusion).toEqual({ total: 2, answered: 1, percent: 50 });
+  });
+
+  it("getBusinessUnitProgress aísla el conteo entre unidades de negocio distintas", async () => {
+    const { organizationId: matriz } = await makeOrgWithOwner("progress-isolation");
+    const { organizationId: unidadA } = await makeOrgWithOwner("progress-isolation-A", matriz);
+    const { organizationId: unidadB } = await makeOrgWithOwner("progress-isolation-B", matriz);
+
+    const fw = await createFramework(matriz, { name: "Framework Progress Isolation" });
+    const dim = await createDimension(matriz, { frameworkId: fw.id, title: "Dim" });
+    const ind = await createIndicator(matriz, { dimensionId: dim.id, title: "Ind" });
+    const sub = await createSubindicator(matriz, { indicatorId: ind.id, title: "Sub" });
+    await updateSubindicator(matriz, sub.id, {
+      formSchema: { schemaVersion: 1, elements: [{ id: "el-1", type: "texto_corto", label: "Campo 1" }] },
+    });
+
+    const ev = await createEvaluation(matriz, { frameworkId: fw.id });
+    await assignEvaluation(matriz, ev.id, { businessUnitOrganizationId: unidadA });
+    await assignEvaluation(matriz, ev.id, { businessUnitOrganizationId: unidadB });
+
+    // Solo la unidad A responde.
+    await upsertResponse(ev.id, sub.id, { "el-1": "respuesta de A" }, unidadA);
+
+    expect(await getBusinessUnitProgress(ev.id, unidadA)).toEqual({ total: 1, answered: 1, percent: 100 });
+    expect(await getBusinessUnitProgress(ev.id, unidadB)).toEqual({ total: 1, answered: 0, percent: 0 });
+  });
+});

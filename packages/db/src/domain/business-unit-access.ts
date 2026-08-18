@@ -1,9 +1,18 @@
-import type { EvaluationSnapshot } from "@plataforma-csa/sdk-core";
+import {
+  componentRegistry,
+  isAnswered,
+  isElementVisible,
+  naKey,
+  type EvaluationSnapshot,
+  type FormElement,
+  type ResponseAnswers,
+} from "@plataforma-csa/sdk-core";
 import { eq } from "drizzle-orm";
 import { db } from "../client.js";
 import { evaluationAssignment } from "../schema/evaluation-assignment.js";
 import { evaluation } from "../schema/evaluation.js";
 import { getAssignmentForBusinessUnit, listExclusions } from "./evaluation-assignment-service.js";
+import { listResponses } from "./response-service.js";
 import { NotFoundError, ValidationError } from "./service.js";
 
 // VS-053 (docs/domain/business-units.md, "Acceso del evaluado"): flujo
@@ -155,4 +164,45 @@ export async function assertAnswersRespectExclusions(
 export async function getEvaluationMatrizOrganizationId(evaluationId: string): Promise<string | null> {
   const [ev] = await db.select({ organizationId: evaluation.organizationId }).from(evaluation).where(eq(evaluation.id, evaluationId));
   return ev?.organizationId ?? null;
+}
+
+type QuestionComponentType = Extract<(typeof componentRegistry)[number], { isQuestion: true }>["type"];
+const QUESTION_TYPES = new Set<QuestionComponentType>(
+  componentRegistry
+    .filter((c): c is Extract<(typeof componentRegistry)[number], { isQuestion: true }> => c.isQuestion)
+    .map((c) => c.type),
+);
+function isQuestion(el: FormElement): boolean {
+  return QUESTION_TYPES.has(el.type as QuestionComponentType);
+}
+
+/**
+ * Progreso agregado de una unidad de negocio sobre una Evaluación (VS-055,
+ * docs/domain/business-units.md "Dashboard de avance corporativo"): cuenta
+ * sobre el snapshot YA FILTRADO por exclusiones (mismo criterio que el
+ * Runtime autenticado y el export XLSX — un elemento excluido no cuenta ni
+ * como total ni como respondido). Elementos ocultos por `visibleIf` tampoco
+ * cuentan — nunca se le pidieron al evaluado, mismo criterio que
+ * `progressOf` del Runtime.
+ */
+export async function getBusinessUnitProgress(evaluationId: string, businessUnitOrganizationId: string) {
+  const filtered = await getEvaluationForBusinessUnit(evaluationId, businessUnitOrganizationId);
+  const responses = await listResponses(evaluationId, businessUnitOrganizationId);
+  const answersBySub = new Map(responses.map((r) => [r.subindicatorId, r.answers as ResponseAnswers]));
+
+  let total = 0;
+  let answered = 0;
+  function countSubindicator(sub: SnapshotSubindicator) {
+    const answers = answersBySub.get(sub.id) ?? {};
+    const questions = (sub.formSchema?.elements ?? []).filter((el) => isQuestion(el) && isElementVisible(el.visibleIf, answers));
+    total += questions.length;
+    answered += questions.filter((q) => isAnswered(answers[q.id], answers[naKey(q.id)] as string | undefined)).length;
+  }
+  const snapshot = filtered.snapshot as EvaluationSnapshot;
+  snapshot.dimensions.forEach((dim) => {
+    dim.indicators.forEach((ind) => ind.subindicators.forEach(countSubindicator));
+    dim.subindicators.forEach(countSubindicator);
+  });
+
+  return { total, answered, percent: total === 0 ? 0 : Math.round((answered / total) * 100) };
 }
