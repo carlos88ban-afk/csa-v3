@@ -473,6 +473,23 @@ function PreviewTableView({
                 }
                 const { cellType, editable, content, expression, maxLength: cellMaxLength, options: cellOptions, unit, availableUnits } = cellCfg;
                 const cell = rowValue[col.id];
+                // VS-069 (docs/engines/form.md "Referencias y campos
+                // adicionales por celda"): ver misma nota en Runtime
+                // (page.tsx) — ya no exclusivos de "referencia"/"casilla".
+                const refsKey = `${unitKeyPrefix}::${row.id}::${col.id}::refs`;
+                const extraKey = `${unitKeyPrefix}::${row.id}::${col.id}::field`;
+                const referencesBlock = cellCfg.references && (
+                  <PreviewOptionReferences
+                    refType={cellCfg.references.refType ?? "public"}
+                    maxUrls={cellCfg.references.maxUrls ?? 3}
+                    value={answers[refsKey]}
+                    onChange={(next) => onAnswerChange(refsKey, next)}
+                    className="runtime-url-list"
+                  />
+                );
+                const extraFieldsBlock = cellCfg.extraFields && (
+                  <PreviewExtraFields fields={cellCfg.extraFields} baseKey={extraKey} answers={answers} onAnswerChange={onAnswerChange} />
+                );
                 // "calculado" siempre se evalúa dinámicamente sin importar
                 // `editable` — ver misma nota en Runtime (page.tsx).
                 if (cellType === "calculado") {
@@ -498,6 +515,8 @@ function PreviewTableView({
                 if (cellType === "seleccion_desplegable") {
                   return (
                     <td key={col.id} colSpan={cellCfg.colSpan}>
+                      {referencesBlock}
+                      {extraFieldsBlock}
                       {/* VS-063: contenido fijo como prefijo, ver nota en casilla abajo. */}
                       {content && <RichLabel html={content} />}
                       <select
@@ -520,6 +539,8 @@ function PreviewTableView({
                   const cellUnit = availableUnits ? ((answers[cellUnitKey] as string | undefined) ?? availableUnits[0]) : undefined;
                   return (
                     <td key={col.id} colSpan={cellCfg.colSpan}>
+                      {referencesBlock}
+                      {extraFieldsBlock}
                       {content && <RichLabel html={content} />}
                       <input
                         type="number"
@@ -541,11 +562,9 @@ function PreviewTableView({
                 }
                 if (cellType === "casilla") {
                   const checked = cell === "true";
-                  // VS-065: clave sintética `::field`, mismo sufijo que
-                  // sub.field/opt.field.
-                  const revealKey = `${unitKeyPrefix}::${row.id}::${col.id}::field`;
                   return (
                     <td key={col.id} colSpan={cellCfg.colSpan}>
+                      {referencesBlock}
                       {/* VS-063: `content` es el título/descripción fijo de
                           la celda. VS-064: la casilla gana su PROPIA
                           etiqueta (`checkboxLabel`). */}
@@ -558,13 +577,10 @@ function PreviewTableView({
                         />
                         {cellCfg.checkboxLabel ? <RichLabel html={cellCfg.checkboxLabel} /> : <span className="sr-only">Marcar</span>}
                       </label>
-                      {/* VS-065: mismo PreviewSubOptionField que sub.field/opt.field. */}
-                      {cellCfg.revealField && checked && (
-                        <PreviewSubOptionField
-                          field={cellCfg.revealField}
-                          value={answers[revealKey]}
-                          onChange={(next) => onAnswerChange(revealKey, next)}
-                        />
+                      {/* VS-069: reemplaza el revealField singular de
+                          VS-065 — ver nota equivalente en Runtime (page.tsx). */}
+                      {cellCfg.extraFields && checked && (
+                        <PreviewExtraFields fields={cellCfg.extraFields} baseKey={extraKey} answers={answers} onAnswerChange={onAnswerChange} />
                       )}
                     </td>
                   );
@@ -577,7 +593,6 @@ function PreviewTableView({
                   // nota equivalente en Runtime (page.tsx) sobre el
                   // marcador "true"/"" reflejado en `cell` para que
                   // `hasAnswer` detecte la celda como respondida.
-                  const refsKey = `${unitKeyPrefix}::${row.id}::${col.id}::refs`;
                   return (
                     <td key={col.id} colSpan={cellCfg.colSpan}>
                       {content && <RichLabel html={content} />}
@@ -596,6 +611,8 @@ function PreviewTableView({
                 }
                 return (
                   <td key={col.id} colSpan={cellCfg.colSpan}>
+                    {referencesBlock}
+                    {extraFieldsBlock}
                     {content && <RichLabel html={content} />}
                     <input
                       type="text"
@@ -658,6 +675,35 @@ function PreviewSubOptionField({
       />
       {field.unit && <span className="runtime-question__unit">{field.unit}</span>}
     </span>
+  );
+}
+
+// VS-069 (docs/engines/form.md "Referencias y campos adicionales por
+// celda"): mismo PreviewSubOptionField, reemplaza el revealField singular
+// de VS-065 — ver ExtraFieldsView equivalente en Runtime (page.tsx).
+function PreviewExtraFields({
+  fields,
+  baseKey,
+  answers,
+  onAnswerChange,
+}: {
+  fields: NonNullable<SubOptionFieldConfig>[];
+  baseKey: string;
+  answers: ResponseAnswers;
+  onAnswerChange: (key: string, value: AnswerValue) => void;
+}) {
+  return (
+    <>
+      {fields.map((field, index) => {
+        const key = `${baseKey}::${index}`;
+        return (
+          <span className="runtime-table__extra-field" key={index}>
+            {field.label && <span className="field__label">{field.label}</span>}
+            <PreviewSubOptionField field={field} value={answers[key]} onChange={(next) => onAnswerChange(key, next)} />
+          </span>
+        );
+      })}
+    </>
   );
 }
 

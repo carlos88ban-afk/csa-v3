@@ -605,10 +605,12 @@ interface ElementViewProps {
 // Campo embebido en una sub-opción (VS-040, docs/engines/form.md "Campos
 // embebidos en sub-opciones"): hallazgo del mismo HTML de S&P que VS-039 — la
 // sub-opción "% de ingresos cubierto" trae su propio <select>.
+// VS-069: `label` opcional — distingue cada campo cuando una celda de tabla
+// muestra varios juntos (ver ExtraFieldsView).
 type SubOptionField =
-  | { type: "seleccion_desplegable"; options: { id: string; label: string }[] }
-  | { type: "texto_corto"; maxLength?: number | undefined }
-  | { type: "numero"; min?: number | undefined; max?: number | undefined; unit?: string | undefined };
+  | { type: "seleccion_desplegable"; label?: string | undefined; options: { id: string; label: string }[] }
+  | { type: "texto_corto"; label?: string | undefined; maxLength?: number | undefined }
+  | { type: "numero"; label?: string | undefined; min?: number | undefined; max?: number | undefined; unit?: string | undefined };
 
 function SubOptionFieldView({
   field,
@@ -650,6 +652,40 @@ function SubOptionFieldView({
       />
       {field.unit && <span className="runtime-question__unit">{field.unit}</span>}
     </span>
+  );
+}
+
+// VS-069 (docs/engines/form.md "Referencias y campos adicionales por
+// celda"): renderiza `formTableCell.extraFields` (reemplaza el
+// `revealField` singular de VS-065) — cada campo bajo su propia clave
+// sintética `${baseKey}::${index}`, con su `label` propio (si lo tiene) para
+// distinguirlos cuando hay más de uno. El gating (revelado tras marcar vs.
+// siempre visible) lo decide el llamador según `cellType`, no este componente.
+function ExtraFieldsView({
+  fields,
+  baseKey,
+  answers,
+  onAnswerChange,
+  locked,
+}: {
+  fields: SubOptionField[];
+  baseKey: string;
+  answers: ResponseAnswers;
+  onAnswerChange: (key: string, value: AnswerValue) => void;
+  locked?: boolean | undefined;
+}) {
+  return (
+    <>
+      {fields.map((field, index) => {
+        const key = `${baseKey}::${index}`;
+        return (
+          <span className="runtime-table__extra-field" key={index}>
+            {field.label && <span className="field__label">{field.label}</span>}
+            <SubOptionFieldView field={field} value={answers[key]} onChange={(next) => onAnswerChange(key, next)} locked={locked} />
+          </span>
+        );
+      })}
+    </>
   );
 }
 
@@ -1481,6 +1517,33 @@ function FormTableView({
                 }
                 const { cellType, editable, content, expression, maxLength: cellMaxLength, options: cellOptions, unit, availableUnits } = cellCfg;
                 const cell = rowValue[col.id];
+                // VS-069 (docs/engines/form.md "Referencias y campos
+                // adicionales por celda"): ya no exclusivos de cellType
+                // "referencia"/"casilla" — hallazgo real
+                // (MAT_MaterialIssues_Selection): una celda "Material N"
+                // adjunta referencias Y ADEMÁS tiene un <select> propio
+                // (cellType principal), con un campo de texto libre
+                // ("nombre del tema") mostrado siempre junto a él, no
+                // revelado tras marcar nada. `extraFieldsBlock` se calcula
+                // acá pero solo se usa fuera de "casilla" — esa rama tiene
+                // su propio gating (revelado tras marcar el checkbox).
+                const refsKey = `${unitKeyPrefix}::${row.id}::${col.id}::refs`;
+                const extraKey = `${unitKeyPrefix}::${row.id}::${col.id}::field`;
+                const referencesBlock = cellCfg.references && (
+                  <OptionReferencesView
+                    refType={cellCfg.references.refType ?? "public"}
+                    maxUrls={cellCfg.references.maxUrls ?? 3}
+                    value={answers[refsKey] as (string | EvidenceRef)[] | undefined}
+                    onChange={(next) => onAnswerChange(refsKey, next)}
+                    locked={locked}
+                    token={token}
+                    subindicatorId={subindicatorId}
+                    elementId={elementId}
+                  />
+                );
+                const extraFieldsBlock = cellCfg.extraFields && (
+                  <ExtraFieldsView fields={cellCfg.extraFields} baseKey={extraKey} answers={answers} onAnswerChange={onAnswerChange} locked={locked} />
+                );
                 // "calculado" siempre se evalúa dinámicamente sin importar
                 // `editable` — es de solo lectura por naturaleza (VS-047,
                 // bug real: el check `!editable` antes de este la ocultaba
@@ -1508,6 +1571,8 @@ function FormTableView({
                 if (cellType === "seleccion_desplegable") {
                   return (
                     <td key={col.id} colSpan={cellCfg.colSpan}>
+                      {referencesBlock}
+                      {extraFieldsBlock}
                       {/* VS-063: contenido fijo como prefijo, ver nota en casilla abajo. */}
                       {content && <RichLabel html={content} />}
                       <select
@@ -1534,6 +1599,8 @@ function FormTableView({
                   const cellUnit = availableUnits ? ((answers[cellUnitKey] as string | undefined) ?? availableUnits[0]) : undefined;
                   return (
                     <td key={col.id} colSpan={cellCfg.colSpan}>
+                      {referencesBlock}
+                      {extraFieldsBlock}
                       {content && <RichLabel html={content} />}
                       <input
                         type="number"
@@ -1556,11 +1623,9 @@ function FormTableView({
                 }
                 if (cellType === "casilla") {
                   const checked = cell === "true";
-                  // VS-065: clave sintética `::field`, mismo sufijo que
-                  // sub.field/opt.field (no `commentKey`, que es `::comment`).
-                  const revealKey = `${unitKeyPrefix}::${row.id}::${col.id}::field`;
                   return (
                     <td key={col.id} colSpan={cellCfg.colSpan}>
+                      {referencesBlock}
                       {/* VS-063: `content` es el título/descripción fijo de
                           la celda, ANTES del control. VS-064: la casilla
                           gana su PROPIA etiqueta (`checkboxLabel`) — el
@@ -1576,18 +1641,13 @@ function FormTableView({
                         />
                         {cellCfg.checkboxLabel ? <RichLabel html={cellCfg.checkboxLabel} /> : <span className="sr-only">Marcar</span>}
                       </label>
-                      {/* VS-065 (docs/engines/form.md "Campo elegido por el
-                          admin al marcar una celda casilla"): reemplaza el
-                          input de texto fijo de VS-061 — mismo
-                          SubOptionFieldView que sub.field/opt.field, el
-                          admin elige el tipo (texto/número/selección). */}
-                      {cellCfg.revealField && checked && (
-                        <SubOptionFieldView
-                          field={cellCfg.revealField}
-                          value={answers[revealKey]}
-                          onChange={(next) => onAnswerChange(revealKey, next)}
-                          locked={locked}
-                        />
+                      {/* VS-069 (docs/engines/form.md "Referencias y campos
+                          adicionales por celda"): reemplaza el revealField
+                          singular de VS-065 — ahora soporta N campos
+                          revelados juntos tras marcar, cada uno con su
+                          propio label opcional para distinguirlos. */}
+                      {cellCfg.extraFields && checked && (
+                        <ExtraFieldsView fields={cellCfg.extraFields} baseKey={extraKey} answers={answers} onAnswerChange={onAnswerChange} locked={locked} />
                       )}
                     </td>
                   );
@@ -1607,7 +1667,6 @@ function FormTableView({
                   // marcador nunca se lee para presentación — Runtime/
                   // Preview/Export siempre resuelven el valor real desde
                   // `::refs`, no desde `cell`.
-                  const refsKey = `${unitKeyPrefix}::${row.id}::${col.id}::refs`;
                   return (
                     <td key={col.id} colSpan={cellCfg.colSpan}>
                       {content && <RichLabel html={content} />}
@@ -1629,6 +1688,8 @@ function FormTableView({
                 }
                 return (
                   <td key={col.id} colSpan={cellCfg.colSpan}>
+                    {referencesBlock}
+                    {extraFieldsBlock}
                     {content && <RichLabel html={content} />}
                     <input
                       value={(cell as string) ?? ""}

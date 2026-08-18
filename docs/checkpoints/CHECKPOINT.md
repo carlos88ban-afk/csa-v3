@@ -3,7 +3,7 @@
 **Última actualización**: 2026-08-18  
 **Branch activa**: main  
 **Último slice cerrado**: VS-068 (exclusividad y encabezado del bloque primario de sub-opciones) — commiteado y verificado en producción end-to-end, incluye fix de un gap real de export encontrado en el camino, ver "Verificación en producción" abajo.  
-**Slice en progreso**: ninguno.
+**Slice en progreso**: VS-069 (referencias y campos adicionales por celda — `formTableCell.extraFields`/`references` generalizado, spec en `docs/engines/form.md`) — implementado, pendiente de commit/push y verificación en producción.
 
 ## Resumen ejecutivo
 

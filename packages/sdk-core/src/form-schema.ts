@@ -58,11 +58,19 @@ const optionReferences = z.object({
 // sub-opción "% de ingresos cubierto" trae su propio <select> de rangos.
 // Solo nivel 1 (subOption), no subSubOption — ver "Fuera de alcance" del doc.
 const subOptionFieldOption = z.object({ id: z.string().min(1), label: z.string() });
+// VS-069 (docs/engines/form.md "Referencias y campos adicionales por
+// celda"): `label` opcional — hallazgo real (MAT_MaterialIssues_Selection):
+// una celda de tabla puede mostrar 2+ de estos campos juntos ("Tipo de
+// impacto:" etiqueta un <select> revelado junto a un campo de texto sin
+// etiqueta propia) y sin nombre no hay forma de distinguirlos. No afecta
+// los usos existentes (subOption.field/formOption.field) — campo opcional,
+// solo se renderiza si está presente.
 const subOptionField = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("seleccion_desplegable"), options: z.array(subOptionFieldOption).min(1) }),
-  z.object({ type: z.literal("texto_corto"), maxLength: z.number().int().positive().optional() }),
+  z.object({ type: z.literal("seleccion_desplegable"), label: z.string().optional(), options: z.array(subOptionFieldOption).min(1) }),
+  z.object({ type: z.literal("texto_corto"), label: z.string().optional(), maxLength: z.number().int().positive().optional() }),
   z.object({
     type: z.literal("numero"),
+    label: z.string().optional(),
     min: z.number().optional(),
     max: z.number().optional(),
     unit: z.string().min(1).optional(),
@@ -140,12 +148,22 @@ const formTableCell = z.object({
   // marcando) — distinto de `content` (título/descripción de la celda,
   // ANTES del control). Solo aplica si cellType === "casilla".
   checkboxLabel: z.string().optional(),
-  // VS-065 (docs/engines/form.md "Campo elegido por el admin al marcar una
-  // celda casilla"): reemplaza el `revealText: boolean` de VS-061 (fijo a
-  // texto libre) — el admin ahora elige el TIPO de campo que se revela al
-  // marcar, mismo `subOptionField` ya usado por subOption.field (VS-040) y
-  // formOption.field (VS-062). Solo aplica si cellType === "casilla".
-  revealField: subOptionField.optional(),
+  // VS-069 (docs/engines/form.md "Referencias y campos adicionales por
+  // celda"): reemplaza el `revealField: subOptionField` singular de VS-065
+  // — reemplazo limpio, mismo criterio ya aplicado en VS-065
+  // (revealText→revealField), sin datos reales confirmados dependiendo del
+  // campo anterior. Hallazgo real (MAT_MaterialIssues_Selection): una celda
+  // "casilla" puede revelar DOS campos juntos al marcarse (comentario +
+  // selección de impacto), no solo uno. Además, ahora aplica a CUALQUIER
+  // cellType editable, no solo "casilla":
+  //  - cellType === "casilla": los campos se revelan tras marcar el
+  //    checkbox (mismo gating que el revealField singular anterior).
+  //  - cualquier otro tipo editable (texto/numero/seleccion_desplegable):
+  //    los campos se muestran SIEMPRE, como "campos compañeros" junto al
+  //    control principal — caso real: la celda "Material N" combina un
+  //    <select> (categoría, el cellType principal) con un campo de texto
+  //    libre (nombre del tema) mostrado siempre junto a él.
+  extraFields: z.array(subOptionField).min(1).optional(),
   // VS-066 (docs/engines/form.md "Combinar columnas (colspan)"): réplica
   // fiel de tablas reales de S&P con encabezados/celdas que abarcan más de
   // una columna (`<th colspan="2">`, `<td colspan="2">`). Ausente = 1 (sin
@@ -161,8 +179,14 @@ const formTableCell = z.object({
   // partes") es exactamente esa dualidad URL-o-documento-interno, no un
   // mecanismo nuevo. `position` no aplica a una celda (no tiene
   // sub-opciones) pero se deja sin tocar el tipo compartido — un campo no
-  // usado en este contexto no daña nada, ya lo tolera zod. Solo aplica si
-  // cellType === "referencia".
+  // usado en este contexto no daña nada, ya lo tolera zod.
+  // VS-069 (docs/engines/form.md "Referencias y campos adicionales por
+  // celda"): ya no exclusivo de cellType === "referencia" — hallazgo real
+  // (MAT_MaterialIssues_Selection): la celda "Material N" adjunta
+  // referencias Y ADEMÁS tiene un control principal (`seleccion_desplegable`)
+  // propio, no solo referencias. Aplica a cualquier celda editable; para
+  // cellType === "referencia" sigue siendo el ÚNICO contenido de la celda
+  // (sin control principal propio), comportamiento sin cambios.
   references: optionReferences.optional(),
 })
 // VS-043: si cellType es "calculado", expression es obligatorio

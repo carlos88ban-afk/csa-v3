@@ -157,12 +157,13 @@ type TableConfigRows = TablaDatosConfig["rows"];
 // quiere que una celda actúe como encabezado, la marca "solo lectura" con
 // el texto que corresponda — mismo mecanismo que cualquier otra celda fija.
 type TableConfigCell = TableConfigRows[number]["cells"][number];
-// VS-065 (docs/engines/form.md "Campo elegido por el admin al marcar una
-// celda casilla"): mismo tipo `subOptionField` que sub.field/opt.field,
-// alias local porque `TableConfigEditor` es un componente hermano de
-// `SubindicatorEditor` (donde vive el alias `SubOptionField` original), sin
-// acceso a sus tipos internos.
-type CellRevealField = NonNullable<TableConfigCell["revealField"]>;
+// VS-069 (docs/engines/form.md "Referencias y campos adicionales por
+// celda"): mismo tipo `subOptionField` que sub.field/opt.field, alias local
+// porque `TableConfigEditor` es un componente hermano de `SubindicatorEditor`
+// (donde vive el alias `SubOptionField` original), sin acceso a sus tipos
+// internos. Reemplaza `CellRevealField` (VS-065, singular) — ahora es el
+// tipo de ELEMENTO del array `extraFields`.
+type CellExtraField = NonNullable<TableConfigCell["extraFields"]>[number];
 
 function TableConfigEditor({
   columns,
@@ -263,6 +264,201 @@ function TableConfigEditor({
   function removeCellOption(rowId: string, columnId: string, optionId: string, current: TableConfigCell | undefined) {
     if ((current?.options?.length ?? 0) <= 1) return;
     updateCell(rowId, columnId, { options: (current?.options ?? []).filter((o) => o.id !== optionId) });
+  }
+
+  // VS-069 (docs/engines/form.md "Referencias y campos adicionales por
+  // celda"): CRUD del array `extraFields` — reemplaza el flujo "Agregar
+  // campo al marcar…" de un solo campo (VS-065). Disponible para cualquier
+  // cellType editable, no solo "casilla" — el gating (revelado tras marcar
+  // vs. siempre visible) lo decide Runtime/Preview según el tipo, no acá.
+  function addCellExtraField(rowId: string, columnId: string, type: CellExtraField["type"], current: TableConfigCell | undefined) {
+    const field: CellExtraField =
+      type === "seleccion_desplegable"
+        ? { type: "seleccion_desplegable", options: [{ id: crypto.randomUUID(), label: "" }] }
+        : type === "texto_corto"
+          ? { type: "texto_corto" }
+          : { type: "numero" };
+    updateCell(rowId, columnId, { extraFields: [...(current?.extraFields ?? []), field] });
+  }
+
+  function updateCellExtraField(
+    rowId: string,
+    columnId: string,
+    index: number,
+    patch: Partial<CellExtraField>,
+    current: TableConfigCell | undefined,
+  ) {
+    updateCell(rowId, columnId, {
+      extraFields: (current?.extraFields ?? []).map((f, i) => (i === index ? ({ ...f, ...patch } as CellExtraField) : f)),
+    });
+  }
+
+  function removeCellExtraField(rowId: string, columnId: string, index: number, current: TableConfigCell | undefined) {
+    updateCell(rowId, columnId, { extraFields: (current?.extraFields ?? []).filter((_, i) => i !== index) });
+  }
+
+  // VS-069 (docs/engines/form.md "Referencias y campos adicionales por
+  // celda"): editor de la lista `extraFields` — un único bloque reusado
+  // desde 2 lugares (celda "casilla", gated tras marcar; cualquier otro tipo
+  // editable, siempre visible), parametrizado solo por el texto del
+  // encabezado — el gating real vive en Runtime/Preview, no acá.
+  function renderExtraFields(row: TableConfigRows[number], col: TableConfigColumns[number], cell: TableConfigCell, heading: string) {
+    return (
+      <div className="sub-options" style={{ marginLeft: "var(--space-4)" }}>
+        <span className="field__label">{heading}</span>
+        {(cell.extraFields ?? []).map((field, index) => (
+          <div key={index}>
+            <div className="option-row option-row--sub">
+              <span className="field__label">
+                {field.type === "seleccion_desplegable" && "Selección desplegable"}
+                {field.type === "texto_corto" && "Texto corto"}
+                {field.type === "numero" && "Número"}
+              </span>
+              <input
+                placeholder="Etiqueta (opcional)"
+                value={field.label ?? ""}
+                onChange={(e) =>
+                  updateCellExtraField(row.id, col.id, index, { label: e.target.value === "" ? undefined : e.target.value }, cell)
+                }
+              />
+              <Button type="button" variant="danger" size="sm" onClick={() => removeCellExtraField(row.id, col.id, index, cell)}>
+                Quitar
+              </Button>
+            </div>
+            {field.type === "seleccion_desplegable" && (
+              <div className="options" style={{ marginLeft: "var(--space-4)" }}>
+                {field.options.map((fo) => (
+                  <div className="option-row option-row--sub" key={fo.id}>
+                    <div className="option-row__editor">
+                      <RichTextEditor
+                        value={fo.label}
+                        onChange={(html) =>
+                          updateCellExtraField(
+                            row.id,
+                            col.id,
+                            index,
+                            { options: field.options.map((o) => (o.id === fo.id ? { ...o, label: html } : o)) },
+                            cell,
+                          )
+                        }
+                        ariaLabel="Texto de la opción del campo"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      size="sm"
+                      onClick={() =>
+                        updateCellExtraField(row.id, col.id, index, { options: field.options.filter((o) => o.id !== fo.id) }, cell)
+                      }
+                      disabled={field.options.length <= 1}
+                    >
+                      Quitar
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() =>
+                    updateCellExtraField(
+                      row.id,
+                      col.id,
+                      index,
+                      { options: [...field.options, { id: crypto.randomUUID(), label: "" }] },
+                      cell,
+                    )
+                  }
+                >
+                  Agregar opción
+                </Button>
+              </div>
+            )}
+            {field.type === "texto_corto" && (
+              <label className="field" style={{ marginLeft: "var(--space-4)" }}>
+                <span className="field__label">Longitud máxima</span>
+                <input
+                  type="number"
+                  value={field.maxLength ?? ""}
+                  onChange={(e) =>
+                    updateCellExtraField(row.id, col.id, index, { maxLength: e.target.value === "" ? undefined : Number(e.target.value) }, cell)
+                  }
+                />
+              </label>
+            )}
+            {field.type === "numero" && (
+              <div className="field-grid" style={{ marginLeft: "var(--space-4)" }}>
+                <label className="field">
+                  <span className="field__label">Mínimo</span>
+                  <input
+                    type="number"
+                    value={field.min ?? ""}
+                    onChange={(e) =>
+                      updateCellExtraField(row.id, col.id, index, { min: e.target.value === "" ? undefined : Number(e.target.value) }, cell)
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span className="field__label">Máximo</span>
+                  <input
+                    type="number"
+                    value={field.max ?? ""}
+                    onChange={(e) =>
+                      updateCellExtraField(row.id, col.id, index, { max: e.target.value === "" ? undefined : Number(e.target.value) }, cell)
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span className="field__label">Unidad</span>
+                  <input
+                    value={field.unit ?? ""}
+                    onChange={(e) =>
+                      updateCellExtraField(row.id, col.id, index, { unit: e.target.value === "" ? undefined : e.target.value }, cell)
+                    }
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+        ))}
+        <select
+          value=""
+          onChange={(e) => {
+            if (!e.target.value) return;
+            addCellExtraField(row.id, col.id, e.target.value as CellExtraField["type"], cell);
+          }}
+        >
+          <option value="">Agregar campo…</option>
+          <option value="seleccion_desplegable">Selección desplegable</option>
+          <option value="texto_corto">Texto corto</option>
+          <option value="numero">Número</option>
+        </select>
+      </div>
+    );
+  }
+
+  // VS-069: referencias por celda, ya no exclusivas de cellType
+  // "referencia" — mismo par maxUrls/refType ya usado a nivel de
+  // Elemento/opción/sub-opción, disponible para cualquier celda editable.
+  function addCellReferences(rowId: string, columnId: string) {
+    updateCell(rowId, columnId, { references: {} });
+  }
+
+  function removeCellReferences(rowId: string, columnId: string) {
+    updateCell(rowId, columnId, { references: undefined });
+  }
+
+  function updateCellReferencesMaxUrls(rowId: string, columnId: string, maxUrls: number | undefined, current: TableConfigCell | undefined) {
+    updateCell(rowId, columnId, { references: { ...current?.references, maxUrls } });
+  }
+
+  function updateCellReferencesRefType(
+    rowId: string,
+    columnId: string,
+    refType: "public" | "flexible" | undefined,
+    current: TableConfigCell | undefined,
+  ) {
+    updateCell(rowId, columnId, { references: { ...current?.references, refType } });
   }
 
   const CELL_TYPE_LABEL: Record<TableConfigCell["cellType"], string> = {
@@ -375,8 +571,17 @@ function TableConfigEditor({
                                   maxLength: undefined,
                                   expression: undefined,
                                   checkboxLabel: undefined,
-                                  revealField: undefined,
-                                  references: undefined,
+                                  // VS-069: `extraFields` se resetea al
+                                  // cambiar de tipo — su significado cambia
+                                  // según cellType (revelado tras marcar en
+                                  // "casilla", siempre visible en los
+                                  // demás), preservarlo sería confuso.
+                                  // `references` YA NO se resetea — es un
+                                  // adjunto independiente del tipo principal
+                                  // desde este slice (antes solo existía
+                                  // para "referencia"), tiene sentido
+                                  // conservarlo al cambiar de tipo.
+                                  extraFields: undefined,
                                   editable: nextType === "calculado" ? true : cell.editable,
                                 });
                               }}
@@ -556,172 +761,39 @@ function TableConfigEditor({
                                           ariaLabel="Etiqueta de la casilla"
                                         />
                                       </label>
-                                      {/* VS-065 (docs/engines/form.md "Campo
-                                          elegido por el admin al marcar una
-                                          celda casilla"): mismo patrón "Agregar
-                                          campo…" que sub.field/opt.field — el
-                                          admin elige el TIPO de campo que se
-                                          revela al marcar. */}
-                                      {cell.revealField ? (
-                                        <div className="option-row">
-                                          <span className="field__label">
-                                            {cell.revealField.type === "seleccion_desplegable" && "Campo: selección desplegable"}
-                                            {cell.revealField.type === "texto_corto" && "Campo: texto corto"}
-                                            {cell.revealField.type === "numero" && "Campo: número"}
-                                          </span>
-                                          <Button
-                                            type="button"
-                                            variant="danger"
-                                            size="sm"
-                                            onClick={() => updateCell(row.id, col.id, { revealField: undefined })}
-                                          >
-                                            Quitar campo
-                                          </Button>
-                                        </div>
-                                      ) : (
-                                        <select
-                                          value=""
-                                          onChange={(e) => {
-                                            if (!e.target.value) return;
-                                            const type = e.target.value as CellRevealField["type"];
-                                            const field: CellRevealField =
-                                              type === "seleccion_desplegable"
-                                                ? { type: "seleccion_desplegable", options: [{ id: crypto.randomUUID(), label: "" }] }
-                                                : type === "texto_corto"
-                                                  ? { type: "texto_corto" }
-                                                  : { type: "numero" };
-                                            updateCell(row.id, col.id, { revealField: field });
-                                          }}
-                                        >
-                                          <option value="">Agregar campo al marcar…</option>
-                                          <option value="seleccion_desplegable">Selección desplegable</option>
-                                          <option value="texto_corto">Texto corto</option>
-                                          <option value="numero">Número</option>
-                                        </select>
-                                      )}
-                                      {cell.revealField?.type === "seleccion_desplegable" &&
-                                        (() => {
-                                          const selectField = cell.revealField;
-                                          return (
-                                            <div className="options" style={{ marginLeft: "var(--space-4)" }}>
-                                              {selectField.options.map((fo) => (
-                                                <div className="option-row option-row--sub" key={fo.id}>
-                                                  <div className="option-row__editor">
-                                                    <RichTextEditor
-                                                      value={fo.label}
-                                                      onChange={(html) =>
-                                                        updateCell(row.id, col.id, {
-                                                          revealField: {
-                                                            ...selectField,
-                                                            options: selectField.options.map((o) => (o.id === fo.id ? { ...o, label: html } : o)),
-                                                          },
-                                                        })
-                                                      }
-                                                      ariaLabel="Texto de la opción del campo"
-                                                    />
-                                                  </div>
-                                                  <Button
-                                                    type="button"
-                                                    variant="danger"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                      updateCell(row.id, col.id, {
-                                                        revealField: { ...selectField, options: selectField.options.filter((o) => o.id !== fo.id) },
-                                                      })
-                                                    }
-                                                    disabled={selectField.options.length <= 1}
-                                                  >
-                                                    Quitar
-                                                  </Button>
-                                                </div>
-                                              ))}
-                                              <Button
-                                                type="button"
-                                                size="sm"
-                                                onClick={() =>
-                                                  updateCell(row.id, col.id, {
-                                                    revealField: { ...selectField, options: [...selectField.options, { id: crypto.randomUUID(), label: "" }] },
-                                                  })
-                                                }
-                                              >
-                                                Agregar opción
-                                              </Button>
-                                            </div>
-                                          );
-                                        })()}
-                                      {cell.revealField?.type === "texto_corto" &&
-                                        (() => {
-                                          const textoField = cell.revealField;
-                                          return (
-                                            <label className="field" style={{ marginLeft: "var(--space-4)" }}>
-                                              <span className="field__label">Longitud máxima</span>
-                                              <input
-                                                type="number"
-                                                value={textoField.maxLength ?? ""}
-                                                onChange={(e) =>
-                                                  updateCell(row.id, col.id, {
-                                                    revealField: { ...textoField, maxLength: e.target.value === "" ? undefined : Number(e.target.value) },
-                                                  })
-                                                }
-                                              />
-                                            </label>
-                                          );
-                                        })()}
-                                      {cell.revealField?.type === "numero" &&
-                                        (() => {
-                                          const numeroField = cell.revealField;
-                                          return (
-                                            <div className="field-grid" style={{ marginLeft: "var(--space-4)" }}>
-                                              <label className="field">
-                                                <span className="field__label">Mínimo</span>
-                                                <input
-                                                  type="number"
-                                                  value={numeroField.min ?? ""}
-                                                  onChange={(e) =>
-                                                    updateCell(row.id, col.id, {
-                                                      revealField: { ...numeroField, min: e.target.value === "" ? undefined : Number(e.target.value) },
-                                                    })
-                                                  }
-                                                />
-                                              </label>
-                                              <label className="field">
-                                                <span className="field__label">Máximo</span>
-                                                <input
-                                                  type="number"
-                                                  value={numeroField.max ?? ""}
-                                                  onChange={(e) =>
-                                                    updateCell(row.id, col.id, {
-                                                      revealField: { ...numeroField, max: e.target.value === "" ? undefined : Number(e.target.value) },
-                                                    })
-                                                  }
-                                                />
-                                              </label>
-                                              <label className="field">
-                                                <span className="field__label">Unidad</span>
-                                                <input
-                                                  value={numeroField.unit ?? ""}
-                                                  onChange={(e) =>
-                                                    updateCell(row.id, col.id, {
-                                                      revealField: { ...numeroField, unit: e.target.value === "" ? undefined : e.target.value },
-                                                    })
-                                                  }
-                                                />
-                                              </label>
-                                            </div>
-                                          );
-                                        })()}
+                                      {renderExtraFields(row, col, cell, "Campos revelados al marcar")}
                                     </>
                                   )}
 
-                                  {/* VS-067 (docs/engines/form.md "Adjuntar
-                                      archivos o enlaces por celda"): mismo
-                                      par maxUrls/refType ya usado a nivel de
-                                      Elemento/opción/sub-opción (VS-039/045)
-                                      — sin un botón "Agregar…" porque, a
-                                      diferencia de revealField (opcional
-                                      dentro de una casilla), acá es la
-                                      config completa del tipo de celda. */}
-                                  {cell.cellType === "referencia" && (
+                                  {/* VS-069 (docs/engines/form.md
+                                      "Referencias y campos adicionales por
+                                      celda"): campos "compañeros" SIEMPRE
+                                      visibles junto al control principal —
+                                      hallazgo real (MAT_MaterialIssues_Selection):
+                                      una celda seleccion_desplegable trae un
+                                      campo de texto libre mostrado siempre
+                                      junto al <select>, sin checkbox que lo
+                                      condicione. No aplica a "casilla" (ese
+                                      tipo ya tiene su propia sección arriba,
+                                      con gating distinto) ni a "referencia"
+                                      (sin control principal propio). */}
+                                  {cell.cellType !== "casilla" &&
+                                    cell.cellType !== "referencia" &&
+                                    renderExtraFields(row, col, cell, "Campos adicionales (siempre visibles)")}
+
+                                  {/* VS-067/VS-069 (docs/engines/form.md
+                                      "Referencias y campos adicionales por
+                                      celda"): mismo par maxUrls/refType ya
+                                      usado a nivel de Elemento/opción/
+                                      sub-opción (VS-039/045) — ya NO exclusivo
+                                      de cellType "referencia" (hallazgo real:
+                                      una celda seleccion_desplegable puede
+                                      adjuntar referencias Y ADEMÁS tener su
+                                      propio control principal). Para
+                                      "referencia" sigue siendo la config
+                                      COMPLETA de la celda (sin botón
+                                      "Agregar…"); para el resto es opcional. */}
+                                  {cell.cellType === "referencia" ? (
                                     <div className="field-grid">
                                       <label className="field">
                                         <span className="field__label">Máximo de referencias</span>
@@ -730,34 +802,50 @@ function TableConfigEditor({
                                           min={1}
                                           value={cell.references?.maxUrls ?? ""}
                                           placeholder="3"
-                                          onChange={(e) =>
-                                            updateCell(row.id, col.id, {
-                                              references: {
-                                                ...cell.references,
-                                                maxUrls: e.target.value === "" ? undefined : Number(e.target.value),
-                                              },
-                                            })
-                                          }
+                                          onChange={(e) => updateCellReferencesMaxUrls(row.id, col.id, e.target.value === "" ? undefined : Number(e.target.value), cell)}
                                         />
                                       </label>
                                       <label className="field">
                                         <span className="field__label">Tipo de referencia</span>
                                         <select
                                           value={cell.references?.refType ?? "public"}
-                                          onChange={(e) =>
-                                            updateCell(row.id, col.id, {
-                                              references: {
-                                                ...cell.references,
-                                                refType: e.target.value === "flexible" ? "flexible" : undefined,
-                                              },
-                                            })
-                                          }
+                                          onChange={(e) => updateCellReferencesRefType(row.id, col.id, e.target.value === "flexible" ? "flexible" : undefined, cell)}
                                         >
                                           <option value="public">URL pública</option>
                                           <option value="flexible">Flexible (URL o documento interno)</option>
                                         </select>
                                       </label>
                                     </div>
+                                  ) : cell.references ? (
+                                    <div className="field-grid">
+                                      <label className="field">
+                                        <span className="field__label">Máximo de referencias</span>
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          value={cell.references.maxUrls ?? ""}
+                                          placeholder="3"
+                                          onChange={(e) => updateCellReferencesMaxUrls(row.id, col.id, e.target.value === "" ? undefined : Number(e.target.value), cell)}
+                                        />
+                                      </label>
+                                      <label className="field">
+                                        <span className="field__label">Tipo de referencia</span>
+                                        <select
+                                          value={cell.references.refType ?? "public"}
+                                          onChange={(e) => updateCellReferencesRefType(row.id, col.id, e.target.value === "flexible" ? "flexible" : undefined, cell)}
+                                        >
+                                          <option value="public">URL pública</option>
+                                          <option value="flexible">Flexible (URL o documento interno)</option>
+                                        </select>
+                                      </label>
+                                      <Button type="button" variant="danger" size="sm" onClick={() => removeCellReferences(row.id, col.id)}>
+                                        Quitar referencias
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <Button type="button" size="sm" onClick={() => addCellReferences(row.id, col.id)}>
+                                      Agregar referencias
+                                    </Button>
                                   )}
                                 </>
                               )}

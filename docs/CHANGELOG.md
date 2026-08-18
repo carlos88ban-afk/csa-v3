@@ -4,6 +4,18 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-069 — Referencias y campos adicionales por celda (2026-08-18)
+
+HTML real de S&P (`MAT_MaterialIssues_Selection`, tabla de temas materiales): una celda de tabla combina referencias + un campo de texto libre SIEMPRE visible + un `<select>` como control principal, todo en la misma celda; y en otra fila, una celda `casilla` revela DOS campos juntos al marcarse (comentario + dropdown). Pedido explícito del usuario: "haz las actualizaciones necesarias para que las tablas se puedan construir de igual manera... recordando usar los principios de UX".
+
+- `packages/sdk-core/src/form-schema.ts`: `formTableCell.revealField: subOptionField` (singular, VS-065) → `extraFields: subOptionField[]` (reemplazo limpio, mismo criterio VS-065). `subOptionField` gana `label?: string` para distinguir cada campo cuando hay varios juntos. `references` deja de ser exclusivo de `cellType === "referencia"` (sin cambio de schema, solo de condición de render).
+- Runtime/Preview: nuevos `ExtraFieldsView`/`PreviewExtraFields` (mapean el array, cada uno con clave `::field::${index}` y su `label` si lo tiene). `references` calculado una vez por celda y reutilizado en las 4 ramas de `cellType` que lo necesitan. Orden: referencias → extraFields (si no es casilla, siempre visibles) → content → control principal → extraFields (si es casilla y está marcada, gated).
+- Builder: sección "Referencias" disponible para cualquier celda editable; nueva `renderExtraFields` compartida (lista con tipo+etiqueta+config por campo) reusada para "casilla" (gated) y el resto de tipos editables (siempre visibles). Cambiar `cellType` sigue reseteando `extraFields`, ya no resetea `references`.
+- Export: `resolveRevealField` → `resolveExtraFields` (resuelve el array completo, sin distinción por cellType); referencias de celdas con control principal propio se anexan como sufijo `[Referencias: ...]`.
+- Spec en `docs/engines/form.md`, "Referencias y campos adicionales por celda".
+
+**Estado**: implementado siguiendo el proceso doc-first. Sin build/typecheck/tests locales por instrucción explícita del usuario.
+
 ### VS-068 — Exclusividad y encabezado del bloque primario de sub-opciones (2026-08-18)
 
 HTML real de S&P (`COG_ESGGovernanceOversight_Selection`): la opción "Applicable" trae DOS bloques de sub-opciones checkbox con encabezado propio ("Supervisión de la Junta"/"Supervisión ejecutiva"), y cada ítem checkbox revela su propio grupo de radios al marcarse. Pedido explícito del usuario: poder construir este tipo de pregunta, hoy imposible.

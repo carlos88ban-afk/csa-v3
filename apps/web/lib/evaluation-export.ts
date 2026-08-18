@@ -35,22 +35,29 @@ function cellConfig(row: FormTableRow, columnId: string): FormTableCell | undefi
   return row.cells.find((c) => c.columnId === columnId);
 }
 
-// VS-065 (docs/engines/form.md "Campo elegido por el admin al marcar una
-// celda casilla"): resuelve `cellCfg.revealField` (mismo tipo
-// `subOptionField` que sub.field/opt.field) bajo la clave sintética
-// `${prefix}::field` — misma resolución que sub.field/opt.field (label si
-// es seleccion_desplegable, valor literal + unidad si es numero/texto_corto).
-// Compartida entre las 2 llamadas (tabla embebida y tabla_datos suelto) para
-// no duplicar la resolución.
-function resolveRevealField(cellCfg: FormTableCell, prefix: string, answers: ResponseAnswers): string | undefined {
-  if (cellCfg.cellType !== "casilla" || !cellCfg.revealField) return undefined;
-  const raw = answers[`${prefix}::field`];
-  if (raw === undefined || raw === "") return undefined;
-  const field = cellCfg.revealField;
-  const resolved =
-    field.type === "seleccion_desplegable" ? (field.options.find((o) => o.id === raw)?.label ?? String(raw)) : String(raw);
-  const unit = field.type === "numero" && field.unit ? ` ${field.unit}` : "";
-  return `${resolved}${unit}`;
+// VS-069 (docs/engines/form.md "Referencias y campos adicionales por
+// celda"): reemplaza `resolveRevealField` (VS-065, singular, exclusivo de
+// "casilla") — resuelve `cellCfg.extraFields` (array) bajo la clave
+// sintética `${prefix}::field::${index}` (mismo tipo `subOptionField` que
+// sub.field/opt.field, misma resolución: label si es seleccion_desplegable,
+// valor literal + unidad si es numero/texto_corto). Sin distinción por
+// cellType: si el campo no se llenó (casilla sin marcar, o simplemente
+// vacío), su clave nunca se escribió en Runtime y `raw` es `undefined` — el
+// gating ya ocurrió en el momento de guardar, acá solo se lee lo que haya.
+// Compartida entre las 2 llamadas (tabla embebida y tabla_datos suelto).
+function resolveExtraFields(cellCfg: FormTableCell, prefix: string, answers: ResponseAnswers): string | undefined {
+  if (!cellCfg.extraFields || cellCfg.extraFields.length === 0) return undefined;
+  const parts = cellCfg.extraFields
+    .map((field, index) => {
+      const raw = answers[`${prefix}::field::${index}`];
+      if (raw === undefined || raw === "") return null;
+      const resolved =
+        field.type === "seleccion_desplegable" ? (field.options.find((o) => o.id === raw)?.label ?? String(raw)) : String(raw);
+      const unit = field.type === "numero" && field.unit ? ` ${field.unit}` : "";
+      return field.label ? `${field.label} ${resolved}${unit}` : `${resolved}${unit}`;
+    })
+    .filter((p): p is string => p !== null);
+  return parts.length > 0 ? parts.join(", ") : undefined;
 }
 
 type QuestionComponentType = Extract<(typeof componentRegistry)[number], { isQuestion: true }>["type"];
@@ -119,8 +126,9 @@ function formatEmbeddedTable(table: TablaDatosConfig, tableKey: string, answers:
           }
           const cell = rowValue[col.id];
           if (cell === undefined || cell === "") return null;
+          const cellPrefix = `${tableKey}::${row.id}::${col.id}`;
           const unit = cellCfg.availableUnits
-            ? ((answers[unitKey(`${tableKey}::${row.id}::${col.id}`)] as string | undefined) ?? cellCfg.availableUnits[0])
+            ? ((answers[unitKey(cellPrefix)] as string | undefined) ?? cellCfg.availableUnits[0])
             : cellCfg.unit;
           const resolved =
             cellCfg.cellType === "seleccion_desplegable"
@@ -128,11 +136,17 @@ function formatEmbeddedTable(table: TablaDatosConfig, tableKey: string, answers:
               : cellCfg.cellType === "casilla"
                 ? "Sí"
                 : String(cell);
-          // VS-065: campo revelado de una celda "casilla" — mismo tipo
-          // (`subOptionField`) y misma resolución que sub.field/opt.field,
-          // clave sintética `${tableKey}::${row.id}::${col.id}::field`.
-          const revealed = resolveRevealField(cellCfg, `${tableKey}::${row.id}::${col.id}`, answers);
-          return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}${revealed ? `: ${revealed}` : ""}`;
+          // VS-069: campo(s) adicionales de la celda — mismo tipo
+          // (`subOptionField[]`) y misma resolución que sub.field/opt.field,
+          // clave sintética `${cellPrefix}::field::${index}`.
+          const extras = resolveExtraFields(cellCfg, cellPrefix, answers);
+          // VS-069 (docs/engines/form.md "Referencias y campos adicionales
+          // por celda"): `references` ya no exclusivo de cellType
+          // "referencia" — se anexa como sufijo cuando una celda con
+          // control principal propio también tiene referencias adjuntas.
+          const refParts = cellCfg.references ? formatReferenceSlots(`${cellPrefix}::refs`, answers) : [];
+          const refsSuffix = refParts.length > 0 ? ` [Referencias: ${refParts.join("; ")}]` : "";
+          return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}${extras ? `: ${extras}` : ""}${refsSuffix}`;
         })
         .filter((c): c is string => c !== null);
       return cells.length > 0 ? `Fila ${rowIdx + 1}: ${cells.join(", ")}` : null;
@@ -306,8 +320,9 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
             }
             const cell = rowValue[col.id];
             if (cell === undefined || cell === "") return null;
+            const cellPrefix = `${element.id}::${row.id}::${col.id}`;
             const unit = cellCfg.availableUnits
-              ? ((answers[unitKey(`${element.id}::${row.id}::${col.id}`)] as string | undefined) ?? cellCfg.availableUnits[0])
+              ? ((answers[unitKey(cellPrefix)] as string | undefined) ?? cellCfg.availableUnits[0])
               : cellCfg.unit;
             const resolved =
               cellCfg.cellType === "seleccion_desplegable"
@@ -315,10 +330,12 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
                 : cellCfg.cellType === "casilla"
                   ? "Sí"
                   : String(cell);
-            // VS-065: campo revelado de una celda "casilla" — ver nota
+            // VS-069: campo(s) adicionales y referencias — ver nota
             // equivalente en formatEmbeddedTable arriba.
-            const revealed = resolveRevealField(cellCfg, `${element.id}::${row.id}::${col.id}`, answers);
-            return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}${revealed ? `: ${revealed}` : ""}`;
+            const extras = resolveExtraFields(cellCfg, cellPrefix, answers);
+            const refParts = cellCfg.references ? formatReferenceSlots(`${cellPrefix}::refs`, answers) : [];
+            const refsSuffix = refParts.length > 0 ? ` [Referencias: ${refParts.join("; ")}]` : "";
+            return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}${extras ? `: ${extras}` : ""}${refsSuffix}`;
           })
           .filter((c): c is string => c !== null);
         return cells.length > 0 ? `Fila ${rowIdx + 1}: ${cells.join(", ")}` : null;

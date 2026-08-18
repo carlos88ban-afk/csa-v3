@@ -1534,3 +1534,75 @@ Sin tercer nivel de anidación nuevo (`subSubOption` sigue siendo `{id, label}`,
 - **Tercer nivel de anidación genérico** (`subSubOption` con su propio `subOptions`) — sin caso observado, aditivo si aparece (mismo criterio VS-026).
 - **`subOptionsHeading` a nivel de sub-opción** (para un eventual "nivel 2 con su propio encabezado") — el HTML analizado no lo necesita, los ítems revelados en nivel 2 no llevan encabezado de grupo.
 - **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.
+
+## Referencias y campos adicionales por celda (VS-069)
+
+### Contexto y pedido
+
+HTML real de S&P (`MAT_MaterialIssues_Selection`, tabla de temas materiales): la opción "Applicable" trae una tabla de 4 columnas donde las 3 columnas "Material N" combinan, EN LA MISMA CELDA:
+
+1. Un bloque de referencias (`data-ref-type="public"`, máx. 3) — archivo/enlace de respaldo.
+2. Un campo de texto libre (nombre del tema material), SIEMPRE visible, sin checkbox que lo condicione.
+3. Un `<select>` (categoría del tema) — el control PRINCIPAL de la celda.
+
+Y en otra fila de la misma tabla, una celda `casilla` revela, al marcarse, DOS campos juntos (un comentario de texto + un `<select>` "Tipo de impacto"), no solo uno. Pedido explícito del usuario: poder construir tablas así, "recordando usar los principios de UX".
+
+Analizando contra el motor existente, 2 gaps puntuales (no un rediseño):
+
+1. **`references` solo se podía usar si `cellType === "referencia"`** — no había forma de adjuntar referencias a una celda `seleccion_desplegable` que ADEMÁS tiene su propio control principal.
+2. **`revealField` era un único campo**, y solo aplicaba a `casilla` (revelado tras marcar) — no soportaba múltiples campos juntos, ni campos "siempre visibles" en otros tipos de celda.
+
+### Decisión de diseño
+
+**`references` deja de ser exclusivo de `cellType === "referencia"`** — sin cambio de schema (el campo ya existía), solo de la CONDICIÓN de render: Runtime/Preview/Builder lo muestran siempre que `cellCfg.references` esté presente, sin importar el `cellType`. Para `cellType === "referencia"` sigue siendo el único contenido de la celda (sin control principal), comportamiento sin cambios; para cualquier otra celda editable, se adjunta como sufijo/complemento del control principal.
+
+**`revealField: subOptionField` → `extraFields: subOptionField[]`** (reemplazo limpio, mismo criterio ya aplicado en VS-065 — revealText→revealField — sin datos reales confirmados dependiendo del campo anterior):
+
+```ts
+const subOptionField = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("seleccion_desplegable"), label: z.string().optional(), options: z.array(subOptionFieldOption).min(1) }),
+  z.object({ type: z.literal("texto_corto"), label: z.string().optional(), maxLength: z.number().int().positive().optional() }),
+  z.object({ type: z.literal("numero"), label: z.string().optional(), min: z.number().optional(), max: z.number().optional(), unit: z.string().min(1).optional() }),
+]);
+
+const formTableCell = z.object({
+  // ...campos existentes sin cambios...
+  extraFields: z.array(subOptionField).min(1).optional(), // VS-069 — reemplaza revealField
+});
+```
+
+`subOptionField` (los 3 miembros del discriminated union, reusado también por `subOption.field`/`formOption.field`) gana `label?: string` — necesario para distinguir cada campo cuando una celda muestra varios juntos (ej. "Tipo de impacto:" etiquetando el `<select>` revelado). Campo opcional, no afecta los usos existentes.
+
+Comportamiento de `extraFields` según `cellType`:
+
+- **`casilla`**: los campos se revelan tras marcar el checkbox — mismo gating que el `revealField` singular anterior, ahora con N campos en secuencia.
+- **Cualquier otro tipo editable** (`texto`/`numero`/`seleccion_desplegable`): los campos se muestran SIEMPRE, como "campos compañeros" junto al control principal — caso real: el `<select>` de categoría (control principal) con el campo de texto libre (nombre del tema) mostrado siempre junto a él.
+- **`referencia`**: sin `extraFields` — esa celda ya no tiene control principal propio, no hay caso real que lo necesite.
+
+**Sin tercer campo nuevo para el "companion field unconditional"** — se reutiliza el MISMO `extraFields`, con el gating decidido por Runtime/Preview según `cellType`, no un campo de schema separado. Evita duplicar el concepto.
+
+### Orden de renderizado por celda (Runtime/Preview, todas las superficies)
+
+`references` (si está configurado) → `extraFields` (si `cellType !== "casilla"`, siempre visibles) → `content` (texto fijo prefijo) → control principal → `extraFields` (si `cellType === "casilla"` y está marcada, gated).
+
+Esto replica exactamente el orden del HTML real: referencia adjunta, campo de texto libre, etiqueta "Por favor seleccione…" (`content`), `<select>`.
+
+### Runtime (`FormTableView`) y Preview (`PreviewTableView`)
+
+Nuevos componentes `ExtraFieldsView`/`PreviewExtraFields` (reemplazan el render singular de `revealField`) — mapean el array `extraFields`, cada uno bajo su propia clave sintética `${unitKeyPrefix}::${row.id}::${col.id}::field::${index}` (extiende el sufijo `::field` ya usado por el `revealField` singular con un índice), mostrando `field.label` como etiqueta si está presente. `references` se calcula una sola vez por celda (`referencesBlock`) y se reutiliza en las 4 ramas de `cellType` que lo necesitan (`seleccion_desplegable`/`numero`/`casilla`/texto por defecto), evitando duplicar la llamada a `OptionReferencesView`/`PreviewOptionReferences` cuatro veces.
+
+### Builder (`TableConfigEditor`)
+
+- Nueva sección "Referencias" disponible para CUALQUIER celda editable (antes solo para `cellType === "referencia"`) — mismo par `maxUrls`/`refType`, con botón "Agregar referencias"/"Quitar referencias" cuando es opcional (para `cellType === "referencia"` sigue siendo la config completa, sin botón "Agregar…", comportamiento sin cambios).
+- Nueva función compartida `renderExtraFields(row, col, cell, heading)` — un único bloque de lista (agregar/quitar campo, cada uno con su tipo + etiqueta opcional + config específica) reusado desde 2 lugares: celda `casilla` (encabezado "Campos revelados al marcar") y cualquier otro tipo editable excepto `referencia` (encabezado "Campos adicionales (siempre visibles)").
+- Cambiar el `cellType` de una celda sigue reseteando `extraFields` (su significado cambia según el tipo — revelado vs. siempre visible — conservarlo sería confuso), pero YA NO resetea `references` (es un adjunto independiente del control principal desde este slice, tiene sentido conservarlo al cambiar de tipo).
+
+### Exportación (`evaluation-export.ts`)
+
+`resolveRevealField` (VS-065, singular, exclusivo de `casilla`) → `resolveExtraFields` (VS-069, resuelve el array completo, sin distinción por `cellType` — si un campo no se llenó, su clave nunca se escribió en Runtime, así que simplemente no aparece; el gating ya ocurrió en el momento de guardar). Cada campo resuelto antepone su `label` si lo tiene, unidos por "; ". Las referencias de una celda con control principal propio se anexan como sufijo `[Referencias: ...]` (formato distinto del sufijo `" (Referencias: ...)"` de `formatOptionReferences`, que es específico de un label de opción) — reusa `formatReferenceSlots` ya existente, sin nueva lógica de resolución.
+
+### Fuera de alcance (explícito)
+
+- **`extraFields` en celdas de solo lectura (`editable === false`) o `calculado`** — mismo criterio que `references`/`content`: esas celdas no tienen control interactivo que acompañar.
+- **`extraFields` en celdas `referencia`** — sin caso real observado; esa celda ya no tiene control principal que acompañar.
+- **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.
