@@ -4,6 +4,18 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-068 — Exclusividad y encabezado del bloque primario de sub-opciones (2026-08-18)
+
+HTML real de S&P (`COG_ESGGovernanceOversight_Selection`): la opción "Applicable" trae DOS bloques de sub-opciones checkbox con encabezado propio ("Supervisión de la Junta"/"Supervisión ejecutiva"), y cada ítem checkbox revela su propio grupo de radios al marcarse. Pedido explícito del usuario: poder construir este tipo de pregunta, hoy imposible.
+
+- `packages/sdk-core/src/form-schema.ts`: `subOption` gana `subOptionsExclusive?: boolean` (radio vs. checkbox para SUS PROPIAS sub-opciones de nivel 2); `formOption` gana `subOptionsHeading?: string` (encabezado del bloque primario, el secundario ya lo tenía desde VS-046).
+- Runtime/Preview: los call sites del bloque primario pasan `heading={opt.subOptionsHeading}`; la recursión de nivel 2 pasa `exclusive={sub.subOptionsExclusive ?? false}` en vez de dejarlo hardcodeado a `false` (decisión documentada en VS-026, ahora con caso real).
+- Builder: nuevo campo de encabezado para el bloque primario, nuevo toggle "Sub-sub-opciones excluyentes" por sub-opción (ambos bloques), y el bloque secundario gana la UI de sub-sub-opciones que le faltaba (las funciones ya aceptaban `block="secondaryOptions"` desde VS-046, ningún call site lo usaba).
+- Export: hallazgo adicional — `formatSubOptionExtras` nunca resolvía `sub.subOptions` (nivel 2), gap presente desde VS-026 sin ejercitar hasta ahora. Fix: reusa `formatMarkedSubOptions` recursivamente.
+- Spec en `docs/engines/form.md`, "Exclusividad y encabezado del bloque primario de sub-opciones".
+
+**Estado**: implementado siguiendo el proceso doc-first. Sin build/typecheck/tests locales por instrucción explícita del usuario.
+
 ### VS-067 — Adjuntar archivos o enlaces por celda (2026-08-18)
 
 HTML real de S&P (`COG_ManagementOwnership_Selection`, tabla de propiedad accionaria de directivos): la columna "Pruebas que lo respaldan" es un campo de referencias por celda (archivo o enlace, hasta 3). Pedido explícito del usuario: "que las celdas de las tablas también permitan subir archivos adjunto o enlaces como ya lo hacemos en otras partes" — reutiliza `optionReferences` (VS-039/045/056) tal cual, sin un mecanismo nuevo.

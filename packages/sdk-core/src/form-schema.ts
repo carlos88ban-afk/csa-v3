@@ -211,6 +211,15 @@ const subOption = z.object({
   id: z.string().min(1),
   label: z.string(),
   subOptions: z.array(subSubOption).optional(),
+  // VS-068 (docs/engines/form.md "Exclusividad y encabezado del bloque
+  // primario de sub-opciones"): equivalente de `formOptionBase.subOptionsExclusive`
+  // pero UN NIVEL MÁS ADENTRO — controla si LAS PROPIAS `subOptions` de esta
+  // sub-opción (subSubOption[], nivel 2) se marcan como radio (excluyente) o
+  // checkbox (ausente/false). Faltaba desde VS-026: el nivel 2 quedaba
+  // hardcodeado a checkbox en Runtime/Preview — hallazgo real (HTML
+  // COG_ESGGovernanceOversight_Selection): "BoardLevelCommittee" es un grupo
+  // de radios revelado al marcar la sub-opción "BoardLevel".
+  subOptionsExclusive: z.boolean().optional(),
   references: optionReferences.optional(), // VS-040: mismo campo que formOption.references
   field: subOptionField.optional(), // VS-040: campo embebido (select/texto/número)
   table: tablaDatosConfig.optional(), // VS-042: tabla embebida (mismo shape que tabla_datos)
@@ -223,6 +232,14 @@ const subOption = z.object({
 // cambios en response.ts.
 const formOption = formOptionBase.extend({
   subOptions: z.array(subOption).optional(),
+  // VS-068 (docs/engines/form.md "Exclusividad y encabezado del bloque
+  // primario de sub-opciones"): encabezado propio del bloque PRIMARIO
+  // (`subOptions`), mismo campo que `secondaryOptionsHeading` (VS-046) pero
+  // para el primer bloque — hallazgo real: HTML con DOS bloques de
+  // sub-opciones con encabezado propio bajo la misma opción ("Supervisión de
+  // la Junta" / "Supervisión ejecutiva"), y el bloque primario no tenía
+  // dónde guardar el suyo (solo el secundario lo tenía).
+  subOptionsHeading: z.string().optional(),
   // VS-046 (docs/engines/form.md "Bloque secundario de sub-opciones por
   // opción"): segundo bloque de sub-opciones, HERMANO de `subOptions` (no
   // anidado dentro de él) — caso real: la opción "Applicable" de

@@ -1472,3 +1472,65 @@ Nueva función compartida `formatReferenceSlots(refsKey, answers)` — extraída
 - **Límite de tamaño/tipo de archivo específico por celda** — usa el mismo cap de 10 MB de `presign-ref` (compartido con todas las referencias flexibles del motor), no uno configurable por celda.
 - **Referencias en celdas de solo lectura (`editable === false`)** — mismo criterio que cualquier otro `cellType`: una celda fija muestra `content`, no un control interactivo.
 - **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.
+
+## Exclusividad y encabezado del bloque primario de sub-opciones (VS-068)
+
+### Contexto y pedido
+
+HTML real de S&P (`COG_ESGGovernanceOversight_Selection`): la opción "Applicable" trae DOS bloques de sub-opciones tipo checkbox, cada uno con su propio encabezado ("Supervisión de la Junta" / "Supervisión ejecutiva") — y cada ITEM checkbox dentro de esos bloques (ej. "Existe la responsabilidad a nivel de consejo...") revela, al marcarse, su PROPIO grupo de radios (ej. "Un comité dedicado a ESG/sostenibilidad" / "Otro comité a nivel de consejo"). Pedido explícito del usuario: poder construir este tipo de pregunta, hoy imposible — "el bloque de sub opción no permite agregar sub sub opción... esto además no permitiría agregar los demás labels".
+
+Analizando el HTML contra el motor existente, el gap real NO es un 3er nivel de anidación genérico (el motor ya soporta `subOption.subOptions: subSubOption[]` desde VS-026) — son 2 piezas puntuales que faltaban:
+
+1. **El bloque PRIMARIO de sub-opciones (`formOption.subOptions`) no tenía encabezado propio** — solo el bloque secundario (`secondaryOptionsHeading`, VS-046) lo tenía. Con 2 bloques con encabezado propio necesarios ("Supervisión de la Junta"/"Supervisión ejecutiva") y solo 2 bloques disponibles en total (`subOptions` + `secondaryOptions`, tope fijo de VS-046), faltaba dónde guardar el encabezado del primero.
+2. **Una sub-opción no podía marcar sus PROPIAS sub-opciones (nivel 2) como excluyentes (radio)** — `subOption` no tenía un campo `subOptionsExclusive` propio (existía `formOptionBase.subOptionsExclusive` para el nivel 1, y `secondaryOptionsExclusive` para el bloque secundario, pero nada para "las subOptions de ESTA subOption"). Runtime/Preview lo tenían hardcodeado a `false` (checkbox) en la llamada recursiva de nivel 2 — documentado como decisión consciente en VS-026 ("sin evidencia de necesitar excluyencia ahí"), ahora con evidencia real.
+
+Adicionalmente, el Builder nunca exponía UI de sub-sub-opciones (lista + "Agregar sub-sub-opción") dentro del bloque SECUNDARIO — solo existía para el bloque primario — pese a que la función `addSubSubOption`/`updateSubSubOption`/`removeSubSubOption` ya aceptaban el parámetro `block` desde VS-046 (nunca se llegó a usar ahí).
+
+### Decisión de diseño
+
+Dos campos nuevos, mismo criterio de "aditivo, no rediseño" ya aplicado en VS-026/046:
+
+```ts
+const subOption = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  subOptions: z.array(subSubOption).optional(),
+  subOptionsExclusive: z.boolean().optional(), // VS-068 — radio si true, checkbox si ausente/false
+  references: optionReferences.optional(),
+  field: subOptionField.optional(),
+  table: tablaDatosConfig.optional(),
+});
+
+const formOption = formOptionBase.extend({
+  subOptions: z.array(subOption).optional(),
+  subOptionsHeading: z.string().optional(), // VS-068 — encabezado del bloque primario
+  secondaryOptionsHeading: z.string().optional(),
+  secondaryOptions: z.array(subOption).optional(),
+  secondaryOptionsExclusive: z.boolean().optional(),
+  // ...
+});
+```
+
+Sin tercer nivel de anidación nuevo (`subSubOption` sigue siendo `{id, label}`, sin su propio `subOptions`) — el HTML analizado no lo necesita: los ítems revelados en el nivel 2 (ej. "Un comité dedicado...") son hojas puras, sin reveal propio. Aditivo si aparece un caso real con 3 niveles, mismo criterio ya documentado en VS-026.
+
+### Runtime (`SubOptionsView`) y Preview (`PreviewSubOptions`)
+
+- Los 2 call sites del bloque PRIMARIO (`seleccion_unica`/`seleccion_multiple`, Runtime y Preview) ahora pasan `heading={opt.subOptionsHeading}` — mismo prop `heading` que ya usaba el bloque secundario, sin cambios en el componente.
+- La llamada recursiva de nivel 2 (dentro de `SubOptionsView`/`PreviewSubOptions`, para `sub.subOptions`) ahora pasa `exclusive={sub.subOptionsExclusive ?? false}` en vez de dejarlo en el default `false` siempre.
+- Preview no necesitó cambios de tipos — `PreviewSubOptions.subOptions` ya deriva su tipo directamente del schema (`z.infer`, sin duplicar a mano), así que `subOptionsExclusive` llegó gratis al agregarlo al schema. Runtime sí duplica el tipo a mano (mismo patrón ya usado por `checkboxLabel`/`revealField` en `formTableCell`) — se agregó `subOptionsExclusive?: boolean` al tipo inline de `SubOptionsView`.
+
+### Builder (`SubindicatorEditor`)
+
+- Nuevo campo "Encabezado del bloque de sub-opciones (opcional)" en el bloque PRIMARIO, mismo `RichTextEditor` que ya usaba el bloque secundario — visible junto con el toggle "Sub-opciones excluyentes" en cuanto el bloque tiene al menos 1 sub-opción.
+- Nuevo toggle "Sub-sub-opciones excluyentes (solo una a la vez)" por CADA sub-opción (antes de su propia lista de sub-sub-opciones) — tanto en el bloque primario como en el secundario, vía el nuevo `toggleSubOptionOwnExclusive` (reusa `updateSubOptionNode`, mismo criterio que el resto de mutaciones a nivel de sub-opción).
+- El bloque secundario gana la lista de sub-sub-opciones + botón "Agregar sub-sub-opción" que le faltaba — copia exacta del bloque primario, con `block="secondaryOptions"` en cada llamada (`addSubSubOption`/`updateSubSubOption`/`removeSubSubOption`, que ya aceptaban ese parámetro desde VS-046 sin que ningún call site lo usara).
+
+### Exportación (`evaluation-export.ts`)
+
+**Hallazgo adicional durante la implementación**: `formatSubOptionExtras` (resuelve field/references/table de una sub-opción marcada) nunca resolvía `sub.subOptions` (nivel 2) — el CSV mostraba la sub-opción de nivel 1 marcada pero omitía por completo cuál sub-sub-opción se había elegido, sin relación con si el campo tenía o no encabezado/exclusividad propia (el gap existía desde que `subSubOption` se introdujo en VS-026, nunca ejercitado hasta ahora). Fix: `formatSubOptionExtras` ahora también llama a `formatMarkedSubOptions(sub.subOptions, subOptionKey, answers)` (la misma función ya usada para resolver el nivel 1, genérica sobre radio/checkbox) y agrega `Sub-opciones: ...` a las partes, bajo la MISMA clave sintética que usa la recursión de Runtime (`${subKey}::${sub.id}`).
+
+### Fuera de alcance (explícito)
+
+- **Tercer nivel de anidación genérico** (`subSubOption` con su propio `subOptions`) — sin caso observado, aditivo si aparece (mismo criterio VS-026).
+- **`subOptionsHeading` a nivel de sub-opción** (para un eventual "nivel 2 con su propio encabezado") — el HTML analizado no lo necesita, los ítems revelados en nivel 2 no llevan encabezado de grupo.
+- **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.

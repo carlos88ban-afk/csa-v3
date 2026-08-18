@@ -675,13 +675,20 @@ function SubOptionsView({
 }: {
   subKey: string;
   // VS-046: encabezado propio, usado por el bloque secundario
-  // (`secondaryOptionsHeading`) — el bloque primario (`subOptions`) nunca lo
-  // pasa, sin cambio de comportamiento para llamadas existentes.
+  // (`secondaryOptionsHeading`). VS-068: el bloque primario (`subOptions`)
+  // ahora también puede traer el suyo (`subOptionsHeading`) — mismo prop,
+  // ambos call sites lo pasan.
   heading?: string | undefined;
   subOptions: {
     id: string;
     label: string;
     subOptions?: { id: string; label: string }[] | undefined;
+    // VS-068 (docs/engines/form.md "Exclusividad y encabezado del bloque
+    // primario de sub-opciones"): controla si LAS PROPIAS `subOptions` de
+    // este nodo (nivel 2) renderizan como radio o checkbox — antes
+    // hardcodeado a checkbox (`exclusive` por defecto `false`, nunca pasado
+    // en la llamada recursiva de nivel 2).
+    subOptionsExclusive?: boolean | undefined;
     references?:
       | {
           maxUrls?: number | undefined;
@@ -783,6 +790,7 @@ function SubOptionsView({
               locked={locked}
               answers={answers}
               onAnswerChange={onAnswerChange}
+              exclusive={sub.subOptionsExclusive ?? false}
               token={token}
               subindicatorId={subindicatorId}
               elementId={elementId}
@@ -2128,6 +2136,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
               {value === opt.id && opt.subOptions && opt.subOptions.length > 0 && (
                 <SubOptionsView
                   subKey={`${element.id}::${opt.id}`}
+                  heading={opt.subOptionsHeading}
                   subOptions={opt.subOptions}
                   value={answers[`${element.id}::${opt.id}`]}
                   onChange={(next) => onAnswerChange(`${element.id}::${opt.id}`, next)}
@@ -2232,6 +2241,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                   {selected.includes(opt.id) && opt.subOptions && opt.subOptions.length > 0 && (
                     <SubOptionsView
                       subKey={`${element.id}::${opt.id}`}
+                      heading={opt.subOptionsHeading}
                       subOptions={opt.subOptions}
                       value={answers[`${element.id}::${opt.id}`]}
                       onChange={(next) => onAnswerChange(`${element.id}::${opt.id}`, next)}

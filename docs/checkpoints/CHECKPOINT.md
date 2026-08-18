@@ -3,7 +3,7 @@
 **Última actualización**: 2026-08-18  
 **Branch activa**: main  
 **Último slice cerrado**: VS-067 (adjuntar archivos o enlaces por celda de tabla) — commiteado y verificado en producción end-to-end, incluye 2 fixes de bugs reales encontrados en el camino, ver "Verificación en producción" abajo.  
-**Slice en progreso**: ninguno.
+**Slice en progreso**: VS-068 (exclusividad y encabezado del bloque primario de sub-opciones — `subOption.subOptionsExclusive`/`formOption.subOptionsHeading`, spec en `docs/engines/form.md`) — implementado, pendiente de commit/push y verificación en producción.
 
 ## Resumen ejecutivo
 

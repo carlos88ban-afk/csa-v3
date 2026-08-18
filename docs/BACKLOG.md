@@ -4,6 +4,7 @@ Ordenado por prioridad de ejecución (= orden del roadmap, salvo excepción just
 
 ## Siguiente
 
+- [ ] VS-068 — Exclusividad y encabezado del bloque primario de sub-opciones (`subOption.subOptionsExclusive`, `formOption.subOptionsHeading`, HTML real `COG_ESGGovernanceOversight_Selection` enviado por el usuario: 2 bloques de sub-opciones con encabezado propio, cada ítem revela su propio grupo de radios — spec en `docs/engines/form.md`) — implementado 2026-08-18, **pendiente de verificación en producción**
 - [ ] Hallazgo secundario sin implementar (VS-062/VS-067): `refType: "private"` en referencias (HTML real `COG_DisclosureMedian_Selection`/`COG_ManagementOwnership_Selection`), no soportado por el Builder (solo `public`/`flexible` hoy) — sin priorizar por el usuario.
 - [x] VS-045 — Formato (rich text) en preguntas y opciones + referencias flexibles (`refType: "public" | "flexible"`) — 6.ª inspección AN-001, 2026-08-14: HTML `COG_BoardIndependence_AttachmentBoardIndependenceStatement` con negritas/múltiples párrafos en labels y bloque de referencias `data-ref-type="flexible"`; alcance confirmado con el usuario (todas las preguntas/opciones + flexible incluido) — spec en `docs/engines/form.md` (antecede a VS-044/VS-043 por pedido explícito del usuario) — 2026-08-14
 - [x] VS-042 — Tabla de datos embebida dentro de una sub-opción (`subOption.table`, 5.ª inspección AN-001, 2026-08-14: cada sub-opción del sub-radio trae su propia `form-table` — spec en `docs/engines/form.md`)

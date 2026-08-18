@@ -175,6 +175,19 @@ function formatSubOptionExtras(sub: SubOptionNode, subOptionKey: string, answers
     const serialized = formatEmbeddedTable(sub.table, `${subOptionKey}::table`, answers);
     if (serialized) parts.push(`Tabla: ${serialized}`);
   }
+  // VS-068 (docs/engines/form.md "Exclusividad y encabezado del bloque
+  // primario de sub-opciones"): sub-sub-opciones marcadas (nivel 2,
+  // `sub.subOptions`) — hallazgo real (COG_ESGGovernanceOversight_Selection):
+  // una sub-opción tipo checkbox revela su propio grupo de radios al
+  // marcarse, y hasta ahora el export nunca lo resolvía (solo
+  // `formatMarkedSubOptions` a nivel 1, nunca recursaba). Reusa la misma
+  // función — genérica sobre radio (string) vs checkbox (array) — bajo la
+  // MISMA clave `subOptionKey` que usa la recursión de Runtime
+  // (`SubOptionsView subKey={`${subKey}::${sub.id}`}`).
+  if (sub.subOptions && sub.subOptions.length > 0) {
+    const nested = formatMarkedSubOptions(sub.subOptions, subOptionKey, answers);
+    if (nested.length > 0) parts.push(`Sub-opciones: ${nested.join("; ")}`);
+  }
   return parts.length > 0 ? ` (${parts.join(", ")})` : "";
 }
 

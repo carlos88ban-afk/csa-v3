@@ -333,6 +333,7 @@ function PreviewElement({
             {isSelected(opt.id) && (
               <PreviewSubOptions
                 level={1}
+                heading={opt.subOptionsHeading}
                 exclusive={opt.subOptionsExclusive ?? false}
                 subKey={`${element.id}::${opt.id}`}
                 subOptions={opt.subOptions}
@@ -896,6 +897,7 @@ function PreviewSubOptions({
           )}
           <PreviewSubOptions
             level={level + 1}
+            exclusive={sub.subOptionsExclusive ?? false}
             subKey={`${subKey}::${sub.id}`}
             subOptions={sub.subOptions}
             value={answers[`${subKey}::${sub.id}`]}

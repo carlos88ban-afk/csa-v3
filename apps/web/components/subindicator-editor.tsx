@@ -1353,6 +1353,20 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     );
   }
 
+  // VS-068 (docs/engines/form.md "Exclusividad y encabezado del bloque
+  // primario de sub-opciones"): encabezado del bloque PRIMARIO, mismo campo
+  // que updateSecondaryOptionsHeading pero para `subOptions` — antes solo el
+  // bloque secundario podía tener encabezado propio.
+  function updateSubOptionsHeading(elementId: string, optionId: string, heading: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return { ...el, options: el.options.map((opt) => (opt.id === optionId ? { ...opt, subOptionsHeading: heading } : opt)) };
+      }),
+    );
+  }
+
   // VS-046: exclusividad del bloque secundario, independiente de
   // subOptionsExclusive — nombre de campo distinto (secondaryOptionsExclusive),
   // por eso no comparte `block` con toggleSubOptionsExclusive.
@@ -1441,6 +1455,22 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
         };
       }),
     );
+  }
+
+  // VS-068 (docs/engines/form.md "Exclusividad y encabezado del bloque
+  // primario de sub-opciones"): exclusividad de las subOptions PROPIAS de
+  // esta sub-opción (nivel 2, subSubOption[]) — antes hardcodeado a
+  // checkbox en Runtime/Preview, sin forma de marcarlo como radio desde el
+  // Builder. No confundir con toggleSubOptionsExclusive (nivel 1, sobre
+  // formOption) ni toggleSecondaryOptionsExclusive (bloque secundario).
+  function toggleSubOptionOwnExclusive(
+    elementId: string,
+    optionId: string,
+    subOptionId: string,
+    exclusive: boolean,
+    block: OptionSubBlock = "subOptions",
+  ) {
+    updateSubOptionNode(elementId, optionId, subOptionId, (sub) => ({ ...sub, subOptionsExclusive: exclusive }), block);
   }
 
   function addSubOptionReferences(elementId: string, optionId: string, subOptionId: string, block: OptionSubBlock = "subOptions") {
@@ -1986,14 +2016,30 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                               </div>
                               <div className="sub-options">
                                 {(opt.subOptions?.length ?? 0) > 0 && (
-                                  <label className="field field--checkbox">
-                                    <input
-                                      type="checkbox"
-                                      checked={opt.subOptionsExclusive ?? false}
-                                      onChange={(e) => toggleSubOptionsExclusive(el.id, opt.id, e.target.checked)}
-                                    />
-                                    <span className="field__label">Sub-opciones excluyentes (solo una a la vez)</span>
-                                  </label>
+                                  <>
+                                    {/* VS-068 (docs/engines/form.md "Exclusividad y
+                                        encabezado del bloque primario de
+                                        sub-opciones"): encabezado propio del
+                                        bloque PRIMARIO — mismo campo que el
+                                        bloque secundario (VS-046), antes solo
+                                        ese tenía dónde guardarlo. */}
+                                    <label className="field">
+                                      <span className="field__label">Encabezado del bloque de sub-opciones (opcional)</span>
+                                      <RichTextEditor
+                                        value={opt.subOptionsHeading ?? ""}
+                                        onChange={(html) => updateSubOptionsHeading(el.id, opt.id, html)}
+                                        ariaLabel="Encabezado del bloque de sub-opciones"
+                                      />
+                                    </label>
+                                    <label className="field field--checkbox">
+                                      <input
+                                        type="checkbox"
+                                        checked={opt.subOptionsExclusive ?? false}
+                                        onChange={(e) => toggleSubOptionsExclusive(el.id, opt.id, e.target.checked)}
+                                      />
+                                      <span className="field__label">Sub-opciones excluyentes (solo una a la vez)</span>
+                                    </label>
+                                  </>
                                 )}
                                 {(opt.subOptions ?? []).map((sub) => (
                                   <div key={sub.id}>
@@ -2232,6 +2278,19 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                       )}
                                     </div>
                                     <div className="sub-options" style={{ marginLeft: "var(--space-4)" }}>
+                                      {/* VS-068: exclusividad de las
+                                          sub-sub-opciones de ESTA sub-opción —
+                                          antes hardcodeado a checkbox. */}
+                                      {(sub.subOptions?.length ?? 0) > 0 && (
+                                        <label className="field field--checkbox">
+                                          <input
+                                            type="checkbox"
+                                            checked={sub.subOptionsExclusive ?? false}
+                                            onChange={(e) => toggleSubOptionOwnExclusive(el.id, opt.id, sub.id, e.target.checked)}
+                                          />
+                                          <span className="field__label">Sub-sub-opciones excluyentes (solo una a la vez)</span>
+                                        </label>
+                                      )}
                                       {(sub.subOptions ?? []).map((subsub) => (
                                         <div className="option-row option-row--subsub" key={subsub.id}>
                                           <div className="option-row__editor">
@@ -2514,6 +2573,55 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                                               Agregar referencias
                                             </Button>
                                           )}
+                                        </div>
+                                        {/* VS-068 (docs/engines/form.md
+                                            "Exclusividad y encabezado del
+                                            bloque primario de sub-opciones"):
+                                            el bloque secundario nunca tuvo UI
+                                            de sub-sub-opciones — mismo bloque
+                                            que el primario, con block=
+                                            "secondaryOptions" en cada CRUD. */}
+                                        <div className="sub-options" style={{ marginLeft: "var(--space-4)" }}>
+                                          {(sub.subOptions?.length ?? 0) > 0 && (
+                                            <label className="field field--checkbox">
+                                              <input
+                                                type="checkbox"
+                                                checked={sub.subOptionsExclusive ?? false}
+                                                onChange={(e) =>
+                                                  toggleSubOptionOwnExclusive(el.id, opt.id, sub.id, e.target.checked, "secondaryOptions")
+                                                }
+                                              />
+                                              <span className="field__label">Sub-sub-opciones excluyentes (solo una a la vez)</span>
+                                            </label>
+                                          )}
+                                          {(sub.subOptions ?? []).map((subsub) => (
+                                            <div className="option-row option-row--subsub" key={subsub.id}>
+                                              <div className="option-row__editor">
+                                                <RichTextEditor
+                                                  value={subsub.label}
+                                                  onChange={(html) =>
+                                                    updateSubSubOption(el.id, opt.id, sub.id, subsub.id, html, "secondaryOptions")
+                                                  }
+                                                  ariaLabel="Texto de la sub-sub-opción"
+                                                />
+                                              </div>
+                                              <Button
+                                                type="button"
+                                                variant="danger"
+                                                size="sm"
+                                                onClick={() => removeSubSubOption(el.id, opt.id, sub.id, subsub.id, "secondaryOptions")}
+                                              >
+                                                Quitar
+                                              </Button>
+                                            </div>
+                                          ))}
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            onClick={() => addSubSubOption(el.id, opt.id, sub.id, "secondaryOptions")}
+                                          >
+                                            Agregar sub-sub-opción
+                                          </Button>
                                         </div>
                                       </div>
                                     ))}
