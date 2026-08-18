@@ -2,14 +2,24 @@
 
 **Última actualización**: 2026-08-18  
 **Branch activa**: main  
-**Último slice cerrado**: VS-066 (combinar columnas/colspan + vista previa de contenido en el chip de celda) — commiteado y verificado en producción end-to-end, ver "Verificación en producción" abajo.  
-**Slice en progreso**: VS-067 (adjuntar archivos o enlaces por celda de tabla — `formTableCell.references`/cellType `"referencia"`, spec en `docs/engines/form.md`) — implementado, pendiente de commit/push y verificación en producción.
+**Último slice cerrado**: VS-067 (adjuntar archivos o enlaces por celda de tabla) — commiteado y verificado en producción end-to-end, incluye 2 fixes de bugs reales encontrados en el camino, ver "Verificación en producción" abajo.  
+**Slice en progreso**: ninguno.
 
 ## Resumen ejecutivo
 
 Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). La feature "unidades de negocio" (VS-050 a VS-059: jerarquía de Organization, partición de Response, dueDate/contactEmail, acceso autenticado, panel Publicar, export XLSX, dashboard de progreso, bloqueo de cliente, evidencia autenticada, editor de exclusiones) está completa y **verificada de punta a punta en producción real** — asignación de unidad, aislamiento de respuestas y de progreso, bloqueo del link público en modo corporativo, rechazo de organizaciones no asignadas, export XLSX con datos reales, exclusión de Subindicador/pregunta individual reflejada en dashboard y Runtime autenticado, bloqueo de cliente por plazo vencido, y evidencia autenticada (subir/descargar/borrar + rechazo de elemento excluido) — todo confirmado con datos de prueba (borrados al terminar cada verificación). **Nota de integridad histórica**: esta misma entrada de checkpoint tuvo una versión anterior que describía un refactor de UI (`runtime-shell.tsx`) que NUNCA se llegó a commitear — corregida verificando directamente contra el código real, ver `bugs.md` para el detalle completo (mismo patrón de riesgo que VS-043/`evaluateTableExpression`).
 
 ## Verificación en producción (2026-08-18)
+
+**VS-067**: framework temporal ("QA VS-067 verificacion") con una celda `referencia` (`refType: "flexible"`, `maxUrls: 2`) reproduciendo la columna "Pruebas que lo respaldan" de `COG_ManagementOwnership_Selection`. Verificado con Playwright, incluyendo subida real de archivo vía `presign-ref`.
+- Builder: opción "Referencia (archivo o enlace)" + config "Máximo de referencias"/"Tipo de referencia" confirmados.
+- Runtime público: slot de URL + archivo real subido a R2 (botón "Ver" abre una URL prefirmada válida), autosave, persistente tras recarga completa (confirmado también vía `fetch` directo a `/responses`).
+- Export CSV: `Fila 1: Columna 1=https://...; [Archivo: vs067-test.pdf]`.
+- **2 bugs reales encontrados y corregidos** (afectan a toda referencia flexible, no solo celdas de tabla):
+  1. `OptionReferencesView.changeKind` (Runtime) no guardaba el tipo de un 2.º/3.º slot — `pendingKinds` nunca crecía más allá de su longitud inicial (`prev.map()`). Fix: rellenar el array antes de asignar.
+  2. Una celda `referencia` nunca contaba como "respondida" — no escribe valor propio en `table[row][col]` (toda su data vive en `::refs`), y `hasAnswer` es genérico sobre ese mapa — estado quedaba "Sin iniciar" y export vacío pese a datos reales guardados. Fix: marcador `"true"/""` reflejado en `table[row][col]`, mismo criterio que `casilla`.
+- Ambos fixes verificados end-to-end tras el deploy: cambio de tipo de slot con archivo real persistente; estado pasó a "En progreso" y el export mostró los datos reales.
+- Framework/evaluación de prueba borrados al terminar.
 
 **VS-066**: framework temporal ("QA VS-066 verificacion") con una tabla 2×3 replicando `COG_DisclosureMedian_Selection` — fila 1 con `colSpan: 2` en una celda "Fijo", fila 2 con `colSpan: 2` en una celda editable `numero` (unidad "años"). Verificado con Playwright.
 - Builder: chip de celda colapsada muestra tipo + extracto de contenido (`cellPreviewText` en producción, ej. `"Fijo" "Compensacion del CEO"`), campo "Combinar con columnas siguientes" aplica `colSpan` y elimina la celda cubierta automáticamente.

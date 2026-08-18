@@ -17,6 +17,24 @@ HTML real de S&P (`COG_ManagementOwnership_Selection`, tabla de propiedad accion
 
 **Estado**: implementado siguiendo el proceso doc-first. Sin build/typecheck/tests locales por instrucción explícita del usuario.
 
+### Verificación en producción — VS-067 (2026-08-18)
+
+Framework temporal ("QA VS-067 verificacion") con una celda `referencia` (`refType: "flexible"`, `maxUrls: 2`) reproduciendo la columna "Pruebas que lo respaldan" del HTML real. Verificado con Playwright contra `csa-v3-web.vercel.app`, incluyendo un archivo real subido vía `presign-ref`.
+
+- **Builder**: opción "Referencia (archivo o enlace)" en el tipo de celda, con "Máximo de referencias"/"Tipo de referencia" confirmados en producción.
+- **Vista previa del Builder**: celda combinada renderiza el mini-select URL pública/Documento interno (documento de solo lectura, mismo criterio que `evidencia`/`opt.references` en el editor).
+- **Runtime público real**: slot de URL + subida real de archivo (`presign-ref` → `PUT` a R2 → `EvidenceRef` guardado), botón "Ver" abre una URL prefirmada de R2 válida, autosave, **persistencia confirmada tras recarga completa de página** (ambos slots sobreviven, confirmado también vía `fetch` directo a `/responses`).
+- **Export CSV**: `Fila 1: Columna 1=https://...; [Archivo: vs067-test.pdf]`.
+- Framework/evaluación de prueba borrados al terminar.
+
+**2 bugs reales encontrados y corregidos durante la verificación** (no exclusivos de esta celda, pero descubiertos al ejercitar por primera vez `refType: "flexible"` con más de 1 slot):
+1. **`OptionReferencesView.changeKind` (Runtime) no guardaba el tipo de un 2.º/3.º slot** — `pendingKinds` se inicializaba una sola vez con la longitud de `slots` al montar (típicamente 1 en un campo vacío) y `setPendingKinds` usaba `prev.map()`, que nunca crece el array — cambiar un slot agregado después con "Agregar referencia" a "Documento interno" se perdía en silencio. Bug pre-existente en toda referencia flexible (VS-039/040/045/056), no solo en celdas de tabla. Fix: rellenar el array antes de asignar, mismo resultado que la asignación directa por índice que ya usa `PreviewOptionReferences` (sin este problema).
+2. **Una celda `referencia` nunca contaba como "respondida"** — no escribe ningún valor propio en el mapa de la tabla (`table[row][col]`, toda su data vive en `::refs`), y `hasAnswer` (sdk-core) es genérico sobre ese mapa para `tabla_datos` — el estado quedaba "Sin iniciar" para siempre y el export salía vacío pese a haber datos reales guardados (confirmado con `fetch` directo a `/responses`). Fix: igual que `casilla` (que ya escribe `"true"/""` en su propia celda), el `onChange` de la celda `referencia` ahora también refleja ese marcador en `table[row][col]` — nunca se lee para presentación, solo activa la detección genérica de `hasAnswer`.
+
+Ambos fixes verificados end-to-end tras el fix: cambio de tipo de slot confirmado con archivo real subido y persistente; estado pasó a "En progreso" y el export mostró los datos reales tras el segundo fix.
+
+Slice cerrado y verificado end-to-end.
+
 ### VS-066 — Combinar columnas (colspan) + vista previa de contenido en el chip de celda (2026-08-18)
 
 Mismo HTML real de S&P que originó VS-062 (`COG_DisclosureMedian_Selection`): la tabla embebida combina las 2 últimas columnas en su encabezado y en la fila de compensación del CEO (`<th colspan="2">`/`<td colspan="2">`). Sin esto, el admin podía crear la tabla pero no replicarla fielmente. Pedido adicional del usuario: ver un extracto del contenido real en el chip colapsado de cada celda, sin tener que expandirla.
