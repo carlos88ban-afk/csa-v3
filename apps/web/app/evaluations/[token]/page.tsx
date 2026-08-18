@@ -1212,7 +1212,19 @@ function OptionReferencesView({
     if (isDocRef(current)) {
       void api.del(`${token}`, { key: current.key }).catch(() => {});
     }
-    setPendingKinds((prev) => prev.map((k, i) => (i === index ? kind : k)));
+    // Bug real (hallado en verificación VS-067): `prev.map` nunca crece el
+    // array más allá de su longitud inicial (fijada en el mount a partir de
+    // `slots.length` de ESE momento, típicamente 1 en un campo vacío) — al
+    // cambiar el tipo de un slot agregado después con "Agregar referencia"
+    // (índice >= longitud inicial), el `.map` no itera ese índice y el
+    // cambio se pierde en silencio. Se rellena el array hasta `index` antes
+    // de asignar, mismo resultado que la asignación directa por índice que
+    // ya usa PreviewOptionReferences (form-preview.tsx) sin este problema.
+    setPendingKinds((prev) => {
+      const next = prev.length > index ? [...prev] : [...prev, ...Array(index + 1 - prev.length).fill("url" as const)];
+      next[index] = kind;
+      return next;
+    });
     updateSlot(index, kind === "doc" ? null : "");
   }
 
