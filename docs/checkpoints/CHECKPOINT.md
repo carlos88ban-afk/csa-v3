@@ -2,14 +2,20 @@
 
 **Última actualización**: 2026-08-18  
 **Branch activa**: main  
-**Último slice cerrado**: VS-063 (contenido fijo como prefijo de una celda editable) — commiteado y verificado en producción end-to-end, ver "Verificación en producción" abajo.  
-**Slice en progreso**: VS-064 (etiqueta propia de una celda casilla, `formTableCell.checkboxLabel` — spec en `docs/engines/form.md`) — implementado, pendiente de commit/push y verificación en producción.
+**Último slice cerrado**: VS-064 (etiqueta propia de una celda casilla) — commiteado y verificado en producción end-to-end, ver "Verificación en producción" abajo.  
+**Slice en progreso**: ninguno asignado.
 
 ## Resumen ejecutivo
 
 Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). La feature "unidades de negocio" (VS-050 a VS-059: jerarquía de Organization, partición de Response, dueDate/contactEmail, acceso autenticado, panel Publicar, export XLSX, dashboard de progreso, bloqueo de cliente, evidencia autenticada, editor de exclusiones) está completa y **verificada de punta a punta en producción real** — asignación de unidad, aislamiento de respuestas y de progreso, bloqueo del link público en modo corporativo, rechazo de organizaciones no asignadas, export XLSX con datos reales, exclusión de Subindicador/pregunta individual reflejada en dashboard y Runtime autenticado, bloqueo de cliente por plazo vencido, y evidencia autenticada (subir/descargar/borrar + rechazo de elemento excluido) — todo confirmado con datos de prueba (borrados al terminar cada verificación). **Nota de integridad histórica**: esta misma entrada de checkpoint tuvo una versión anterior que describía un refactor de UI (`runtime-shell.tsx`) que NUNCA se llegó a commitear — corregida verificando directamente contra el código real, ver `bugs.md` para el detalle completo (mismo patrón de riesgo que VS-043/`evaluateTableExpression`).
 
 ## Verificación en producción (2026-08-18)
+
+**VS-064** (deploy `4af1c4b`, `READY`): misma celda `casilla` de la verificación de VS-063, ahora con `checkboxLabel` propio ("La empresa cuenta con una cláusula de recuperación de recursos. Por favor, especifica:"), distinto de `content` (título/descripción). Verificado con Playwright.
+- Builder: campo "Etiqueta de la casilla" separado de "Texto fijo antes del control".
+- Vista previa y Runtime público: el checkbox expone `checkboxLabel` como nombre accesible (confirmado en el árbol de accesibilidad — antes no tenía ninguno), autosave y persistente tras recarga completa.
+- Export CSV: sin regresión, `checkboxLabel` no se exporta (presentación).
+- Framework/evaluación de prueba borrados al terminar.
 
 **VS-063** (deploy `bf23569`, `READY`): framework temporal con un elemento `tabla_datos` de 1 celda `casilla` (`revealText: true`) con `content` fijo, reproduciendo el caso real de S&P (título+descripción+etiqueta del checkbox como texto fijo, checkbox+campo revelado como control). Verificado con Playwright.
 - Builder: campo "Texto fijo antes del control (opcional)" visible en la config de una celda `casilla` editable.
@@ -109,6 +115,12 @@ Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`c
 **Editor de exclusiones (VS-059)**: `components/exclusion-editor.tsx` + rutas `GET/POST .../exclusions` y `DELETE .../exclusions/[exclusionId]` (backend ya existía desde VS-050). Árbol completo (sin filtrar) con checkbox por Subindicador/pregunta, integrado como toggle en el panel Publicar.
 
 **Estado técnico**: **verificado en producción end-to-end** (ver sección arriba) — bug real de label vacío encontrado y corregido en el camino.
+
+## Último slice completado (VS-064)
+
+**Etiqueta propia de una celda casilla**: corrección a VS-063 pedida por el usuario (el checkbox no tenía ninguna etiqueta propia — accesibilidad real, no cosmético). `formTableCell` gana `checkboxLabel?: string`, distinto de `content` (título/descripción fijo de la celda). El checkbox pasa de `<input>` suelto a `<label className="field field--checkbox">` envolviendo el control, con `checkboxLabel` como texto (o un `sr-only` "Marcar" si el admin no lo completó).
+
+**Estado técnico**: **verificado en producción end-to-end** (ver sección arriba) — nombre accesible del checkbox confirmado en el árbol de accesibilidad real.
 
 ## Último slice completado (VS-063)
 

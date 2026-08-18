@@ -4,6 +4,17 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### Verificación en producción — VS-064 (2026-08-18)
+
+Framework temporal ("QA VS-064 verificacion") con la misma celda `casilla` de la verificación de VS-063, ahora con `checkboxLabel` propio ("La empresa cuenta con una cláusula de recuperación de recursos. Por favor, especifica:") distinto de `content` (título/descripción). Verificado con Playwright contra `csa-v3-web.vercel.app` (deploy `4af1c4b`, `READY`):
+
+- **Builder**: campo "Etiqueta de la casilla" separado de "Texto fijo antes del control", ambos con su propio `RichTextEditor`.
+- **Vista previa y Runtime público real**: el checkbox expone como nombre accesible el texto de `checkboxLabel` (confirmado en el árbol de accesibilidad — antes no tenía ninguno), el texto se ve envuelto junto al control (mejora visual pedida), autosave y **persistencia confirmada tras recarga completa**.
+- **Export CSV**: `Fila 1: Columna 1=Sí: 3 anos con extension` — sin regresión, `checkboxLabel` no se exporta (presentación).
+- Framework/evaluación de prueba borrados al terminar.
+
+Slice cerrado y verificado end-to-end.
+
 ### VS-064 — Etiqueta propia de una celda casilla (2026-08-18)
 
 Corrección a pedido del usuario sobre VS-063: la etiqueta propia del checkbox ("La empresa cuenta con una cláusula de recuperación de recursos. Por favor, especifica:") estaba bakeada dentro de `content` (texto fijo compartido con el título/descripción de la celda) — el checkbox quedaba sin ninguna etiqueta propia. El evaluado necesita entender qué está marcando (motivo de accesibilidad real, no cosmético — un checkbox sin nombre accesible viola WCAG) y visualmente se ve mejor con el texto envuelto en el control.
