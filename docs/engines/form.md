@@ -1047,3 +1047,63 @@ Implementado y verificado en producción.
 ### Verificación en producción (2026-08-16)
 
 Commit `becef64` + push a `main`, deploy Vercel `dpl_37hNKdjyD3eogTStEMoD3kGPnixg` READY. Framework temporal "TEMP - VS-048 verificacion": elemento `tabla_datos` nuevo confirmó arrancar con **exactamente una celda** — chip "Texto", sin `<thead>`, sin columna de encabezado, solo "+ columna"/"+ fila" en los bordes (regresión directa de lo que VS-047 hacía mal). Construida una tabla de doble entrada real: esquina (fila 0, columna 0) marcada "solo lectura" con contenido fijo "Región / Año", columna 2 fija "2024", fila 2 fija "Norte", celda de dato tipo Número editable. Vista previa del Builder renderizó la grilla 2×2 completa sin ningún hueco estructural — la esquina mostró "Región / Año" como cualquier otra celda fija, se pudo escribir **42** en la celda de dato y persistió en el estado. Framework temporal pendiente de borrado con confirmación explícita del usuario.
+
+## Referencias a nivel de pregunta en selección única y múltiple (VS-056, spec doc-first)
+
+### Contexto y pedido
+
+En el HTML de referencia de S&P (ver `docs/analysis/csa-sp-global-comparison.md`), el bloque de referencias aparece **a nivel de la pregunta**, entre el texto de la pregunta y las opciones:
+
+```html
+<p>¿El consejo de administración de la compañía...?</p>
+<div id="fileref-BordChairperson" class="sims-input reference"
+     data-ref-type="flexible" data-maxrefs="3"
+     data-dpd-name="COG_NonExecutive_AttachmentBordChairperson">
+  <!-- hasta 3 slots: URL pública o documento adjunto -->
+</div>
+<ol><!-- opciones del radio --></ol>
+```
+
+Hasta VS-056 las referencias solo viven **dentro de** opciones (`formOption.references`, VS-039/045) y sub-opciones (`subOption.references`, VS-040/045), o como elemento `url_publica` separado (VS-017). No existe un bloque de referencias a nivel de la pregunta misma. Este slice lo agrega para **`seleccion_unica` y `seleccion_multiple`** (alcance confirmado con el usuario), con `refType` **flexible** (URL o documento interno, como el ejemplo).
+
+### Decisión de diseño
+
+- **Se reutiliza el tipo `optionReferences` tal cual** (`maxUrls`, `position`, `refType`) como `references?: optionReferences` en los elementos `seleccion_unica` y `seleccion_multiple`. `position` no aplica a nivel de pregunta (no hay sub-opciones que ordenar): el bloque se renderiza SIEMPRE entre el texto de la pregunta y las opciones, y el Builder no expone el selector de posición. Mismo criterio de reuso simple ya establecido en VS-022.
+- **Clave de respuesta sintética**: `${elementId}::refs` → `(string | EvidenceRef)[]`, idéntica forma al valor de referencias de opción de VS-045 (`optionReferenceValue`). **Sin cambios en `response.ts`**. No colisiona con las claves de opción (que son de 3 segmentos: `${elementId}::${optionId}::refs`).
+- Defaults en Runtime igual que VS-039: `maxUrls = 3`, `refType = "public"` si vienen `undefined`.
+- El bloque se renderiza con el mismo `OptionReferencesView` del Runtime (ya soporta flexible con upload vía `presign-ref` y degradación a solo-URL cuando `token` es `undefined`) y con `PreviewOptionReferences` en el preview del Builder.
+
+### `packages/sdk-core/src/form-schema.ts`
+
+```ts
+// en `seleccion_unica` y `seleccion_multiple`:
+z.object({
+  ...questionBase,
+  type: z.literal("seleccion_unica"), // o "seleccion_multiple"
+  options: z.array(formOption).min(1),
+  references: optionReferences.optional(), // VS-056
+}),
+```
+
+### Builder (`apps/web/components/subindicator-editor.tsx`)
+
+Bloque "Referencias de la pregunta" en la sección de configuración de `seleccion_unica`/`seleccion_multiple` (mismo patrón visual que el bloque de referencias de opción): botón "Agregar referencias" → campos **Máximo de URLs** (number, min 1) y **Tipo** (URL pública / Flexible), con botón de quitar. Handlers nuevos: `addElementReferences`, `removeElementReferences`, `updateElementReferencesMaxUrls`, `updateElementReferencesRefType` (sin `position`).
+
+### Runtime (`apps/web/app/evaluations/[token]/page.tsx`)
+
+En `ElementView` de `seleccion_unica`/`seleccion_multiple`, cuando `element.references` existe: renderizar `OptionReferencesView` entre el legend/helpText y el contenedor de opciones, con `value={answers[`${element.id}::refs`]}` y `onChange` que escribe esa clave sintética.
+
+### Preview (`apps/web/components/form-preview.tsx`)
+
+Mismo render en el preview del Builder: `PreviewOptionReferences` con `refType`/`maxUrls` del elemento y estado `previewAnswers[`${element.id}::refs`]`.
+
+### Exportación (`docs/engines/export.md` — `apps/web/lib/evaluation-export.ts`)
+
+En `formatAnswer` de `seleccion_unica`/`seleccion_multiple`, anexar a la celda Respuesta las referencias del elemento con el mismo formato de sufijo de `formatOptionReferences` (leer `answers[`${element.id}::refs`]`). Aplica a CSV y XLSX (ambos comparten `evaluation-export.ts`).
+
+### Fuera de alcance (explícito)
+
+- Editor legado de subindicadores directos bajo Dimensión (patrón establecido: solo el Builder de Subindicadores bajo Marco recibe UI nueva).
+- Otros tipos de pregunta (texto, número, dropdown, tabla, etc.).
+- `position` configurable a nivel de pregunta (siempre entre texto y opciones).
+- Verificación en producción en navegador: en este slice NO hay verificación funcional (el entorno no tiene navegador).

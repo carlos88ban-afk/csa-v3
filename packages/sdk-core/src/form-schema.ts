@@ -224,6 +224,12 @@ export const formElement = z.discriminatedUnion("type", [
     ...questionBase,
     type: z.literal("seleccion_unica"),
     options: z.array(formOption).min(1),
+    // VS-056 (docs/engines/form.md "Referencias a nivel de pregunta"): bloque
+    // de referencias entre el texto de la pregunta y las opciones, mismo
+    // shape que las de opción. `position` no aplica a este nivel (no hay
+    // sub-opciones que ordenar): el Runtime lo renderiza siempre entre texto
+    // y opciones; el Builder no expone el selector de posición.
+    references: optionReferences.optional(),
   }),
   z.object({
     ...questionBase,
@@ -231,6 +237,7 @@ export const formElement = z.discriminatedUnion("type", [
     options: z.array(formOption).min(1),
     minSelected: z.number().int().nonnegative().optional(),
     maxSelected: z.number().int().positive().optional(),
+    references: optionReferences.optional(),
   }),
   // Select dropdown (VS-022): mismo `formOption` que seleccion_unica, misma
   // forma de respuesta (string = id elegido). subOptions no se usa en la

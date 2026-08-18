@@ -1891,6 +1891,20 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
       </legend>
       {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
 
+      {(element.type === "seleccion_unica" || element.type === "seleccion_multiple") &&
+        element.references && (
+          <OptionReferencesView
+            refType={element.references.refType ?? "public"}
+            maxUrls={element.references.maxUrls ?? 3}
+            value={answers[`${element.id}::refs`] as (string | EvidenceRef)[] | undefined}
+            onChange={(next) => onAnswerChange(`${element.id}::refs`, next)}
+            locked={locked}
+            token={token}
+            subindicatorId={subindicatorId}
+            elementId={element.id}
+          />
+        )}
+
       {element.type === "seleccion_unica" && (
         <div className="runtime-options">
           {element.options.map((opt) => (

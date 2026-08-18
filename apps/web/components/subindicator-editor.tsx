@@ -849,6 +849,52 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     );
   }
 
+  // VS-056 (docs/engines/form.md "Referencias a nivel de pregunta"): bloque
+  // de referencias a nivel del Elemento (entre el texto de la pregunta y las
+  // opciones), mismo shape que las de opción. Sin `position` — no hay
+  // sub-opciones que ordenar a este nivel (el Runtime siempre lo renderiza
+  // entre texto y opciones).
+  function addElementReferences(elementId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return { ...el, references: {} };
+      }),
+    );
+  }
+
+  function removeElementReferences(elementId: string) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        const { references: _references, ...rest } = el;
+        return rest;
+      }),
+    );
+  }
+
+  function updateElementReferencesMaxUrls(elementId: string, maxUrls: number | undefined) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return { ...el, references: { ...el.references, maxUrls } };
+      }),
+    );
+  }
+
+  function updateElementReferencesRefType(elementId: string, refType: "public" | "flexible" | undefined) {
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple") return el;
+        return { ...el, references: { ...el.references, refType } };
+      }),
+    );
+  }
+
   function toggleSubOptionsExclusive(elementId: string, optionId: string, exclusive: boolean) {
     commit(
       elements.map((el) => {
@@ -1416,6 +1462,59 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
 
                       {(el.type === "seleccion_unica" || el.type === "seleccion_multiple") && (
                         <div className="options">
+                          {/* VS-056 (docs/engines/form.md "Referencias a nivel de
+                              pregunta"): bloque entre el texto de la pregunta y
+                              las opciones, mismo shape que las de opción pero a
+                              nivel de Elemento. Sin posición configurable — el
+                              Runtime siempre lo renderiza entre texto y opciones. */}
+                          <div className="option-references">
+                            {el.references ? (
+                              <div className="option-row">
+                                <label className="field">
+                                  <span className="field__label">Máximo de URLs</span>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={el.references.maxUrls ?? ""}
+                                    placeholder="3"
+                                    onChange={(e) =>
+                                      updateElementReferencesMaxUrls(
+                                        el.id,
+                                        e.target.value === "" ? undefined : Number(e.target.value),
+                                      )
+                                    }
+                                  />
+                                </label>
+                                <label className="field">
+                                  <span className="field__label">Tipo de referencia</span>
+                                  <select
+                                    value={el.references.refType ?? "public"}
+                                    onChange={(e) =>
+                                      updateElementReferencesRefType(
+                                        el.id,
+                                        e.target.value === "flexible" ? "flexible" : undefined,
+                                      )
+                                    }
+                                  >
+                                    <option value="public">URL pública</option>
+                                    <option value="flexible">Flexible (URL o documento interno)</option>
+                                  </select>
+                                </label>
+                                <Button
+                                  type="button"
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={() => removeElementReferences(el.id)}
+                                >
+                                  Quitar referencias
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button type="button" size="sm" onClick={() => addElementReferences(el.id)}>
+                                Agregar referencias
+                              </Button>
+                            )}
+                          </div>
                           <span className="options__label">Opciones</span>
                           {el.options.map((opt) => (
                             <div className="option-row-group" key={opt.id}>

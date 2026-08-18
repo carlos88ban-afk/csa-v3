@@ -267,6 +267,15 @@ function PreviewElement({
     <fieldset className="field runtime-question">
       <legend>{label}</legend>
       {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
+      {element.references && (
+        <PreviewOptionReferences
+          refType={element.references.refType ?? "public"}
+          maxUrls={element.references.maxUrls ?? 3}
+          value={answers[`${element.id}::refs`]}
+          onChange={(next) => onAnswerChange(`${element.id}::refs`, next)}
+          className="runtime-url-list"
+        />
+      )}
       <div className="runtime-options">
         {element.options.map((opt) => (
           <div className="option-row-group" key={opt.id}>

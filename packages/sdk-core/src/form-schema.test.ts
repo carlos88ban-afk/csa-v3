@@ -455,6 +455,72 @@ describe("formElement", () => {
     expect(result.success).toBe(false);
   });
 
+  // Referencias a nivel de pregunta (VS-056, docs/engines/form.md).
+  it("acepta seleccion_unica sin references a nivel de elemento (compatible hacia atrás)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A" }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "seleccion_unica") {
+      expect(result.data.references).toBeUndefined();
+    }
+  });
+
+  it("acepta references a nivel de elemento en seleccion_unica (flexible, sin maxUrls)", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A" }],
+      references: { refType: "flexible" },
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "seleccion_unica") {
+      expect(result.data.references?.refType).toBe("flexible");
+      expect(result.data.references?.maxUrls).toBeUndefined();
+    }
+  });
+
+  it("acepta references con maxUrls y position a nivel de elemento en seleccion_multiple", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_multiple",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A" }],
+      references: { maxUrls: 2, position: "after_suboptions", refType: "public" },
+    });
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "seleccion_multiple") {
+      expect(result.data.references?.maxUrls).toBe(2);
+      expect(result.data.references?.refType).toBe("public");
+    }
+  });
+
+  it("rechaza references a nivel de elemento con refType inválido", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A" }],
+      references: { refType: "híbrido" },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rechaza references a nivel de elemento con maxUrls no positivo", () => {
+    const result = formElement.safeParse({
+      id: "1",
+      type: "seleccion_unica",
+      label: "Pregunta",
+      options: [{ id: "a", label: "A" }],
+      references: { maxUrls: 0 },
+    });
+    expect(result.success).toBe(false);
+  });
+
   // Campos embebidos en sub-opciones + exclusividad (VS-040, docs/engines/form.md).
   it("acepta una sub-opción sin field/references/subOptionsExclusive (compatible hacia atrás)", () => {
     const result = formElement.safeParse({

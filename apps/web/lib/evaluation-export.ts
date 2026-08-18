@@ -45,18 +45,19 @@ function isQuestion(el: FormElement): boolean {
 }
 
 // Referencias por opción (VS-039, docs/engines/form.md "Referencias de URL
-// por opción"; VS-045 "Referencias flexibles"): sufijo del label de la
-// opción elegida, mismo criterio que url_publica ("; " join, sin resolución
-// de labels) — no una fila/columna nueva, sigue siendo "una fila por
-// Elemento". Con refType flexible un slot puede ser URL literal o documento
-// interno, que se serializa `[Archivo: {name}]` (el binario no viaja en
-// CSV/XLSX).
+// por opción"; VS-045 "Referencias flexibles") y por pregunta (VS-056,
+// docs/engines/form.md "Referencias a nivel de pregunta"): sufijo del label
+// de la opción elegida / de la celda Respuesta, mismo criterio que
+// url_publica ("; " join, sin resolución de labels) — no una fila/columna
+// nueva, sigue siendo "una fila por Elemento". Con refType flexible un slot
+// puede ser URL literal o documento interno, que se serializa
+// `[Archivo: {name}]` (el binario no viaja en CSV/XLSX).
 function formatOptionReferences(
-  opt: { id: string; references?: { maxUrls?: number | undefined; refType?: "public" | "flexible" | undefined } | undefined },
+  references: { maxUrls?: number | undefined; refType?: "public" | "flexible" | undefined } | undefined,
   refsKey: string,
   answers: ResponseAnswers,
 ): string {
-  if (!opt.references) return "";
+  if (!references) return "";
   const refs = answers[refsKey];
   const slots = Array.isArray(refs) ? refs : [];
   const parts = slots.map((u) =>
@@ -154,7 +155,7 @@ function formatMarkedSubOptions(subOptions: SubOptionNode[] | undefined, key: st
 
 function formatOptionLabel(opt: SeleccionOption, elementId: string, answers: ResponseAnswers): string {
   const optKey = `${elementId}::${opt.id}`;
-  let label = `${stripCommentHtml(opt.label)}${formatOptionReferences(opt, `${optKey}::refs`, answers)}`;
+  let label = `${stripCommentHtml(opt.label)}${formatOptionReferences(opt.references, `${optKey}::refs`, answers)}`;
   const subParts = formatMarkedSubOptions(opt.subOptions, optKey, answers);
   const secondaryParts = formatMarkedSubOptions(opt.secondaryOptions, `${optKey}::secondary`, answers);
   const allParts = [...subParts, ...secondaryParts];
@@ -171,7 +172,10 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
   if (value === undefined || value === null || value === "") return "";
   if (element.type === "seleccion_unica") {
     const opt = element.options.find((o) => o.id === value);
-    return opt ? formatOptionLabel(opt, element.id, answers) : String(value);
+    const resolved = opt ? formatOptionLabel(opt, element.id, answers) : String(value);
+    // VS-056: referencias a nivel de pregunta anexadas a la misma celda,
+    // después de las de la opción (mismo sufijo " (Referencias: ...)").
+    return resolved + formatOptionReferences(element.references, `${element.id}::refs`, answers);
   }
   if (element.type === "seleccion_desplegable") {
     const opt = element.options.find((o) => o.id === value);
@@ -179,12 +183,13 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
   }
   if (element.type === "seleccion_multiple") {
     const ids = Array.isArray(value) ? value : [];
-    return ids
+    const resolved = ids
       .map((id) => {
         const opt = element.options.find((o) => o.id === id);
         return opt ? formatOptionLabel(opt, element.id, answers) : String(id);
       })
       .join("; ");
+    return resolved + formatOptionReferences(element.references, `${element.id}::refs`, answers);
   }
   if (element.type === "evidencia") {
     const refs = Array.isArray(value) ? value : [];
