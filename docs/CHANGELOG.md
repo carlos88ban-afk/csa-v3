@@ -4,6 +4,28 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-055 — Export XLSX consolidado + dashboard de progreso por unidad (2026-08-17) — verificado en producción
+
+Quinto slice de la feature "corporativo + unidades de negocio" (spec: `docs/domain/business-units.md`). Ambas mitades commiteadas y **verificadas end-to-end en `csa-v3-web.vercel.app`** (deploys de los commits `3ae783f` y `c592d98`).
+
+**Export XLSX consolidado** (commit `3ae783f`): para evaluaciones en modo corporativo (≥1 unidad de negocio asignada), `GET /api/evaluations/[id]/export-xlsx` genera un XLSX con:
+- Pestaña "Consolidado" (todas las unidades asignadas, con columna "Unidad de negocio") + una pestaña por unidad (mismo formato que el CSV existente, respetando las exclusiones de esa unidad vía `getEvaluationForBusinessUnit`).
+- Solo disponible para evaluaciones con al menos una asignación (400 `evaluation_NOT_CORPORATE_MODE` sugiriendo CSV si no); solo la organización matriz puede pedirlo (`getEvaluation` ya tenant-scopea — una unidad de negocio recibe 404).
+- Refactor: la serialización de cada tipo de pregunta (antes duplicada en `export/route.ts`) se extrae a `apps/web/lib/evaluation-export.ts`, compartida por el export CSV existente y el XLSX nuevo. Nueva dependencia `exceljs`.
+- Panel Publicar: el link de exportar cambia a "Exportar XLSX consolidado" en modo corporativo; CSV sin cambios para el resto.
+
+**Dashboard de progreso por unidad** (commit `c592d98`):
+- `getBusinessUnitProgress` en `packages/db/src/domain/business-unit-access.ts` — agrega el avance por unidad de negocio (preguntas totales/respondidas sobre el snapshot filtrado por exclusiones, usando `isAnswered`/`isElementVisible`/`naKey` de sdk-core). 2 tests nuevos de integración en `business-unit-access.test.ts` (conteo sobre snapshot filtrado; aislamiento entre unidades distintas).
+- `GET /api/evaluations/[id]/progress` — nueva ruta (solo matriz) que devuelve `{ units: [{ businessUnitOrganizationId, name, ...progress }] }` (404 genérico si no aplica).
+- Panel Publicar: pill de porcentaje (`{percent}% ({answered}/{total})`) + pill "Plazo vencido" por unidad asignada; estilos `.publish-panel__unit-progress` en `globals.css`.
+- De paso: corregido un bug de estructura en `business-unit-access.test.ts` — dos tests de aislamiento cross-tenant de VS-053 habían quedado fuera del `describe()` por una llave de cierre mal puesta en un pase anterior (seguían corriendo y pasando, pero fuera del grupo).
+
+**Verificación en producción (framework temporal + 2 evaluaciones + 2 organizaciones-unidad-de-negocio, todo borrado al terminar)**:
+- Dashboard: dos unidades asignadas a la misma Evaluación (2 preguntas cada una) muestran `0% (0/2)` antes de responder; tras guardar ambas respuestas desde el Runtime autenticado de una unidad, su pill pasa a `100% (2/2)` **en vivo**, mientras la otra unidad sigue en `0% (0/2)` — aislamiento correcto confirmado con datos reales, no solo en tests.
+- Export XLSX: `GET .../export-xlsx` devuelve 200, `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, archivo de 8.4 KB (3 hojas con datos reales). Para una Evaluación sin unidades asignadas, la misma ruta devuelve 400 con el mensaje esperado.
+- Tenant-scoping: una unidad de negocio (sesión activa en "Unidad A TEST") recibe 404 al pedir `.../progress` o `.../export-xlsx` de la Evaluación de su propia matriz — ambas rutas son exclusivas de la organización dueña, confirmado en producción real.
+- Regresión del refactor de `evaluation-export.ts`: el export CSV existente (evaluación sin unidades de negocio) se probó de nuevo tras el refactor — sigue devolviendo 200 con el CSV esperado, sin cambios de comportamiento.
+
 ### VS-054 — Verificación en producción + fix real encontrado (2026-08-17)
 
 Verificación completa en `csa-v3-web.vercel.app` (deploy `fd05ee4`, luego `f2acd7c`) de VS-050 a VS-054, con datos de prueba reales: framework temporal con Dimensión/Subindicador directo/pregunta de texto, 2 Evaluaciones publicadas, 2 organizaciones-unidad-de-negocio (`parentOrganizationId` seteado vía `POST /api/auth/organization/update`, confirmando que el mecanismo de VS-050 funciona en producción real, no solo en tests).

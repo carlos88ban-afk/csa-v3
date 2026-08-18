@@ -1,5 +1,7 @@
 # Dominio — Unidades de Negocio y Evaluación Corporativa (VS-050+)
 
+> **Estado de implementación (2026-08-17)**: backend completo (VS-050 schema/assignments, VS-051 partición de `response`, VS-052 `dueDate`/bloqueo, VS-053 acceso autenticado + exclusiones). UI completada en VS-054 y VS-055, **ambas verificadas end-to-end en producción** (`csa-v3-web.vercel.app`): Runtime compartido público/autenticado (`RuntimeCore`/`RuntimeAdapter` en `app/evaluations/[token]/page.tsx`), panel Publicar en Builder (asignación de unidades, `dueDate`/`contactEmail`), eliminación de `frameworks/[frameworkId]/page.tsx`, `DueDateBanner` en ambos modos, export XLSX consolidado (commit `3ae783f`), dashboard de avance corporativo por unidad (commit `c592d98`). Diferido, sin construir todavía: editor de exclusiones por elemento (UI — el backend ya existe, hoy se asigna/desasigna la unidad completa desde el panel Publicar), rutas de evidencia autenticadas (espejo de las públicas), bloqueo proactivo del formulario en cliente por `dueDate` vencido (hoy solo el servidor lo rechaza).
+
 Extiende `organization-user.md` (jerarquía de Organización) y supera partes de `engines/publishing.md` (acceso anónimo por token → acceso autenticado por sesión + org). Motivado por un caso real de uso: un corporativo (ej. "Intercorp Retail") publica UNA evaluación que se aplica a MÚLTIPLES unidades de negocio (ej. "Supermercados Peruanos", "Farmacias Peruanas"), cada una con visibilidad de un subconjunto distinto de preguntas, sin visibilidad cruzada entre unidades, con exportación e in-platform dashboard consolidados solo para el corporativo.
 
 ## Decisión central: unidad de negocio = Organization propia, vinculada a una matriz
@@ -127,24 +129,26 @@ Nueva vista en el Builder/panel Publicar (solo visible si `session.activeOrganiz
 
 Confirmado con el usuario ("Borrarla por completo"): se elimina `apps/web/app/frameworks/[frameworkId]/page.tsx`. Su única función que sobrevive (Publicación) se relocaliza como un panel dentro de `apps/web/app/frameworks/[frameworkId]/builder/page.tsx`, junto al botón existente "Ver como evaluado".
 
+**Estado (implementado)**: botón "Publicar" en la cabecera del builder-panel (`.builder-panel__head`) → drawer CSS (`publish-panel.tsx`, mismo patrón `.form-preview-drawer`). `frameworks/[frameworkId]/page.tsx` eliminada. Verificado en producción (deploy `f2acd7c`).
+
 - Nuevo botón "Publicar" en la barra superior del Builder → abre un panel (modal o drawer, a decidir en implementación) con:
-  - Generar evaluación (si no existe una para este Framework, o listar las existentes con opción de crear otra — mismo comportamiento que hoy).
-  - Enlace público (`/evaluations/{token}`) para copiar — solo se muestra/aplica si la Evaluación NO tiene asignaciones de unidad de negocio (modo simple, comportamiento actual sin cambios).
-  - Campo `dueDate` editable (fecha límite) + campo `contactEmail` editable.
-  - Sección "Unidades de negocio" (solo si la organización actual tiene hijas, es decir existen `Organization` con `parentOrganizationId = session.activeOrganizationId`): checklist para asignar/desasignar unidades a esta Evaluación; por cada unidad asignada, un editor para marcar qué Subindicadores excluir (árbol igual al del Builder, con checkbox por nodo) y el progreso de esa unidad (reutiliza el dashboard de arriba).
-  - Botón Exportar: CSV (comportamiento actual) si no hay unidades de negocio asignadas; XLSX consolidado (arriba) si las hay.
-  - Lista de evaluaciones publicadas de este Framework con Revocar por cada una — mismo comportamiento que hoy, movido de la pantalla eliminada.
+  - Generar evaluación (si no existe una para este Framework, o listar las existentes con opción de crear otra — mismo comportamiento que hoy). ✅
+  - Enlace público (`/evaluations/{token}`) para copiar — solo se muestra/aplica si la Evaluación NO tiene asignaciones de unidad de negocio (modo simple, comportamiento actual sin cambios). ✅ (en modo corporativo muestra el enlace autenticado `/evaluations/authenticated/{id}`)
+  - Campo `dueDate` editable (fecha límite) + campo `contactEmail` editable. ✅ (PATCH `/api/evaluations/[id]`)
+  - Sección "Unidades de negocio" (solo si la organización actual tiene hijas): checklist para asignar/desasignar unidades a esta Evaluación — ✅ (vía `GET /api/organizations/children` + `GET/POST /api/evaluations/[id]/assignments` + `DELETE`); progreso por unidad (pills de porcentaje + "Plazo vencido") — 🔧 EN PROGRESO (VS-055, sin commitear: `getBusinessUnitProgress` + `GET /api/evaluations/[id]/progress`); por cada unidad asignada, un editor para marcar qué Subindicadores excluir (árbol igual al del Builder, con checkbox por nodo) — ⏳ diferido (backend ya existe desde VS-050)
+  - Botón Exportar: CSV (comportamiento actual) si no hay unidades de negocio asignadas — ✅; XLSX consolidado (arriba) si las hay — ✅ completado en VS-055 (commit `3ae783f`)
+  - Lista de evaluaciones publicadas de este Framework con Revocar por cada una — ✅ movido de la pantalla eliminada
 - `apps/web/app/frameworks/page.tsx` ya enlaza directo a `/builder` desde VS-049 — no requiere cambios adicionales.
 
 ## Fuera de alcance (explícito)
 
 - Jerarquía de más de un nivel (matriz de matrices).
-- Filtrado a granularidad `FormElement` individual dentro de un Subindicador (ver nota en "Filtrado de preguntas" arriba) — pendiente de confirmación si el usuario lo necesita.
+- UI del editor de exclusiones (backend de granularidad `FormElement` individual ya implementado en VS-050/VS-053 — ver "Filtrado de preguntas" arriba; falta la interfaz en el panel Publicar, diferida a VS-055).
 - Notificación por email de vencimiento próximo o invitación (sigue sin proveedor de email decidido, `organization-user.md`).
 - Tracking de progreso por usuario individual — descartado explícitamente por el usuario; el eje de agregación es la unidad de negocio, no la persona.
 - Reasignar una `Response` ya guardada de una unidad a otra (no hay caso de uso planteado).
 
-## Testing (a definir en implementación)
+## Testing (implementado VS-050 → VS-055)
 
-- `packages/db`: tenant-scoping cruzado (unidad A no puede leer/escribir progreso ni respuestas de unidad B); exclusiones de Subindicador se respetan en el snapshot filtrado; unique constraint compuesto de `response` acepta múltiples unidades para el mismo `(evaluationId, subindicatorId)` pero rechaza duplicado dentro de la misma unidad; bloqueo de escritura tras `dueDate`; export XLSX genera una pestaña por unidad más consolidado.
-- Verificación manual en producción (mismo criterio que siempre): flujo completo con una organización matriz + 2 unidades de negocio, cada una con exclusiones distintas, confirmando aislamiento visual y de datos entre unidades, y que la matriz sí ve todo.
+- `packages/db`: tenant-scoping cruzado (unidad A no puede leer/escribir progreso ni respuestas de unidad B) ✅; exclusiones de Subindicador/elemento se respetan en el snapshot filtrado ✅; unique constraint compuesto de `response` acepta múltiples unidades para el mismo `(evaluationId, subindicatorId)` pero rechaza duplicado dentro de la misma unidad ✅; bloqueo de escritura tras `dueDate` ✅ (10 tests VS-052 + 2 cross-tenant VS-053 + 5 partición VS-051 + 7 assignments VS-050 + 9 acceso/exclusiones VS-053 + 2 progreso VS-055); export XLSX genera una pestaña por unidad más consolidado ✅ (VS-055, commit `3ae783f` — verificación manual, no automatizada).
+- Verificación manual en producción: flujo completo con una organización matriz + 2 unidades de negocio, cada una con exclusiones distintas, confirmando aislamiento visual y de datos entre unidades, y que la matriz sí ve todo — ✅ parcial (VS-054 verificado end-to-end en producción: aislamiento de respuestas por unidad, bloqueo del link público en modo corporativo, 404 genérico para no-asignadas; falta verificar en producción el export XLSX y el dashboard de progreso).
