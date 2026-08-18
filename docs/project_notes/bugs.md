@@ -12,6 +12,13 @@ Registro cronológico de bugs y su solución. Entradas breves. Limpiar entradas 
 - **Prevention**: cómo evitarlo (opcional)
 ```
 
+### 2026-08-18 - VS-060: tabla embebida en opción se renderizaba antes que las referencias flexibles, no después [RESUELTO]
+
+- **Issue**: reportado por el usuario contra el HTML real de `COG_GenderDiversity_Selection` (S&P) — el bloque de referencias flexibles (URL/adjunto) de una opción va ANTES de la tabla embebida en el HTML original, pero la implementación de VS-060 (mismo día) renderizaba la tabla incondicionalmente antes que las referencias "before_suboptions", haciendo imposible reproducir ese orden.
+- **Root Cause**: al implementar `formOption.table`, el bloque `FormTableView`/`PreviewTableView` se colocó de forma fija justo después del label de la opción, sin pasar por el mismo check `references.position !== "after_suboptions"` que ya gobierna el orden de `subOptions`/`secondaryOptions` respecto a `references` (VS-041). El campo `table` simplemente no se integró al criterio de posición existente.
+- **Solution**: se movió el bloque `table` para que quede DESPUÉS de las referencias "before_suboptions" y ANTES de `subOptions`/`secondaryOptions` — mismo criterio de posición que el resto del contenido anidado de una opción. Corregido en Runtime (`seleccion_unica` y `seleccion_multiple`) y Preview. Commit `0c1792f`, verificado en producción con una opción real que tiene referencias Y tabla a la vez (el slot de URL aparece antes del input de la tabla).
+- **Prevention**: al agregar un nuevo tipo de contenido anidado a `formOption`/`subOption` (como se hizo con `table` en VS-060), verificar contra el HTML de origen real cuál es el orden esperado respecto a los bloques ya existentes (`references`, `subOptions`) — no asumir un orden por conveniencia de implementación. La spec de VS-060 documentó un orden ("table → subOptions → ... → references") que nunca se contrastó contra el HTML completo enviado por el usuario en el mismo mensaje original.
+
 ### 2026-08-18 - VS-059: editor de exclusiones mostraba preguntas sin texto como `<p></p>` literal [RESUELTO]
 
 - **Issue**: encontrado verificando el editor de exclusiones en producción — una pregunta sin texto (label vacío) se mostraba en la lista de "N preguntas" como el string literal `<p></p>` en vez de un fallback legible como "(sin texto)".

@@ -2,6 +2,9 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-08-18 - Fix: orden de referencias vs. tabla embebida en una opción (VS-060) — verificado en producción
+- **Status**: Completed. Reportado por el usuario contra el HTML real de `COG_GenderDiversity_Selection`: las referencias flexibles van antes de la tabla, no después. `table` ahora respeta `references.position` igual que `subOptions`/`secondaryOptions`. Corregido en Runtime y Preview (commit `0c1792f`), verificado en producción con una opción con ambos bloques a la vez. Ver `bugs.md` para el detalle de causa raíz.
+
 ### 2026-08-18 - VS-060: tabla embebida directamente en una opción de nivel superior — verificado en producción
 - **Status**: Completed. Hallazgo de capacidad al analizar HTML real (`COG_GenderDiversity_Selection`, S&P) enviado por el usuario: una opción de `seleccion_unica` trae una tabla completa sin sub-radio intermedio, caso no cubierto por VS-042 (que solo resolvía tabla embebida en `subOption`). `formOption` gana `table` (mismo shape). Verificado en los 4 puntos en producción: Builder ("Agregar tabla" en la opción, mismo `TableConfigEditor`), Vista previa, Runtime público (autosave + persistencia tras recarga completa), export CSV (`(Tabla: Fila 1: Columna 1=4)` anexado a la Respuesta). Framework/evaluación de prueba borrados al terminar.
 - **Description**: sdk-core `formOption.table: tablaDatosConfig.optional()` + 3 tests. Runtime/Preview reutilizan `FormTableView`/`PreviewTableView`, clave `${elementId}::${optionId}::table`. Builder: `addOptionTable`/`removeOptionTable`/`updateOptionTable`, mismo patrón que `addOptionReferences`. Export: `formatEmbeddedTable` extraído como helper compartido entre `subOption.table` y `formOption.table`.

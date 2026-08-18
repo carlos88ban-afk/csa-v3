@@ -4,6 +4,10 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### Fix — Orden de referencias flexibles vs. tabla embebida en una opción (2026-08-18) — verificado en producción
+
+Reportado por el usuario el mismo día de VS-060 contra el HTML real: el bloque de referencias flexibles de una opción va ANTES de la tabla embebida, pero la implementación inicial de VS-060 renderizaba la tabla de forma fija antes que las referencias "before_suboptions" (default), sin pasar por el criterio de posición ya existente (VS-041). Corregido en Runtime (`seleccion_unica`/`seleccion_multiple`) y Preview: `table` ahora respeta el mismo `references.position` que `subOptions`/`secondaryOptions` — orden correcto: referencias "before" → table → subOptions → secondaryOptions → referencias "after". Commit `0c1792f`. Verificado en producción con una opción real con referencias Y tabla simultáneas (el slot de URL aparece antes del input de la tabla). Ver `bugs.md`.
+
 ### VS-060 — Tabla embebida directamente en una opción de nivel superior (2026-08-18) — verificado en producción
 
 Hallazgo de capacidad (HTML real `COG_GenderDiversity_Selection`, portal S&P, enviado por el usuario): una opción de `seleccion_unica` trae una tabla completa colgando directo de ella (sin sub-radio intermedio) — VS-042 solo cubría el caso de tabla embebida en una **sub-opción** (`subOption.table`); `formOption` (la opción de nivel superior) no tenía ese campo.
