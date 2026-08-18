@@ -1,13 +1,21 @@
 # Checkpoint — Estado actual del proyecto
 
-**Última actualización**: 2026-08-17  
+**Última actualización**: 2026-08-18  
 **Branch activa**: main  
-**Último slice cerrado**: VS-055 (export XLSX consolidado + dashboard de progreso por unidad) — **ambas mitades commiteadas y verificadas en producción end-to-end** (commits `3ae783f` y `c592d98`), ver "Verificación en producción" abajo.  
-**Slice en progreso**: ninguno asignado — pendientes reales: editor de exclusiones por Subindicador/elemento (UI), rutas de evidencia autenticadas, bloqueo proactivo de formulario en cliente por `dueDate` vencido (ver "Próximos pasos").
+**Último slice cerrado**: VS-057/058/059 (bloqueo de cliente por plazo vencido, evidencia autenticada, editor de exclusiones UI) — **las 3 commiteadas y verificadas en producción end-to-end**, ver "Verificación en producción" abajo.  
+**Slice en progreso**: ninguno asignado — la feature "unidades de negocio" (VS-050 a VS-059) está completa en su alcance central, sin pendientes conocidos.
 
 ## Resumen ejecutivo
 
-Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). La feature "unidades de negocio" (VS-050 a VS-055: jerarquía de Organization, partición de Response, dueDate/contactEmail, acceso autenticado, panel Publicar, export XLSX, dashboard de progreso) está completa en su alcance central y **verificada de punta a punta en producción real** — asignación de unidad, aislamiento de respuestas y de progreso, bloqueo del link público en modo corporativo, rechazo de organizaciones no asignadas, y export XLSX con datos reales, todo confirmado con datos de prueba (borrados al terminar cada verificación). **Nota de integridad histórica**: esta misma entrada de checkpoint tuvo una versión anterior que describía un refactor de UI (`runtime-shell.tsx`) que NUNCA se llegó a commitear — corregida verificando directamente contra el código real, ver `bugs.md` para el detalle completo (mismo patrón de riesgo que VS-043/`evaluateTableExpression`).
+Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). La feature "unidades de negocio" (VS-050 a VS-059: jerarquía de Organization, partición de Response, dueDate/contactEmail, acceso autenticado, panel Publicar, export XLSX, dashboard de progreso, bloqueo de cliente, evidencia autenticada, editor de exclusiones) está completa y **verificada de punta a punta en producción real** — asignación de unidad, aislamiento de respuestas y de progreso, bloqueo del link público en modo corporativo, rechazo de organizaciones no asignadas, export XLSX con datos reales, exclusión de Subindicador/pregunta individual reflejada en dashboard y Runtime autenticado, bloqueo de cliente por plazo vencido, y evidencia autenticada (subir/descargar/borrar + rechazo de elemento excluido) — todo confirmado con datos de prueba (borrados al terminar cada verificación). **Nota de integridad histórica**: esta misma entrada de checkpoint tuvo una versión anterior que describía un refactor de UI (`runtime-shell.tsx`) que NUNCA se llegó a commitear — corregida verificando directamente contra el código real, ver `bugs.md` para el detalle completo (mismo patrón de riesgo que VS-043/`evaluateTableExpression`).
+
+## Verificación en producción (2026-08-18)
+
+**VS-057/058/059**: framework temporal (1 Dimensión, 1 Subindicador directo, 2 preguntas + 1 Evidencia agregada durante la verificación) + 2 Evaluaciones + 1 organización-unidad-de-negocio, todo borrado al terminar.
+- **Bug real encontrado y corregido**: editor de exclusiones mostraba preguntas sin texto como el string literal `<p></p>` en vez de "(sin texto)" — fix con `stripCommentHtml`, ver `bugs.md`.
+- **Exclusiones (VS-059)**: excluir 1 pregunta → dashboard `0/2`→`0/1`, Runtime autenticado dejó de mostrarla; excluir el Subindicador completo → dashboard `0/0`, Runtime mostró el Subindicador vacío; re-incluir revirtió ambos casos; pills de resumen correctos en cada paso.
+- **Bloqueo de cliente (VS-057)**: con `dueDate` vencido, banner "Esta evaluación ha finalizado", inputs y "Guardar" deshabilitados en el DOM real, y un intento de escritura directo a la API confirmó 403 `evaluation_DUE_DATE_PASSED` server-side; pill "Plazo vencido" del dashboard también correcto.
+- **Evidencia autenticada (VS-058)**: sobre una evaluación nueva sin plazo, upload real vía `presign` + `Descargar` (URL prefirmada de R2 válida, abierta en pestaña nueva) + `Quitar` (DELETE) confirmados; un elemento `evidencia` excluido para la unidad devolvió `element_NOT_EVIDENCE` al intentar `presign`, confirmando que la exclusión se hereda del snapshot filtrado sin código nuevo.
 
 ## Verificación en producción (2026-08-17)
 
@@ -71,11 +79,19 @@ Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`c
 
 **Estado**: 63/63 tests `db`, typecheck/build limpios en los 3 paquetes, **verificado en producción end-to-end** (ver sección arriba).
 
+## Último slice completado (VS-057/058/059)
+
+**Bloqueo de cliente (VS-057)**: `RuntimeCore` calcula `deadlineLocked` y lo aplica en 4 puntos (formLocked en ElementView, "Guardar" deshabilitado, "Marcar como completo" oculto, `doSave` no dispara) — réplica de UX del 403 de servidor ya existente desde VS-052.
+
+**Evidencia autenticada (VS-058)**: 4 rutas nuevas espejo de las públicas bajo `api/evaluations/[id]/for-business-unit/evidences/*`, resolviendo vía `getEvaluationForBusinessUnit` (tenant-scoping + exclusiones heredadas del snapshot filtrado, sin código de exclusión nuevo). El prop `token` en la cadena Runtime pasa a ser la URL base de evidencia, no el token pelado.
+
+**Editor de exclusiones (VS-059)**: `components/exclusion-editor.tsx` + rutas `GET/POST .../exclusions` y `DELETE .../exclusions/[exclusionId]` (backend ya existía desde VS-050). Árbol completo (sin filtrar) con checkbox por Subindicador/pregunta, integrado como toggle en el panel Publicar.
+
+**Estado técnico**: **verificado en producción end-to-end** (ver sección arriba) — bug real de label vacío encontrado y corregido en el camino.
+
 ## Próximos pasos inmediatos
 
-1. Editor de exclusiones por Subindicador/elemento (UI) — backend ya existe desde VS-050.
-2. Rutas de evidencia autenticadas (espejo de las públicas) — modo corporativo hoy no soporta subir/ver evidencia.
-3. Bloqueo proactivo del formulario en cliente cuando vence el plazo (hoy solo servidor).
+Sin pendientes conocidos de la feature "unidades de negocio" (VS-050 a VS-059 completos y verificados). Próximo trabajo a definir con el usuario.
 
 ## Decisiones pendientes
 

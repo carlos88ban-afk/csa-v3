@@ -12,6 +12,13 @@ Registro cronológico de bugs y su solución. Entradas breves. Limpiar entradas 
 - **Prevention**: cómo evitarlo (opcional)
 ```
 
+### 2026-08-18 - VS-059: editor de exclusiones mostraba preguntas sin texto como `<p></p>` literal [RESUELTO]
+
+- **Issue**: encontrado verificando el editor de exclusiones en producción — una pregunta sin texto (label vacío) se mostraba en la lista de "N preguntas" como el string literal `<p></p>` en vez de un fallback legible como "(sin texto)".
+- **Root Cause**: `FormElement.label` se guarda como HTML rico (editor con negrita/itálica/lista) — un label "vacío" no es la string `""`, es `"<p></p>"` (el párrafo vacío que deja el editor rich-text). El render usaba `el.label || <em>(sin texto)</em>`, y como `"<p></p>"` es una string no-vacía (truthy), el fallback nunca disparaba.
+- **Solution**: usar `stripCommentHtml(el.label) || <em>(sin texto)</em>` — mismo helper de `sdk-core` ya usado en `evaluation-export.ts` para el mismo problema. Commit `9f1350a`.
+- **Prevention**: cualquier componente nuevo que renderice un `FormElement.label` como texto plano (no como HTML) debe pasar por `stripCommentHtml` primero — un label vacío del editor rich-text NUNCA es `""`, chequear contra eso (`!label`, `label || fallback`) es insuficiente. Ya era una convención establecida en `evaluation-export.ts`; este bug es un caso de no reutilizarla en un componente nuevo.
+
 ### 2026-08-17 - VS-054: panel Publicar - filas de Evaluación superpuestas/desbordadas en el drawer angosto [RESUELTO]
 
 - **Issue**: encontrado verificando el panel Publicar en producción — al publicar una Evaluación, la fila mostraba el pill "Publicada", el link público, "Revisar"/"Exportar CSV"/"Revocar" y los campos de plazo/contacto todos amontonados en una sola línea horizontal, superpuestos e ilegibles; la URL del token no partía de línea y desbordaba el drawer entero (visible como scroll horizontal).
