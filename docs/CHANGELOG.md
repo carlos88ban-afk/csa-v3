@@ -4,6 +4,18 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### Verificación en producción — VS-061 y VS-062 (2026-08-18)
+
+Framework temporal ("QA VS-061-062 verificacion") con 1 pregunta `seleccion_unica` cuya opción trae, a la vez, un campo embebido `texto_corto` (VS-062) y una tabla embebida con una celda `casilla` con `revealText` (VS-061) — mismo caso combinado del HTML real de S&P (`COG_DisclosureMedian_Selection`/`COG_AlignmentLongTermPerformance_Selection`). Verificado con Playwright contra `csa-v3-web.vercel.app` (deploy `10ff761`, `READY`):
+
+- **Builder**: combobox "Agregar campo…" (VS-062) y opción "Casilla de verificación" + checkbox "Permitir texto adicional al marcar" (VS-061) confirmados en el editor de la opción, mismo `TableConfigEditor`/patrón CRUD ya usado.
+- **Vista previa del Builder**: al marcar la opción, aparecen el campo de texto y la tabla con el checkbox; al marcar el checkbox aparece el input "Especifique".
+- **Runtime público real**: evaluación publicada, campo (`USD`) y casilla+texto (`clausula real de recuperacion`) guardados con autosave, **persistencia confirmada tras recarga completa de página** (no solo estado en memoria).
+- **Export CSV**: `Opcion Si (USD) (Tabla: Fila 1: Columna 1=Sí: clausula real de recuperacion)` — campo y casilla+texto revelado correctamente anexados a la celda Respuesta.
+- Framework, subindicador y evaluación de prueba borrados al terminar (`DELETE /api/frameworks/:id`, cascada).
+
+Ambos slices quedan cerrados y verificados end-to-end.
+
 ### VS-062 — Campo embebido directo en una opción de nivel superior (2026-08-18)
 
 Hallazgo de capacidad (HTML real `COG_DisclosureMedian_Selection`, "Ratio salarial CEO-empleado", portal S&P, enviado por el usuario): la opción "Sí" de un `seleccion_unica` trae un campo suelto ("Moneda:") entre el bloque de referencias y la tabla embebida, colgando directo de la opción — no de una sub-opción ni de una fila de tabla. Confirmado el gap navegando el Builder real en producción con Playwright: el editor de opción solo ofrecía "Agregar sub-opción"/"bloque secundario"/"tabla"/"referencias", sin forma de agregar un campo suelto (spec en `docs/engines/form.md`, "Campo embebido directo en una opción de nivel superior").

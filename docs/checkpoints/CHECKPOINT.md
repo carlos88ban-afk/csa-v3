@@ -2,14 +2,21 @@
 
 **Última actualización**: 2026-08-18  
 **Branch activa**: main  
-**Último slice cerrado**: VS-060 (tabla embebida directamente en una opción de nivel superior, `seleccion_unica`/`seleccion_multiple`) — commiteado y verificado en producción end-to-end, ver "Verificación en producción" abajo.  
-**Slice en progreso**: VS-061 (celda de tabla tipo casilla, commiteado/pusheado, deploy READY, verificación en producción interrumpida por indisponibilidad temporal del clasificador de seguridad del navegador) y VS-062 (campo embebido directo en una opción de nivel superior, `formOption.field` — spec en `docs/engines/form.md`) — ambos implementados, pendientes de commit/push+verificación conjunta.
+**Último slice cerrado**: VS-061 (celda de tabla tipo casilla con texto revelado) y VS-062 (campo embebido directo en una opción de nivel superior) — ambos commiteados y verificados en producción end-to-end en el mismo caso combinado, ver "Verificación en producción" abajo.  
+**Slice en progreso**: ninguno asignado.
 
 ## Resumen ejecutivo
 
 Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). La feature "unidades de negocio" (VS-050 a VS-059: jerarquía de Organization, partición de Response, dueDate/contactEmail, acceso autenticado, panel Publicar, export XLSX, dashboard de progreso, bloqueo de cliente, evidencia autenticada, editor de exclusiones) está completa y **verificada de punta a punta en producción real** — asignación de unidad, aislamiento de respuestas y de progreso, bloqueo del link público en modo corporativo, rechazo de organizaciones no asignadas, export XLSX con datos reales, exclusión de Subindicador/pregunta individual reflejada en dashboard y Runtime autenticado, bloqueo de cliente por plazo vencido, y evidencia autenticada (subir/descargar/borrar + rechazo de elemento excluido) — todo confirmado con datos de prueba (borrados al terminar cada verificación). **Nota de integridad histórica**: esta misma entrada de checkpoint tuvo una versión anterior que describía un refactor de UI (`runtime-shell.tsx`) que NUNCA se llegó a commitear — corregida verificando directamente contra el código real, ver `bugs.md` para el detalle completo (mismo patrón de riesgo que VS-043/`evaluateTableExpression`).
 
 ## Verificación en producción (2026-08-18)
+
+**VS-061 + VS-062** (deploy `10ff761`, `READY`): framework temporal ("QA VS-061-062 verificacion") con 1 pregunta `seleccion_unica` cuya opción combina un campo embebido `texto_corto` (VS-062) y una tabla embebida con una celda `casilla` con `revealText` (VS-061), evaluación pública publicada. Verificado con Playwright.
+- Builder: combobox "Agregar campo…" y opción "Casilla de verificación" + "Permitir texto adicional al marcar" confirmados en el editor de la opción.
+- Vista previa del Builder: campo y tabla aparecen al marcar la opción; "Especifique" aparece al marcar la casilla.
+- Runtime público: campo (`USD`) y casilla+texto (`clausula real de recuperacion`) guardados con autosave, persistentes tras recarga completa de página real.
+- Export CSV: `Opcion Si (USD) (Tabla: Fila 1: Columna 1=Sí: clausula real de recuperacion)`.
+- Framework/evaluación de prueba borrados al terminar (`DELETE /api/frameworks/:id`).
 
 **VS-060**: framework temporal con 1 pregunta `seleccion_unica` de 2 opciones (la primera con tabla embebida de una celda numérica), evaluación pública publicada, borrados al terminar.
 - Builder: botón "Agregar tabla" visible en la opción de nivel superior, mismo `TableConfigEditor` reutilizado (cambio de tipo de celda a Número confirmado).
@@ -95,6 +102,14 @@ Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`c
 **Editor de exclusiones (VS-059)**: `components/exclusion-editor.tsx` + rutas `GET/POST .../exclusions` y `DELETE .../exclusions/[exclusionId]` (backend ya existía desde VS-050). Árbol completo (sin filtrar) con checkbox por Subindicador/pregunta, integrado como toggle en el panel Publicar.
 
 **Estado técnico**: **verificado en producción end-to-end** (ver sección arriba) — bug real de label vacío encontrado y corregido en el camino.
+
+## Último slice completado (VS-061 + VS-062)
+
+**Celda de tabla tipo casilla con texto revelado (VS-061)**: `formTableCellType` gana `"casilla"` + `formTableCell.revealText`; valor `"true"`/`""` (mismo patrón que `naKey`), texto revelado bajo `commentKey` compuesto. Builder/Runtime/Preview/export reusan el `TableConfigEditor`/`FormTableView`/`PreviewTableView` ya existentes, una rama más.
+
+**Campo embebido directo en una opción de nivel superior (VS-062)**: `formOption` gana `field: subOptionField.optional()` (mismo tipo que `subOption.field` de VS-040). Builder: `addOptionField`/`removeOptionField`/etc, mismo patrón que las funciones equivalentes de sub-opción. Runtime/Preview reusan `SubOptionFieldView`/`PreviewSubOptionField` tal cual. Export: `formatOptionLabel` resuelve `opt.field`.
+
+**Estado técnico**: **verificado en producción end-to-end** (ver sección arriba) — Builder, Vista previa, Runtime público (con recarga completa) y export CSV confirmados con datos reales, ambos gaps combinados en un mismo caso de prueba.
 
 ## Último slice completado (VS-060)
 
