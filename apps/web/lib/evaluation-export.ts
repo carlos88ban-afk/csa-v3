@@ -71,17 +71,21 @@ function isQuestion(el: FormElement): boolean {
 // nueva, sigue siendo "una fila por Elemento". Con refType flexible un slot
 // puede ser URL literal o documento interno, que se serializa
 // `[Archivo: {name}]` (el binario no viaja en CSV/XLSX).
+function formatReferenceSlots(refsKey: string, answers: ResponseAnswers): string[] {
+  const refs = answers[refsKey];
+  const slots = Array.isArray(refs) ? refs : [];
+  return slots.map((u) =>
+    u && typeof u === "object" && "name" in u ? `[Archivo: ${String((u as { name: unknown }).name)}]` : String(u),
+  );
+}
+
 function formatOptionReferences(
   references: { maxUrls?: number | undefined; refType?: "public" | "flexible" | undefined } | undefined,
   refsKey: string,
   answers: ResponseAnswers,
 ): string {
   if (!references) return "";
-  const refs = answers[refsKey];
-  const slots = Array.isArray(refs) ? refs : [];
-  const parts = slots.map((u) =>
-    u && typeof u === "object" && "name" in u ? `[Archivo: ${String((u as { name: unknown }).name)}]` : String(u),
-  );
+  const parts = formatReferenceSlots(refsKey, answers);
   return parts.length > 0 ? ` (Referencias: ${parts.join("; ")})` : "";
 }
 
@@ -104,6 +108,15 @@ function formatEmbeddedTable(table: TablaDatosConfig, tableKey: string, answers:
         .map((col, colIdx) => {
           const cellCfg = cellConfig(row, col.id);
           if (!cellCfg || (cellCfg.editable === false && cellCfg.cellType !== "calculado")) return null;
+          // VS-067 (docs/engines/form.md "Adjuntar archivos o enlaces por
+          // celda"): una celda "referencia" no guarda valor propio en
+          // `rowValue[col.id]` (a diferencia de numero/texto/casilla) — el
+          // slot de referencias vive bajo `::refs`, se resuelve antes del
+          // check `cell === undefined` de abajo (que la saltaría siempre).
+          if (cellCfg.cellType === "referencia") {
+            const parts = formatReferenceSlots(`${tableKey}::${row.id}::${col.id}::refs`, answers);
+            return parts.length > 0 ? `Columna ${colIdx + 1}=${parts.join("; ")}` : null;
+          }
           const cell = rowValue[col.id];
           if (cell === undefined || cell === "") return null;
           const unit = cellCfg.availableUnits
@@ -273,6 +286,11 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
           .map((col, colIdx) => {
             const cellCfg = cellConfig(row, col.id);
             if (!cellCfg || (cellCfg.editable === false && cellCfg.cellType !== "calculado")) return null;
+            // VS-067: ver nota equivalente en formatEmbeddedTable arriba.
+            if (cellCfg.cellType === "referencia") {
+              const parts = formatReferenceSlots(`${element.id}::${row.id}::${col.id}::refs`, answers);
+              return parts.length > 0 ? `Columna ${colIdx + 1}=${parts.join("; ")}` : null;
+            }
             const cell = rowValue[col.id];
             if (cell === undefined || cell === "") return null;
             const unit = cellCfg.availableUnits

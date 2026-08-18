@@ -78,7 +78,11 @@ const subOptionField = z.discriminatedUnion("type", [
 // VS-061 (docs/engines/form.md "Celda de tabla tipo casilla con texto
 // revelado"): "casilla" es una celda editable de valor booleano ("true"/"")
 // — mismo patrón que naKey/markedNA, sin ensanchar tableCellValue.
-const formTableCellType = z.enum(["texto", "numero", "seleccion_desplegable", "calculado", "casilla"]);
+// VS-067 (docs/engines/form.md "Adjuntar archivos o enlaces por celda"):
+// "referencia" — la celda no guarda un valor propio en tableCellValue, usa
+// el mismo mecanismo de slots que optionReferences (ver abajo) bajo una
+// clave sintética, igual que "casilla"/revealField (VS-065).
+const formTableCellType = z.enum(["texto", "numero", "seleccion_desplegable", "calculado", "casilla", "referencia"]);
 
 // VS-048 (docs/engines/form.md "Grilla uniforme sin encabezados especiales"):
 // sin `label` — la grilla es uniforme, cualquier celda (incluida la esquina
@@ -150,6 +154,16 @@ const formTableCell = z.object({
   // fila no llevan celda propia (mismo criterio "grillas irregulares" de
   // VS-048: sin entrada = celda en blanco/cubierta).
   colSpan: z.number().int().min(2).optional(),
+  // VS-067 (docs/engines/form.md "Adjuntar archivos o enlaces por celda"):
+  // mismo `optionReferences` ya usado por formOption/subOption/pregunta
+  // (VS-039/045/056) — el pedido del usuario ("que las celdas también
+  // permitan subir archivos adjunto o enlaces como ya lo hacemos en otras
+  // partes") es exactamente esa dualidad URL-o-documento-interno, no un
+  // mecanismo nuevo. `position` no aplica a una celda (no tiene
+  // sub-opciones) pero se deja sin tocar el tipo compartido — un campo no
+  // usado en este contexto no daña nada, ya lo tolera zod. Solo aplica si
+  // cellType === "referencia".
+  references: optionReferences.optional(),
 })
 // VS-043: si cellType es "calculado", expression es obligatorio
 .superRefine((cell, ctx) => {

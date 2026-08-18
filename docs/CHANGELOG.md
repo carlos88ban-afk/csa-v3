@@ -4,6 +4,19 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-067 — Adjuntar archivos o enlaces por celda (2026-08-18)
+
+HTML real de S&P (`COG_ManagementOwnership_Selection`, tabla de propiedad accionaria de directivos): la columna "Pruebas que lo respaldan" es un campo de referencias por celda (archivo o enlace, hasta 3). Pedido explícito del usuario: "que las celdas de las tablas también permitan subir archivos adjunto o enlaces como ya lo hacemos en otras partes" — reutiliza `optionReferences` (VS-039/045/056) tal cual, sin un mecanismo nuevo.
+
+- `packages/sdk-core/src/form-schema.ts`: `formTableCellType` gana `"referencia"`; `formTableCell` gana `references?: optionReferences`, activo solo si `cellType === "referencia"`.
+- Runtime/Preview: nueva rama `cellType === "referencia"` en `FormTableView`/`PreviewTableView`, reutiliza `OptionReferencesView`/`PreviewOptionReferences` bajo la clave sintética `::refs`. `FormTableView` gana los props `token`/`subindicatorId`/`elementId` (necesarios para `presign-ref`), propagados en los 4 call sites existentes.
+- Builder: nueva opción "Referencia (archivo o enlace)" en el tipo de celda, con config "Máximo de referencias" + "Tipo de referencia" (URL pública / Flexible), mismo par de campos que el nivel Elemento/opción.
+- Export: nueva función compartida `formatReferenceSlots` (extraída de `formatOptionReferences`); celda `referencia` se resuelve antes del check `cell === undefined` (su dato vive enteramente bajo `::refs`, no en `rowValue[col.id]`).
+- `refType: "private"` (visto en el mismo HTML) sigue sin implementar — hallazgo pre-existente de VS-062, sin priorizar por el usuario; `"flexible"` ya cubre el pedido general de "archivo o enlace".
+- Spec en `docs/engines/form.md`, "Adjuntar archivos o enlaces por celda".
+
+**Estado**: implementado siguiendo el proceso doc-first. Sin build/typecheck/tests locales por instrucción explícita del usuario.
+
 ### VS-066 — Combinar columnas (colspan) + vista previa de contenido en el chip de celda (2026-08-18)
 
 Mismo HTML real de S&P que originó VS-062 (`COG_DisclosureMedian_Selection`): la tabla embebida combina las 2 últimas columnas en su encabezado y en la fila de compensación del CEO (`<th colspan="2">`/`<td colspan="2">`). Sin esto, el admin podía crear la tabla pero no replicarla fielmente. Pedido adicional del usuario: ver un extracto del contenido real en el chip colapsado de cada celda, sin tener que expandirla.

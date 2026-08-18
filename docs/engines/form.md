@@ -1425,3 +1425,50 @@ Nueva función `cellPreviewText(cell)`: extrae un extracto de texto plano (máx.
 - **Restaurar automáticamente celdas cubiertas al reducir el colspan** — quedan en blanco, se re-agregan a mano con el "+" existente.
 - **Preview de contenido para celdas editables sin `content`/`checkboxLabel`/`expression`** (ej. una celda `numero` simple sin texto-prefijo) — el chip sigue mostrando solo el tipo, no hay texto real que extraer.
 - **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.
+
+## Adjuntar archivos o enlaces por celda (VS-067)
+
+### Contexto y pedido
+
+HTML real de S&P (`COG_ManagementOwnership_Selection`, tabla de propiedad accionaria de directivos): la columna "Pruebas que lo respaldan" es un campo de referencias por celda (`class="sims-input reference"`, `data-ref-type="private"`, `data-maxrefs="3"`) — el evaluado adjunta hasta 3 archivos o enlaces que sustentan el dato de esa fila. La columna vecina "Reportaje público" es una celda `casilla` (Yes/No) ya soportada desde VS-061 — sin gap ahí. Pedido explícito del usuario: "que las celdas de las tablas también permitan subir archivos adjunto o enlaces como ya lo hacemos en otras partes" — la dualidad URL-pública-o-documento-interno que el motor ya resuelve a nivel de Elemento/opción/sub-opción/pregunta (`optionReferences`, VS-039/045/056), pero nunca a nivel de celda.
+
+### Decisión de diseño — reutilizar `optionReferences` tal cual, no un tipo nuevo
+
+`formTableCellType` gana `"referencia"`. `formTableCell` gana `references?: optionReferences` (el mismo tipo ya usado por `formOption.references`/`subOption.references`/`element.references`), activo solo si `cellType === "referencia"` — mismo criterio de "un campo por cellType, sin discriminated union anidada" ya establecido para `unit`/`options`/`maxLength`/`checkboxLabel`/`revealField`. `optionReferences.position` (`before_suboptions`/`after_suboptions`) no tiene sentido dentro de una celda (no hay sub-opciones que posicionar) pero se deja sin tocar el tipo compartido — un campo no usado en este contexto no rompe nada, zod ya lo tolera como opcional.
+
+```ts
+const formTableCellType = z.enum([
+  "texto", "numero", "seleccion_desplegable", "calculado", "casilla",
+  "referencia", // VS-067
+]);
+
+const formTableCell = z.object({
+  // ...campos existentes sin cambios...
+  references: optionReferences.optional(), // VS-067 — solo si cellType === "referencia"
+});
+```
+
+**`refType: "private"` sigue sin implementar** (mismo hallazgo ya registrado en VS-062/BACKLOG.md: el HTML real usa un tercer `refType` que el motor no modela). El pedido del usuario es la capacidad general de adjuntar archivos o enlaces, que `"flexible"` ya cubre (URL pública O documento interno subido a R2) — no pidió explícitamente el matiz "privado" (visibilidad restringida al equipo interno de S&P, sin construcción de permisos equivalente en esta plataforma) y no está priorizado. La celda `referencia` de este slice admite `refType: "public" | "flexible"`, igual que el resto del motor.
+
+### Runtime (`FormTableView`) y Preview (`PreviewTableView`)
+
+La celda `referencia` no guarda un valor propio en `TableValue` (a diferencia de `texto`/`numero`/`casilla`) — reutiliza el mismo `OptionReferencesView`/`PreviewOptionReferences` que ya renderizan `element.references`/`opt.references`/`sub.references`, bajo la clave sintética `${unitKeyPrefix}::${row.id}::${col.id}::refs` (mismo sufijo `::refs` que usa `formOption.references`, análogo a `::field` de `revealField`/VS-065). `content` (si el admin lo definió) se renderiza antes del control, mismo patrón "texto fijo como prefijo" de VS-063.
+
+`FormTableView` no tenía forma de propagar `token`/`subindicatorId`/`elementId` (necesarios para subir un documento interno vía `presign-ref`) porque ninguna celda los había necesitado hasta ahora — el componente gana esos 3 props nuevos, y los 4 call sites (`tabla_datos` suelto, `subOption.table`, `formOption.table` ×2) los propagan desde el mismo scope donde ya viven (igual que `SubOptionsView` ya hace para sus propias referencias). `elementId` es siempre el id del Elemento dueño de la tabla (el `tabla_datos`, o el `seleccion_unica`/`seleccion_multiple` padre si la tabla está embebida) — no un id por celda, mismo criterio que usan las referencias de sub-opción hoy (`presign-ref` solo valida contra los Elementos de nivel superior).
+
+`PreviewTableView` reutiliza `PreviewOptionReferences` sin pasar token — el editor no tiene R2 ni sesión de evaluación real, un slot de documento interno queda de solo lectura (mismo criterio ya establecido para `evidencia`/`opt.references` en el editor).
+
+### Builder (`TableConfigEditor`)
+
+Nueva opción "Referencia (archivo o enlace)" en el `<select>` de tipo de celda. Config de la celda (visible cuando `editable !== false`, igual que el resto de tipos): "Máximo de referencias" (`maxUrls`, número) + "Tipo de referencia" (`<select>` "URL pública" / "Flexible (URL o documento interno)") — mismo par de campos ya usado a nivel de Elemento/opción (`updateElementReferencesMaxUrls`/`RefType`), sin un flujo "Agregar campo…" (a diferencia de `revealField`, que es opcional dentro de una casilla, acá `references` ES la config completa del tipo de celda, se muestra siempre que `cellType === "referencia"`). Cambiar el `cellType` de una celda limpia `references` igual que limpia `checkboxLabel`/`revealField`/etc.
+
+### Exportación (`evaluation-export.ts`)
+
+Nueva función compartida `formatReferenceSlots(refsKey, answers)` — extraída de `formatOptionReferences` (que ahora la envuelve con el sufijo `" (Referencias: ...)"` para su uso existente sin cambio de comportamiento). En `formatEmbeddedTable` y el bloque de `tabla_datos` suelto, una celda `cellType === "referencia"` se resuelve ANTES del check `if (cell === undefined) return null` — a diferencia de toda otra celda, `referencia` nunca tiene valor en `rowValue[col.id]` (su dato vive enteramente bajo `::refs`), así que ese check la saltaría siempre si no se maneja aparte. Formato: `Columna N=url1; [Archivo: nombre.pdf]` (mismo formato de `parts` que `formatOptionReferences`, sin el envoltorio `" (Referencias: ...)"` que es específico de un sufijo de label de opción).
+
+### Fuera de alcance (explícito)
+
+- **`refType: "private"`** — ver "Decisión de diseño" arriba; hallazgo pre-existente (VS-062), sin priorizar por el usuario.
+- **Límite de tamaño/tipo de archivo específico por celda** — usa el mismo cap de 10 MB de `presign-ref` (compartido con todas las referencias flexibles del motor), no uno configurable por celda.
+- **Referencias en celdas de solo lectura (`editable === false`)** — mismo criterio que cualquier otro `cellType`: una celda fija muestra `content`, no un control interactivo.
+- **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.

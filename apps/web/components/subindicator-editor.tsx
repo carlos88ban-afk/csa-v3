@@ -271,6 +271,7 @@ function TableConfigEditor({
     seleccion_desplegable: "Selección",
     calculado: "Calculado",
     casilla: "Casilla de verificación",
+    referencia: "Referencia (archivo o enlace)",
   };
 
   // VS-066 (docs/engines/form.md "Vista previa de contenido en el chip de
@@ -375,6 +376,7 @@ function TableConfigEditor({
                                   expression: undefined,
                                   checkboxLabel: undefined,
                                   revealField: undefined,
+                                  references: undefined,
                                   editable: nextType === "calculado" ? true : cell.editable,
                                 });
                               }}
@@ -384,6 +386,7 @@ function TableConfigEditor({
                               <option value="seleccion_desplegable">Selección desplegable</option>
                               <option value="calculado">Calculado</option>
                               <option value="casilla">Casilla de verificación</option>
+                              <option value="referencia">Referencia (archivo o enlace)</option>
                             </select>
                           </label>
 
@@ -708,6 +711,53 @@ function TableConfigEditor({
                                           );
                                         })()}
                                     </>
+                                  )}
+
+                                  {/* VS-067 (docs/engines/form.md "Adjuntar
+                                      archivos o enlaces por celda"): mismo
+                                      par maxUrls/refType ya usado a nivel de
+                                      Elemento/opción/sub-opción (VS-039/045)
+                                      — sin un botón "Agregar…" porque, a
+                                      diferencia de revealField (opcional
+                                      dentro de una casilla), acá es la
+                                      config completa del tipo de celda. */}
+                                  {cell.cellType === "referencia" && (
+                                    <div className="field-grid">
+                                      <label className="field">
+                                        <span className="field__label">Máximo de referencias</span>
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          value={cell.references?.maxUrls ?? ""}
+                                          placeholder="3"
+                                          onChange={(e) =>
+                                            updateCell(row.id, col.id, {
+                                              references: {
+                                                ...cell.references,
+                                                maxUrls: e.target.value === "" ? undefined : Number(e.target.value),
+                                              },
+                                            })
+                                          }
+                                        />
+                                      </label>
+                                      <label className="field">
+                                        <span className="field__label">Tipo de referencia</span>
+                                        <select
+                                          value={cell.references?.refType ?? "public"}
+                                          onChange={(e) =>
+                                            updateCell(row.id, col.id, {
+                                              references: {
+                                                ...cell.references,
+                                                refType: e.target.value === "flexible" ? "flexible" : undefined,
+                                              },
+                                            })
+                                          }
+                                        >
+                                          <option value="public">URL pública</option>
+                                          <option value="flexible">Flexible (URL o documento interno)</option>
+                                        </select>
+                                      </label>
+                                    </div>
                                   )}
                                 </>
                               )}

@@ -568,6 +568,25 @@ function PreviewTableView({
                     </td>
                   );
                 }
+                if (cellType === "referencia") {
+                  // VS-067 (docs/engines/form.md "Adjuntar archivos o
+                  // enlaces por celda"): mismo PreviewOptionReferences que
+                  // las referencias de opción/pregunta — sin token, el
+                  // documento interno es de solo lectura en el editor.
+                  const refsKey = `${unitKeyPrefix}::${row.id}::${col.id}::refs`;
+                  return (
+                    <td key={col.id} colSpan={cellCfg.colSpan}>
+                      {content && <RichLabel html={content} />}
+                      <PreviewOptionReferences
+                        refType={cellCfg.references?.refType ?? "public"}
+                        maxUrls={cellCfg.references?.maxUrls ?? 3}
+                        value={answers[refsKey]}
+                        onChange={(next) => onAnswerChange(refsKey, next)}
+                        className="runtime-url-list"
+                      />
+                    </td>
+                  );
+                }
                 return (
                   <td key={col.id} colSpan={cellCfg.colSpan}>
                     {content && <RichLabel html={content} />}

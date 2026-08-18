@@ -757,6 +757,9 @@ function SubOptionsView({
               answers={answers}
               onAnswerChange={onAnswerChange}
               locked={locked}
+              token={token}
+              subindicatorId={subindicatorId}
+              elementId={elementId}
             />
           )}
           {isSelected(sub.id) && sub.references && sub.references.position !== "after_suboptions" && (
@@ -1353,6 +1356,16 @@ type FormTableViewProps = {
   onChange: (value: TableValue) => void;
   onAnswerChange: (key: string, value: AnswerValue) => void;
   locked?: boolean | undefined;
+  // VS-067 (docs/engines/form.md "Adjuntar archivos o enlaces por celda"):
+  // necesarios para subir documentos internos en celdas cellType ===
+  // "referencia" (presign-ref), mismo trío que OptionReferencesView /
+  // SubOptionsView. `elementId` es el id del Elemento tabla_datos/pregunta
+  // dueño de la tabla (no un id por celda) — presign-ref solo valida contra
+  // los Elementos de nivel superior, mismo criterio que las referencias de
+  // sub-opción (VS-045).
+  token: string | undefined;
+  subindicatorId: string;
+  elementId: string;
 };
 
 // VS-047 (docs/engines/form.md "Editor de tabla_datos estilo grilla"):
@@ -1403,6 +1416,9 @@ function FormTableView({
   onChange,
   onAnswerChange,
   locked,
+  token,
+  subindicatorId,
+  elementId,
 }: FormTableViewProps) {
   const table = value ?? {};
 
@@ -1553,6 +1569,29 @@ function FormTableView({
                           locked={locked}
                         />
                       )}
+                    </td>
+                  );
+                }
+                if (cellType === "referencia") {
+                  // VS-067 (docs/engines/form.md "Adjuntar archivos o
+                  // enlaces por celda"): mismo OptionReferencesView que las
+                  // referencias de opción/pregunta — clave sintética
+                  // `::refs`, la celda no tiene un valor propio en `cell`
+                  // (a diferencia de numero/texto/casilla).
+                  const refsKey = `${unitKeyPrefix}::${row.id}::${col.id}::refs`;
+                  return (
+                    <td key={col.id} colSpan={cellCfg.colSpan}>
+                      {content && <RichLabel html={content} />}
+                      <OptionReferencesView
+                        refType={cellCfg.references?.refType ?? "public"}
+                        maxUrls={cellCfg.references?.maxUrls ?? 3}
+                        value={answers[refsKey] as (string | EvidenceRef)[] | undefined}
+                        onChange={(next) => onAnswerChange(refsKey, next)}
+                        locked={locked}
+                        token={token}
+                        subindicatorId={subindicatorId}
+                        elementId={elementId}
+                      />
                     </td>
                   );
                 }
@@ -1860,6 +1899,9 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
           onChange={onChange}
           onAnswerChange={onAnswerChange}
           locked={locked}
+          token={token}
+          subindicatorId={subindicatorId}
+          elementId={element.id}
         />
         {statusRow}
         {naCommentRow}
@@ -2054,6 +2096,9 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                   answers={answers}
                   onAnswerChange={onAnswerChange}
                   locked={locked}
+                  token={token}
+                  subindicatorId={subindicatorId}
+                  elementId={element.id}
                 />
               )}
               {value === opt.id && opt.subOptions && opt.subOptions.length > 0 && (
@@ -2155,6 +2200,9 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                       answers={answers}
                       onAnswerChange={onAnswerChange}
                       locked={locked}
+                      token={token}
+                      subindicatorId={subindicatorId}
+                      elementId={element.id}
                     />
                   )}
                   {selected.includes(opt.id) && opt.subOptions && opt.subOptions.length > 0 && (
