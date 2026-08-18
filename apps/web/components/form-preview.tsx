@@ -572,7 +572,10 @@ function PreviewTableView({
                   // VS-067 (docs/engines/form.md "Adjuntar archivos o
                   // enlaces por celda"): mismo PreviewOptionReferences que
                   // las referencias de opción/pregunta — sin token, el
-                  // documento interno es de solo lectura en el editor.
+                  // documento interno es de solo lectura en el editor. Ver
+                  // nota equivalente en Runtime (page.tsx) sobre el
+                  // marcador "true"/"" reflejado en `cell` para que
+                  // `hasAnswer` detecte la celda como respondida.
                   const refsKey = `${unitKeyPrefix}::${row.id}::${col.id}::refs`;
                   return (
                     <td key={col.id} colSpan={cellCfg.colSpan}>
@@ -581,7 +584,10 @@ function PreviewTableView({
                         refType={cellCfg.references?.refType ?? "public"}
                         maxUrls={cellCfg.references?.maxUrls ?? 3}
                         value={answers[refsKey]}
-                        onChange={(next) => onAnswerChange(refsKey, next)}
+                        onChange={(next) => {
+                          onAnswerChange(refsKey, next);
+                          updateCell(row.id, col.id, Array.isArray(next) && next.length > 0 ? "true" : "", table, onChange);
+                        }}
                         className="runtime-url-list"
                       />
                     </td>

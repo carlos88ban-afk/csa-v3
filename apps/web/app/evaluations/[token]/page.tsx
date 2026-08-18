@@ -1588,8 +1588,17 @@ function FormTableView({
                   // VS-067 (docs/engines/form.md "Adjuntar archivos o
                   // enlaces por celda"): mismo OptionReferencesView que las
                   // referencias de opción/pregunta — clave sintética
-                  // `::refs`, la celda no tiene un valor propio en `cell`
-                  // (a diferencia de numero/texto/casilla).
+                  // `::refs` para el valor real (URLs/EvidenceRef). Además,
+                  // igual que "casilla" (que escribe "true"/"" en `cell`),
+                  // se refleja un marcador liviano en el mapa PROPIO de la
+                  // tabla (`table[row.id][col.id]`) — sin esto, `hasAnswer`
+                  // (sdk-core, genérico sobre ese mapa) nunca detecta que la
+                  // celda tiene datos, dejando el estado en "Sin iniciar" y
+                  // el export vacío pese a haber referencias guardadas
+                  // (bug real hallado en la verificación de este slice). El
+                  // marcador nunca se lee para presentación — Runtime/
+                  // Preview/Export siempre resuelven el valor real desde
+                  // `::refs`, no desde `cell`.
                   const refsKey = `${unitKeyPrefix}::${row.id}::${col.id}::refs`;
                   return (
                     <td key={col.id} colSpan={cellCfg.colSpan}>
@@ -1598,7 +1607,10 @@ function FormTableView({
                         refType={cellCfg.references?.refType ?? "public"}
                         maxUrls={cellCfg.references?.maxUrls ?? 3}
                         value={answers[refsKey] as (string | EvidenceRef)[] | undefined}
-                        onChange={(next) => onAnswerChange(refsKey, next)}
+                        onChange={(next) => {
+                          onAnswerChange(refsKey, next);
+                          updateCell(row.id, col.id, next.length > 0 ? "true" : "");
+                        }}
                         locked={locked}
                         token={token}
                         subindicatorId={subindicatorId}
