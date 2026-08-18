@@ -1,19 +1,18 @@
 "use client";
 
-// VS-054/055 (docs/domain/business-units.md, "Panel Publicar" +
-// "Dashboard de avance corporativo"): reemplaza la pantalla
-// /frameworks/[frameworkId] (eliminada) — Publicación completa
-// (generar/listar/revocar Evaluaciones, plazo/contacto, asignación de
-// unidades de negocio, progreso por unidad, export XLSX consolidado) vive
-// ahora en un panel del Builder. El editor de exclusiones por
-// Subindicador/elemento (UI) queda para un slice posterior — hoy solo se
-// puede asignar/desasignar unidades completas, sin filtrar preguntas desde
-// acá (el backend de exclusiones ya existe desde VS-050).
+// VS-054/055/059 (docs/domain/business-units.md, "Panel Publicar" +
+// "Dashboard de avance corporativo" + "Filtrado de preguntas por unidad"):
+// reemplaza la pantalla /frameworks/[frameworkId] (eliminada) —
+// Publicación completa (generar/listar/revocar Evaluaciones, plazo/
+// contacto, asignación de unidades de negocio, progreso por unidad, export
+// XLSX consolidado, exclusiones por Subindicador/elemento) vive ahora en
+// un panel del Builder.
 
 import { useEffect, useState } from "react";
 import type { Evaluation, EvaluationAssignment } from "@plataforma-csa/sdk-core";
 import { api } from "@/lib/api-client";
 import { Button, Pill } from "@/components/ui";
+import { ExclusionEditor } from "@/components/exclusion-editor";
 
 interface ChildOrganization {
   id: string;
@@ -53,6 +52,9 @@ function EvaluationRow({
   const [deadlineSaved, setDeadlineSaved] = useState(false);
   const [assignBusy, setAssignBusy] = useState<string | null>(null);
   const [revoking, setRevoking] = useState(false);
+  // VS-059: qué unidad tiene su editor de exclusiones abierto — a lo sumo
+  // una por vez por Evaluación, alcanza para no complicar el estado.
+  const [exclusionsOpenFor, setExclusionsOpenFor] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -190,8 +192,10 @@ function EvaluationRow({
           ) : (
             <ul className="publish-panel__unit-list">
               {childOrgs.map((org) => {
-                const assigned = assignments.some((a) => a.businessUnitOrganizationId === org.id);
+                const assignment = assignments.find((a) => a.businessUnitOrganizationId === org.id);
+                const assigned = !!assignment;
                 const unitProgress = progress?.find((p) => p.businessUnitOrganizationId === org.id);
+                const exclusionsOpen = assignment && exclusionsOpenFor === assignment.id;
                 return (
                   <li key={org.id}>
                     <label className="field field--checkbox">
@@ -213,6 +217,20 @@ function EvaluationRow({
                         </Pill>
                         {deadlinePassed && <Pill variant="warn">Plazo vencido</Pill>}
                       </span>
+                    )}
+                    {/* VS-059: editor de exclusiones — solo tiene sentido para
+                        una unidad ya asignada (necesita un assignmentId real). */}
+                    {assignment && (
+                      <button
+                        type="button"
+                        className="exclusion-editor__toggle"
+                        onClick={() => setExclusionsOpenFor(exclusionsOpen ? null : assignment.id)}
+                      >
+                        {exclusionsOpen ? "▾" : "▸"} Exclusiones
+                      </button>
+                    )}
+                    {exclusionsOpen && assignment && (
+                      <ExclusionEditor evaluationId={evaluation.id} assignmentId={assignment.id} />
                     )}
                   </li>
                 );
