@@ -9,7 +9,7 @@
 // (elementId: null) — ver spec "Tabla evaluation_assignment_exclusion".
 
 import { useEffect, useState } from "react";
-import { componentRegistry, type Evaluation, type EvaluationAssignmentExclusion, type EvaluationSnapshot, type FormElement } from "@plataforma-csa/sdk-core";
+import { componentRegistry, stripCommentHtml, type Evaluation, type EvaluationAssignmentExclusion, type EvaluationSnapshot, type FormElement } from "@plataforma-csa/sdk-core";
 import { api } from "@/lib/api-client";
 import { Pill } from "@/components/ui";
 
@@ -73,7 +73,7 @@ function SubindicatorRow({
                     disabled={subExcluded || busyKey === `${sub.id}::${el.id}`}
                     onChange={() => onToggleElement(sub.id, el.id)}
                   />
-                  <span>{el.label || <em>(sin texto)</em>}</span>
+                  <span>{stripCommentHtml(el.label) || <em>(sin texto)</em>}</span>
                 </label>
               </li>
             );
