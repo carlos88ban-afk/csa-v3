@@ -2,12 +2,21 @@
 
 **Última actualización**: 2026-08-19  
 **Branch activa**: main  
-**Último slice cerrado**: VS-077 (Runtime + Preview migran a render por componentes — `FormTableView`/`PreviewTableView` reemplazan su switch por `cellType` por un único camino sobre `normalizeCellComponents(cell)`, idéntico para celdas legacy y celdas Fase 2; `evaluateTableExpression` gana la sintaxis `{rowId::componentId}`. Verificado end-to-end en producción — ver "Verificación en producción" abajo — commiteado).  
-**Slice en progreso**: ninguno — próximo trabajo es VS-078 (export migra a `normalizeCellComponents` + verificación end-to-end final de la Fase 2, incluyendo el caso real del usuario), siguiendo el plan ya aprobado.
+**Último slice cerrado**: VS-078 (Export migra a render por componentes — `formatEmbeddedTable` reemplaza su lógica por `normalizeCellComponents(cellCfg)`, idéntico criterio a Runtime/Preview (VS-077); el `tabla_datos` suelto deja de duplicar la lógica y delega directo. Cierra la Fase 2 completa del rediseño UX de tablas embebidas — VS-071 a VS-078. Verificado end-to-end en producción — ver "Verificación en producción" abajo — commiteado).  
+**Slice en progreso**: ninguno — Fase 2 del rediseño UX de tablas embebidas completa. Próximo trabajo por definir (ver `docs/ROADMAP.md`/`docs/BACKLOG.md`).
 
 ## Resumen ejecutivo
 
 Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). La feature "unidades de negocio" (VS-050 a VS-059: jerarquía de Organization, partición de Response, dueDate/contactEmail, acceso autenticado, panel Publicar, export XLSX, dashboard de progreso, bloqueo de cliente, evidencia autenticada, editor de exclusiones) está completa y **verificada de punta a punta en producción real** — asignación de unidad, aislamiento de respuestas y de progreso, bloqueo del link público en modo corporativo, rechazo de organizaciones no asignadas, export XLSX con datos reales, exclusión de Subindicador/pregunta individual reflejada en dashboard y Runtime autenticado, bloqueo de cliente por plazo vencido, y evidencia autenticada (subir/descargar/borrar + rechazo de elemento excluido) — todo confirmado con datos de prueba (borrados al terminar cada verificación). **Nota de integridad histórica**: esta misma entrada de checkpoint tuvo una versión anterior que describía un refactor de UI (`runtime-shell.tsx`) que NUNCA se llegó a commitear — corregida verificando directamente contra el código real, ver `bugs.md` para el detalle completo (mismo patrón de riesgo que VS-043/`evaluateTableExpression`).
+
+## Verificación en producción (2026-08-19, VS-078)
+
+Framework temporal ("QA VS-078 export fase2") con 1 Dimensión → 1 Subindicador directo → 1 `tabla_datos` (1 columna × 1 fila): celda con 2 componentes independientes `[texto_corto(label:"Comentario"), seleccion_desplegable("Alto")]`, construida arrastrando desde la paleta del Builder. Verificado con Playwright MCP contra `csa-v3-web.vercel.app`.
+
+- **Runtime público** (evaluación publicada, token real): campo de texto y select respondidos ("Riesgo climático relevante" / "Alto"), autoguardado confirmado.
+- **Export CSV** (`GET /api/evaluations/:id/export`, fetch directo): `"Fila 1: Columna 1=Comentario Riesgo climático relevante, Alto"` — confirma prefijo de `label` en el componente `texto_corto`, resolución del label de la opción elegida en `seleccion_desplegable`, y join uniforme `", "` entre componentes.
+- **Celda legacy real** (framework/evaluación persistente "CSA 2026 — Réplica QA", pregunta "Tipo de tabla" → tabla `numero` bajo sub-opción "SISTEMA DE UN SOLO NIVEL"): respondida con `3` en "Directores ejecutivos" (fila 2, columna 2) vía el flujo real de radios anidados, export CSV confirmando `"... (Tabla: Fila 2: Columna 2=3)"` — dato correcto, sin pérdida, con el nuevo formato unificado.
+- Framework QA temporal borrado al terminar (`DELETE /api/frameworks/:id`); la evaluación QA persistente ("CSA 2026 — Réplica QA") se dejó con la respuesta de prueba (fixture de verificación reutilizado entre slices, mismo criterio de slices anteriores).
 
 ## Verificación en producción (2026-08-19, VS-077)
 
@@ -208,7 +217,7 @@ Framework temporal ("QA VS-077 tabla fase2") con 1 Dimensión → 1 Subindicador
 
 ## Próximos pasos inmediatos
 
-VS-078 (export + verificación end-to-end final de la Fase 2): `formatEmbeddedTable` (`apps/web/lib/evaluation-export.ts:109`) migra a iterar `normalizeCellComponents(cell)`, resolviendo cada componente por separado en la celda serializada. Verificación en producción replicando el caso real del usuario (celda `[referencia, texto_corto, seleccion_desplegable]`, otra `[casilla, texto_corto, seleccion_desplegable]`, ya cubierto en espíritu por la verificación de VS-077), exportando CSV/XLSX con datos reales, más una celda legacy sin tocar (ya confirmada en Preview durante VS-077) exportando idéntico. Cierra la Fase 2 del rediseño UX de tablas embebidas.
+Ninguno pendiente de la Fase 2 del rediseño UX de tablas embebidas (VS-071 a VS-078, completa). Próximo trabajo por definir junto al usuario — revisar `docs/ROADMAP.md` y `docs/BACKLOG.md` para candidatos.
 
 ## Decisiones pendientes
 

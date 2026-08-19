@@ -4,6 +4,14 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-078 — Export migra a render por componentes, cierre de la Fase 2 (2026-08-19)
+
+`formatEmbeddedTable` (`apps/web/lib/evaluation-export.ts`) itera `normalizeCellComponents(cellCfg)` igual que Runtime/Preview (VS-077) — `formatTableCell`/`formatTableComponent` (nuevos) resuelven cada componente con la misma clave por origen (legacy vs. Fase 2), respetan `gates`, y unen los valores no vacíos de una celda con `", "` (mismo separador ya usado entre celdas de una fila). El `tabla_datos` suelto de nivel de Elemento (dentro de `formatAnswer`) dejó de duplicar esta lógica — delega directo a `formatEmbeddedTable(element, element.id, answers)`. Elimina `resolveExtraFields` (sin consumidores tras la unificación); su soporte de `label` como prefijo se generaliza a cualquier componente `texto_corto`/`numero`/`seleccion_desplegable` con `label`, sea legacy o Fase 2.
+
+**Cambio de formato de texto, deliberado (no regresión de datos)**: una celda legacy con `extraFields`/`references` companion cambia de `Columna N=<control>: <extra1>, <extra2> [Referencias: ...]` a `Columna N=<referencias>, <extra1>, <extra2>, <control>` — mismo contenido, separador uniforme y orden alineado al que Runtime/Preview ya usan (`normalizeCellComponents`), documentado en `docs/engines/form.md`.
+
+**Estado**: `pnpm turbo run build test typecheck` verdes en los 9 tasks del monorepo. Verificado end-to-end en producción con Playwright MCP: framework QA temporal con celda multi-componente `[texto_corto("Comentario"), seleccion_desplegable]` respondida en Runtime y exportada a CSV — `"Fila 1: Columna 1=Comentario Riesgo climático relevante, Alto"`, confirmando label-prefijo y join uniforme. Celda **legacy real** (framework "CSA 2026 — Réplica QA", pregunta "Tipo de tabla" → tabla `numero` bajo "SISTEMA DE UN SOLO NIVEL") respondida y exportada sin pérdida de datos: `"... (Tabla: Fila 2: Columna 2=3)"`. Framework QA temporal borrado al terminar; la evaluación QA persistente ("CSA 2026 — Réplica QA") se dejó con la respuesta de prueba, mismo criterio que su uso como fixture de verificación en slices anteriores. Cierra la Fase 2 completa del rediseño UX de tablas embebidas (VS-071 a VS-078).
+
 ### VS-077 — Runtime y Preview migran a render por componentes (2026-08-19)
 
 `FormTableView` (`apps/web/app/evaluations/[token]/page.tsx`) y `PreviewTableView` (`apps/web/components/form-preview.tsx`) reemplazan su switch por `cellType` por un único camino: `normalizeCellComponents(cell)` + un control por componente, idéntico para celdas legacy y celdas Fase 2.
