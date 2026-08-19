@@ -4,6 +4,28 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-071/072/073 — Editor visual de tablas embebidas, Fase 1: panel drag & drop, popover de config, combinar/separar por selección (2026-08-19)
+
+Pedido explícito del usuario: rediseñar la UX del `TableConfigEditor` para que se sienta como un constructor visual tipo Excel/Google Sheets, sin conocimientos técnicos — arrastrar → soltar → configurar. Se acordó una secuencia en 2 fases: primero la capa de interacción sobre el modelo de datos actual (esta entrada), después la generalización a "N componentes independientes por celda" (VS-074+, sin empezar todavía). Sin cambios de schema/datos en esta fase.
+
+- `apps/web/components/subindicator-editor.tsx` (`TableConfigEditor`): panel lateral persistente (`table-config-palette`) con tarjetas arrastrables (Texto fijo, Campo de texto, Número, Selección desplegable, Casilla de verificación, Referencia; "Calculado" se aplica por click a la celda expandida) — drag & drop nativo HTML5, mismo patrón ya usado en `apps/web/app/frameworks/[frameworkId]/builder/page.tsx` (VS-049). Soltar sobre una celda en blanco la crea con ese tipo; soltar sobre una celda con contenido configurado pide confirmación antes de reemplazar (`applyCellPatch`, unifica el flujo de arrastre con el `<select>` manual que ya existía).
+- Selección de celdas adyacentes de una fila (click+arrastre o Shift+click) con barra contextual "Combinar celdas"/"Separar celdas" — reemplaza el input numérico de `colSpan` como flujo principal, reusando `updateCellColSpan` sin cambios.
+- Panel de configuración de celda rediseñado como popover anclado (`position: absolute` sobre `table-config-grid__cell`, ya `position: relative`) — ya no empuja el resto de la fila al expandirse.
+- Spec en `docs/engines/form.md`, "Rediseño UX del editor de tablas embebidas — Fase 1" + "Selección de celdas y Combinar/Separar celdas". Alcance descartado explícitamente para esta fase: reordenar `extraFields` por drag & drop (clave sintética posicional, se resuelve naturalmente en la Fase 2 con ids estables).
+
+**Estado**: `pnpm build && pnpm test && pnpm typecheck` verdes (vía `pnpm turbo run build test typecheck`, 9/9 tareas, incluye 63/63 tests `db` contra Neon real) — sin diffs en `packages/sdk-core`/`packages/db`, como se esperaba de una fase sin cambio de datos.
+
+### Verificación en producción — VS-071/072/073 (2026-08-19)
+
+Framework temporal ("VS-071-073 verificacion produccion") con 1 Dimensión → 1 Subindicador directo → 1 elemento `tabla_datos` (grilla 2×2). Verificado con Playwright MCP contra `csa-v3-web.vercel.app` (deploy `dpl_3wYYNBdwTuT14NXDAQQtS3vcgbmB`, `READY`).
+
+- **Panel drag & drop (VS-071)**: arrastrar "Selección desplegable" sobre una celda default (`texto`) la reconfiguró correctamente (chip cambia a "Selección", popover abre con el `<select>` en el valor correcto); arrastrar "Número" sobre una celda verdaderamente en blanco (sin objeto `cell`) la creó desde cero. Confirmación de reemplazo verificada: con la celda ya con una opción real cargada, arrastrar "Casilla de verificación" encima disparó el `window.confirm` con el mensaje esperado; al aceptar, la celda se reemplazó limpiamente (config anterior descartada, campos de "casilla" mostrados).
+- **Popover anclado (VS-072)**: confirmado por DOM (`getComputedStyle`) que el `<td>`/`<tr>` mantienen su altura original (41px) mientras el popover está abierto — no hay reflow de la fila; el popover usa su propio scroll interno cuando excede el alto disponible.
+- **Selección + Combinar/Separar (VS-073)**: click + Shift+click sobre 2 celdas contiguas de una fila mostró la barra "2 celdas seleccionadas" con "Combinar celdas"; al combinar, ambas celdas se fusionaron en una sola (`colSpan: 2` confirmado en el input interno, la celda cubierta desapareció del DOM). Seleccionar la celda combinada mostró "Celda combinada (2 columnas)" con "Separar celdas"; al separar, se restauró la grilla 2×2 exacta (celda ancla intacta, celda cubierta reaparece en blanco).
+- Framework de prueba borrado al terminar (`DELETE /api/frameworks/:id`, mismo patrón que slices anteriores).
+
+Slice cerrado y verificado end-to-end.
+
 ### VS-069 — Referencias y campos adicionales por celda (2026-08-18)
 
 HTML real de S&P (`MAT_MaterialIssues_Selection`, tabla de temas materiales): una celda de tabla combina referencias + un campo de texto libre SIEMPRE visible + un `<select>` como control principal, todo en la misma celda; y en otra fila, una celda `casilla` revela DOS campos juntos al marcarse (comentario + dropdown). Pedido explícito del usuario: "haz las actualizaciones necesarias para que las tablas se puedan construir de igual manera... recordando usar los principios de UX".

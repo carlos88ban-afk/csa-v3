@@ -1,13 +1,21 @@
 # Checkpoint — Estado actual del proyecto
 
-**Última actualización**: 2026-08-18  
+**Última actualización**: 2026-08-19  
 **Branch activa**: main  
-**Último slice cerrado**: VS-069 (referencias y campos adicionales por celda — `formTableCell.extraFields` reemplaza `revealField`, `references` ya no exclusivo de cellType "referencia", spec en `docs/engines/form.md`) — commiteado y verificado en producción end-to-end, incluye fix de un bug real de export encontrado en el camino, ver "Verificación en producción" abajo.  
-**Slice en progreso**: ninguno — próximo trabajo a definir con el usuario.
+**Último slice cerrado**: VS-071/072/073 (Fase 1 del rediseño UX de tablas embebidas — panel lateral drag & drop para tipo de celda, popover de configuración anclado sin reflow, selección de celdas + Combinar/Separar en reemplazo del input numérico de colSpan; sin cambios de schema/datos, spec en `docs/engines/form.md`) — commiteado y verificado en producción end-to-end, ver "Verificación en producción" abajo.  
+**Slice en progreso**: ninguno — Fase 2 (VS-074+: generalización del modelo de celda a "N componentes independientes", con estrategia de migración aditiva ya diseñada en el plan aprobado) queda como próximo trabajo, a retomar con el usuario.
 
 ## Resumen ejecutivo
 
 Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). La feature "unidades de negocio" (VS-050 a VS-059: jerarquía de Organization, partición de Response, dueDate/contactEmail, acceso autenticado, panel Publicar, export XLSX, dashboard de progreso, bloqueo de cliente, evidencia autenticada, editor de exclusiones) está completa y **verificada de punta a punta en producción real** — asignación de unidad, aislamiento de respuestas y de progreso, bloqueo del link público en modo corporativo, rechazo de organizaciones no asignadas, export XLSX con datos reales, exclusión de Subindicador/pregunta individual reflejada en dashboard y Runtime autenticado, bloqueo de cliente por plazo vencido, y evidencia autenticada (subir/descargar/borrar + rechazo de elemento excluido) — todo confirmado con datos de prueba (borrados al terminar cada verificación). **Nota de integridad histórica**: esta misma entrada de checkpoint tuvo una versión anterior que describía un refactor de UI (`runtime-shell.tsx`) que NUNCA se llegó a commitear — corregida verificando directamente contra el código real, ver `bugs.md` para el detalle completo (mismo patrón de riesgo que VS-043/`evaluateTableExpression`).
+
+## Verificación en producción (2026-08-19)
+
+**VS-071/072/073**: framework temporal ("VS-071-073 verificacion produccion") con 1 Dimensión → 1 Subindicador directo → 1 `tabla_datos` (grilla 2×2). Verificado con Playwright MCP contra `csa-v3-web.vercel.app`.
+- Panel lateral: arrastrar una tarjeta de tipo sobre una celda default la reconfiguró; arrastrar sobre una celda verdaderamente en blanco la creó; arrastrar sobre una celda con contenido real disparó `window.confirm` y reemplazó limpiamente al aceptar.
+- Popover de config: confirmado por DOM que la fila no crece al abrir el panel (antes lo hacía).
+- Selección + combinar/separar: 2 celdas contiguas seleccionadas (click + Shift+click) → "Combinar celdas" fusiona (`colSpan: 2`, celda cubierta desaparece); reseleccionar la celda combinada → "Separar celdas" restaura la grilla original intacta.
+- Framework de prueba borrado al terminar.
 
 ## Verificación en producción (2026-08-18)
 
@@ -184,7 +192,7 @@ Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`c
 
 ## Próximos pasos inmediatos
 
-Sin pendientes conocidos. Próximo trabajo a definir con el usuario.
+Fase 2 del rediseño UX de tablas embebidas (VS-074 en adelante, plan detallado ya aprobado por el usuario en sesión, pendiente de escribirse como spec en `docs/engines/form.md`): generalizar `formTableCell` a `components: TableCellComponent[]` (array ordenado de controles verdaderamente independientes, cada uno con su propio valor de respuesta), de forma aditiva (adaptador `normalizeCellComponents` sin migración destructiva de datos existentes — confirmado con el usuario que no hay evaluaciones reales, solo QA, así que el criterio de compatibilidad es buena práctica, no un requisito duro).
 
 ## Decisiones pendientes
 
