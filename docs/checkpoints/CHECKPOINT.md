@@ -2,14 +2,23 @@
 
 **Última actualización**: 2026-08-18  
 **Branch activa**: main  
-**Último slice cerrado**: VS-068 (exclusividad y encabezado del bloque primario de sub-opciones) — commiteado y verificado en producción end-to-end, incluye fix de un gap real de export encontrado en el camino, ver "Verificación en producción" abajo.  
-**Slice en progreso**: VS-069 (referencias y campos adicionales por celda — `formTableCell.extraFields`/`references` generalizado, spec en `docs/engines/form.md`) — implementado, pendiente de commit/push y verificación en producción.
+**Último slice cerrado**: VS-069 (referencias y campos adicionales por celda — `formTableCell.extraFields` reemplaza `revealField`, `references` ya no exclusivo de cellType "referencia", spec en `docs/engines/form.md`) — commiteado y verificado en producción end-to-end, incluye fix de un bug real de export encontrado en el camino, ver "Verificación en producción" abajo.  
+**Slice en progreso**: ninguno — próximo trabajo a definir con el usuario.
 
 ## Resumen ejecutivo
 
 Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). La feature "unidades de negocio" (VS-050 a VS-059: jerarquía de Organization, partición de Response, dueDate/contactEmail, acceso autenticado, panel Publicar, export XLSX, dashboard de progreso, bloqueo de cliente, evidencia autenticada, editor de exclusiones) está completa y **verificada de punta a punta en producción real** — asignación de unidad, aislamiento de respuestas y de progreso, bloqueo del link público en modo corporativo, rechazo de organizaciones no asignadas, export XLSX con datos reales, exclusión de Subindicador/pregunta individual reflejada en dashboard y Runtime autenticado, bloqueo de cliente por plazo vencido, y evidencia autenticada (subir/descargar/borrar + rechazo de elemento excluido) — todo confirmado con datos de prueba (borrados al terminar cada verificación). **Nota de integridad histórica**: esta misma entrada de checkpoint tuvo una versión anterior que describía un refactor de UI (`runtime-shell.tsx`) que NUNCA se llegó a commitear — corregida verificando directamente contra el código real, ver `bugs.md` para el detalle completo (mismo patrón de riesgo que VS-043/`evaluateTableExpression`).
 
 ## Verificación en producción (2026-08-18)
+
+**VS-069**: framework temporal ("VS-069 test") reproduciendo `MAT_MaterialIssues_Selection`: Fila 1 con celda `seleccion_desplegable` (control principal) + `extraFields` con `texto_corto` siempre visible ("Nombre del tema") + `references` (URL pública, máx. 3); Fila 2 con celda `casilla` + `extraFields` con dos campos gated (`texto_corto` "Comentario" + `seleccion_desplegable` "Tipo de impacto"). Verificado con Playwright contra `csa-v3-web.vercel.app`.
+- Builder: sección "Referencias" (Agregar/Quitar) confirmada en una celda `seleccion_desplegable`, independiente del tipo de control; "Campos adicionales (siempre visibles)" y "Campos revelados al marcar" con dos campos configurados juntos.
+- Vista previa: Fila 1 muestra referencias + campo de texto + contenido fijo + select, todos visibles a la vez; Fila 2 revela ambos campos recién al marcar el checkbox.
+- Runtime público: mismos comportamientos con datos reales, autosave, **persistencia confirmada tras recarga completa** (6 valores).
+- Export CSV: `Fila 1: Columna 1=Ambiental: Nombre del tema Cambio climático [Referencias: https://...]; Fila 2: Columna 1=Sí: Comentario ..., Tipo de impacto Alto`.
+- **Bug real encontrado y corregido** (afecta también VS-040/VS-062): `resolveExtraFields`, `formatSubOptionExtras` y `formatOptionLabel` (rama `opt.field`) resolvían el label de opciones `seleccion_desplegable` de `subOptionField` sin `stripCommentHtml` — el CSV/XLSX mostraba `<p>Alto</p>` en vez de `Alto`. Fix en las 3 funciones (commit `b4cd717`).
+- **Confirmación adicional sobre la réplica real (misma fecha)**: pregunta ESG construida en el subindicador 1.2.16 "Supervisión de la Gobernanza ESG" de la réplica — referencias a nivel de OPCIÓN con posición "Antes de las sub-opciones" (verificadas en preview y Runtime público de una evaluación recién publicada), bloque primario + secundario con sub-opciones de 2 niveles y exclusividad (radios), gating correcto de los radios por el checkbox padre en Runtime (a diferencia de la Vista previa, que los muestra siempre), export CSV con sub-opciones y radios resueltos.
+- Framework/evaluación de prueba borrados al terminar.
 
 **VS-068**: framework temporal ("QA VS-068 verificacion") replicando `COG_ESGGovernanceOversight_Selection` completo — opción "Aplicable" con bloque primario "Supervisión de la Junta" (checkbox → 2 radios) y bloque secundario "Supervisión ejecutiva" (checkbox → 2 radios). Verificado con Playwright.
 - Builder: encabezado propio del bloque primario y toggle "Sub-sub-opciones excluyentes" confirmados; el bloque secundario ganó la UI de sub-sub-opciones que le faltaba por completo.

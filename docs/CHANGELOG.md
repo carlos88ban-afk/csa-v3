@@ -16,6 +16,20 @@ HTML real de S&P (`MAT_MaterialIssues_Selection`, tabla de temas materiales): un
 
 **Estado**: implementado siguiendo el proceso doc-first. Sin build/typecheck/tests locales por instrucción explícita del usuario.
 
+### Verificación en producción — VS-069 (2026-08-18)
+
+Framework temporal ("VS-069 test") reproduciendo `MAT_MaterialIssues_Selection`: Fila 1 con celda `seleccion_desplegable` (control principal) + `extraFields` con un `texto_corto` ("Nombre del tema", siempre visible) + `references` (URL pública, máx. 3); Fila 2 con celda `casilla` + `extraFields` con dos campos gated (`texto_corto` "Comentario" + `seleccion_desplegable` "Tipo de impacto" con opciones Alto/Bajo). Verificado con Playwright contra `csa-v3-web.vercel.app`.
+
+- **Builder**: sección "Referencias" (Agregar/Quitar) confirmada en una celda `seleccion_desplegable`, independiente del tipo de control; `renderExtraFields` confirmada en ambos modos — "Campos adicionales (siempre visibles)" para la celda `seleccion_desplegable` y "Campos revelados al marcar" para la celda `casilla`, con dos campos configurados juntos en esta última.
+- **Vista previa del Builder**: Fila 1 muestra referencias + campo de texto + contenido fijo + select, todos visibles a la vez; Fila 2 revela ambos campos (comentario + dropdown) recién al marcar el checkbox.
+- **Runtime público real**: mismos 2 comportamientos confirmados con datos reales (URL de referencia, texto, select "Ambiental"; checkbox marcado revelando "Comentario" + "Tipo de impacto"), autosave, **persistencia confirmada tras recarga completa de página** en los 6 valores.
+- **Export CSV**: `Fila 1: Columna 1=Ambiental: Nombre del tema Cambio climático [Referencias: https://...]; Fila 2: Columna 1=Sí: Comentario ..., Tipo de impacto Alto` — confirma el orden `extraFields` unidos por coma, sufijo de referencias entre corchetes.
+- **Bug real encontrado y corregido durante la verificación** (no exclusivo de VS-069, afecta también VS-040/VS-062): `resolveExtraFields`, `formatSubOptionExtras` y `formatOptionLabel` (rama `opt.field`) resolvían el label de una opción de `subOptionField` tipo `seleccion_desplegable` sin pasarlo por `stripCommentHtml` — a diferencia de todos los demás labels resueltos en `evaluation-export.ts`. Como esas opciones se editan con `RichTextEditor` en el Builder, el CSV/XLSX mostraba `<p>Alto</p>` en vez de `Alto`. Fix en las 3 funciones (commit `fix(export): opciones de campo seleccion_desplegable exportaban HTML crudo`).
+- **Confirmación adicional sobre la réplica real (misma fecha)**: pregunta ESG construida en el subindicador 1.2.16 "Supervisión de la Gobernanza ESG" de la réplica "CSA 2026 — Réplica QA" — referencias a nivel de OPCIÓN con posición "Antes de las sub-opciones" (preview + Runtime de una evaluación recién publicada), bloque primario + secundario con sub-opciones de 2 niveles y exclusividad (radios), gating correcto de los radios por el checkbox padre en Runtime, export CSV con sub-opciones y radios resueltos.
+- Framework/evaluación de prueba borrados al terminar.
+
+Slice cerrado y verificado end-to-end.
+
 ### VS-068 — Exclusividad y encabezado del bloque primario de sub-opciones (2026-08-18)
 
 HTML real de S&P (`COG_ESGGovernanceOversight_Selection`): la opción "Applicable" trae DOS bloques de sub-opciones checkbox con encabezado propio ("Supervisión de la Junta"/"Supervisión ejecutiva"), y cada ítem checkbox revela su propio grupo de radios al marcarse. Pedido explícito del usuario: poder construir este tipo de pregunta, hoy imposible.
