@@ -2,8 +2,8 @@
 
 **Última actualización**: 2026-08-19  
 **Branch activa**: main  
-**Último slice cerrado**: VS-071/072/073 (Fase 1 del rediseño UX de tablas embebidas — panel lateral drag & drop para tipo de celda, popover de configuración anclado sin reflow, selección de celdas + Combinar/Separar en reemplazo del input numérico de colSpan; sin cambios de schema/datos, spec en `docs/engines/form.md`) — commiteado y verificado en producción end-to-end, ver "Verificación en producción" abajo.  
-**Slice en progreso**: ninguno — Fase 2 (VS-074+: generalización del modelo de celda a "N componentes independientes", con estrategia de migración aditiva ya diseñada en el plan aprobado) queda como próximo trabajo, a retomar con el usuario.
+**Último slice cerrado**: VS-074 (spec doc-first de la Fase 2 del rediseño UX de tablas embebidas — modelo de componentes independientes por celda `formTableCell.components: TableCellComponent[]`, aditivo sin migración destructiva, adaptador `normalizeCellComponents`, `TableValue` ensanchado solo para celdas nuevas, sintaxis de fórmula `{rowId::componentId}` aditiva sobre `{rowId.columnId}` ya existente — spec completa en `docs/engines/form.md`, sin código en este slice).  
+**Slice en progreso**: ninguno — próximo trabajo es VS-075 (implementar el schema aditivo + `normalizeCellComponents` en `packages/sdk-core`, con tests, sin tocar UI todavía), siguiendo el plan de Fase 2 ya aprobado.
 
 ## Resumen ejecutivo
 
@@ -192,7 +192,7 @@ Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`c
 
 ## Próximos pasos inmediatos
 
-Fase 2 del rediseño UX de tablas embebidas (VS-074 en adelante, plan detallado ya aprobado por el usuario en sesión, pendiente de escribirse como spec en `docs/engines/form.md`): generalizar `formTableCell` a `components: TableCellComponent[]` (array ordenado de controles verdaderamente independientes, cada uno con su propio valor de respuesta), de forma aditiva (adaptador `normalizeCellComponents` sin migración destructiva de datos existentes — confirmado con el usuario que no hay evaluaciones reales, solo QA, así que el criterio de compatibilidad es buena práctica, no un requisito duro).
+VS-075 (implementación, sdk-core): `tableCellComponent` + `formTableCell.components` en `packages/sdk-core/src/form-schema.ts`, `tableValue` ensanchado + rama nueva de `hasAnswer` en `packages/sdk-core/src/response.ts`, `normalizeCellComponents` con tests unitarios (celda legacy sintetiza correctamente, celda con `components` tiene prioridad, `hasAnswer` cubre ambos formatos) — sin tocar Builder/Runtime/export todavía, spec ya cerrada en `docs/engines/form.md` ("Fase 2: componentes independientes por celda", VS-074). Después: VS-076 (Builder emite `components` reales) → VS-077 (Runtime/Preview migran a `TableCellComponentView`) → VS-078 (export + verificación end-to-end en producción).
 
 ## Decisiones pendientes
 

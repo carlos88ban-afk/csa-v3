@@ -1731,3 +1731,120 @@ Reemplaza el input numérico "Combinar con columnas siguientes" como flujo princ
 - **Combinar celdas de filas distintas (rowSpan)** — sin caso real observado que lo pida; `colSpan` ya cubre los casos reales encontrados hasta ahora (VS-066). Aditivo si aparece.
 - **Handle de arrastre en el borde de la celda para expandirla en vivo** — descartado explícitamente por el usuario a favor de selección+botón, más simple y predecible.
 - **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.
+
+## Rediseño UX del editor de tablas embebidas — Fase 2: componentes independientes por celda (VS-074, spec)
+
+### Contexto y pedido
+
+La Fase 1 (VS-071 a VS-073, arriba) rediseñó la interacción del Builder sin tocar el modelo de datos — sigue siendo "1 control principal (`cellType`) + companions de rol fijo" (`content`, `checkboxLabel`/`revealContent`, `extraFields`, `references`). El usuario fue explícito en que ese no es el objetivo final: **"la celda debe convertirse en un contenedor ordenado de componentes independientes"** — cada uno con su propio tipo, configuración y valor de respuesta, agregado por drag & drop, reordenable, eliminable sin afectar a los demás. Ejemplo real dado por el usuario: una celda con `[referencia/URL, texto, selector]` u otra con `[casilla, texto, selector]`, todos independientes entre sí (no un control principal con acompañantes subordinados).
+
+Pedido explícito adicional: **analizar la arquitectura actual y proponer una estrategia de migración compatible con los datos existentes antes de tocar persistencia/Runtime/export**, priorizando conservar toda la funcionalidad actual y evitar regresiones. Esta sección es esa propuesta, congelada como spec antes de escribir código (regla rectora del proyecto). Confirmado con el usuario: no hay evaluaciones reales (no-QA) en producción con respuestas de tabla hoy — todo el contenido existente es de prueba, creado y borrado por verificación — así que el criterio de compatibilidad hacia atrás es buena práctica y consistencia de estilo con el resto del motor, no una obligación de proteger datos de producción irremplazables.
+
+### Decisión de diseño — aditivo, celda por celda, sin migración destructiva
+
+Campo nuevo `formTableCell.components?: TableCellComponent[]` — **opcional, nunca `.default()`** (mismo criterio que todo el resto de este archivo). Cuando una celda tiene `components` con al menos 1 elemento, ese array tiene **prioridad total** sobre los campos legacy de esa misma celda (`cellType`/`content`/`checkboxLabel`/`revealContent`/`extraFields`/`references`) para render, valor de respuesta y exportación — decisión celda por celda, no a nivel de tabla ni de Subindicador. Los campos legacy permanecen en el tipo sin cambios: ninguna celda existente se reescribe, ningún script de migración de filas de `subindicator.form_schema` es necesario. El Builder de Fase 2 (VS-076) deja de **ofrecer** los campos legacy como superficie de creación, pero el motor los sigue **leyendo** para siempre a través de un adaptador puro.
+
+```ts
+// packages/sdk-core/src/form-schema.ts
+const tableCellComponent = z.discriminatedUnion("type", [
+  z.object({ id: z.string().min(1), type: z.literal("texto_fijo"), content: z.string().optional() }),
+  z.object({ id: z.string().min(1), type: z.literal("texto_corto"), label: z.string().optional(), maxLength: z.number().int().positive().optional() }),
+  z.object({
+    id: z.string().min(1), type: z.literal("numero"), label: z.string().optional(),
+    unit: z.string().min(1).optional(), availableUnits: z.array(z.string().min(1)).min(1).optional(),
+  }),
+  z.object({ id: z.string().min(1), type: z.literal("seleccion_desplegable"), label: z.string().optional(), options: z.array(formOptionBase).min(1) }),
+  z.object({
+    id: z.string().min(1), type: z.literal("casilla"), checkboxLabel: z.string().optional(),
+    // ids de OTROS componentes DE LA MISMA CELDA revelados al marcar este
+    // checkbox — reemplaza la regla implícita actual ("extraFields solo se
+    // revela si cellType === 'casilla'") por una relación explícita entre
+    // componentes hermanos. Un componente listado en el `gates` de otro
+    // está oculto hasta que ese checkbox se marque; si ningún componente
+    // `casilla` lo referencia en su `gates`, es "siempre visible" (mismo
+    // significado que hoy tienen los extraFields de una celda no-casilla).
+    gates: z.array(z.string().min(1)).optional(),
+  }),
+  z.object({ id: z.string().min(1), type: z.literal("referencia"), references: optionReferences.optional() }),
+  z.object({ id: z.string().min(1), type: z.literal("calculado"), expression: z.string().min(1) }),
+]);
+export type TableCellComponent = z.infer<typeof tableCellComponent>;
+
+// dentro de formTableCell, junto a los campos existentes (sin tocarlos):
+components: z.array(tableCellComponent).min(1).optional(),
+```
+
+`id` de cada componente es estable (generado en cliente, `crypto.randomUUID()`, mismo criterio que `id` de Elemento/opción) — es la clave de reordenamiento (VS-076), de `gates`, y de la clave sintética de respuesta (ver abajo). Reordenar el array `components` es una operación de UI pura (mover el elemento dentro del array), sin ambigüedad de qué respuesta corresponde a qué componente, a diferencia del `extraFields` legacy (índice posicional, ver "Fuera de alcance" de VS-071/073).
+
+### Adaptador de lectura no destructivo — `normalizeCellComponents`
+
+```ts
+// packages/sdk-core/src/form-schema.ts
+export function normalizeCellComponents(cell: FormTableCell): TableCellComponent[] {
+  if (cell.components?.length) return cell.components;
+  return synthesizeLegacyComponents(cell);
+}
+```
+
+Runtime, Preview, Export y el Builder de Fase 2 llaman **siempre** a `normalizeCellComponents(cell)` — ninguno de los cuatro vuelve a leer `cell.cellType` directo. Para una celda sin `components`, `synthesizeLegacyComponents` reconstruye el array equivalente con **ids deterministas y estables** (no `randomUUID()` — deben ser los mismos en cada llamada para que las claves sintéticas de respuesta no cambien entre renders):
+
+| Origen legacy | Componente sintetizado | id determinista |
+|---|---|---|
+| `editable === false`, `content` presente | `texto_fijo` | `legacy-content` |
+| `editable === false`, sin `content` | (ninguno — celda vacía) | — |
+| `editable !== false`, `content` presente | `texto_fijo` (prefijo) | `legacy-content` |
+| `cellType` (control principal, cualquiera) | tipo 1:1 (`texto`→`texto_corto`, `numero`→`numero`, `seleccion_desplegable`→`seleccion_desplegable`, `casilla`→`casilla`, `referencia`→`referencia`, `calculado`→`calculado`), con `maxLength`/`unit`+`availableUnits`/`options`/`checkboxLabel`/`expression` según corresponda | `legacy-control` |
+| `revealContent` (solo si `cellType === "casilla"`) | `texto_fijo` | `legacy-reveal-content` |
+| `extraFields[i]` | tipo 1:1 (`seleccion_desplegable`/`texto_corto`/`numero`) | `` legacy-extra-${i} `` |
+| `references` (cuando `cellType !== "referencia"`, adjunto independiente) | `referencia` | `legacy-references` |
+
+Orden emitido (idéntico al orden de render ya documentado en VS-070 "Orden de renderizado por celda", para que el resultado visual de una celda legacy no cambie ni un píxel):
+
+- Cualquier tipo editable ≠ `casilla`: `[legacy-references?, ...legacy-extra-i (sin gates — siempre visibles), legacy-content?, legacy-control]`.
+- `casilla`: `[legacy-references?, legacy-content?, legacy-control (casilla, gates: [legacy-reveal-content?, ...legacy-extra-i]), legacy-reveal-content?, ...legacy-extra-i]`.
+- `editable === false`: `[legacy-content?]` únicamente (sin control — mismo criterio que hoy, celda de solo presentación).
+
+### Valor de respuesta — `TableValue` ensanchado solo para celdas nuevas
+
+```ts
+// packages/sdk-core/src/response.ts
+export const tableCellComponentValue = z.record(z.string(), tableCellValue); // componentId -> valor escalar
+export const tableValue = z.record(
+  z.string(), // rowId
+  z.record(z.string(), z.union([tableCellValue, tableCellComponentValue])), // colId -> escalar (legacy) | mapa por componente (nuevo)
+);
+```
+
+Regla de lectura, sin ambigüedad: el formato de una celda lo decide el **schema** (`cell.components` presente o no), nunca se infiere del valor guardado. Para una celda **legacy** (sin `components` en el schema), `table[row][col]` sigue siendo el valor escalar de siempre, escrito/leído exactamente por el mismo código de hoy — **cero cambios de comportamiento para cualquier celda existente**, las claves sintéticas ya establecidas (`${prefix}::field::${i}`, `${prefix}::refs`, `` ${prefix}${UNIT_KEY} ``) siguen aplicando sin tocarse. Para una celda **nueva** (con `components`), `table[row][col]` es un mapa `componentId -> valor`: cada componente `texto_corto`/`numero`/`seleccion_desplegable`/`casilla`/`calculado` lee/escribe su propia entrada por `id`; `referencia` sigue usando una clave sintética externa al mapa (mismo patrón que hoy, namespaced por componente ahora: `` `${tableKey}::${row.id}::${col.id}::${component.id}::refs` ``, porque una celda puede tener 2+ componentes `referencia` independientes); `texto_fijo` no tiene valor (presentación pura).
+
+`hasAnswer` (`response.ts`) gana una rama adicional para el caso "mapa de componentes" (no reemplaza la existente): `Object.values(cellValue).some(v => v !== undefined && v !== "")`, mismo criterio recursivo que ya aplica un nivel arriba.
+
+### Deprecación 1:1 en el Builder — no ambigua
+
+`content`-prefijo, `checkboxLabel`, `revealContent` y `extraFields` dejan de ofrecerse como superficie de **creación** en el Builder de Fase 2 (VS-076) — una celda nueva se construye exclusivamente arrastrando componentes desde el panel lateral. Siguen soportados en **lectura** para siempre, vía `normalizeCellComponents`. No hay período de "coexistencia editable": el primer cambio que el admin hace sobre una celda legacy en el Builder de Fase 2 la migra completa a `components` (sintetiza con `synthesizeLegacyComponents`, pero regenerando los ids deterministas a `randomUUID()` reales en ese momento — a partir de ahí es una celda "nueva" con reordenamiento genuino; los ids deterministas `legacy-*` solo existen en memoria mientras la celda no se ha tocado).
+
+### Fórmulas — extensión de la sintaxis de referencia, sin redefinir la existente
+
+`evaluateTableExpression` (`packages/sdk-core/src/formula.ts`, VS-043/047) ya usa el punto como separador fila.columna: `{rowId}` = fila `rowId` en la columna que se está evaluando; `{rowId.columnId}` = celda puntual con columna explícita. Ese contrato **no cambia**. Para direccionar un componente específico dentro de una celda con 2+ componentes evaluables, se agrega un sufijo `::componentId` (mismo separador `::` ya usado en todo el motor para claves sintéticas — `::status`, `::na`, `::unit`, `::refs` — reservando `.` exclusivamente para fila.columna):
+
+- `{rowId}` — sin cambio de significado: fila `rowId`, columna actual. Válido solo si esa celda (resuelta vía `normalizeCellComponents`) tiene **exactamente 1** componente numérico evaluable (`numero` o `calculado`); con 0 o 2+ es un error de validación (ver abajo), no un valor `undefined` silencioso.
+- `{rowId.columnId}` — sin cambio: fila y columna explícitas, misma regla de "exactamente 1 componente numérico" aplicada a la celda de destino.
+- `{rowId::componentId}` — **nuevo**: componente específico, columna actual.
+- `{rowId.columnId::componentId}` — **nuevo**: fila, columna y componente, todo explícito.
+
+Parser (`evaluateTableExpression`): el split existente `ref.indexOf(".")` (fila vs. columna) no cambia; se agrega un segundo split sobre `::` en la porción de columna/valor para extraer `componentId` opcional — aditivo, sin tocar el tokenizador (`{...}` ya acepta cualquier carácter interno). Validación de ambigüedad ("celda con 2+ componentes numéricos referenciada sin `::componentId`") se agrega como una pasada nueva en `formSchema.superRefine` (mismo lugar que ya valida el ciclo de fórmulas vía `findFormulaCycle`), no en tiempo de evaluación en Runtime.
+
+### Runtime, Preview y exportación
+
+Nuevo componente compartido `TableCellComponentView` (`apps/web/components/table-cell-component-view.tsx`) reemplaza las ramas por `cellType` de `FormTableView` (`apps/web/app/evaluations/[token]/page.tsx:1475`) y `PreviewTableView` (`apps/web/components/form-preview.tsx:427`): itera `normalizeCellComponents(cell)`, renderiza cada componente según su `type` (mismos controles ya usados hoy por tipo — `<input>`/`<select>`/checkbox/`OptionReferencesView`/`TableCalculatedCell`), resolviendo `gates` para el gating de `casilla` (un componente listado en el `gates` de otro solo se renderiza si ese checkbox está marcado — mismo comportamiento visual que hoy, ahora expresado como relación entre componentes en vez de una rama especial de `cellType === "casilla"`). Clave de valor: `table[row.id][col.id][component.id]` para el mapa nuevo; `` `${tableKey}::${row.id}::${col.id}::${component.id}::refs` `` para componentes `referencia`. `formatEmbeddedTable` (`apps/web/lib/evaluation-export.ts:109`) itera igual, resolviendo cada componente por separado en la celda serializada (`"Columna N=valor1, valor2, ..."`, uniendo los componentes de una celda con el mismo separador `", "` ya usado entre celdas de una fila).
+
+### Verificación
+
+Diferida a VS-078 (cierre de la Fase 2): framework/evaluación QA temporal replicando el HTML real ya provisto por el usuario al pedir este rediseño (tabla "Riesgo/oportunidad material" — una celda `[referencia, texto_corto, seleccion_desplegable]`, otra `[casilla, texto_corto, seleccion_desplegable]`), construida con el Builder de Fase 2, respondida en Runtime, exportada a CSV/XLSX confirmando cada componente por separado — más una celda **legacy sin tocar** (de un framework ya existente) para confirmar que sigue renderizando y exportando idéntico. Verificado en producción vía Playwright MCP, sin `pnpm dev` local, mismo criterio que el resto de este documento.
+
+### Fuera de alcance (explícito)
+
+- **Migración física/reescritura de filas de `subindicator.form_schema`** — no es necesaria, el dato es aditivo puro; no hay script de backfill en esta spec (a diferencia de VS-037, que sí necesitaba backfill porque cambiaba el *default visual*).
+- **Un componente `calculado` que referencie un componente de otra tabla o de otro Elemento** — fuera del contrato actual de `engine/formula` (las referencias son dentro del mismo Subindicador/misma tabla); sin cambio de alcance en este slice.
+- **Reordenar/agregar/quitar componentes desde el Runtime** — la estructura de la celda la define el admin (Builder), igual criterio que el resto de `engine/form` (agregar/quitar filas o columnas de una tabla tampoco es potestad del evaluado).
+- **Componentes `texto_fijo`/`calculado` como target de `gates`** — un checkbox puede revelar cualquier componente, pero no tiene sentido "revelar" un `calculado` (se evalúa siempre) ni impedirlo; no se bloquea a nivel de schema por simplicidad, es una convención de uso del Builder, no una regla validada.

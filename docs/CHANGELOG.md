@@ -4,6 +4,17 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-074 — Componentes independientes por celda, spec de Fase 2 (2026-08-19, sin código)
+
+Spec doc-first (regla rectora del proyecto: nada se implementa sin especificación previa en `docs/`) de la Fase 2 del rediseño UX de tablas embebidas — pedido explícito del usuario: la celda pasa a ser un contenedor ordenado de componentes verdaderamente independientes (`components: TableCellComponent[]`), cada uno con su propio tipo/config/valor, en vez de "1 control principal + companions de rol fijo".
+
+- **Aditivo, sin migración destructiva**: `formTableCell.components?` opcional, celda por celda tiene prioridad sobre los campos legacy si está presente; ninguna fila de `subindicator.form_schema` se reescribe. Adaptador `normalizeCellComponents` sintetiza el array equivalente para celdas legacy con ids deterministas (`legacy-control`, `legacy-content`, etc.), preservando el orden de render exacto ya documentado en VS-070.
+- `TableValue` se ensancha a `escalar | Record<componentId, escalar>` — el formato de una celda lo decide el schema (`components` presente o no), nunca el valor guardado; celdas legacy siguen leyendo/escribiendo exactamente igual que hoy.
+- Fórmulas: nueva sintaxis `{rowId::componentId}` / `{rowId.columnId::componentId}`, aditiva sobre la ya existente `{rowId.columnId}` (VS-043/047) — `.` sigue siendo fila.columna, `::` (mismo separador de claves sintéticas ya usado en todo el motor) direcciona un componente dentro de la celda.
+- Spec completa en `docs/engines/form.md`, "Rediseño UX del editor de tablas embebidas — Fase 2: componentes independientes por celda".
+
+**Estado**: solo documentación — sin cambios de código en este slice. Implementación en VS-075 (schema + adaptador en `sdk-core`) a VS-078 (export + verificación end-to-end en producción).
+
 ### VS-071/072/073 — Editor visual de tablas embebidas, Fase 1: panel drag & drop, popover de config, combinar/separar por selección (2026-08-19)
 
 Pedido explícito del usuario: rediseñar la UX del `TableConfigEditor` para que se sienta como un constructor visual tipo Excel/Google Sheets, sin conocimientos técnicos — arrastrar → soltar → configurar. Se acordó una secuencia en 2 fases: primero la capa de interacción sobre el modelo de datos actual (esta entrada), después la generalización a "N componentes independientes por celda" (VS-074+, sin empezar todavía). Sin cambios de schema/datos en esta fase.
