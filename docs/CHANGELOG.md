@@ -4,6 +4,17 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-075 — Schema aditivo de componentes por celda + `normalizeCellComponents` (2026-08-19)
+
+Implementa el modelo de datos de la spec VS-074, sin tocar Builder/Runtime/export todavía (esos son VS-076 a VS-078).
+
+- `packages/sdk-core/src/form-schema.ts`: nuevo discriminated union `tableCellComponent` (`texto_fijo`/`texto_corto`/`numero`/`seleccion_desplegable`/`casilla`/`referencia`/`calculado`) y `formTableCell.components?: TableCellComponent[]`, opcional y aditivo — ninguna celda existente se reescribe.
+- `normalizeCellComponents(cell)`: adaptador de lectura no destructivo. Celdas con `components` propio tienen prioridad total; celdas legacy se sintetizan con ids **deterministas** (`legacy-control`/`legacy-content`/`legacy-reveal-content`/`legacy-extra-N`/`legacy-references`), mismo orden de render que hoy documentado en VS-070. Caso especial detectado durante la implementación y agregado a la spec: `cellType === "calculado"` es un corto-circuito (solo el control, ignora `content`/`extraFields`/`references`), igual que ya hace el Runtime desde VS-047.
+- `packages/sdk-core/src/response.ts`: `tableValue` se ensancha a `escalar | Record<componentId, escalar>` — el formato de una celda lo decide el schema (`components` presente o no en esa celda), nunca el valor guardado; `hasAnswer` gana una rama recursiva para el formato nuevo, sin tocar el criterio ya existente para celdas legacy.
+- 17 tests nuevos en `form-schema.test.ts` (síntesis por cada `cellType`, `content`/`extraFields`/`references`/`gates` de casilla, determinismo entre llamadas, prioridad de `components` explícito sobre legacy) + 3 en `response.test.ts` (`hasAnswer` con el mapa por componente).
+
+**Estado**: `pnpm build && pnpm test && pnpm typecheck` verdes en todo el monorepo (`pnpm turbo run build test typecheck`, 9/9 tareas — incluye 63/63 tests `db` contra Neon real, sin regresiones; `apps/web` sigue compilando limpio con el `TableValue` ensanchado aunque todavía no lo consume). Spec actualizada en `docs/engines/form.md` con el caso especial de "calculado".
+
 ### VS-074 — Componentes independientes por celda, spec de Fase 2 (2026-08-19, sin código)
 
 Spec doc-first (regla rectora del proyecto: nada se implementa sin especificación previa en `docs/`) de la Fase 2 del rediseño UX de tablas embebidas — pedido explícito del usuario: la celda pasa a ser un contenedor ordenado de componentes verdaderamente independientes (`components: TableCellComponent[]`), cada uno con su propio tipo/config/valor, en vez de "1 control principal + companions de rol fijo".

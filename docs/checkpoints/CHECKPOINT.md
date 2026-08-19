@@ -2,8 +2,8 @@
 
 **Última actualización**: 2026-08-19  
 **Branch activa**: main  
-**Último slice cerrado**: VS-074 (spec doc-first de la Fase 2 del rediseño UX de tablas embebidas — modelo de componentes independientes por celda `formTableCell.components: TableCellComponent[]`, aditivo sin migración destructiva, adaptador `normalizeCellComponents`, `TableValue` ensanchado solo para celdas nuevas, sintaxis de fórmula `{rowId::componentId}` aditiva sobre `{rowId.columnId}` ya existente — spec completa en `docs/engines/form.md`, sin código en este slice).  
-**Slice en progreso**: ninguno — próximo trabajo es VS-075 (implementar el schema aditivo + `normalizeCellComponents` en `packages/sdk-core`, con tests, sin tocar UI todavía), siguiendo el plan de Fase 2 ya aprobado.
+**Último slice cerrado**: VS-075 (implementación en `packages/sdk-core` de la spec VS-074 — `tableCellComponent` discriminated union + `formTableCell.components` opcional, `normalizeCellComponents` con ids deterministas para celdas legacy, `TableValue` ensanchado a `escalar | Record<componentId, escalar>`, `hasAnswer` con rama recursiva nueva — 20 tests nuevos, `pnpm build && pnpm test && pnpm typecheck` verdes en todo el monorepo, sin tocar Builder/Runtime/export todavía).  
+**Slice en progreso**: ninguno — próximo trabajo es VS-076 (Builder de Fase 2: el panel drag & drop de VS-071 pasa a emitir `components` reales, arrastrar un segundo tipo sobre una celda ocupada AGREGA un componente independiente en vez de reemplazar), siguiendo el plan de Fase 2 ya aprobado.
 
 ## Resumen ejecutivo
 
@@ -192,7 +192,7 @@ Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`c
 
 ## Próximos pasos inmediatos
 
-VS-075 (implementación, sdk-core): `tableCellComponent` + `formTableCell.components` en `packages/sdk-core/src/form-schema.ts`, `tableValue` ensanchado + rama nueva de `hasAnswer` en `packages/sdk-core/src/response.ts`, `normalizeCellComponents` con tests unitarios (celda legacy sintetiza correctamente, celda con `components` tiene prioridad, `hasAnswer` cubre ambos formatos) — sin tocar Builder/Runtime/export todavía, spec ya cerrada en `docs/engines/form.md` ("Fase 2: componentes independientes por celda", VS-074). Después: VS-076 (Builder emite `components` reales) → VS-077 (Runtime/Preview migran a `TableCellComponentView`) → VS-078 (export + verificación end-to-end en producción).
+VS-076 (Builder, `apps/web/components/subindicator-editor.tsx`): el panel lateral/drag & drop de VS-071 pasa a construir sobre el array `components` real en vez de simularlo sobre el modelo legacy — arrastrar un segundo tipo sobre una celda ya ocupada AGREGA un componente independiente (no reemplaza), cada uno reordenable por drag & drop con `id` propio estable, eliminable individualmente, configurable en su propio popover (reusa el patrón de VS-072). Después: VS-077 (Runtime/Preview migran a `TableCellComponentView`, nuevo componente compartido) → VS-078 (export + verificación end-to-end en producción, incluyendo una celda legacy sin tocar para confirmar cero regresión).
 
 ## Decisiones pendientes
 
