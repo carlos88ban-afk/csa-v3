@@ -4,6 +4,17 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-077 — Runtime y Preview migran a render por componentes (2026-08-19)
+
+`FormTableView` (`apps/web/app/evaluations/[token]/page.tsx`) y `PreviewTableView` (`apps/web/components/form-preview.tsx`) reemplazan su switch por `cellType` por un único camino: `normalizeCellComponents(cell)` + un control por componente, idéntico para celdas legacy y celdas Fase 2.
+
+- Resolución de valor por origen: celdas legacy usan las claves sintéticas EXACTAS de siempre (`legacy-control` → escalar de la celda; `legacy-extra-N` → `${prefix}::field::N}`; `legacy-references`/`legacy-control` tipo referencia → `::refs`) — cero cambio de comportamiento para datos existentes. Celdas Fase 2 usan la clave uniforme `table[row][col][component.id]` (`::${component.id}::refs` para `referencia`).
+- Implementación **paralela, no compartida**, entre Runtime y Preview (desviación documentada del spec original de VS-074, que proponía un único componente): Runtime necesita `token`/`subindicatorId`/`elementId`/`locked` para adjuntos reales a R2, Preview no — mismo criterio ya usado por `SubOptionFieldView`/`PreviewSubOptionField`. `ExtraFieldsView`/`PreviewExtraFields` quedaron sin consumidores tras el reemplazo y se retiraron.
+- `packages/sdk-core/src/formula.ts`: `evaluateTableExpression` implementa la sintaxis `{rowId::componentId}` / `{rowId.columnId::componentId}` (aditiva, sin tocar el tokenizador) — `valuesByRow` ahora acepta celdas-mapa (`componentId -> número`), con la misma regla "sin ambigüedad silenciosa" ya usada para `{rowId}` (resuelve solo si hay exactamente 1 entrada numérica).
+- Hallazgo de paridad visual durante el port: el control principal legacy de `numero` mostraba la unidad entre paréntesis (`" (kg)"`) pero un componente sintetizado desde un `extraField` legacy la mostraba sin paréntesis — se preservó la distinción exacta por origen para no cambiar ni un carácter de una celda legacy.
+
+**Estado**: `pnpm turbo run build test typecheck` verdes en los 8 tasks del monorepo. Verificado end-to-end en producción con Playwright MCP: framework QA temporal con una celda multi-componente `[texto_corto, referencia, seleccion_desplegable]` y otra `[texto_corto (gated), casilla]`, construida con el Builder de Fase 2, respondida en Preview y en Runtime (con persistencia confirmada tras recarga completa de página) — gating de `casilla` funcionando en ambos. Además, una celda **legacy sin tocar** de un framework ya existente (tabla `numero` de "SISTEMA DE UN SOLO NIVEL", 25 celdas legacy reales) confirmada renderizando y aceptando input idéntico en Preview. Framework QA borrado al cerrar. Deferido a un slice futuro (documentado en `docs/engines/form.md` como "Fuera de alcance"): la validación de ambigüedad de `superRefine` para `calculado` con 2+ componentes numéricos sin `::componentId` — no bloqueante, el runtime ya es seguro (resuelve `undefined`, nunca calcula mal).
+
 ### VS-076 — Builder emite components reales, N independientes por celda (2026-08-19)
 
 Reescribe `TableConfigEditor` para construir sobre el array `components` real (sobre el schema/adaptador de VS-075) en vez de simularlo sobre el modelo legacy de la Fase 1.

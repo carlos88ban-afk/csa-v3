@@ -2,14 +2,23 @@
 
 **Última actualización**: 2026-08-19  
 **Branch activa**: main  
-**Último slice cerrado**: VS-076 (Builder de Fase 2 — `TableConfigEditor` construye sobre el array `components` real: arrastrar de la paleta AGREGA un componente independiente en vez de reemplazar, cada componente con su propio chip/popover/grip de reordenamiento/botón eliminar, casilla con checklist explícito de `gates`. 2 bugs reales de interacción encontrados y corregidos verificando en producción — ver "Verificación en producción" abajo — commiteado y verificado end-to-end).  
-**Slice en progreso**: ninguno — próximo trabajo es VS-077 (Runtime/Preview migran a un `TableCellComponentView` compartido, reemplazando las ramas por `cellType` de `FormTableView`/`PreviewTableView`), siguiendo el plan de Fase 2 ya aprobado.
+**Último slice cerrado**: VS-077 (Runtime + Preview migran a render por componentes — `FormTableView`/`PreviewTableView` reemplazan su switch por `cellType` por un único camino sobre `normalizeCellComponents(cell)`, idéntico para celdas legacy y celdas Fase 2; `evaluateTableExpression` gana la sintaxis `{rowId::componentId}`. Verificado end-to-end en producción — ver "Verificación en producción" abajo — commiteado).  
+**Slice en progreso**: ninguno — próximo trabajo es VS-078 (export migra a `normalizeCellComponents` + verificación end-to-end final de la Fase 2, incluyendo el caso real del usuario), siguiendo el plan ya aprobado.
 
 ## Resumen ejecutivo
 
 Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). La feature "unidades de negocio" (VS-050 a VS-059: jerarquía de Organization, partición de Response, dueDate/contactEmail, acceso autenticado, panel Publicar, export XLSX, dashboard de progreso, bloqueo de cliente, evidencia autenticada, editor de exclusiones) está completa y **verificada de punta a punta en producción real** — asignación de unidad, aislamiento de respuestas y de progreso, bloqueo del link público en modo corporativo, rechazo de organizaciones no asignadas, export XLSX con datos reales, exclusión de Subindicador/pregunta individual reflejada en dashboard y Runtime autenticado, bloqueo de cliente por plazo vencido, y evidencia autenticada (subir/descargar/borrar + rechazo de elemento excluido) — todo confirmado con datos de prueba (borrados al terminar cada verificación). **Nota de integridad histórica**: esta misma entrada de checkpoint tuvo una versión anterior que describía un refactor de UI (`runtime-shell.tsx`) que NUNCA se llegó a commitear — corregida verificando directamente contra el código real, ver `bugs.md` para el detalle completo (mismo patrón de riesgo que VS-043/`evaluateTableExpression`).
 
-## Verificación en producción (2026-08-19)
+## Verificación en producción (2026-08-19, VS-077)
+
+Framework temporal ("QA VS-077 tabla fase2") con 1 Dimensión → 1 Subindicador directo → 1 `tabla_datos` (2 columnas × 1 fila): celda 1 con 3 componentes independientes `[texto_corto, referencia, seleccion_desplegable("Alto"/"Bajo")]`; celda 2 con `[texto_corto (gated), casilla("Confirmo revisión")]`, construida arrastrando desde la paleta del Builder (VS-076). Verificado con Playwright MCP contra `csa-v3-web.vercel.app`.
+
+- **Preview**: los 3 componentes de la celda 1 renderizaron juntos e independientes (campo de texto, referencias con slot de URL, select con las 2 opciones); la celda 2 mostró solo la casilla hasta marcarla, revelando entonces el campo de texto gated (`gates` funcionando).
+- **Runtime público** (evaluación publicada, token real): mismos 3 componentes editables, `casilla` con gate revelando el campo de texto; **persistencia confirmada tras recarga completa de página** (texto, URL, opción "Bajo" seleccionada, casilla marcada y campo revelado "Campo revelado OK", los 6 valores intactos, `100% completado`).
+- **Celda legacy sin tocar** (framework "CSA 2026 — Réplica QA" ya existente, tabla `numero` real de 25 celdas bajo "SISTEMA DE UN SOLO NIVEL"): confirmada en Preview renderizando idéntico (encabezados en negrita, `spinbutton` por fila) y aceptando input (`5` escrito y reflejado) — cero regresión visual/funcional para datos de producción reales.
+- Framework QA borrado al terminar (`DELETE /api/frameworks/:id`); la celda legacy inspeccionada no se modificó (Preview no persiste).
+
+## Verificación en producción (2026-08-19, VS-071 a VS-076)
 
 **VS-076**: framework temporal ("VS-076 verificacion produccion") con 1 Dimensión → 1 Subindicador directo → 1 `tabla_datos` (grilla 1×1). Verificado con Playwright MCP contra `csa-v3-web.vercel.app`, con 2 rondas de fix-redeploy-reverificación en el camino.
 - Arrastrar 3 tipos distintos (Selección desplegable, Casilla) sobre la misma celda: cada uno se AGREGÓ como componente independiente, sin `window.confirm`, sin reemplazar a los anteriores.
@@ -199,7 +208,7 @@ Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`c
 
 ## Próximos pasos inmediatos
 
-VS-077 (Runtime/Preview): nuevo componente compartido `TableCellComponentView` (`apps/web/components/table-cell-component-view.tsx`) reemplaza las ramas por `cellType` de `FormTableView` (`apps/web/app/evaluations/[token]/page.tsx:1475`) y `PreviewTableView` (`apps/web/components/form-preview.tsx:427`), iterando `normalizeCellComponents(cell)` — celdas legacy deben seguir renderizando/guardando idéntico a hoy, celdas con `components` reales usan el mapa `table[row][col][componentId]` ya implementado en VS-075. Después: VS-078 (export + verificación end-to-end en producción, incluyendo una celda legacy sin tocar para confirmar cero regresión, y el caso real del usuario: celda `[referencia, texto_corto, seleccion_desplegable]`).
+VS-078 (export + verificación end-to-end final de la Fase 2): `formatEmbeddedTable` (`apps/web/lib/evaluation-export.ts:109`) migra a iterar `normalizeCellComponents(cell)`, resolviendo cada componente por separado en la celda serializada. Verificación en producción replicando el caso real del usuario (celda `[referencia, texto_corto, seleccion_desplegable]`, otra `[casilla, texto_corto, seleccion_desplegable]`, ya cubierto en espíritu por la verificación de VS-077), exportando CSV/XLSX con datos reales, más una celda legacy sin tocar (ya confirmada en Preview durante VS-077) exportando idéntico. Cierra la Fase 2 del rediseño UX de tablas embebidas.
 
 ## Decisiones pendientes
 
