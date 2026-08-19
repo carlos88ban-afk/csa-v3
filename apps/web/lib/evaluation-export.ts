@@ -4,7 +4,10 @@ import {
   deriveStatus,
   isAnswered,
   isElementVisible,
+  LEGACY_CONTROL_ID,
+  legacyExtraIndex,
   naKey,
+  normalizeCellComponents,
   questionNumber,
   statusKey,
   stripCommentHtml,
@@ -14,7 +17,11 @@ import {
   type FormTableCell,
   type FormTableRow,
   type ResponseAnswers,
+  type TableCellComponent,
+  type TableCellValue,
+  type TableCellComponentValue,
   type TablaDatosConfig,
+  type TableValue,
 } from "@plataforma-csa/sdk-core";
 
 // Motor engine/export v1 (ver docs/engines/export.md). Lógica de
@@ -33,33 +40,6 @@ import {
 // blank que Runtime/Preview, permite grillas irregulares).
 function cellConfig(row: FormTableRow, columnId: string): FormTableCell | undefined {
   return row.cells.find((c) => c.columnId === columnId);
-}
-
-// VS-069 (docs/engines/form.md "Referencias y campos adicionales por
-// celda"): reemplaza `resolveRevealField` (VS-065, singular, exclusivo de
-// "casilla") — resuelve `cellCfg.extraFields` (array) bajo la clave
-// sintética `${prefix}::field::${index}` (mismo tipo `subOptionField` que
-// sub.field/opt.field, misma resolución: label si es seleccion_desplegable,
-// valor literal + unidad si es numero/texto_corto). Sin distinción por
-// cellType: si el campo no se llenó (casilla sin marcar, o simplemente
-// vacío), su clave nunca se escribió en Runtime y `raw` es `undefined` — el
-// gating ya ocurrió en el momento de guardar, acá solo se lee lo que haya.
-// Compartida entre las 2 llamadas (tabla embebida y tabla_datos suelto).
-function resolveExtraFields(cellCfg: FormTableCell, prefix: string, answers: ResponseAnswers): string | undefined {
-  if (!cellCfg.extraFields || cellCfg.extraFields.length === 0) return undefined;
-  const parts = cellCfg.extraFields
-    .map((field, index) => {
-      const raw = answers[`${prefix}::field::${index}`];
-      if (raw === undefined || raw === "") return null;
-      const resolved =
-        field.type === "seleccion_desplegable"
-          ? (stripCommentHtml(field.options.find((o) => o.id === raw)?.label ?? "") || String(raw))
-          : String(raw);
-      const unit = field.type === "numero" && field.unit ? ` ${field.unit}` : "";
-      return field.label ? `${field.label} ${resolved}${unit}` : `${resolved}${unit}`;
-    })
-    .filter((p): p is string => p !== null);
-  return parts.length > 0 ? parts.join(", ") : undefined;
 }
 
 type QuestionComponentType = Extract<(typeof componentRegistry)[number], { isQuestion: true }>["type"];
@@ -98,57 +78,114 @@ function formatOptionReferences(
   return parts.length > 0 ? ` (Referencias: ${parts.join("; ")})` : "";
 }
 
+// VS-078 (docs/engines/form.md "Runtime, Preview y exportación"): un valor
+// de texto por componente, `null` si el componente no tiene valor (nunca se
+// respondió, o `texto_fijo` que no tiene valor por naturaleza). Misma
+// resolución de clave que `TableCellComponentControl`/
+// `PreviewTableCellComponentControl` (VS-077) — celda legacy usa las claves
+// sintéticas exactas de siempre, celda Fase 2 usa `componentMap[id]`.
+function formatTableComponent(
+  component: TableCellComponent,
+  isComponentModel: boolean,
+  rawCell: TableCellValue | TableCellComponentValue | undefined,
+  componentMap: Record<string, TableCellValue>,
+  cellPrefix: string,
+  answers: ResponseAnswers,
+): string | null {
+  if (component.type === "texto_fijo") return null;
+
+  if (component.type === "referencia") {
+    const refsKey = isComponentModel ? `${cellPrefix}::${component.id}::refs` : `${cellPrefix}::refs`;
+    const parts = formatReferenceSlots(refsKey, answers);
+    return parts.length > 0 ? parts.join("; ") : null;
+  }
+
+  const legacyExtraIdx = !isComponentModel ? legacyExtraIndex(component.id) : undefined;
+  const value: TableCellValue | undefined = isComponentModel
+    ? componentMap[component.id]
+    : component.id === LEGACY_CONTROL_ID
+      ? (typeof rawCell === "object" ? undefined : rawCell)
+      : legacyExtraIdx !== undefined
+        ? (answers[`${cellPrefix}::field::${legacyExtraIdx}`] as TableCellValue | undefined)
+        : undefined;
+  if (value === undefined || value === "") return null;
+
+  if (component.type === "casilla") return value === "true" ? "Sí" : null;
+
+  // texto_corto/numero/seleccion_desplegable comparten `label` opcional —
+  // mismo prefijo que `resolveExtraFields` ya usaba para distinguir varios
+  // campos juntos en la misma celda (VS-069), ahora generalizado a
+  // cualquier componente con `label`, no solo los sintetizados desde
+  // `extraFields`.
+  let resolved: string;
+  if (component.type === "seleccion_desplegable") {
+    resolved = stripCommentHtml(component.options.find((o) => o.id === value)?.label ?? "") || String(value);
+  } else if (component.type === "numero") {
+    const unitAnswerKey = isComponentModel ? unitKey(`${cellPrefix}::${component.id}`) : unitKey(cellPrefix);
+    const unit = component.availableUnits
+      ? ((answers[unitAnswerKey] as string | undefined) ?? component.availableUnits[0])
+      : component.unit;
+    resolved = unit ? `${String(value)} ${unit}` : String(value);
+  } else {
+    // texto_corto / calculado
+    resolved = String(value);
+  }
+  return component.type !== "calculado" && component.label ? `${component.label} ${resolved}` : resolved;
+}
+
+// VS-078: una celda entera — itera `normalizeCellComponents(cellCfg)`
+// (idéntico a Runtime/Preview, VS-077), respeta `gates` de una `casilla`
+// hermana, une los valores no vacíos con ", " (mismo separador ya usado
+// entre celdas de una fila — spec de VS-074). `null` si ningún componente
+// tiene valor (celda vacía o de solo presentación, ej. `editable: false`
+// sin `cellType === "calculado"` — ya cubierto por `normalizeCellComponents`
+// sin necesitar ese chequeo acá).
+function formatTableCell(
+  cellCfg: FormTableCell,
+  rawCell: TableCellValue | TableCellComponentValue | undefined,
+  rowId: string,
+  colId: string,
+  tableKey: string,
+  answers: ResponseAnswers,
+): string | null {
+  const components = normalizeCellComponents(cellCfg);
+  const isComponentModel = !!cellCfg.components?.length;
+  const componentMap: Record<string, TableCellValue> =
+    isComponentModel && rawCell && typeof rawCell === "object" ? (rawCell as Record<string, TableCellValue>) : {};
+  const cellPrefix = `${tableKey}::${rowId}::${colId}`;
+
+  const parts = components
+    .map((component) => {
+      const gatedBy = components.find((c) => c.type === "casilla" && c.gates?.includes(component.id));
+      if (gatedBy) {
+        const gateValue = isComponentModel ? componentMap[gatedBy.id] : rawCell;
+        if (gateValue !== "true") return null;
+      }
+      return formatTableComponent(component, isComponentModel, rawCell, componentMap, cellPrefix, answers);
+    })
+    .filter((p): p is string => p !== null);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 // Tabla embebida (VS-042 dentro de una sub-opción, VS-060 directo en una
 // opción de nivel superior): misma serialización "Fila N: Columna M=..." en
 // ambos casos — resuelve labels de columna (posicional, no id — VS-048 no
-// tiene label de columna) y unidad por celda vía la clave sintética
-// `${tableKey}::${row.id}::${col.id}`. Compartida entre
-// `formatSubOptionExtras` (sub.table) y `formatOptionLabel` (opt.table) para
-// no duplicar el bloque; el `tabla_datos` suelto en `formatAnswer` tiene
-// contrato de retorno distinto y queda sin tocar.
+// tiene label de columna). Compartida entre `formatSubOptionExtras`
+// (sub.table), `formatOptionLabel` (opt.table) y el `tabla_datos` suelto de
+// `formatAnswer` (VS-078: ya no duplica esta lógica, ver abajo).
 function formatEmbeddedTable(table: TablaDatosConfig, tableKey: string, answers: ResponseAnswers): string | null {
   const tableValue = answers[tableKey];
   if (typeof tableValue !== "object" || tableValue === null || Array.isArray(tableValue)) return null;
-  const tableMap = tableValue as Record<string, Record<string, string | number>>;
+  const tableMap = tableValue as TableValue;
   const serialized = table.rows
     .map((row, rowIdx) => {
       const rowValue = tableMap[row.id] ?? {};
       const cells = table.columns
         .map((col, colIdx) => {
           const cellCfg = cellConfig(row, col.id);
-          if (!cellCfg || (cellCfg.editable === false && cellCfg.cellType !== "calculado")) return null;
-          // VS-067 (docs/engines/form.md "Adjuntar archivos o enlaces por
-          // celda"): una celda "referencia" no guarda valor propio en
-          // `rowValue[col.id]` (a diferencia de numero/texto/casilla) — el
-          // slot de referencias vive bajo `::refs`, se resuelve antes del
-          // check `cell === undefined` de abajo (que la saltaría siempre).
-          if (cellCfg.cellType === "referencia") {
-            const parts = formatReferenceSlots(`${tableKey}::${row.id}::${col.id}::refs`, answers);
-            return parts.length > 0 ? `Columna ${colIdx + 1}=${parts.join("; ")}` : null;
-          }
-          const cell = rowValue[col.id];
-          if (cell === undefined || cell === "") return null;
-          const cellPrefix = `${tableKey}::${row.id}::${col.id}`;
-          const unit = cellCfg.availableUnits
-            ? ((answers[unitKey(cellPrefix)] as string | undefined) ?? cellCfg.availableUnits[0])
-            : cellCfg.unit;
-          const resolved =
-            cellCfg.cellType === "seleccion_desplegable"
-              ? (stripCommentHtml(cellCfg.options?.find((o) => o.id === cell)?.label ?? "") || String(cell))
-              : cellCfg.cellType === "casilla"
-                ? "Sí"
-                : String(cell);
-          // VS-069: campo(s) adicionales de la celda — mismo tipo
-          // (`subOptionField[]`) y misma resolución que sub.field/opt.field,
-          // clave sintética `${cellPrefix}::field::${index}`.
-          const extras = resolveExtraFields(cellCfg, cellPrefix, answers);
-          // VS-069 (docs/engines/form.md "Referencias y campos adicionales
-          // por celda"): `references` ya no exclusivo de cellType
-          // "referencia" — se anexa como sufijo cuando una celda con
-          // control principal propio también tiene referencias adjuntas.
-          const refParts = cellCfg.references ? formatReferenceSlots(`${cellPrefix}::refs`, answers) : [];
-          const refsSuffix = refParts.length > 0 ? ` [Referencias: ${refParts.join("; ")}]` : "";
-          return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}${extras ? `: ${extras}` : ""}${refsSuffix}`;
+          if (!cellCfg) return null;
+          const formatted = formatTableCell(cellCfg, rowValue[col.id], row.id, col.id, tableKey, answers);
+          return formatted ? `Columna ${colIdx + 1}=${formatted}` : null;
         })
         .filter((c): c is string => c !== null);
       return cells.length > 0 ? `Fila ${rowIdx + 1}: ${cells.join(", ")}` : null;
@@ -307,47 +344,13 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
     return unit ? `${String(value)} ${unit}` : String(value);
   }
   // Tabla de datos (VS-024, docs/engines/form.md "Tabla de datos"): no cabe
-  // en una celda plana, se serializa "fila: col1=v1, col2=v2; fila2: ...",
-  // resolviendo labels de fila/columna (no ids) y la unidad por fila (mismo
-  // criterio que numero suelto, id compuesto element.id::row.id).
+  // en una celda plana, se serializa "fila: col1=v1, col2=v2; fila2: ...".
+  // VS-078: `element` (tipo `tabla_datos`) comparte el shape `columns`/`rows`
+  // de `TablaDatosConfig` (mismo motivo que `formatEmbeddedTable` reusa esta
+  // lógica para `sub.table`/`opt.table`) — ya no duplica la resolución por
+  // celda, delega directo.
   if (element.type === "tabla_datos" && typeof value === "object" && !Array.isArray(value)) {
-    const table = value as Record<string, Record<string, string | number>>;
-    return element.rows
-      .map((row, rowIdx) => {
-        const rowValue = table[row.id] ?? {};
-        const cells = element.columns
-          .map((col, colIdx) => {
-            const cellCfg = cellConfig(row, col.id);
-            if (!cellCfg || (cellCfg.editable === false && cellCfg.cellType !== "calculado")) return null;
-            // VS-067: ver nota equivalente en formatEmbeddedTable arriba.
-            if (cellCfg.cellType === "referencia") {
-              const parts = formatReferenceSlots(`${element.id}::${row.id}::${col.id}::refs`, answers);
-              return parts.length > 0 ? `Columna ${colIdx + 1}=${parts.join("; ")}` : null;
-            }
-            const cell = rowValue[col.id];
-            if (cell === undefined || cell === "") return null;
-            const cellPrefix = `${element.id}::${row.id}::${col.id}`;
-            const unit = cellCfg.availableUnits
-              ? ((answers[unitKey(cellPrefix)] as string | undefined) ?? cellCfg.availableUnits[0])
-              : cellCfg.unit;
-            const resolved =
-              cellCfg.cellType === "seleccion_desplegable"
-                ? (stripCommentHtml(cellCfg.options?.find((o) => o.id === cell)?.label ?? "") || String(cell))
-                : cellCfg.cellType === "casilla"
-                  ? "Sí"
-                  : String(cell);
-            // VS-069: campo(s) adicionales y referencias — ver nota
-            // equivalente en formatEmbeddedTable arriba.
-            const extras = resolveExtraFields(cellCfg, cellPrefix, answers);
-            const refParts = cellCfg.references ? formatReferenceSlots(`${cellPrefix}::refs`, answers) : [];
-            const refsSuffix = refParts.length > 0 ? ` [Referencias: ${refParts.join("; ")}]` : "";
-            return `Columna ${colIdx + 1}=${resolved}${unit && cellCfg.cellType === "numero" ? ` ${unit}` : ""}${extras ? `: ${extras}` : ""}${refsSuffix}`;
-          })
-          .filter((c): c is string => c !== null);
-        return cells.length > 0 ? `Fila ${rowIdx + 1}: ${cells.join(", ")}` : null;
-      })
-      .filter((r): r is string => r !== null)
-      .join("; ");
+    return formatEmbeddedTable(element, element.id, answers) ?? "";
   }
   return String(value);
 }

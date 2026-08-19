@@ -1932,3 +1932,22 @@ Un detalle de paridad visual encontrado al portar la rama `numero`: el control p
 ### Verificación
 
 Framework/evaluación QA temporal en producción vía Playwright MCP: una tabla Fase 2 con una celda multi-componente (`[referencia, texto_corto, seleccion_desplegable]` o similar al HTML de ejemplo real del usuario) respondida en Runtime y en Preview, más una celda **legacy sin tocar** de un framework ya existente para confirmar cero regresión visual/de datos. Ver checkpoint para el resultado.
+
+## Export migra a render por componentes (VS-078)
+
+Cierra la Fase 2: `formatEmbeddedTable` (`apps/web/lib/evaluation-export.ts`) itera `normalizeCellComponents(cellCfg)` igual que Runtime/Preview (VS-077) — `formatTableCell`/`formatTableComponent` (nuevos) resuelven cada componente con la misma regla de clave por origen (legacy vs. Fase 2) ya documentada arriba, respetan `gates`, y unen los valores no vacíos de una celda con `", "` — mismo separador ya usado entre celdas de una fila.
+
+El `tabla_datos` suelto de nivel de Elemento (dentro de `formatAnswer`) dejó de tener su propia copia de esta lógica — `element` (tipo `tabla_datos`) comparte el shape `columns`/`rows` de `TablaDatosConfig`, así que ahora delega directo a `formatEmbeddedTable(element, element.id, answers)`. Elimina `resolveExtraFields` (sin consumidores tras la unificación).
+
+### Cambio de formato de texto, deliberado (no regresión de datos)
+
+Para una celda legacy con `extraFields`/`references` companion, el texto exportado cambia de forma (no de contenido):
+
+- **Antes**: `Columna N=<control principal><unidad>: <extra1>, <extra2> [Referencias: url1; url2]` — el control principal siempre primero, con separadores distintos (`: ` antes de los extras, `[Referencias: ...]` al final).
+- **Después**: `Columna N=<referencias>, <extra1>, <extra2>, <control principal><unidad>` — todos los componentes con el mismo separador `, `, en el mismo ORDEN que ya usan Runtime/Preview (`synthesizeLegacyComponents`: referencias → extras → control), no el orden anterior del export (que nunca había coincidido con el de Runtime).
+
+Es una unificación de formato de texto plano, sin pérdida de datos ni cambio de qué se exporta — nada en el codebase parsea este string de vuelta. `label` de un componente (antes exclusivo de `extraFields` vía `resolveExtraFields`) ahora se antepone de forma uniforme a cualquier componente `texto_corto`/`numero`/`seleccion_desplegable` que lo tenga, sea legacy o Fase 2.
+
+### Verificación
+
+Framework QA temporal en producción: tabla Fase 2 con celda multi-componente exportada a CSV confirmando cada componente por separado, más la celda legacy real de 25 celdas (`CSA 2026 — Réplica QA`, "SISTEMA DE UN SOLO NIVEL") exportada sin pérdida de datos (contenido idéntico, formato de texto según la unificación de arriba). Ver checkpoint para el resultado.
