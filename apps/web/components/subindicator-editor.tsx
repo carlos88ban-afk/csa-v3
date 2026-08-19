@@ -165,6 +165,54 @@ type TableConfigCell = TableConfigRows[number]["cells"][number];
 // tipo de ELEMENTO del array `extraFields`.
 type CellExtraField = NonNullable<TableConfigCell["extraFields"]>[number];
 
+// VS-071 (docs/engines/form.md "Panel lateral drag & drop para tipo de
+// celda"): tarjetas arrastrables del panel lateral — no son tipos nuevos,
+// son atajos visuales a las mismas combinaciones cellType/editable que ya
+// ofrecía el <select> manual. "Calculado" queda fuera a propósito (ver
+// abajo, botón aparte): es de solo lectura, no hay "valor" que arrastrar.
+type CellPalettePatch = { cellType: TableConfigCell["cellType"]; editable?: boolean };
+type CellPaletteItem = { key: string; label: string; patch: CellPalettePatch };
+
+const CELL_PALETTE_ITEMS: CellPaletteItem[] = [
+  { key: "fixed", label: "Texto fijo", patch: { cellType: "texto", editable: false } },
+  { key: "texto", label: "Campo de texto", patch: { cellType: "texto", editable: true } },
+  { key: "numero", label: "Número", patch: { cellType: "numero", editable: true } },
+  { key: "seleccion_desplegable", label: "Selección desplegable", patch: { cellType: "seleccion_desplegable", editable: true } },
+  { key: "casilla", label: "Casilla de verificación", patch: { cellType: "casilla", editable: true } },
+  { key: "referencia", label: "Referencia (archivo o enlace)", patch: { cellType: "referencia", editable: true } },
+];
+
+// VS-071: si la celda ya tiene contenido configurado, soltar una tarjeta
+// encima pide confirmación antes de reemplazar el control principal (y
+// resetear su config específica) — evita perder trabajo por un drop
+// accidental.
+function hasMeaningfulCellConfig(cell: TableConfigCell): boolean {
+  return Boolean(
+    (cell.content && stripCommentHtml(cell.content).trim()) ||
+      (cell.options && cell.options.length > 0) ||
+      (cell.extraFields && cell.extraFields.length > 0) ||
+      cell.references ||
+      (cell.checkboxLabel && stripCommentHtml(cell.checkboxLabel).trim()) ||
+      (cell.revealContent && stripCommentHtml(cell.revealContent).trim()) ||
+      (cell.expression && cell.expression.trim()) ||
+      cell.maxLength ||
+      cell.unit ||
+      (cell.availableUnits && cell.availableUnits.length > 0),
+  );
+}
+
+// VS-073 (docs/engines/form.md "Selección de celdas y Combinar/Separar
+// celdas"): rango de ids de columna entre dos columnas de la misma fila,
+// inclusive en ambos extremos, en el orden real de `columns` (no en el
+// orden en que el usuario las arrastró/clickeó).
+function columnIdRange(columns: TableConfigColumns, fromColumnId: string, toColumnId: string): string[] {
+  const fromIdx = columns.findIndex((c) => c.id === fromColumnId);
+  const toIdx = columns.findIndex((c) => c.id === toColumnId);
+  if (fromIdx === -1 || toIdx === -1) return [fromColumnId];
+  const [lo, hi] = fromIdx <= toIdx ? [fromIdx, toIdx] : [toIdx, fromIdx];
+  return columns.slice(lo, hi + 1).map((c) => c.id);
+}
+
 function TableConfigEditor({
   columns,
   rows,
@@ -177,6 +225,130 @@ function TableConfigEditor({
   // Qué celda tiene su panel de configuración expandido — estado local, no
   // persistido (mismo criterio que sectionOverrides del resto del Builder).
   const [expandedCell, setExpandedCell] = useState<string | null>(null);
+
+  // VS-071: tarjeta de la paleta lateral actualmente arrastrada, y celda
+  // bajo el cursor mientras dura el arrastre (solo para feedback visual).
+  const [draggedItem, setDraggedItem] = useState<CellPaletteItem | null>(null);
+  const [dragOverCellKey, setDragOverCellKey] = useState<string | null>(null);
+
+  // VS-073: selección de celdas adyacentes de UNA fila para combinar/separar
+  // — `selectionAnchor` es la celda donde empezó la selección (click o
+  // mousedown), `selection` es el rango resultante (se recalcula contra
+  // `selectionAnchor` en cada extensión, nunca se acumula a mano).
+  const [selectionAnchor, setSelectionAnchor] = useState<{ rowId: string; columnId: string } | null>(null);
+  const [selection, setSelection] = useState<{ rowId: string; columnIds: string[] } | null>(null);
+  const [isMouseSelecting, setIsMouseSelecting] = useState(false);
+
+  // Selección por arrastre de mouse (sin Shift): termina al soltar el botón
+  // en CUALQUIER parte de la página, no solo sobre una celda — un listener
+  // global es la única forma confiable de detectar eso.
+  useEffect(() => {
+    if (!isMouseSelecting) return;
+    const stop = () => setIsMouseSelecting(false);
+    window.addEventListener("mouseup", stop);
+    return () => window.removeEventListener("mouseup", stop);
+  }, [isMouseSelecting]);
+
+  function clearSelection() {
+    setSelection(null);
+    setSelectionAnchor(null);
+  }
+
+  function startSelection(rowId: string, columnId: string) {
+    setSelectionAnchor({ rowId, columnId });
+    setSelection({ rowId, columnIds: [columnId] });
+  }
+
+  function extendSelection(rowId: string, columnId: string) {
+    setSelectionAnchor((anchor) => {
+      if (!anchor || anchor.rowId !== rowId) return anchor;
+      setSelection({ rowId, columnIds: columnIdRange(columns, anchor.columnId, columnId) });
+      return anchor;
+    });
+  }
+
+  function handleCellMouseDown(e: React.MouseEvent, rowId: string, columnId: string) {
+    if (e.shiftKey && selectionAnchor?.rowId === rowId) {
+      extendSelection(rowId, columnId);
+      return;
+    }
+    setIsMouseSelecting(true);
+    startSelection(rowId, columnId);
+  }
+
+  function handleCellMouseEnter(rowId: string, columnId: string) {
+    if (!isMouseSelecting) return;
+    extendSelection(rowId, columnId);
+  }
+
+  function combineSelection() {
+    if (!selection || selection.columnIds.length < 2) return;
+    updateCellColSpan(selection.rowId, selection.columnIds[0]!, selection.columnIds.length);
+    clearSelection();
+  }
+
+  function separateSelection() {
+    if (!selection || selection.columnIds.length !== 1) return;
+    updateCellColSpan(selection.rowId, selection.columnIds[0]!, undefined);
+    clearSelection();
+  }
+
+  // VS-071: aplica el tipo de una tarjeta de paleta a una celda — unifica
+  // "crear celda con este tipo" (celda en blanco) y "reemplazar el tipo de
+  // una celda existente" (mismo reset de config específica de tipo que ya
+  // hacía el <select> manual, ver más abajo, que ahora delega acá).
+  function applyCellPatch(rowId: string, columnId: string, patch: CellPalettePatch) {
+    const existing = rows.find((r) => r.id === rowId)?.cells.find((c) => c.columnId === columnId);
+    if (!existing) {
+      onChange({
+        columns,
+        rows: rows.map((r) =>
+          r.id === rowId ? { ...r, cells: [...r.cells, { columnId, cellType: patch.cellType, editable: patch.editable ?? true }] } : r,
+        ),
+      });
+      setExpandedCell(`${rowId}:${columnId}`);
+      return;
+    }
+    updateCell(rowId, columnId, {
+      cellType: patch.cellType,
+      unit: undefined,
+      availableUnits: undefined,
+      options: undefined,
+      maxLength: undefined,
+      expression: undefined,
+      checkboxLabel: undefined,
+      revealContent: undefined,
+      extraFields: undefined,
+      editable: patch.cellType === "calculado" ? true : (patch.editable ?? existing.editable),
+    });
+    setExpandedCell(`${rowId}:${columnId}`);
+  }
+
+  function handleCellDrop(e: React.DragEvent, rowId: string, columnId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverCellKey(null);
+    const item = draggedItem;
+    setDraggedItem(null);
+    if (!item) return;
+    const existing = rows.find((r) => r.id === rowId)?.cells.find((c) => c.columnId === columnId);
+    if (existing && hasMeaningfulCellConfig(existing)) {
+      const ok = window.confirm(
+        `Esta celda ya tiene contenido configurado. ¿Reemplazar su control por "${item.label}"? Se perderá la configuración específica del tipo anterior.`,
+      );
+      if (!ok) return;
+    }
+    applyCellPatch(rowId, columnId, item.patch);
+  }
+
+  // VS-071: "Calculado" no se arrastra (es de solo lectura, sin "valor" que
+  // soltar) — se aplica por click a la celda actualmente expandida.
+  function applyCalculadoToExpanded() {
+    if (!expandedCell) return;
+    const [rowId, columnId] = expandedCell.split(":");
+    if (!rowId || !columnId) return;
+    applyCellPatch(rowId, columnId, { cellType: "calculado" });
+  }
 
   function removeColumn(columnId: string) {
     if (columns.length <= 1) return;
@@ -536,8 +708,76 @@ function TableConfigEditor({
     return undefined;
   }
 
+  // VS-073: selección válida para "Combinar" (≥2 columnas de la misma fila)
+  // o para "Separar" (1 columna cuya celda ya está combinada) — resuelto acá
+  // para no repetir el lookup en la barra contextual y en el render.
+  const combinableSelection = selection && selection.columnIds.length > 1 ? selection : null;
+  const separableCell =
+    selection && selection.columnIds.length === 1
+      ? rows.find((r) => r.id === selection.rowId)?.cells.find((c) => c.columnId === selection.columnIds[0])
+      : undefined;
+  const canSeparate = Boolean(separableCell?.colSpan && separableCell.colSpan >= 2);
+
   return (
-    <div className="table-config-grid-wrap">
+    <div className="table-config-builder">
+      {/* VS-071 (docs/engines/form.md "Panel lateral drag & drop para tipo
+          de celda"): panel persistente, siempre visible mientras se edita
+          la tabla — el flujo principal es arrastrar una tarjeta a una
+          celda, no abrir un <select>. */}
+      <div className="table-config-palette" role="list" aria-label="Elementos disponibles para arrastrar a una celda">
+        <p className="table-config-palette__heading">Elementos</p>
+        {CELL_PALETTE_ITEMS.map((item) => (
+          <div
+            key={item.key}
+            role="listitem"
+            className="table-config-palette__card"
+            draggable
+            onDragStart={(e) => {
+              e.stopPropagation();
+              e.dataTransfer.effectAllowed = "copy";
+              setDraggedItem(item);
+            }}
+            onDragEnd={() => {
+              setDraggedItem(null);
+              setDragOverCellKey(null);
+            }}
+          >
+            {item.label}
+          </div>
+        ))}
+        <button
+          type="button"
+          className="table-config-palette__card table-config-palette__card--action"
+          onClick={applyCalculadoToExpanded}
+          disabled={!expandedCell}
+          title={expandedCell ? "Aplicar a la celda seleccionada" : "Seleccioná (click) una celda primero"}
+        >
+          Calculado
+        </button>
+      </div>
+      <div className="table-config-grid-wrap">
+        {combinableSelection && (
+          <div className="table-config-merge-bar">
+            <span>{combinableSelection.columnIds.length} celdas seleccionadas</span>
+            <Button type="button" size="sm" onClick={combineSelection}>
+              Combinar celdas
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={clearSelection}>
+              Cancelar
+            </Button>
+          </div>
+        )}
+        {!combinableSelection && canSeparate && (
+          <div className="table-config-merge-bar">
+            <span>Celda combinada ({separableCell!.colSpan} columnas)</span>
+            <Button type="button" size="sm" onClick={separateSelection}>
+              Separar celdas
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={clearSelection}>
+              Cancelar
+            </Button>
+          </div>
+        )}
       <table className="table-config-grid">
         <tbody>
           {rows.map((row, rowIdx) => {
@@ -563,7 +803,29 @@ function TableConfigEditor({
                 const cellKey = `${row.id}:${col.id}`;
                 if (!cell) {
                   return (
-                    <td key={col.id} className="table-config-grid__blank">
+                    <td
+                      key={col.id}
+                      className={
+                        "table-config-grid__blank" + (dragOverCellKey === cellKey ? " table-config-grid__cell--drop-active" : "")
+                      }
+                      onMouseDown={(e) => handleCellMouseDown(e, row.id, col.id)}
+                      onMouseEnter={() => handleCellMouseEnter(row.id, col.id)}
+                      onDragOver={(e) => {
+                        if (!draggedItem) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onDragEnter={(e) => {
+                        if (!draggedItem) return;
+                        e.stopPropagation();
+                        setDragOverCellKey(cellKey);
+                      }}
+                      onDragLeave={(e) => {
+                        e.stopPropagation();
+                        setDragOverCellKey((k) => (k === cellKey ? null : k));
+                      }}
+                      onDrop={(e) => handleCellDrop(e, row.id, col.id)}
+                    >
                       <button type="button" className="table-config-grid__add-cell" onClick={() => addCell(row.id, col.id)} title="Agregar celda aquí">
                         +
                       </button>
@@ -583,8 +845,37 @@ function TableConfigEditor({
                   // fila calculada de solo lectura).
                   const isCalculado = cell.cellType === "calculado";
                   const preview = cellPreviewText(cell);
+                  const isSelected = Boolean(selection && selection.rowId === row.id && selection.columnIds.includes(col.id));
+                  const cellClasses = [
+                    "table-config-grid__cell",
+                    dragOverCellKey === cellKey && "table-config-grid__cell--drop-active",
+                    isSelected && selection!.columnIds.length > 1 && "table-config-grid__cell--selected",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
                   return (
-                    <td key={col.id} className="table-config-grid__cell" colSpan={cell.colSpan}>
+                    <td
+                      key={col.id}
+                      className={cellClasses}
+                      colSpan={cell.colSpan}
+                      onMouseDown={(e) => handleCellMouseDown(e, row.id, col.id)}
+                      onMouseEnter={() => handleCellMouseEnter(row.id, col.id)}
+                      onDragOver={(e) => {
+                        if (!draggedItem) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onDragEnter={(e) => {
+                        if (!draggedItem) return;
+                        e.stopPropagation();
+                        setDragOverCellKey(cellKey);
+                      }}
+                      onDragLeave={(e) => {
+                        e.stopPropagation();
+                        setDragOverCellKey((k) => (k === cellKey ? null : k));
+                      }}
+                      onDrop={(e) => handleCellDrop(e, row.id, col.id)}
+                    >
                       <button
                         type="button"
                         className="table-config-grid__chip"
@@ -612,29 +903,14 @@ function TableConfigEditor({
                             <select
                               value={cell.cellType}
                               onChange={(e) => {
-                                const nextType = e.target.value as TableConfigCell["cellType"];
-                                updateCell(row.id, col.id, {
-                                  cellType: nextType,
-                                  unit: undefined,
-                                  availableUnits: undefined,
-                                  options: undefined,
-                                  maxLength: undefined,
-                                  expression: undefined,
-                                  checkboxLabel: undefined,
-                                  revealContent: undefined,
-                                  // VS-069: `extraFields` se resetea al
-                                  // cambiar de tipo — su significado cambia
-                                  // según cellType (revelado tras marcar en
-                                  // "casilla", siempre visible en los
-                                  // demás), preservarlo sería confuso.
-                                  // `references` YA NO se resetea — es un
-                                  // adjunto independiente del tipo principal
-                                  // desde este slice (antes solo existía
-                                  // para "referencia"), tiene sentido
-                                  // conservarlo al cambiar de tipo.
-                                  extraFields: undefined,
-                                  editable: nextType === "calculado" ? true : cell.editable,
-                                });
+                                // VS-071: delega a `applyCellPatch` — mismo
+                                // reset de config específica de tipo que
+                                // antes vivía acá a mano, ahora compartido
+                                // con el flujo de arrastrar una tarjeta de
+                                // la paleta. `references` NO se resetea (ver
+                                // `applyCellPatch`) — adjunto independiente
+                                // del tipo principal desde VS-069.
+                                applyCellPatch(row.id, col.id, { cellType: e.target.value as TableConfigCell["cellType"] });
                               }}
                             >
                               <option value="texto">Texto</option>
@@ -966,6 +1242,7 @@ function TableConfigEditor({
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

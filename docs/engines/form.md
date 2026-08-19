@@ -1669,3 +1669,65 @@ Sin cambios — `revealContent` es presentación (mismo criterio que `content`: 
 - **Copiar/pegar una celda individual entre posiciones** — la duplicación de columna cubre el caso real; una operación de copia más granular es aditiva si el usuario la pide.
 - **Hints en el Builder** — los hints son orientación del EVALUADO (Runtime/Preview); el Builder ya muestra placeholders/ayudas propias ("1 = sin combinar", "ej. ...").
 - **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.
+
+## Rediseño UX del editor de tablas embebidas — Fase 1: interacción (VS-071 a VS-073)
+
+### Contexto y pedido
+
+Pedido explícito del usuario: el `TableConfigEditor` (VS-047/048, ver arriba) sigue sin sentirse intuitivo para un administrador sin conocimientos técnicos — combinar columnas es un input numérico ("Combinar con columnas siguientes: 2"), agregar fila/columna requiere ir a botones en los bordes de la grilla lejos de donde se está editando, y crear una celda es un flujo de 2 pasos (click en "+" → elegir tipo en un `<select>` dentro del panel expandido). El objetivo es que la experiencia se sienta como un constructor visual tipo Excel/Google Sheets: **seleccionar → arrastrar → soltar → configurar**, sin escribir números ni abrir menús para descubrir qué se puede agregar.
+
+Se acordó con el usuario una secuencia en 2 fases: primero la capa de interacción sobre el modelo de datos ACTUAL (sin tocar `formTableCell`/`TableValue`), después — en un slice separado, con su propia spec — la generalización del modelo a "N componentes independientes por celda". Esta sección cubre solo la Fase 1. **Límite explícito de esta fase, comunicado en la UI**: mientras el modelo siga siendo "1 control principal (`cellType`) + companions de rol fijo (`content`/`checkboxLabel`/`extraFields`/`references`)", arrastrar un tipo sobre una celda YA OCUPADA **reemplaza** su control principal (con confirmación si había configuración que se perdería) — no agrega un segundo control independiente. Eso es Fase 2.
+
+### Decisión de diseño
+
+Sin cambios de schema. Los 3 gaps se resuelven como capa de interacción sobre los helpers CRUD ya existentes de `TableConfigEditor` (`addCell`/`updateCell`/`updateCellColSpan`, sin tocarlos):
+
+1. **Panel lateral persistente con tarjetas arrastrables** (VS-071) — reemplaza el flujo "+ → `<select>`" como punto de entrada principal para crear/cambiar el tipo de una celda. El `<select>` de tipo dentro del panel de config expandido se conserva (edición manual sigue disponible, accesible sin drag).
+2. **Config inline anclada al componente, sin reflow** (VS-072) — el panel que hoy empuja el resto de la fila al expandirse se ancla como popover sobre la celda clickeada.
+3. **Selección de celdas + Combinar/Separar** (VS-073) — reemplaza el input numérico de `colSpan` como flujo principal por selección visual + botón contextual. El dato interno sigue siendo `colSpan` (`updateCellColSpan`, sin cambios).
+
+### Panel lateral drag & drop para tipo de celda (VS-071)
+
+Nuevo bloque `table-config-palette` (columna fija a la izquierda de la grilla, dentro del mismo `TableConfigEditor`, siempre visible mientras se edita la tabla — no colapsable por defecto). Tarjetas arrastrables (`draggable`), una por combinación de `cellType`+`editable` ya soportada por el schema — no son tipos nuevos, son atajos visuales a las mismas opciones que ya existían en el `<select>`:
+
+| Tarjeta | Efecto (`cellType` / `editable`) |
+|---|---|
+| Texto fijo | `texto` / `editable: false` |
+| Campo de texto | `texto` / `editable: true` |
+| Número | `numero` / `editable: true` |
+| Selección desplegable | `seleccion_desplegable` / `editable: true` |
+| Casilla de verificación | `casilla` / `editable: true` |
+| Referencia (archivo o enlace) | `referencia` / `editable: true` |
+
+"Calculado" **no es una tarjeta arrastrable** — es de solo lectura por naturaleza (lo llena la fórmula, no hay "valor" que arrastrar) y solo tiene sentido aplicado a una celda ya seleccionada/expandida: botón aparte en el panel, deshabilitado con hint ("Seleccioná una celda primero") si no hay ninguna celda expandida.
+
+**Mecánica de arrastre**: mismo patrón de drag & drop nativo HTML5 ya usado en el Builder de jerarquía (`apps/web/app/frameworks/[frameworkId]/builder/page.tsx`, VS-049) — sin librería nueva. `onDragStart` de la tarjeta guarda el item de paleta en un state (`draggedItem`); cada `<td>` de la grilla (en blanco u ocupada) es zona de drop (`onDragOver` con `preventDefault()` solo si hay `draggedItem` activo, `onDrop` aplica el patch). Se usa `stopPropagation()` en los handlers de la tarjeta y de la celda — mismo cuidado documentado en VS-049: hay anidamiento real acá también (celda dentro de fila dentro de tabla).
+
+**Soltar sobre celda en blanco**: crea la celda con el patch de la tarjeta (mismo resultado que `addCell` + tipo elegido en un solo paso). **Soltar sobre celda ya ocupada**: si la celda tiene configuración con contenido real (`content`, `options`, `extraFields`, `references`, `checkboxLabel`, `revealContent`, `expression`, o límites tipo `maxLength`/`unit`/`availableUnits`), se pide confirmación antes de reemplazar (`window.confirm`, mismo patrón ya usado para acciones destructivas en el resto del Builder) — si se confirma, el `cellType`/`editable` se reemplazan y el resto de los campos específicos de tipo se resetean (mismo reset que ya hace el `<select>` manual al cambiar de tipo). El click en "+" de una celda en blanco sigue funcionando igual que hoy (crea una celda `texto`/editable por defecto) — no se retira, es el fallback para quien no puede/prefiere no arrastrar (teclado, accesibilidad).
+
+### Builder
+
+Nuevos helpers en `TableConfigEditor`: `applyCellPatch(rowId, columnId, patch: { cellType, editable })` (unifica "crear celda con tipo" y "reemplazar tipo de celda existente", reusado tanto por el drop handler como, internamente, por el `<select>` manual ya existente sin cambiar su comportamiento observable). Estado nuevo: `draggedItem` (tarjeta de paleta actualmente arrastrada) y `dragOverCellKey` (celda bajo el cursor mientras se arrastra, solo para feedback visual — clase `table-config-grid__cell--drop-active`).
+
+### Fuera de alcance (explícito)
+
+- **Múltiples controles independientes por celda** (arrastrar un segundo tipo sobre una celda ocupada y que ambos convivan) — es exactamente el objetivo de la Fase 2 (modelo de "componentes por celda"), sin spec todavía en este documento al momento de escribir esta sección.
+- **Reordenar `extraFields` por drag & drop dentro de la celda** — investigado y descartado para esta fase: la clave sintética de cada `extraField` es posicional (`` `${baseKey}::${index}` ``, `apps/web/app/evaluations/[token]/page.tsx` y `apps/web/components/form-preview.tsx`), reordenar el array invalidaría qué respuesta ya guardada corresponde a qué campo. La Fase 2 reemplaza `extraFields` por componentes con `id` propio estable, momento natural para ofrecer este reordenamiento sin ambigüedad.
+- **Arrastrar una tarjeta directamente al panel lateral para "quitar" un tipo** — quitar sigue siendo el botón "×"/"Quitar celda" ya existente, sin cambios.
+- **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.
+
+## Selección de celdas y Combinar/Separar celdas (VS-073)
+
+### Decisión de diseño
+
+Reemplaza el input numérico "Combinar con columnas siguientes" como flujo principal (el campo puede seguir existiendo como fallback manual, sin quitarlo del todo) por selección visual: click+arrastre o Shift+click sobre 2+ celdas **adyacentes de la misma fila** (validado contra el orden real de `columns`, no contra posición de píxeles) marca una selección (`selectedCells: { rowId: string; columnIds: string[] } | null`). Con selección válida (≥2 columnas contiguas, ninguna ya cubierta por otro `colSpan`), aparece un botón contextual flotante "Combinar celdas" cerca de la selección; con una celda ya combinada seleccionada, aparece "Separar celdas" en su lugar. Ambos llaman a `updateCellColSpan` (ya existente, sin cambios de firma) — el dato interno sigue siendo `colSpan`, cero cambio de schema.
+
+### Builder
+
+`updateCellColSpan(rowId, columnId, colSpan)` ya calcula qué columnas quedan cubiertas y filtra las celdas huérfanas — "Separar celdas" es literalmente llamarlo con `colSpan: undefined` sobre la celda ancla, lo que ya restaura el modelo a "sin combinar"; las celdas cubiertas vueltas a quedar en blanco se recrean con el flujo normal de "+"/drop de VS-071 (comportamiento ya existente de la grilla para huecos, sin código nuevo ahí). Selección con Shift+click extiende/contrae el rango existente en vez de reemplazarlo; click simple sobre una celda limpia la selección (mismo criterio que hojas de cálculo).
+
+### Fuera de alcance (explícito)
+
+- **Combinar celdas de filas distintas (rowSpan)** — sin caso real observado que lo pida; `colSpan` ya cubre los casos reales encontrados hasta ahora (VS-066). Aditivo si aparece.
+- **Handle de arrastre en el borde de la celda para expandirla en vivo** — descartado explícitamente por el usuario a favor de selección+botón, más simple y predecible.
+- **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.
