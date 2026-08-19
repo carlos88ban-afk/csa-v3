@@ -1878,4 +1878,12 @@ La Fase 1 (VS-073) había dejado el input numérico "Combinar con columnas sigui
 
 - **Cambiar el tipo de un componente ya creado** — no es parte del pedido original (arrastrar/reordenar/configurar/eliminar); para cambiar de tipo, se quita el componente y se arrastra uno nuevo.
 - **Mover un componente de una celda a otra por drag & drop** — el scope de reordenamiento es intencionalmente por celda; no hay caso real pedido de mover contenido entre celdas.
+- **Reordenar componentes por teclado (sin mouse)** — el grip de arrastre (`.table-config-cell-component__handle`, `role="button"` con `aria-label` descriptivo) es descubrible por lectores de pantalla pero no tiene equivalente por teclado (flechas para mover arriba/abajo) todavía — solo drag & drop con mouse. Aditivo si se necesita.
 - **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento; verificación funcional en `csa-v3-web.vercel.app` vía Playwright MCP.
+
+### Hallazgos reales durante la verificación en producción
+
+Dos bugs de interacción encontrados y corregidos recién al probar el reordenamiento con datos reales (ninguno de los dos se manifestaba en el resto de la Fase 2, solo en el drag de reordenamiento dentro de una celda):
+
+1. **El primer `dragover` de un reordenamiento nunca llamaba `preventDefault()`**: `isReordering` se calculaba en el cuerpo del render a partir de un `useState`, pero React no llega a re-renderizar entre el `dragstart` (que llama `setState`) y el `dragover`/`drop` siguientes de la misma ráfaga de eventos nativos — quedaba leyendo el valor de un render atrás. Sin ese `preventDefault()` en el primer `dragover`, el navegador rechaza el drop completo aunque un `dragover` posterior sí lo llame. Fix: `draggedComponentRef` pasa de `useState` a `useRef` (nunca se usó para nada visual, así que no se pierde ningún re-render necesario).
+2. **El drag no iniciaba desde el chip del componente**: `draggable` vivía en el `<div>` contenedor, pero el mousedown del usuario cae sobre el `<button>` del chip (interactivo) anidado adentro — arrastrar desde un control interactivo así es poco confiable tanto para el drag nativo del navegador como para automatización. Fix: grip dedicado (`span` con su propio `draggable`), separado del botón del chip.

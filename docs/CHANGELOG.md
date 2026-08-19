@@ -4,6 +4,24 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-076 — Builder emite components reales, N independientes por celda (2026-08-19)
+
+Reescribe `TableConfigEditor` para construir sobre el array `components` real (sobre el schema/adaptador de VS-075) en vez de simularlo sobre el modelo legacy de la Fase 1.
+
+- `materializeComponents(cell)`: primer edit de una celda legacy la materializa completa — `normalizeCellComponents` con ids `legacy-*` se regenera a `randomUUID()` reales, remapeando también los `gates` de una casilla. `setCellComponents` es el único punto de escritura final (array vacío = quitar la celda).
+- Paleta: arrastrar una tarjeta ahora siempre **agrega** un componente al final del array (nunca reemplaza) — el `window.confirm` de reemplazo de la Fase 1 desaparece porque ya no hay nada que perder. "Calculado" pasa a ser una tarjeta arrastrable más.
+- Cada componente tiene su propio chip + popover (anclado a `.table-config-cell-component`), con su propio grip de arrastre para reordenar (scope por celda) y botón "×" para eliminar. Casilla gana un checklist explícito "Revela estos elementos al marcarse" sobre sus componentes hermanos.
+- Retirado el fallback numérico de `colSpan` (VS-073) dentro del popover de celda — al mover la config a popovers por componente ya no hay "el popover de la celda" donde alojarlo.
+
+**2 bugs reales encontrados y corregidos durante la verificación en producción** (ninguno se manifestaba fuera del reordenamiento por drag & drop):
+
+1. `draggedComponentRef` vivía en `useState` — el primer `dragover` de un reordenamiento nunca veía el `dragstart` recién disparado (React no re-renderiza entre eventos nativos de la misma ráfaga), así que nunca llamaba `preventDefault()` y el navegador rechazaba el drop completo. Fix: `useState` → `useRef` (nunca se usó para nada visual).
+2. El drag no iniciaba de forma confiable porque `draggable` vivía en el `<div>` contenedor con un `<button>` interactivo anidado adentro — arrastrar desde un control interactivo así es poco confiable. Fix: grip dedicado (`span` con su propio `draggable`), separado del botón del chip. Encontrado en el camino: el primer intento del grip lo marcó `aria-hidden="true"` por error (ocultando un control interactivo real del árbol de accesibilidad) — corregido a `role="button"` + `aria-label` descriptivo.
+
+Código muerto de la Fase 1 removido (`CELL_TYPE_LABEL`, `cellPreviewText`, `renderExtraFields`, `addCellOption`/`addCellExtraField`/`addCellReferences` y sus pares, `applyCellPatch`, `hasMeaningfulCellConfig`).
+
+**Estado**: `pnpm build && pnpm test && pnpm typecheck` verdes en las 9 tareas del monorepo (incluye 63/63 tests `db` contra Neon real). Verificado end-to-end en producción con Playwright MCP: arrastrar 3 tipos distintos a la misma celda (agregando, no reemplazando), checklist de `gates` de casilla con 2 hermanos, eliminar un componente (limpia sus referencias en `gates` de otros), reordenar por drag & drop (confirmado con eventos nativos + verificación en una llamada separada, ya que el cambio de estado de React no es síncrono dentro del mismo script). Framework de prueba borrado al terminar. Spec en `docs/engines/form.md` "Builder de Fase 2: componentes reales", con los 2 hallazgos agregados post-verificación.
+
 ### VS-075 — Schema aditivo de componentes por celda + `normalizeCellComponents` (2026-08-19)
 
 Implementa el modelo de datos de la spec VS-074, sin tocar Builder/Runtime/export todavía (esos son VS-076 a VS-078).

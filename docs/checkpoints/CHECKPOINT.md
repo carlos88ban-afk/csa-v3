@@ -2,14 +2,21 @@
 
 **Última actualización**: 2026-08-19  
 **Branch activa**: main  
-**Último slice cerrado**: VS-075 (implementación en `packages/sdk-core` de la spec VS-074 — `tableCellComponent` discriminated union + `formTableCell.components` opcional, `normalizeCellComponents` con ids deterministas para celdas legacy, `TableValue` ensanchado a `escalar | Record<componentId, escalar>`, `hasAnswer` con rama recursiva nueva — 20 tests nuevos, `pnpm build && pnpm test && pnpm typecheck` verdes en todo el monorepo, sin tocar Builder/Runtime/export todavía).  
-**Slice en progreso**: ninguno — próximo trabajo es VS-076 (Builder de Fase 2: el panel drag & drop de VS-071 pasa a emitir `components` reales, arrastrar un segundo tipo sobre una celda ocupada AGREGA un componente independiente en vez de reemplazar), siguiendo el plan de Fase 2 ya aprobado.
+**Último slice cerrado**: VS-076 (Builder de Fase 2 — `TableConfigEditor` construye sobre el array `components` real: arrastrar de la paleta AGREGA un componente independiente en vez de reemplazar, cada componente con su propio chip/popover/grip de reordenamiento/botón eliminar, casilla con checklist explícito de `gates`. 2 bugs reales de interacción encontrados y corregidos verificando en producción — ver "Verificación en producción" abajo — commiteado y verificado end-to-end).  
+**Slice en progreso**: ninguno — próximo trabajo es VS-077 (Runtime/Preview migran a un `TableCellComponentView` compartido, reemplazando las ramas por `cellType` de `FormTableView`/`PreviewTableView`), siguiendo el plan de Fase 2 ya aprobado.
 
 ## Resumen ejecutivo
 
 Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`csa-v3-web.vercel.app`). Modo público con token anónimo funcional (VS-009+). La feature "unidades de negocio" (VS-050 a VS-059: jerarquía de Organization, partición de Response, dueDate/contactEmail, acceso autenticado, panel Publicar, export XLSX, dashboard de progreso, bloqueo de cliente, evidencia autenticada, editor de exclusiones) está completa y **verificada de punta a punta en producción real** — asignación de unidad, aislamiento de respuestas y de progreso, bloqueo del link público en modo corporativo, rechazo de organizaciones no asignadas, export XLSX con datos reales, exclusión de Subindicador/pregunta individual reflejada en dashboard y Runtime autenticado, bloqueo de cliente por plazo vencido, y evidencia autenticada (subir/descargar/borrar + rechazo de elemento excluido) — todo confirmado con datos de prueba (borrados al terminar cada verificación). **Nota de integridad histórica**: esta misma entrada de checkpoint tuvo una versión anterior que describía un refactor de UI (`runtime-shell.tsx`) que NUNCA se llegó a commitear — corregida verificando directamente contra el código real, ver `bugs.md` para el detalle completo (mismo patrón de riesgo que VS-043/`evaluateTableExpression`).
 
 ## Verificación en producción (2026-08-19)
+
+**VS-076**: framework temporal ("VS-076 verificacion produccion") con 1 Dimensión → 1 Subindicador directo → 1 `tabla_datos` (grilla 1×1). Verificado con Playwright MCP contra `csa-v3-web.vercel.app`, con 2 rondas de fix-redeploy-reverificación en el camino.
+- Arrastrar 3 tipos distintos (Selección desplegable, Casilla) sobre la misma celda: cada uno se AGREGÓ como componente independiente, sin `window.confirm`, sin reemplazar a los anteriores.
+- Casilla con 2 componentes hermanos: checklist "Revela estos elementos al marcarse" mostró ambos, marcarlos persistió `gates` correctamente (confirmado `[checked]` tras recarga de estado).
+- Eliminar un componente (Selección) limpió automáticamente su id del `gates` de la casilla (el checklist dejó de mostrarlo, sin dejar una referencia huérfana).
+- Reordenar por drag & drop confirmado con eventos nativos dispatchados directamente (`dragstart`/`dragenter`/`dragover`/`drop`/`dragend`) — el cambio de estado de React no es síncrono dentro del mismo script, así que la verificación correcta requiere consultar el DOM en una llamada separada, no inmediatamente después de disparar los eventos (fuente de una falsa alarma inicial durante la propia verificación).
+- Framework de prueba borrado al terminar.
 
 **VS-071/072/073**: framework temporal ("VS-071-073 verificacion produccion") con 1 Dimensión → 1 Subindicador directo → 1 `tabla_datos` (grilla 2×2). Verificado con Playwright MCP contra `csa-v3-web.vercel.app`.
 - Panel lateral: arrastrar una tarjeta de tipo sobre una celda default la reconfiguró; arrastrar sobre una celda verdaderamente en blanco la creó; arrastrar sobre una celda con contenido real disparó `window.confirm` y reemplazó limpiamente al aceptar.
@@ -192,7 +199,7 @@ Plataforma de evaluación empresarial interna (CSA) en producción en Vercel (`c
 
 ## Próximos pasos inmediatos
 
-VS-076 (Builder, `apps/web/components/subindicator-editor.tsx`): el panel lateral/drag & drop de VS-071 pasa a construir sobre el array `components` real en vez de simularlo sobre el modelo legacy — arrastrar un segundo tipo sobre una celda ya ocupada AGREGA un componente independiente (no reemplaza), cada uno reordenable por drag & drop con `id` propio estable, eliminable individualmente, configurable en su propio popover (reusa el patrón de VS-072). Después: VS-077 (Runtime/Preview migran a `TableCellComponentView`, nuevo componente compartido) → VS-078 (export + verificación end-to-end en producción, incluyendo una celda legacy sin tocar para confirmar cero regresión).
+VS-077 (Runtime/Preview): nuevo componente compartido `TableCellComponentView` (`apps/web/components/table-cell-component-view.tsx`) reemplaza las ramas por `cellType` de `FormTableView` (`apps/web/app/evaluations/[token]/page.tsx:1475`) y `PreviewTableView` (`apps/web/components/form-preview.tsx:427`), iterando `normalizeCellComponents(cell)` — celdas legacy deben seguir renderizando/guardando idéntico a hoy, celdas con `components` reales usan el mapa `table[row][col][componentId]` ya implementado en VS-075. Después: VS-078 (export + verificación end-to-end en producción, incluyendo una celda legacy sin tocar para confirmar cero regresión, y el caso real del usuario: celda `[referencia, texto_corto, seleccion_desplegable]`).
 
 ## Decisiones pendientes
 
