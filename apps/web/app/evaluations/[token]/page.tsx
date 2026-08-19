@@ -13,7 +13,11 @@ import {
   indicatorNumber,
   isAnswered,
   isElementVisible,
+  LEGACY_CONTROL_ID,
+  LEGACY_REFERENCES_ID,
+  legacyExtraIndex,
   naKey,
+  normalizeCellComponents,
   questionNumber,
   sanitizeCommentHtml,
   statusKey,
@@ -25,7 +29,11 @@ import {
   type EvaluationSnapshot,
   type EvidenceRef,
   type FormElement,
+  type FormTableCell,
   type ResponseAnswers,
+  type TableCellComponent,
+  type TableCellComponentValue,
+  type TableCellValue,
   type TablaDatosConfig,
   type TableValue,
 } from "@plataforma-csa/sdk-core";
@@ -606,7 +614,9 @@ interface ElementViewProps {
 // embebidos en sub-opciones"): hallazgo del mismo HTML de S&P que VS-039 — la
 // sub-opción "% de ingresos cubierto" trae su propio <select>.
 // VS-069: `label` opcional — distingue cada campo cuando una celda de tabla
-// muestra varios juntos (ver ExtraFieldsView).
+// muestra varios juntos. VS-077: `extraFields` de tabla_datos ya no se
+// renderiza vía este tipo (ver `TableCellComponentControl`) — este tipo
+// sigue vivo solo para las sub-opciones de `seleccion_unica`/`seleccion_multiple`.
 type SubOptionField =
   | { type: "seleccion_desplegable"; label?: string | undefined; options: { id: string; label: string }[] }
   | { type: "texto_corto"; label?: string | undefined; maxLength?: number | undefined }
@@ -656,40 +666,6 @@ function SubOptionFieldView({
       />
       {field.unit && <span className="runtime-question__unit">{field.unit}</span>}
     </span>
-  );
-}
-
-// VS-069 (docs/engines/form.md "Referencias y campos adicionales por
-// celda"): renderiza `formTableCell.extraFields` (reemplaza el
-// `revealField` singular de VS-065) — cada campo bajo su propia clave
-// sintética `${baseKey}::${index}`, con su `label` propio (si lo tiene) para
-// distinguirlos cuando hay más de uno. El gating (revelado tras marcar vs.
-// siempre visible) lo decide el llamador según `cellType`, no este componente.
-function ExtraFieldsView({
-  fields,
-  baseKey,
-  answers,
-  onAnswerChange,
-  locked,
-}: {
-  fields: SubOptionField[];
-  baseKey: string;
-  answers: ResponseAnswers;
-  onAnswerChange: (key: string, value: AnswerValue) => void;
-  locked?: boolean | undefined;
-}) {
-  return (
-    <>
-      {fields.map((field, index) => {
-        const key = `${baseKey}::${index}`;
-        return (
-          <span className="runtime-table__extra-field" key={index}>
-            {field.label && <span className="field__label">{field.label}</span>}
-            <SubOptionFieldView field={field} value={answers[key]} onChange={(next) => onAnswerChange(key, next)} locked={locked} />
-          </span>
-        );
-      })}
-    </>
   );
 }
 
@@ -1437,32 +1413,53 @@ type FormTableViewProps = {
 // VS-047 (docs/engines/form.md "Editor de tabla_datos estilo grilla"):
 // celda cellType "calculado" — mismo patrón que CalculadoView (arriba),
 // encapsulado aparte porque useEffect no puede vivir condicionalmente
-// dentro del .map de columnas de FormTableView.
+// dentro del .map de columnas de FormTableView. VS-077 (docs/engines/form.md
+// "Fórmulas — extensión de la sintaxis de referencia"): `componentId`
+// (nuevo, opcional) distingue una celda "calculado" legacy (valor escalar
+// en `table[row][col]`, sin cambio) de un componente `calculado` de Fase 2
+// (valor en `table[row][col][componentId]`) — `valuesByRow` ahora acepta el
+// mapa por-componente de una celda hermana para resolver `{rowId::compId}`.
 function TableCalculatedCell({
   rowId,
   columnId,
+  componentId,
   expression,
   table,
   onChange,
 }: {
   rowId: string;
   columnId: string;
+  componentId: string | undefined;
   expression: string | undefined;
   table: TableValue;
   onChange: (rowId: string, columnId: string, value: number) => void;
 }) {
-  const valuesByRow: Record<string, Record<string, number | undefined>> = {};
+  const valuesByRow: Record<string, Record<string, number | Record<string, number> | undefined>> = {};
   for (const [r, rowVals] of Object.entries(table)) {
-    const numRow: Record<string, number | undefined> = {};
+    const numRow: Record<string, number | Record<string, number> | undefined> = {};
     for (const [c, v] of Object.entries(rowVals)) {
-      if (typeof v === "number") numRow[c] = v;
+      if (typeof v === "number") {
+        numRow[c] = v;
+      } else if (v && typeof v === "object") {
+        const compNums: Record<string, number> = {};
+        for (const [cid, cv] of Object.entries(v)) {
+          if (typeof cv === "number") compNums[cid] = cv;
+        }
+        if (Object.keys(compNums).length > 0) numRow[c] = compNums;
+      }
     }
     valuesByRow[r] = numRow;
   }
   const computed = expression ? evaluateTableExpression(expression, columnId, valuesByRow) : undefined;
 
+  const cellValue = table[rowId]?.[columnId];
+  const currentValue =
+    componentId === undefined
+      ? (cellValue as number | undefined)
+      : (cellValue && typeof cellValue === "object" ? (cellValue as Record<string, number | undefined>)[componentId] : undefined);
+
   useEffect(() => {
-    if (computed !== undefined && table[rowId]?.[columnId] !== computed) {
+    if (computed !== undefined && currentValue !== computed) {
       onChange(rowId, columnId, computed);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1470,6 +1467,275 @@ function TableCalculatedCell({
 
   const display = computed === undefined ? "" : String(Number(computed.toFixed(2)));
   return <input value={display} disabled readOnly placeholder="(sin calcular)" />;
+}
+
+// VS-077 (docs/engines/form.md "Runtime, Preview y exportación"): reemplaza
+// el switch por `cellType` de FormTableView — itera
+// `normalizeCellComponents(cellCfg)`, un control por componente. No se
+// comparte con Preview (`form-preview.tsx`): necesita
+// token/subindicatorId/elementId/locked para adjuntos reales a R2, que
+// Preview no tiene — mismo criterio ya usado por
+// SubOptionFieldView/PreviewSubOptionField y ExtraFieldsView/PreviewExtraFields.
+function TableCellComponentsView({
+  row,
+  col,
+  cellCfg,
+  table,
+  answers,
+  onChange,
+  onAnswerChange,
+  locked,
+  unitKeyPrefix,
+  token,
+  subindicatorId,
+  elementId,
+}: {
+  row: FormTableRows[number];
+  col: FormTableColumns[number];
+  cellCfg: FormTableCell;
+  table: TableValue;
+  answers: ResponseAnswers;
+  onChange: (value: TableValue) => void;
+  onAnswerChange: (key: string, value: AnswerValue) => void;
+  locked: boolean | undefined;
+  unitKeyPrefix: string;
+  token: string | undefined;
+  subindicatorId: string;
+  elementId: string;
+}) {
+  const components = normalizeCellComponents(cellCfg);
+  const isComponentModel = !!cellCfg.components?.length;
+  const rawCell = table[row.id]?.[col.id];
+  const componentMap: TableCellComponentValue = isComponentModel && rawCell && typeof rawCell === "object" ? (rawCell as TableCellComponentValue) : {};
+
+  function updateScalar(value: string | number) {
+    onChange({ ...table, [row.id]: { ...(table[row.id] ?? {}), [col.id]: value } });
+  }
+  function updateComponent(componentId: string, value: string | number) {
+    onChange({ ...table, [row.id]: { ...(table[row.id] ?? {}), [col.id]: { ...componentMap, [componentId]: value } } });
+  }
+
+  return (
+    <>
+      {components.map((component) => {
+        // VS-074 "gates": un componente listado en el `gates` de una
+        // `casilla` hermana solo se renderiza si esa casilla está marcada
+        // (reemplaza el gating implícito legacy de revealContent/extraFields).
+        const gatedBy = components.find((c) => c.type === "casilla" && c.gates?.includes(component.id));
+        if (gatedBy) {
+          const gateValue = isComponentModel ? componentMap[gatedBy.id] : rawCell;
+          if (gateValue !== "true") return null;
+        }
+        return (
+          <TableCellComponentControl
+            key={component.id}
+            component={component}
+            row={row}
+            col={col}
+            isComponentModel={isComponentModel}
+            rawCell={rawCell}
+            componentMap={componentMap}
+            table={table}
+            answers={answers}
+            onAnswerChange={onAnswerChange}
+            updateScalar={updateScalar}
+            updateComponent={updateComponent}
+            locked={locked}
+            unitKeyPrefix={unitKeyPrefix}
+            token={token}
+            subindicatorId={subindicatorId}
+            elementId={elementId}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+// Un solo componente de una celda (VS-074 `TableCellComponent`). Resolución
+// de clave de valor, por origen: celda legacy (`!isComponentModel`) usa las
+// claves sintéticas EXACTAS de siempre (`legacy-control` → escalar de la
+// celda; `legacy-extra-N` → `${prefix}::field::N}`, ya usada por
+// ExtraFieldsView; `legacy-references`/`legacy-control` tipo "referencia" →
+// `::refs`) — cero cambio de comportamiento para datos existentes. Una
+// celda Fase 2 (`isComponentModel`) usa la clave uniforme
+// `table[row][col][component.id]` (`::${component.id}::refs` para
+// "referencia").
+function TableCellComponentControl({
+  component,
+  row,
+  col,
+  isComponentModel,
+  rawCell,
+  componentMap,
+  table,
+  answers,
+  onAnswerChange,
+  updateScalar,
+  updateComponent,
+  locked,
+  unitKeyPrefix,
+  token,
+  subindicatorId,
+  elementId,
+}: {
+  component: TableCellComponent;
+  row: FormTableRows[number];
+  col: FormTableColumns[number];
+  isComponentModel: boolean;
+  rawCell: TableCellValue | TableCellComponentValue | undefined;
+  componentMap: TableCellComponentValue;
+  table: TableValue;
+  answers: ResponseAnswers;
+  onAnswerChange: (key: string, value: AnswerValue) => void;
+  updateScalar: (value: string | number) => void;
+  updateComponent: (componentId: string, value: string | number) => void;
+  locked: boolean | undefined;
+  unitKeyPrefix: string;
+  token: string | undefined;
+  subindicatorId: string;
+  elementId: string;
+}) {
+  if (component.type === "texto_fijo") {
+    return component.content ? <RichLabel html={component.content} /> : null;
+  }
+
+  if (component.type === "calculado") {
+    return (
+      <TableCalculatedCell
+        rowId={row.id}
+        columnId={col.id}
+        componentId={isComponentModel ? component.id : undefined}
+        expression={component.expression}
+        table={table}
+        onChange={(_r, _c, value) => (isComponentModel ? updateComponent(component.id, value) : updateScalar(value))}
+      />
+    );
+  }
+
+  if (component.type === "referencia") {
+    const refsKey =
+      isComponentModel
+        ? `${unitKeyPrefix}::${row.id}::${col.id}::${component.id}::refs`
+        : `${unitKeyPrefix}::${row.id}::${col.id}::refs`;
+    // VS-067: la celda legacy "referencia" (`legacy-control`) marca
+    // `table[row][col]` "true"/"" para que `hasAnswer` la detecte —
+    // `legacy-references` (compañera de otro cellType) nunca lo hizo. Una
+    // celda Fase 2 replica el mismo marcador, namespaced por componente.
+    const isPrimaryLegacyReference = !isComponentModel && component.id === LEGACY_CONTROL_ID;
+    return (
+      <OptionReferencesView
+        refType={component.references?.refType ?? "public"}
+        maxUrls={component.references?.maxUrls ?? 3}
+        value={answers[refsKey] as (string | EvidenceRef)[] | undefined}
+        onChange={(next) => {
+          onAnswerChange(refsKey, next);
+          if (isPrimaryLegacyReference) updateScalar(next.length > 0 ? "true" : "");
+          else if (isComponentModel) updateComponent(component.id, next.length > 0 ? "true" : "");
+        }}
+        locked={locked}
+        token={token}
+        subindicatorId={subindicatorId}
+        elementId={elementId}
+      />
+    );
+  }
+
+  // texto_corto / numero / seleccion_desplegable / casilla: valor escalar,
+  // clave según origen (ver comentario de la función).
+  const legacyExtraIdx = !isComponentModel ? legacyExtraIndex(component.id) : undefined;
+  const legacyExtraKey = legacyExtraIdx !== undefined ? `${unitKeyPrefix}::${row.id}::${col.id}::field::${legacyExtraIdx}` : undefined;
+
+  let value: string | number | undefined;
+  let setValue: (v: string | number) => void;
+  if (isComponentModel) {
+    value = componentMap[component.id];
+    setValue = (v) => updateComponent(component.id, v);
+  } else if (component.id === LEGACY_CONTROL_ID) {
+    value = typeof rawCell === "object" ? undefined : (rawCell as string | number | undefined);
+    setValue = updateScalar;
+  } else if (legacyExtraKey !== undefined) {
+    value = answers[legacyExtraKey] as string | number | undefined;
+    setValue = (v) => onAnswerChange(legacyExtraKey, v);
+  } else {
+    value = undefined;
+    setValue = () => {};
+  }
+
+  if (component.type === "texto_corto") {
+    return (
+      <>
+        <input value={(value as string) ?? ""} maxLength={component.maxLength} disabled={locked} onChange={(e) => setValue(e.target.value)} />
+        {/* VS-070: hint de límite, réplica del HTML real de S&P. */}
+        {component.maxLength && <span className="runtime-hint">máximo {component.maxLength} caracteres</span>}
+      </>
+    );
+  }
+
+  if (component.type === "numero") {
+    // VS-048: unidad por celda (legacy `legacy-control`) o por componente
+    // (Fase 2) — `legacy-extra-N` nunca tuvo `availableUnits` (el
+    // subOptionField legacy no lo soportaba), así que esa rama del select
+    // nunca se activa para un componente sintetizado desde extraFields.
+    const unitAnswerKey = isComponentModel
+      ? unitKey(`${unitKeyPrefix}::${row.id}::${col.id}::${component.id}`)
+      : unitKey(`${unitKeyPrefix}::${row.id}::${col.id}`);
+    const currentUnit = component.availableUnits ? ((answers[unitAnswerKey] as string | undefined) ?? component.availableUnits[0]) : undefined;
+    // VS-070: el control principal legacy (`legacy-control`, cellType
+    // "numero") muestra la unidad estática entre paréntesis; un componente
+    // sintetizado desde un extraField legacy (`legacy-extra-N`) la mostraba
+    // SIN paréntesis (mismo texto que SubOptionFieldView/ExtraFieldsView
+    // usaba) — se preserva la distinción exacta para no cambiar ni un
+    // píxel de una celda legacy ya existente.
+    const parenthesizedUnit = isComponentModel || component.id === LEGACY_CONTROL_ID;
+    return (
+      <span className="runtime-question__number-with-unit">
+        <input
+          type="number"
+          value={value === undefined ? "" : (value as number)}
+          min={component.min}
+          max={component.max}
+          disabled={locked}
+          onChange={(e) => setValue(e.target.value === "" ? "" : Number(e.target.value))}
+        />
+        {component.availableUnits && component.availableUnits.length > 0 ? (
+          <select value={currentUnit} disabled={locked} onChange={(e) => onAnswerChange(unitAnswerKey, e.target.value)}>
+            {component.availableUnits.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        ) : (
+          component.unit && (
+            <span className="runtime-question__unit">{parenthesizedUnit ? ` (${component.unit})` : component.unit}</span>
+          )
+        )}
+      </span>
+    );
+  }
+
+  if (component.type === "seleccion_desplegable") {
+    return (
+      <select value={(value as string) ?? ""} disabled={locked} onChange={(e) => setValue(e.target.value)}>
+        <option value="">Seleccionar…</option>
+        {component.options.map((opt) => (
+          <option key={opt.id} value={opt.id}>
+            {stripCommentHtml(opt.label)}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  // casilla
+  const checked = value === "true";
+  return (
+    <label className="field field--checkbox">
+      <input type="checkbox" checked={checked} disabled={locked} onChange={(e) => setValue(e.target.checked ? "true" : "")} />
+      {component.checkboxLabel ? <RichLabel html={component.checkboxLabel} /> : <span className="sr-only">Marcar</span>}
+    </label>
+  );
 }
 
 function FormTableView({
@@ -1488,16 +1754,11 @@ function FormTableView({
 }: FormTableViewProps) {
   const table = value ?? {};
 
-  function updateCell(rowId: string, columnId: string, cell: string | number) {
-    onChange({ ...table, [rowId]: { ...(table[rowId] ?? {}), [columnId]: cell } });
-  }
-
   return (
     <table className="runtime-table">
       <caption className="sr-only">{stripCommentHtml(label)}</caption>
       <tbody>
         {rows.map((row) => {
-          const rowValue = table[row.id] ?? {};
           // VS-066 (docs/engines/form.md "Combinar columnas (colspan)"):
           // columnas cubiertas por el colSpan de una celda anterior EN ESTA
           // FILA no se renderizan como <td> propio — el colSpan de la celda
@@ -1525,199 +1786,26 @@ function FormTableView({
                 if (!cellCfg) {
                   return <td key={col.id} className="runtime-table__blank" />;
                 }
-                const { cellType, editable, content, expression, maxLength: cellMaxLength, options: cellOptions, unit, availableUnits } = cellCfg;
-                const cell = rowValue[col.id];
-                // VS-069 (docs/engines/form.md "Referencias y campos
-                // adicionales por celda"): ya no exclusivos de cellType
-                // "referencia"/"casilla" — hallazgo real
-                // (MAT_MaterialIssues_Selection): una celda "Material N"
-                // adjunta referencias Y ADEMÁS tiene un <select> propio
-                // (cellType principal), con un campo de texto libre
-                // ("nombre del tema") mostrado siempre junto a él, no
-                // revelado tras marcar nada. `extraFieldsBlock` se calcula
-                // acá pero solo se usa fuera de "casilla" — esa rama tiene
-                // su propio gating (revelado tras marcar el checkbox).
-                const refsKey = `${unitKeyPrefix}::${row.id}::${col.id}::refs`;
-                const extraKey = `${unitKeyPrefix}::${row.id}::${col.id}::field`;
-                const referencesBlock = cellCfg.references && (
-                  <OptionReferencesView
-                    refType={cellCfg.references.refType ?? "public"}
-                    maxUrls={cellCfg.references.maxUrls ?? 3}
-                    value={answers[refsKey] as (string | EvidenceRef)[] | undefined}
-                    onChange={(next) => onAnswerChange(refsKey, next)}
-                    locked={locked}
-                    token={token}
-                    subindicatorId={subindicatorId}
-                    elementId={elementId}
-                  />
-                );
-                const extraFieldsBlock = cellCfg.extraFields && (
-                  <ExtraFieldsView fields={cellCfg.extraFields} baseKey={extraKey} answers={answers} onAnswerChange={onAnswerChange} locked={locked} />
-                );
-                // "calculado" siempre se evalúa dinámicamente sin importar
-                // `editable` — es de solo lectura por naturaleza (VS-047,
-                // bug real: el check `!editable` antes de este la ocultaba
-                // y la mostraba como contenido fijo estático vacío).
-                if (cellType === "calculado") {
-                  return (
-                    <td key={col.id} colSpan={cellCfg.colSpan}>
-                      <TableCalculatedCell
-                        rowId={row.id}
-                        columnId={col.id}
-                        expression={expression}
-                        table={table}
-                        onChange={(r, c, v) => updateCell(r, c, v)}
-                      />
-                    </td>
-                  );
-                }
-                if (editable === false) {
-                  return (
-                    <td key={col.id} colSpan={cellCfg.colSpan}>
-                      <RichLabel html={content ?? ""} />
-                    </td>
-                  );
-                }
-                if (cellType === "seleccion_desplegable") {
-                  return (
-                    <td key={col.id} colSpan={cellCfg.colSpan}>
-                      {referencesBlock}
-                      {extraFieldsBlock}
-                      {/* VS-063: contenido fijo como prefijo, ver nota en casilla abajo. */}
-                      {content && <RichLabel html={content} />}
-                      <select
-                        value={(cell as string) ?? ""}
-                        disabled={locked}
-                        onChange={(e) => updateCell(row.id, col.id, e.target.value)}
-                      >
-                        <option value="">Seleccionar…</option>
-                        {(cellOptions ?? []).map((opt) => (
-                          <option key={opt.id} value={opt.id}>
-                            {stripCommentHtml(opt.label)}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  );
-                }
-                if (cellType === "numero") {
-                  // VS-048: unidad por CELDA (antes era por fila) — clave
-                  // sintética un nivel más específica (`::row::col`), activa
-                  // el selector que existía en el schema desde VS-044 pero
-                  // nunca se había conectado a Runtime.
-                  const cellUnitKey = unitKey(`${unitKeyPrefix}::${row.id}::${col.id}`);
-                  const cellUnit = availableUnits ? ((answers[cellUnitKey] as string | undefined) ?? availableUnits[0]) : undefined;
-                  return (
-                    <td key={col.id} colSpan={cellCfg.colSpan}>
-                      {referencesBlock}
-                      {extraFieldsBlock}
-                      {content && <RichLabel html={content} />}
-                      <input
-                        type="number"
-                        value={cell === undefined ? "" : (cell as number)}
-                        disabled={locked}
-                        onChange={(e) => updateCell(row.id, col.id, e.target.value === "" ? "" : Number(e.target.value))}
-                      />
-                      {availableUnits && availableUnits.length > 0 && (
-                        <select value={cellUnit} disabled={locked} onChange={(e) => onAnswerChange(cellUnitKey, e.target.value)}>
-                          {availableUnits.map((u) => (
-                            <option key={u} value={u}>
-                              {u}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                      {!availableUnits && unit && <span className="runtime-question__unit"> ({unit})</span>}
-                    </td>
-                  );
-                }
-                if (cellType === "casilla") {
-                  const checked = cell === "true";
-                  return (
-                    <td key={col.id} colSpan={cellCfg.colSpan}>
-                      {referencesBlock}
-                      {/* VS-063: `content` es el título/descripción fijo de
-                          la celda, ANTES del control. VS-064: la casilla
-                          gana su PROPIA etiqueta (`checkboxLabel`) — el
-                          evaluado necesita entender qué está marcando,
-                          distinta del texto fijo de arriba. */}
-                      {content && <RichLabel html={content} />}
-                      <label className="field field--checkbox">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={locked}
-                          onChange={(e) => updateCell(row.id, col.id, e.target.checked ? "true" : "")}
-                        />
-                        {cellCfg.checkboxLabel ? <RichLabel html={cellCfg.checkboxLabel} /> : <span className="sr-only">Marcar</span>}
-                      </label>
-                      {/* VS-070 (docs/engines/form.md "Contenido fijo revelado
-                          en celdas casilla + duplicar columna + hints"):
-                          contenido fijo DENTRO del área revelada (tras
-                          marcar), antes de los campos — hallazgo real
-                          (MAT_MaterialIssues_Selection, filas "Caso de
-                          negocio"/"Estrategias empresariales": un párrafo
-                          fijo aparece recién al marcar, junto a los
-                          campos). */}
-                      {cellCfg.revealContent && checked && <RichLabel html={cellCfg.revealContent} />}
-                      {/* VS-069 (docs/engines/form.md "Referencias y campos
-                          adicionales por celda"): reemplaza el revealField
-                          singular de VS-065 — ahora soporta N campos
-                          revelados juntos tras marcar, cada uno con su
-                          propio label opcional para distinguirlos. */}
-                      {cellCfg.extraFields && checked && (
-                        <ExtraFieldsView fields={cellCfg.extraFields} baseKey={extraKey} answers={answers} onAnswerChange={onAnswerChange} locked={locked} />
-                      )}
-                    </td>
-                  );
-                }
-                if (cellType === "referencia") {
-                  // VS-067 (docs/engines/form.md "Adjuntar archivos o
-                  // enlaces por celda"): mismo OptionReferencesView que las
-                  // referencias de opción/pregunta — clave sintética
-                  // `::refs` para el valor real (URLs/EvidenceRef). Además,
-                  // igual que "casilla" (que escribe "true"/"" en `cell`),
-                  // se refleja un marcador liviano en el mapa PROPIO de la
-                  // tabla (`table[row.id][col.id]`) — sin esto, `hasAnswer`
-                  // (sdk-core, genérico sobre ese mapa) nunca detecta que la
-                  // celda tiene datos, dejando el estado en "Sin iniciar" y
-                  // el export vacío pese a haber referencias guardadas
-                  // (bug real hallado en la verificación de este slice). El
-                  // marcador nunca se lee para presentación — Runtime/
-                  // Preview/Export siempre resuelven el valor real desde
-                  // `::refs`, no desde `cell`.
-                  return (
-                    <td key={col.id} colSpan={cellCfg.colSpan}>
-                      {content && <RichLabel html={content} />}
-                      <OptionReferencesView
-                        refType={cellCfg.references?.refType ?? "public"}
-                        maxUrls={cellCfg.references?.maxUrls ?? 3}
-                        value={answers[refsKey] as (string | EvidenceRef)[] | undefined}
-                        onChange={(next) => {
-                          onAnswerChange(refsKey, next);
-                          updateCell(row.id, col.id, next.length > 0 ? "true" : "");
-                        }}
-                        locked={locked}
-                        token={token}
-                        subindicatorId={subindicatorId}
-                        elementId={elementId}
-                      />
-                    </td>
-                  );
-                }
+                // VS-077 (docs/engines/form.md "Runtime, Preview y
+                // exportación"): reemplaza el switch por `cellType` — un
+                // solo camino de render/valor para celdas legacy y celdas
+                // Fase 2 (`components`), ver `TableCellComponentsView`.
                 return (
                   <td key={col.id} colSpan={cellCfg.colSpan}>
-                    {referencesBlock}
-                    {extraFieldsBlock}
-                    {content && <RichLabel html={content} />}
-                    <input
-                      value={(cell as string) ?? ""}
-                      maxLength={cellMaxLength}
-                      disabled={locked}
-                      onChange={(e) => updateCell(row.id, col.id, e.target.value)}
+                    <TableCellComponentsView
+                      row={row}
+                      col={col}
+                      cellCfg={cellCfg}
+                      table={table}
+                      answers={answers}
+                      onChange={onChange}
+                      onAnswerChange={onAnswerChange}
+                      locked={locked}
+                      unitKeyPrefix={unitKeyPrefix}
+                      token={token}
+                      subindicatorId={subindicatorId}
+                      elementId={elementId}
                     />
-                    {/* VS-070: hint de límite, réplica del HTML real de S&P. */}
-                    {cellMaxLength && <span className="runtime-hint">máximo {cellMaxLength} caracteres</span>}
                   </td>
                 );
               })}

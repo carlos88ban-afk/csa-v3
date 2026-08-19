@@ -303,13 +303,26 @@ export type TablaDatosConfig = z.infer<typeof tablaDatosConfig>;
 // celda", tabla "Origen legacy → Componente sintetizado"): ids DETERMINISTAS
 // (no crypto.randomUUID()) — deben ser los mismos en cada llamada para que
 // las claves sintéticas de respuesta (`${...}::${component.id}`) no cambien
-// entre renders de una misma celda legacy.
-const LEGACY_CONTENT_ID = "legacy-content";
-const LEGACY_CONTROL_ID = "legacy-control";
-const LEGACY_REVEAL_CONTENT_ID = "legacy-reveal-content";
-const LEGACY_REFERENCES_ID = "legacy-references";
+// entre renders de una misma celda legacy. VS-077 (docs/engines/form.md
+// "Runtime, Preview y exportación"): exportados — Runtime/Preview necesitan
+// distinguir un componente sintetizado (que debe resolver su valor con la
+// clave sintética legacy exacta de siempre) de un componente real de
+// `cell.components` (que usa la clave uniforme `${...}::${component.id}`),
+// sin eso no hay forma de garantizar cero regresión para celdas legacy.
+export const LEGACY_CONTENT_ID = "legacy-content";
+export const LEGACY_CONTROL_ID = "legacy-control";
+export const LEGACY_REVEAL_CONTENT_ID = "legacy-reveal-content";
+export const LEGACY_REFERENCES_ID = "legacy-references";
 function legacyExtraId(index: number): string {
   return `legacy-extra-${index}`;
+}
+// Inverso de `legacyExtraId` — `undefined` si `componentId` no tiene esa
+// forma (componente real o alguno de los otros ids legacy fijos).
+export function legacyExtraIndex(componentId: string): number | undefined {
+  const prefix = "legacy-extra-";
+  if (!componentId.startsWith(prefix)) return undefined;
+  const n = Number(componentId.slice(prefix.length));
+  return Number.isInteger(n) && n >= 0 ? n : undefined;
 }
 
 // Reconstruye el `TableCellComponent` del control principal legacy

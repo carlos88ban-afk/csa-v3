@@ -148,3 +148,37 @@ describe("evaluateTableExpression", () => {
     expect(evaluateTableExpression("{r1}+", "c1", table)).toBeUndefined();
   });
 });
+
+// VS-077 (docs/engines/form.md "Fórmulas — extensión de la sintaxis de
+// referencia"): sintaxis `::componentId`, aditiva sobre la de VS-047 — una
+// celda de la Fase 2 (`components`) guarda un mapa componentId -> número.
+describe("evaluateTableExpression con celdas-mapa (componentId)", () => {
+  const table = {
+    r1: { c1: 4, c2: { compA: 10, compB: 20 } },
+    r2: { c1: 6, c2: { compA: 1 } },
+  };
+
+  it("resuelve {rowId::componentId} contra la columna activa", () => {
+    expect(evaluateTableExpression("{r1::compA}+{r1::compB}", "c2", table)).toBe(30);
+  });
+
+  it("resuelve {rowId.columnId::componentId} con columna explícita", () => {
+    expect(evaluateTableExpression("{r1.c2::compB}", "c1", table)).toBe(20);
+  });
+
+  it("{rowId} sin componentId resuelve si la celda-mapa tiene exactamente 1 entrada numérica", () => {
+    expect(evaluateTableExpression("{r2}", "c2", table)).toBe(1);
+  });
+
+  it("{rowId} sin componentId es undefined si la celda-mapa tiene 2+ entradas (ambiguo)", () => {
+    expect(evaluateTableExpression("{r1}", "c2", table)).toBeUndefined();
+  });
+
+  it("undefined si el componentId referenciado no existe en la celda", () => {
+    expect(evaluateTableExpression("{r1::compZ}", "c2", table)).toBeUndefined();
+  });
+
+  it("undefined si se usa ::componentId sobre una celda escalar (legacy)", () => {
+    expect(evaluateTableExpression("{r1::compA}", "c1", table)).toBeUndefined();
+  });
+});

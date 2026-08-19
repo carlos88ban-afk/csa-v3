@@ -290,10 +290,22 @@ export function evaluateExpression(
 // puntual, columna explícita. `valuesByRow` es `rowId -> columnId -> valor`
 // (mismo shape que `TableValue` de `response.ts`, sin duplicar el tipo aquí
 // para no crear una dependencia circular entre paquetes).
+//
+// VS-077 (docs/engines/form.md "Fórmulas — extensión de la sintaxis de
+// referencia"): una celda de la Fase 2 (`components`) guarda un mapa
+// `componentId -> número` en vez de un escalar — `valuesByRow[row][col]`
+// ahora también puede ser ese mapa. Sintaxis aditiva `{rowId::componentId}` /
+// `{rowId.columnId::componentId}` (el separador `.` fila/columna no cambia,
+// solo se agrega un segundo split por `::` sobre la porción resultante).
+// Sin `::componentId`, una celda-mapa solo resuelve si tiene EXACTAMENTE 1
+// entrada numérica (mismo criterio "sin ambigüedad silenciosa" del doc,
+// aplicado acá en tiempo de evaluación — la validación de autoría que
+// rechaza esa ambigüedad en el Builder queda fuera de alcance de VS-077,
+// ver "Fuera de alcance" en el doc).
 export function evaluateTableExpression(
   expression: string,
   columnId: string,
-  valuesByRow: Record<string, Record<string, number | undefined>>,
+  valuesByRow: Record<string, Record<string, number | Record<string, number | undefined> | undefined>>,
 ): number | undefined {
   let node: FormulaNode;
   try {
@@ -304,9 +316,25 @@ export function evaluateTableExpression(
 
   const values: Record<string, number> = {};
   for (const ref of extractExpressionReferences(expression)) {
-    const dotIdx = ref.indexOf(".");
-    const value =
-      dotIdx === -1 ? valuesByRow[ref]?.[columnId] : valuesByRow[ref.slice(0, dotIdx)]?.[ref.slice(dotIdx + 1)];
+    const sepIdx = ref.indexOf("::");
+    const mainPart = sepIdx === -1 ? ref : ref.slice(0, sepIdx);
+    const componentId = sepIdx === -1 ? undefined : ref.slice(sepIdx + 2);
+    const dotIdx = mainPart.indexOf(".");
+    const rowId = dotIdx === -1 ? mainPart : mainPart.slice(0, dotIdx);
+    const col = dotIdx === -1 ? columnId : mainPart.slice(dotIdx + 1);
+    const cell = valuesByRow[rowId]?.[col];
+
+    let value: number | undefined;
+    if (typeof cell === "number") {
+      value = componentId === undefined ? cell : undefined;
+    } else if (cell && typeof cell === "object") {
+      if (componentId !== undefined) {
+        value = cell[componentId];
+      } else {
+        const keys = Object.keys(cell);
+        value = keys.length === 1 ? cell[keys[0]!] : undefined;
+      }
+    }
     if (value !== undefined) values[ref] = value;
   }
   return evaluateNode(node, values);

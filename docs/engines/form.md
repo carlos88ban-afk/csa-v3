@@ -1887,3 +1887,48 @@ Dos bugs de interacción encontrados y corregidos recién al probar el reordenam
 
 1. **El primer `dragover` de un reordenamiento nunca llamaba `preventDefault()`**: `isReordering` se calculaba en el cuerpo del render a partir de un `useState`, pero React no llega a re-renderizar entre el `dragstart` (que llama `setState`) y el `dragover`/`drop` siguientes de la misma ráfaga de eventos nativos — quedaba leyendo el valor de un render atrás. Sin ese `preventDefault()` en el primer `dragover`, el navegador rechaza el drop completo aunque un `dragover` posterior sí lo llame. Fix: `draggedComponentRef` pasa de `useState` a `useRef` (nunca se usó para nada visual, así que no se pierde ningún re-render necesario).
 2. **El drag no iniciaba desde el chip del componente**: `draggable` vivía en el `<div>` contenedor, pero el mousedown del usuario cae sobre el `<button>` del chip (interactivo) anidado adentro — arrastrar desde un control interactivo así es poco confiable tanto para el drag nativo del navegador como para automatización. Fix: grip dedicado (`span` con su propio `draggable`), separado del botón del chip.
+
+## Runtime y Preview migran a render por componentes (VS-077)
+
+Implementa la sección "Runtime, Preview y exportación" de VS-074 para los dos primeros consumidores (Export queda para VS-078). `FormTableView` (`apps/web/app/evaluations/[token]/page.tsx`) y `PreviewTableView` (`apps/web/components/form-preview.tsx`) reemplazan su switch gigante por `cellType` por un solo camino: `normalizeCellComponents(cellCfg)` seguido de un control por componente — el mismo camino para una celda legacy (sin `components`) que para una celda real de Fase 2, sin ramas duplicadas por origen.
+
+### Desviación del spec: dos componentes paralelos, no uno compartido
+
+VS-074 proponía un único archivo nuevo (`table-cell-component-view.tsx`) compartido entre Runtime y Preview. Al implementar se confirmó que Runtime necesita `token`/`subindicatorId`/`elementId`/`locked` para que `OptionReferencesView` pueda subir adjuntos reales a R2 — capacidad que Preview no tiene (usa `PreviewOptionReferences`, sin upload, sin token). Esto es exactamente la misma asimetría que ya existía ANTES de este slice entre `SubOptionFieldView`/`PreviewSubOptionField` y `ExtraFieldsView`/`PreviewExtraFields` (nunca compartidos, siempre paralelos) — se mantiene el mismo criterio en vez de forzar una unificación que habría requerido tocar `OptionReferencesView` fuera de alcance. Resultado: `TableCellComponentsView`/`TableCellComponentControl` en `page.tsx` (Runtime) y `PreviewTableCellComponentsView`/`PreviewTableCellComponentControl` en `form-preview.tsx` (Preview) — misma lógica, duplicada a propósito, cada uno con las dependencias de su lado.
+
+Como consecuencia, `ExtraFieldsView`/`PreviewExtraFields` quedaron sin consumidores (sus únicos 2 call sites cada uno vivían en el switch de tabla que se reemplazó) y se retiraron — no así `SubOptionFieldView`/`PreviewSubOptionField`, que siguen en uso para las sub-opciones de `seleccion_unica`/`seleccion_multiple` (feature no relacionada con tablas).
+
+### Resolución de clave de valor — legacy vs. Fase 2
+
+`TableCellComponentControl` (y su par en Preview) decide la clave según `component.id` cuando la celda es legacy (`!cellCfg.components?.length`, ids deterministas de `synthesizeLegacyComponents`), o de forma uniforme cuando es una celda real de Fase 2:
+
+| Componente | Legacy (celda sin `components`) | Fase 2 (celda con `components`) |
+|---|---|---|
+| `legacy-control` (control principal) | `table[row][col]` escalar, sin cambios | — (no aplica, id real) |
+| `legacy-extra-N` (ex-`extraFields[N]`) | `` `${prefix}::field::N}` ``, misma clave que `ExtraFieldsView` usaba siempre | — |
+| `legacy-references` / `legacy-control` tipo `referencia` | `` `${prefix}::refs}` `` (sin sufijo de componente); solo `legacy-control` además marca `table[row][col]` "true"/"" (VS-067) | — |
+| cualquier componente real (`texto_corto`/`numero`/`seleccion_desplegable`/`casilla`/`calculado`) | — | `table[row][col][component.id]` |
+| `referencia` real | — | `` `${prefix}::${component.id}::refs}` ``, + marcador `table[row][col][component.id]` "true"/"" (mismo criterio VS-067, namespaced) |
+| `texto_fijo` | sin valor (presentación) | sin valor (presentación) |
+
+`legacyExtraIndex(componentId)` (nuevo, exportado desde `form-schema.ts` junto con `LEGACY_CONTENT_ID`/`LEGACY_CONTROL_ID`/`LEGACY_REVEAL_CONTENT_ID`/`LEGACY_REFERENCES_ID`, antes privados) es el inverso de `legacyExtraId` — necesario para que Runtime/Preview reconstruyan la clave sintética exacta sin duplicar el prefijo `legacy-extra-` como string mágico.
+
+Un detalle de paridad visual encontrado al portar la rama `numero`: el control principal legacy mostraba la unidad estática entre paréntesis (`" (kg)"`), pero un componente sintetizado desde un `extraField` legacy la mostraba sin paréntesis (`"kg"`, mismo texto que `SubOptionFieldView` ya usaba) — son dos textos distintos para el mismo dato en el código legacy. Se preservó la distinción exacta (`parenthesizedUnit = isComponentModel || component.id === LEGACY_CONTROL_ID`) para no cambiar ni un carácter del render de una celda legacy ya existente.
+
+### Fórmulas: `::componentId` implementado en `evaluateTableExpression`
+
+`packages/sdk-core/src/formula.ts` — `valuesByRow` ahora acepta `number | Record<string, number | undefined> | undefined` por celda (antes solo `number | undefined`); `evaluateTableExpression` separa el `ref` por `::` antes de aplicar el split existente por `.` (fila/columna), sin tocar el tokenizador. Reglas implementadas y testeadas (`formula.test.ts`):
+
+- `{rowId::componentId}` / `{rowId.columnId::componentId}` resuelven el valor de ESE componente en la celda-mapa.
+- `{rowId}` / `{rowId.columnId}` (sin `::`) sobre una celda-mapa resuelven solo si tiene **exactamente 1** entrada numérica; con 0 o 2+ es `undefined` (mismo criterio "sin ambigüedad silenciosa" del spec, aplicado en tiempo de evaluación).
+- `::componentId` sobre una celda escalar (legacy) es `undefined` — no hay componente que resolver.
+
+`TableCalculatedCell`/`PreviewTableCalculatedCell` ganan un parámetro `componentId?: string`: `undefined` para una celda `calculado` legacy (escribe el escalar de siempre); el id real para un componente `calculado` de Fase 2 (escribe `table[row][col][componentId]`), construyendo `valuesByRow` a partir de TODA la tabla (escalares y mapas por-componente, filtrando solo entradas numéricas).
+
+### Fuera de alcance (explícito, deferido)
+
+- **Validación de ambigüedad en tiempo de autoría** (`formSchema.superRefine`, "celda con 2+ componentes numéricos referenciada sin `::componentId` es error de validación, no `undefined` silencioso") — el spec de VS-074 la proponía como pasada nueva junto a `findFormulaCycle`, pero ese detector opera sobre Elementos `calculado` de nivel de Subindicador, un grafo completamente distinto del de celdas dentro de una misma tabla; implementarla es trabajo nuevo no trivial (recorrer cada `tabla_datos` del schema, resolver referencias contra celdas hermanas vía `normalizeCellComponents`). Sin casos reales todavía que la necesiten (no hay tablas Fase 2 con 2+ componentes `calculado`/`numero` ambiguos en producción), se deja para un slice futuro si aparece un caso real — mismo criterio "aditivo si aparece caso real" del resto del proyecto. El comportamiento en tiempo de evaluación (Runtime) ya es seguro sin esta validación: una referencia ambigua sencillamente no calcula (`undefined`), nunca calcula mal.
+
+### Verificación
+
+Framework/evaluación QA temporal en producción vía Playwright MCP: una tabla Fase 2 con una celda multi-componente (`[referencia, texto_corto, seleccion_desplegable]` o similar al HTML de ejemplo real del usuario) respondida en Runtime y en Preview, más una celda **legacy sin tocar** de un framework ya existente para confirmar cero regresión visual/de datos. Ver checkpoint para el resultado.
