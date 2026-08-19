@@ -175,7 +175,12 @@ const tableCellComponent = z.discriminatedUnion("type", [
     gates: z.array(z.string().min(1)).optional(),
   }),
   z.object({ id: z.string().min(1), type: z.literal("referencia"), references: optionReferences.optional() }),
-  z.object({ id: z.string().min(1), type: z.literal("calculado"), expression: z.string().min(1) }),
+  // `expression` sin `.min(1)` a propósito — el autosave del Builder guarda
+  // estado intermedio (ej. la celda recién arrastrada, todavía sin fórmula
+  // escrita), mismo criterio que `label` vacío en `questionBase` y que el
+  // `expression` del `calculado` legacy (validado con `.trim() === ""` en
+  // `synthesizeLegacyControl`, no con una constraint estructural del campo).
+  z.object({ id: z.string().min(1), type: z.literal("calculado"), expression: z.string() }),
 ]);
 export type TableCellComponent = z.infer<typeof tableCellComponent>;
 
