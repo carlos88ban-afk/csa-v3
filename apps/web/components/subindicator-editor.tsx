@@ -518,18 +518,22 @@ function TableConfigEditor({
   // había puesto. Ahora agrega un extracto del texto real de la celda, para
   // que la grilla completa sea legible sin expandir nada.
   function cellPreviewText(cell: TableConfigCell): string | undefined {
-    const raw =
-      cell.content ??
-      // VS-070: el extracto de una casilla considera lo que el evaluado
-      // marca (`checkboxLabel`) y, si no hay etiqueta, lo que revela al
-      // marcar (`revealContent`) — el admin ve qué revela la casilla sin
-      // expandir la celda.
-      (cell.cellType === "casilla" ? cell.checkboxLabel ?? cell.revealContent : undefined) ??
-      (cell.cellType === "calculado" ? cell.expression : undefined);
-    if (!raw) return undefined;
-    const plain = stripCommentHtml(raw).trim();
-    if (!plain) return undefined;
-    return plain.length > 40 ? `${plain.slice(0, 40)}…` : plain;
+    // VS-070: el extracto de una casilla considera lo que el evaluado
+    // marca (`checkboxLabel`) y, si no hay etiqueta, lo que revela al
+    // marcar (`revealContent`) — el admin ve qué revela la casilla sin
+    // expandir la celda.
+    const candidates = [
+      cell.content,
+      cell.cellType === "casilla" ? cell.checkboxLabel ?? cell.revealContent : undefined,
+      cell.cellType === "calculado" ? cell.expression : undefined,
+    ];
+    for (const raw of candidates) {
+      if (!raw) continue;
+      const plain = stripCommentHtml(raw).trim();
+      if (!plain) continue;
+      return plain.length > 40 ? `${plain.slice(0, 40)}…` : plain;
+    }
+    return undefined;
   }
 
   return (
