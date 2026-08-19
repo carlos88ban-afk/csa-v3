@@ -637,7 +637,11 @@ function SubOptionFieldView({
   }
   if (field.type === "texto_corto") {
     return (
-      <input value={(value as string) ?? ""} maxLength={field.maxLength} disabled={locked} onChange={(e) => onChange(e.target.value)} />
+      <>
+        <input value={(value as string) ?? ""} maxLength={field.maxLength} disabled={locked} onChange={(e) => onChange(e.target.value)} />
+        {/* VS-070: hint de límite, réplica del HTML real de S&P. */}
+        {field.maxLength && <span className="runtime-hint">máximo {field.maxLength} caracteres</span>}
+      </>
     );
   }
   return (
@@ -1189,13 +1193,17 @@ function OptionReferencesView({
   if (refType !== "flexible" || !token) {
     const urls = slots.filter((s): s is string => typeof s === "string");
     return (
-      <UrlSlotsView
-        maxUrls={maxUrls}
-        value={urls}
-        onChange={(next) => onChange([...next])}
-        locked={locked}
-        className="runtime-url-list sub-options"
-      />
+      <>
+        <UrlSlotsView
+          maxUrls={maxUrls}
+          value={urls}
+          onChange={(next) => onChange([...next])}
+          locked={locked}
+          className="runtime-url-list sub-options"
+        />
+        {/* VS-070: hint de límite, réplica del HTML real de S&P. */}
+        <span className="runtime-hint">máximo {maxUrls} permitidos</span>
+      </>
     );
   }
 
@@ -1379,6 +1387,8 @@ function OptionReferencesView({
           {uploadError}
         </p>
       )}
+      {/* VS-070: hint de límite, réplica del HTML real de S&P. */}
+      <span className="runtime-hint">máximo {maxUrls} permitidos</span>
     </div>
   );
 }
@@ -1641,6 +1651,15 @@ function FormTableView({
                         />
                         {cellCfg.checkboxLabel ? <RichLabel html={cellCfg.checkboxLabel} /> : <span className="sr-only">Marcar</span>}
                       </label>
+                      {/* VS-070 (docs/engines/form.md "Contenido fijo revelado
+                          en celdas casilla + duplicar columna + hints"):
+                          contenido fijo DENTRO del área revelada (tras
+                          marcar), antes de los campos — hallazgo real
+                          (MAT_MaterialIssues_Selection, filas "Caso de
+                          negocio"/"Estrategias empresariales": un párrafo
+                          fijo aparece recién al marcar, junto a los
+                          campos). */}
+                      {cellCfg.revealContent && checked && <RichLabel html={cellCfg.revealContent} />}
                       {/* VS-069 (docs/engines/form.md "Referencias y campos
                           adicionales por celda"): reemplaza el revealField
                           singular de VS-065 — ahora soporta N campos
@@ -1697,6 +1716,8 @@ function FormTableView({
                       disabled={locked}
                       onChange={(e) => updateCell(row.id, col.id, e.target.value)}
                     />
+                    {/* VS-070: hint de límite, réplica del HTML real de S&P. */}
+                    {cellMaxLength && <span className="runtime-hint">máximo {cellMaxLength} caracteres</span>}
                   </td>
                 );
               })}

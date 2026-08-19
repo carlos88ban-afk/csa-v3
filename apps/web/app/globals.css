@@ -1063,6 +1063,16 @@ input[type="checkbox"] {
   color: var(--ink-muted);
 }
 
+/* VS-070 (docs/engines/form.md "Contenido fijo revelado en celdas casilla +
+   duplicar columna + hints"): hints de límites bajo los controles (máximo N
+   caracteres / máximo N referencias) — réplica de los hints del HTML real
+   de S&P (MAT_MaterialIssues_Selection). */
+.runtime-hint {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
 /* Tabla de datos (docs/engines/form.md, VS-024). */
 .runtime-table {
   width: 100%;

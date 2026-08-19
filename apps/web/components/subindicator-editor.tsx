@@ -198,6 +198,48 @@ function TableConfigEditor({
     });
   }
 
+  // VS-070 (docs/engines/form.md "Contenido fijo revelado en celdas casilla
+  // + duplicar columna + hints"): clonar una celda regenerando los ids de
+  // opciones — sin esto, dos celdas de columnas distintas compartirían ids
+  // de opción y el Runtime colisionaría en las claves de respuesta (el valor
+  // guardado es el `id` de la opción). `colSpan` NO se copia: es relativo a
+  // la posición de la columna en la fila, un span copiado rompería la grilla.
+  function cloneCellForDuplicate(cell: TableConfigCell | undefined, newColumnId: string): TableConfigCell {
+    if (!cell) return { columnId: newColumnId, cellType: "texto", editable: true };
+    const clone: TableConfigCell = { ...cell, columnId: newColumnId, colSpan: undefined };
+    if (cell.options) clone.options = cell.options.map((o) => ({ id: crypto.randomUUID(), label: o.label }));
+    if (cell.extraFields) {
+      clone.extraFields = cell.extraFields.map((f) =>
+        f.type === "seleccion_desplegable"
+          ? { ...f, options: f.options.map((o) => ({ id: crypto.randomUUID(), label: o.label })) }
+          : { ...f },
+      );
+    }
+    return clone;
+  }
+
+  // VS-070: duplicar la columna INMEDIATAMENTE a la derecha de la original,
+  // clonando la configuración COMPLETA de cada celda en cada fila — caso
+  // real (MAT_MaterialIssues_Selection): 3 columnas "Material N" idénticas
+  // celda por celda; sin esto el admin configuraría la misma celda compleja
+  // (referencias + extraFields + content + options) N veces a mano.
+  function duplicateColumn(columnId: string) {
+    const anchorIdx = columns.findIndex((c) => c.id === columnId);
+    if (anchorIdx === -1) return;
+    const newColumn = { id: crypto.randomUUID() };
+    onChange({
+      columns: [...columns.slice(0, anchorIdx + 1), newColumn, ...columns.slice(anchorIdx + 1)],
+      rows: rows.map((r) => {
+        const anchorIdxInRow = r.cells.findIndex((c) => c.columnId === columnId);
+        const clone = cloneCellForDuplicate(anchorIdxInRow >= 0 ? r.cells[anchorIdxInRow] : undefined, newColumn.id);
+        const cells = [...r.cells];
+        if (anchorIdxInRow >= 0) cells.splice(anchorIdxInRow + 1, 0, clone);
+        else cells.push(clone);
+        return { ...r, cells };
+      }),
+    });
+  }
+
   function removeRow(rowId: string) {
     if (rows.length <= 1) return;
     onChange({ columns, rows: rows.filter((r) => r.id !== rowId) });
@@ -478,7 +520,11 @@ function TableConfigEditor({
   function cellPreviewText(cell: TableConfigCell): string | undefined {
     const raw =
       cell.content ??
-      (cell.cellType === "casilla" ? cell.checkboxLabel : undefined) ??
+      // VS-070: el extracto de una casilla considera lo que el evaluado
+      // marca (`checkboxLabel`) y, si no hay etiqueta, lo que revela al
+      // marcar (`revealContent`) — el admin ve qué revela la casilla sin
+      // expandir la celda.
+      (cell.cellType === "casilla" ? cell.checkboxLabel ?? cell.revealContent : undefined) ??
       (cell.cellType === "calculado" ? cell.expression : undefined);
     if (!raw) return undefined;
     const plain = stripCommentHtml(raw).trim();
@@ -571,6 +617,7 @@ function TableConfigEditor({
                                   maxLength: undefined,
                                   expression: undefined,
                                   checkboxLabel: undefined,
+                                  revealContent: undefined,
                                   // VS-069: `extraFields` se resetea al
                                   // cambiar de tipo — su significado cambia
                                   // según cellType (revelado tras marcar en
@@ -761,6 +808,27 @@ function TableConfigEditor({
                                           ariaLabel="Etiqueta de la casilla"
                                         />
                                       </label>
+                                      {/* VS-070 (docs/engines/form.md
+                                          "Contenido fijo revelado en celdas
+                                          casilla"): párrafo fijo que aparece
+                                          DENTRO del área revelada, tras
+                                          marcar, ANTES de los campos —
+                                          hallazgo real
+                                          (MAT_MaterialIssues_Selection: "La
+                                          empresa presenta el caso de negocio
+                                          para este asunto relevante:").
+                                          Distinto de "Etiqueta de la casilla"
+                                          (siempre visible) y de "Texto fijo
+                                          antes del control" (siempre visible,
+                                          antes del checkbox). */}
+                                      <label className="field">
+                                        <span className="field__label">Texto fijo revelado al marcar (opcional)</span>
+                                        <RichTextEditor
+                                          value={cell.revealContent ?? ""}
+                                          onChange={(html) => updateCell(row.id, col.id, { revealContent: html })}
+                                          ariaLabel="Texto fijo revelado al marcar"
+                                        />
+                                      </label>
                                       {renderExtraFields(row, col, cell, "Campos revelados al marcar")}
                                     </>
                                   )}
@@ -854,6 +922,17 @@ function TableConfigEditor({
                           <div className="table-config-grid__cell-footer">
                             <Button type="button" variant="danger" size="sm" onClick={() => removeRow(row.id)} disabled={rows.length <= 1}>
                               Quitar fila
+                            </Button>
+                            {/* VS-070: duplicar la columna completa a la
+                                derecha (clonando la config de cada celda) —
+                                caso real: 3 columnas "Material N" idénticas. */}
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => duplicateColumn(col.id)}
+                              title="Duplicar esta columna a la derecha"
+                            >
+                              Duplicar columna
                             </Button>
                             <Button type="button" variant="danger" size="sm" onClick={() => removeColumn(col.id)} disabled={columns.length <= 1}>
                               Quitar columna

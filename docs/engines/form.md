@@ -1606,3 +1606,66 @@ Nuevos componentes `ExtraFieldsView`/`PreviewExtraFields` (reemplazan el render 
 - **`extraFields` en celdas de solo lectura (`editable === false`) o `calculado`** — mismo criterio que `references`/`content`: esas celdas no tienen control interactivo que acompañar.
 - **`extraFields` en celdas `referencia`** — sin caso real observado; esa celda ya no tiene control principal que acompañar.
 - **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.
+
+## Contenido fijo revelado en celdas casilla + duplicar columna + hints (VS-070)
+
+### Contexto y pedido
+
+HTML real de S&P (`MAT_MaterialIssues_Selection`, la tabla de temas materiales COMPLETA — el mismo HTML que originó VS-069, ahora con las 3 filas): las filas "Caso de negocio" y "Estrategias empresariales" tienen, en cada columna Material, una celda `casilla` cuyo área revelada combina UN PÁRRAFO FIJO ("La empresa presenta el caso de negocio para este asunto relevante:" / "Sí, la empresa describe su estrategia para abordar el impacto en el negocio:") seguido de campos (`texto_corto` máx. 1000, y en "Caso de negocio" además un `<select>` "Tipo de impacto:"). Además el HTML muestra hints bajo cada control ("máximo 200 caracteres", "máximo 1000 caracteres", "máximo 3 permitidos, solo URLs públicas"), y la tabla repite la MISMA configuración de celda en las 3 columnas "Material N". Pedido explícito del usuario: poder construir esta tabla DE MANERA IDÉNTICA (no una aproximación), "manteniendo siempre en cuenta los principios UX".
+
+Analizando contra el motor existente, 3 gaps puntuales (no un rediseño):
+
+1. **El área revelada de una celda `casilla` solo admite `extraFields`** (campos interactivos) — no admite CONTENIDO FIJO. Los textos disponibles hoy (`content` = título/descripción, siempre visible ANTES del checkbox; `checkboxLabel` = etiqueta del propio checkbox, siempre visible) no pueden ir DENTRO del área revelada. El HTML real muestra un párrafo fijo que aparece recién al marcar el checkbox, junto a los campos.
+2. **La grilla no permite duplicar una columna** — las 3 columnas "Material N" son idénticas celda por celda; sin duplicación el admin configura la misma celda compleja (referencias + extraFields + content + options) 9 veces a mano. Contradice el principio UX de "no repetir trabajo" (la duplicación es la operación natural de copiar/pegar que Excel popularizó).
+3. **El Runtime/Preview no muestra hints** de límites ("máximo N caracteres", "máximo N referencias") que el HTML real sí muestra bajo cada control.
+
+### Decisión de diseño
+
+**`formTableCell.revealContent?: string`** — contenido fijo (rich text, mismo motor que `content`/`checkboxLabel`) que se muestra DENTRO del área revelada de una celda `casilla`, tras marcar el checkbox, ANTES de los `extraFields`. Solo aplica a `cellType === "casilla"` (el único tipo con área revelada condicional). Distinto de:
+
+- `content` — siempre visible, ANTES del control.
+- `checkboxLabel` — etiqueta del propio checkbox, siempre visible.
+
+```ts
+const formTableCell = z.object({
+  // ...campos existentes sin cambios...
+  revealContent: z.string().optional(), // VS-070 — solo cellType === "casilla"
+});
+```
+
+**Duplicar columna** (solo Builder, sin cambio de schema): nueva acción `duplicateColumn(columnId)` que inserta una copia de la columna (id nuevo) INMEDIATAMENTE A LA DERECHA de la original, clonando la configuración COMPLETA de cada celda en cada fila (`cellType`, `editable`, `content`, `checkboxLabel`, `revealContent`, `maxLength`, `unit`, `availableUnits`, `options` con ids nuevos, `extraFields` con ids nuevos, `references`). `colSpan` NO se copia (es relativo a la posición de la columna en la fila — un span copiado rompería la grilla; la copia queda sin combinar, default 1). Botón "Duplicar columna" en el footer del panel de configuración de celda expandida (junto a "Quitar fila"/"Quitar columna", mismo scope: opera sobre la columna de la celda expandida).
+
+**Hints de límites** (Runtime + Preview, presentación pura, sin cambio de schema):
+
+- Celda `texto` con `maxLength` → `<span class="hint">máximo N caracteres</span>` bajo el input.
+- Campo `extraFields`/`subOptionField` tipo `texto_corto` con `maxLength` → mismo hint bajo el input.
+- Bloque de referencias (`OptionReferencesView`/`PreviewOptionReferences`, cualquier superficie: pregunta/opción/sub-opción/celda) con `maxUrls` → `máximo N permitidos` bajo la lista.
+
+### Orden de renderizado por celda (Runtime/Preview)
+
+Se mantiene el orden de VS-069, con el nuevo elemento solo en la rama `casilla`:
+
+- Cualquier tipo editable: `references` → `extraFields` (siempre visibles) → `content` → control principal → (hints bajo cada control).
+- `casilla`: `references` → `content` → checkbox(+`checkboxLabel`) → **si está marcada: `revealContent` → `extraFields` gated** → (hints bajo cada campo revelado).
+
+### Runtime (`FormTableView`) y Preview (`PreviewTableView`)
+
+En la rama `casilla`, tras el `<label>` del checkbox y antes de `ExtraFieldsView` gated: `{cellCfg.revealContent && checked && <RichLabel html={cellCfg.revealContent} />}`. El `cellCfg` deriva del schema (`FormTableRows[number]["cells"][number]`), el campo llega gratis sin duplicar tipos a mano. Hints: spans de presentación en `SubOptionFieldView` (rama `texto_corto`), la rama `texto` de `FormTableView`/`PreviewTableView`, y `OptionReferencesView`/`PreviewOptionReferences` (junto a la lista de slots).
+
+### Builder (`TableConfigEditor`)
+
+- Nueva acción `duplicateColumn(columnId)` + botón "Duplicar columna" en el footer del panel de celda expandida (`.table-config-grid__cell-footer`). Inserción a la derecha de la original: la nueva columna se agrega al array `columns` inmediatamente después del índice de la original, y cada fila recibe la celda clonada con `columnId` nuevo.
+- Clonación profunda con ids regenerados: `options` y `extraFields` (que contienen sub-ids: `options[].id`, `extraFields[].options[].id`) se clonan generando ids nuevos — sin esto, dos celdas de columnas distintas compartirían ids de opción y el Runtime colisionaría en las claves de respuesta (el valor guardado es el `id` de la opción).
+- Campo "Texto fijo revelado al marcar (opcional)" (`RichTextEditor`) en la config de una celda `casilla` editable, junto a "Etiqueta de la casilla". Cambiar el `cellType` de una celda resetea `revealContent` (solo tiene sentido para `casilla`, mismo criterio que `checkboxLabel`).
+- `cellPreviewText` (chip colapsado): para `casilla`, el extracto considera `revealContent` como tercer candidato tras `content`/`checkboxLabel` — el admin ve qué revela la casilla sin expandir la celda.
+
+### Exportación (`evaluation-export.ts`)
+
+Sin cambios — `revealContent` es presentación (mismo criterio que `content`: no se exporta), el export ya resuelve `extraFields` gated correctamente (`resolveExtraFields`, VS-069).
+
+### Fuera de alcance (explícito)
+
+- **Duplicar FILA** — el caso real duplica columnas (las filas "Caso de negocio"/"Estrategias" difieren entre sí); aditivo si aparece, mismo patrón que `duplicateColumn`.
+- **Copiar/pegar una celda individual entre posiciones** — la duplicación de columna cubre el caso real; una operación de copia más granular es aditiva si el usuario la pide.
+- **Hints en el Builder** — los hints son orientación del EVALUADO (Runtime/Preview); el Builder ya muestra placeholders/ayudas propias ("1 = sin combinar", "ej. ...").
+- **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento, por instrucción explícita del usuario.

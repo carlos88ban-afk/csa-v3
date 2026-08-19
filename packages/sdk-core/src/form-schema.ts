@@ -148,6 +148,16 @@ const formTableCell = z.object({
   // marcando) — distinto de `content` (título/descripción de la celda,
   // ANTES del control). Solo aplica si cellType === "casilla".
   checkboxLabel: z.string().optional(),
+  // VS-070 (docs/engines/form.md "Contenido fijo revelado en celdas casilla
+  // + duplicar columna + hints"): contenido fijo (rich text) que se muestra
+  // DENTRO del área revelada de una celda "casilla", tras marcar el
+  // checkbox, ANTES de los extraFields. Distinto de `content` (siempre
+  // visible, antes del control) y de `checkboxLabel` (etiqueta del propio
+  // checkbox, siempre visible). Hallazgo real (MAT_MaterialIssues_Selection,
+  // filas "Caso de negocio"/"Estrategias empresariales"): un párrafo fijo
+  // aparece recién al marcar, junto a los campos. Solo aplica si
+  // cellType === "casilla" (el único tipo con área revelada condicional).
+  revealContent: z.string().optional(),
   // VS-069 (docs/engines/form.md "Referencias y campos adicionales por
   // celda"): reemplaza el `revealField: subOptionField` singular de VS-065
   // — reemplazo limpio, mismo criterio ya aplicado en VS-065

@@ -577,6 +577,10 @@ function PreviewTableView({
                         />
                         {cellCfg.checkboxLabel ? <RichLabel html={cellCfg.checkboxLabel} /> : <span className="sr-only">Marcar</span>}
                       </label>
+                      {/* VS-070: contenido fijo DENTRO del área revelada (tras
+                          marcar), antes de los campos — nota equivalente en
+                          Runtime (page.tsx). */}
+                      {cellCfg.revealContent && checked && <RichLabel html={cellCfg.revealContent} />}
                       {/* VS-069: reemplaza el revealField singular de
                           VS-065 — ver nota equivalente en Runtime (page.tsx). */}
                       {cellCfg.extraFields && checked && (
@@ -620,6 +624,8 @@ function PreviewTableView({
                       maxLength={cellMaxLength}
                       onChange={(e) => updateCell(row.id, col.id, e.target.value, table, onChange)}
                     />
+                    {/* VS-070: hint de límite, réplica del HTML real de S&P. */}
+                    {cellMaxLength && <span className="runtime-hint">máximo {cellMaxLength} caracteres</span>}
                   </td>
                 );
               })}
@@ -662,7 +668,13 @@ function PreviewSubOptionField({
     );
   }
   if (field.type === "texto_corto") {
-    return <input value={(value as string) ?? ""} maxLength={field.maxLength} onChange={(e) => onChange(e.target.value)} />;
+    return (
+      <>
+        <input value={(value as string) ?? ""} maxLength={field.maxLength} onChange={(e) => onChange(e.target.value)} />
+        {/* VS-070: hint de límite, réplica del HTML real de S&P. */}
+        {field.maxLength && <span className="runtime-hint">máximo {field.maxLength} caracteres</span>}
+      </>
+    );
   }
   return (
     <span className="runtime-question__number-with-unit">
@@ -788,7 +800,13 @@ function PreviewOptionReferences({
   className: string;
 }) {
   if (refType !== "flexible") {
-    return <PreviewUrlList maxUrls={maxUrls} value={value} onChange={onChange} className={className} />;
+    return (
+      <>
+        <PreviewUrlList maxUrls={maxUrls} value={value} onChange={onChange} className={className} />
+        {/* VS-070: hint de límite, réplica del HTML real de S&P. */}
+        <span className="runtime-hint">máximo {maxUrls} permitidos</span>
+      </>
+    );
   }
 
   const slots = Array.isArray(value) ? value : [];
@@ -856,6 +874,8 @@ function PreviewOptionReferences({
           Agregar referencia
         </button>
       )}
+      {/* VS-070: hint de límite, réplica del HTML real de S&P. */}
+      <span className="runtime-hint">máximo {maxUrls} permitidos</span>
     </div>
   );
 }
