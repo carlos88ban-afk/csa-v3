@@ -2208,6 +2208,27 @@ input[type="checkbox"] {
   position: relative;
 }
 
+/* VS-076 (docs/engines/form.md "Fase 2: Builder emite components reales"):
+   una celda ahora apila N componentes independientes, cada uno su propio
+   chip + popover — antes era un único chip por celda (Fase 1). */
+.table-config-cell-components {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.table-config-cell-component {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  cursor: grab;
+}
+
+.table-config-cell-component:active {
+  cursor: grabbing;
+}
+
 .table-config-grid__chip {
   display: inline-flex;
   align-items: baseline;

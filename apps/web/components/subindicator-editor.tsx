@@ -3,12 +3,14 @@
 import {
   FormulaSyntaxError,
   componentRegistry,
+  normalizeCellComponents,
   parseFormula,
   questionNumber,
   stripCommentHtml,
   type Condition,
   type FormElement,
   type Subindicator,
+  type TableCellComponent,
   type TablaDatosConfig,
 } from "@plataforma-csa/sdk-core";
 import { useEffect, useRef, useState } from "react";
@@ -157,48 +159,60 @@ type TableConfigRows = TablaDatosConfig["rows"];
 // quiere que una celda actúe como encabezado, la marca "solo lectura" con
 // el texto que corresponda — mismo mecanismo que cualquier otra celda fija.
 type TableConfigCell = TableConfigRows[number]["cells"][number];
-// VS-069 (docs/engines/form.md "Referencias y campos adicionales por
-// celda"): mismo tipo `subOptionField` que sub.field/opt.field, alias local
-// porque `TableConfigEditor` es un componente hermano de `SubindicatorEditor`
-// (donde vive el alias `SubOptionField` original), sin acceso a sus tipos
-// internos. Reemplaza `CellRevealField` (VS-065, singular) — ahora es el
-// tipo de ELEMENTO del array `extraFields`.
-type CellExtraField = NonNullable<TableConfigCell["extraFields"]>[number];
 
-// VS-071 (docs/engines/form.md "Panel lateral drag & drop para tipo de
-// celda"): tarjetas arrastrables del panel lateral — no son tipos nuevos,
-// son atajos visuales a las mismas combinaciones cellType/editable que ya
-// ofrecía el <select> manual. "Calculado" queda fuera a propósito (ver
-// abajo, botón aparte): es de solo lectura, no hay "valor" que arrastrar.
-type CellPalettePatch = { cellType: TableConfigCell["cellType"]; editable?: boolean };
-type CellPaletteItem = { key: string; label: string; patch: CellPalettePatch };
+// VS-076 (docs/engines/form.md "Fase 2: Builder emite components reales"):
+// tarjetas arrastrables del panel lateral — ahora cada una crea un
+// `TableCellComponent` independiente, agregado al array `components` de la
+// celda (nunca reemplaza lo que ya había, a diferencia de la Fase 1/VS-071).
+// "Calculado" ya puede arrastrarse como el resto: el riesgo que justificaba
+// tratarlo aparte en Fase 1 (perder configuración por un drop accidental)
+// no existe más — arrastrar siempre AGREGA, nunca reemplaza. `create()` en
+// vez de un objeto estático: cada drop necesita ids frescos propios (ej. la
+// opción default de "seleccion_desplegable"), no uno compartido entre todos
+// los drops de la sesión.
+type CellPaletteItem = { key: string; label: string; create: () => Omit<TableCellComponent, "id"> };
 
 const CELL_PALETTE_ITEMS: CellPaletteItem[] = [
-  { key: "fixed", label: "Texto fijo", patch: { cellType: "texto", editable: false } },
-  { key: "texto", label: "Campo de texto", patch: { cellType: "texto", editable: true } },
-  { key: "numero", label: "Número", patch: { cellType: "numero", editable: true } },
-  { key: "seleccion_desplegable", label: "Selección desplegable", patch: { cellType: "seleccion_desplegable", editable: true } },
-  { key: "casilla", label: "Casilla de verificación", patch: { cellType: "casilla", editable: true } },
-  { key: "referencia", label: "Referencia (archivo o enlace)", patch: { cellType: "referencia", editable: true } },
+  { key: "fixed", label: "Texto fijo", create: () => ({ type: "texto_fijo" }) },
+  { key: "texto", label: "Campo de texto", create: () => ({ type: "texto_corto" }) },
+  { key: "numero", label: "Número", create: () => ({ type: "numero" }) },
+  {
+    key: "seleccion_desplegable",
+    label: "Selección desplegable",
+    create: () => ({ type: "seleccion_desplegable", options: [{ id: crypto.randomUUID(), label: "" }] }),
+  },
+  { key: "casilla", label: "Casilla de verificación", create: () => ({ type: "casilla" }) },
+  { key: "referencia", label: "Referencia (archivo o enlace)", create: () => ({ type: "referencia" }) },
+  { key: "calculado", label: "Calculado", create: () => ({ type: "calculado", expression: "" }) },
 ];
 
-// VS-071: si la celda ya tiene contenido configurado, soltar una tarjeta
-// encima pide confirmación antes de reemplazar el control principal (y
-// resetear su config específica) — evita perder trabajo por un drop
-// accidental.
-function hasMeaningfulCellConfig(cell: TableConfigCell): boolean {
-  return Boolean(
-    (cell.content && stripCommentHtml(cell.content).trim()) ||
-      (cell.options && cell.options.length > 0) ||
-      (cell.extraFields && cell.extraFields.length > 0) ||
-      cell.references ||
-      (cell.checkboxLabel && stripCommentHtml(cell.checkboxLabel).trim()) ||
-      (cell.revealContent && stripCommentHtml(cell.revealContent).trim()) ||
-      (cell.expression && cell.expression.trim()) ||
-      cell.maxLength ||
-      cell.unit ||
-      (cell.availableUnits && cell.availableUnits.length > 0),
-  );
+// VS-076: etiqueta humana + extracto de texto por TIPO DE COMPONENTE (antes
+// era por celda completa, VS-066/071) — cada componente es su propio chip
+// ahora, no la celda entera.
+const COMPONENT_TYPE_LABEL: Record<TableCellComponent["type"], string> = {
+  texto_fijo: "Texto fijo",
+  texto_corto: "Campo de texto",
+  numero: "Número",
+  seleccion_desplegable: "Selección",
+  casilla: "Casilla",
+  referencia: "Referencia",
+  calculado: "Calculado",
+};
+
+function componentPreviewText(component: TableCellComponent): string | undefined {
+  const candidates: (string | undefined)[] = [
+    component.type === "texto_fijo" ? component.content : undefined,
+    component.type === "casilla" ? component.checkboxLabel : undefined,
+    component.type === "calculado" ? component.expression : undefined,
+    "label" in component ? component.label : undefined,
+  ];
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const plain = stripCommentHtml(raw).trim();
+    if (!plain) continue;
+    return plain.length > 30 ? `${plain.slice(0, 30)}…` : plain;
+  }
+  return undefined;
 }
 
 // VS-073 (docs/engines/form.md "Selección de celdas y Combinar/Separar
@@ -222,14 +236,21 @@ function TableConfigEditor({
   rows: TableConfigRows;
   onChange: (next: { columns: TableConfigColumns; rows: TableConfigRows }) => void;
 }) {
-  // Qué celda tiene su panel de configuración expandido — estado local, no
-  // persistido (mismo criterio que sectionOverrides del resto del Builder).
-  const [expandedCell, setExpandedCell] = useState<string | null>(null);
+  // VS-076: qué COMPONENTE (no celda entera, desde Fase 2) tiene su popover
+  // de configuración expandido — clave `${rowId}:${columnId}:${componentId}`,
+  // estado local, no persistido (mismo criterio que sectionOverrides).
+  const [expandedComponent, setExpandedComponent] = useState<string | null>(null);
 
   // VS-071: tarjeta de la paleta lateral actualmente arrastrada, y celda
   // bajo el cursor mientras dura el arrastre (solo para feedback visual).
   const [draggedItem, setDraggedItem] = useState<CellPaletteItem | null>(null);
   const [dragOverCellKey, setDragOverCellKey] = useState<string | null>(null);
+
+  // VS-076: componente siendo arrastrado DENTRO de una celda para
+  // reordenar — scope propio, distinto de `draggedItem` (paleta → celda,
+  // que siempre AGREGA). Solo se acepta un drop de reordenamiento si el
+  // componente de origen y el de destino son de la MISMA celda.
+  const [draggedComponentRef, setDraggedComponentRef] = useState<{ rowId: string; columnId: string; componentId: string } | null>(null);
 
   // VS-073: selección de celdas adyacentes de UNA fila para combinar/separar
   // — `selectionAnchor` es la celda donde empezó la selección (click o
@@ -293,37 +314,90 @@ function TableConfigEditor({
     clearSelection();
   }
 
-  // VS-071: aplica el tipo de una tarjeta de paleta a una celda — unifica
-  // "crear celda con este tipo" (celda en blanco) y "reemplazar el tipo de
-  // una celda existente" (mismo reset de config específica de tipo que ya
-  // hacía el <select> manual, ver más abajo, que ahora delega acá).
-  function applyCellPatch(rowId: string, columnId: string, patch: CellPalettePatch) {
-    const existing = rows.find((r) => r.id === rowId)?.cells.find((c) => c.columnId === columnId);
-    if (!existing) {
-      onChange({
-        columns,
-        rows: rows.map((r) =>
-          r.id === rowId ? { ...r, cells: [...r.cells, { columnId, cellType: patch.cellType, editable: patch.editable ?? true }] } : r,
-        ),
-      });
-      setExpandedCell(`${rowId}:${columnId}`);
-      return;
-    }
-    updateCell(rowId, columnId, {
-      cellType: patch.cellType,
-      unit: undefined,
-      availableUnits: undefined,
-      options: undefined,
-      maxLength: undefined,
-      expression: undefined,
-      checkboxLabel: undefined,
-      revealContent: undefined,
-      extraFields: undefined,
-      editable: patch.cellType === "calculado" ? true : (patch.editable ?? existing.editable),
+  // VS-076 (docs/engines/form.md "Fase 2: Builder emite components
+  // reales"): primer cambio del admin sobre una celda LEGACY (sin
+  // `components` propio) la materializa completa — toma el equivalente
+  // sintetizado por `normalizeCellComponents` y regenera sus ids
+  // deterministas (`legacy-*`) a `randomUUID()` reales, remapeando también
+  // los `gates` de una casilla para que sigan apuntando a sus hermanos
+  // correctos. A partir de acá es una celda "nueva": reordenar/eliminar/
+  // agregar componentes ya no tiene ambigüedad de qué respuesta ya guardada
+  // corresponde a cuál (a diferencia de `extraFields`, indexado por
+  // posición — ver "Fuera de alcance" de VS-071/073).
+  function materializeComponents(cell: TableConfigCell): TableCellComponent[] {
+    if (cell.components?.length) return cell.components;
+    const synthesized = normalizeCellComponents(cell);
+    const idMap = new Map(synthesized.map((c) => [c.id, crypto.randomUUID()]));
+    return synthesized.map((c) => {
+      const id = idMap.get(c.id)!;
+      return c.type === "casilla" && c.gates ? { ...c, id, gates: c.gates.map((g) => idMap.get(g) ?? g) } : { ...c, id };
     });
-    setExpandedCell(`${rowId}:${columnId}`);
   }
 
+  // Guarda el array `components` de una celda — vacío = quitar la celda
+  // entera (mismo resultado que "Quitar celda" ya existente; una celda sin
+  // ningún componente no tiene nada que mostrar).
+  function setCellComponents(rowId: string, columnId: string, components: TableCellComponent[]) {
+    if (components.length === 0) {
+      removeCell(rowId, columnId);
+      return;
+    }
+    updateCell(rowId, columnId, { components });
+  }
+
+  function addComponentToCell(rowId: string, columnId: string, cell: TableConfigCell | undefined, template: Omit<TableCellComponent, "id">) {
+    const base = cell ? materializeComponents(cell) : [];
+    const created = { ...template, id: crypto.randomUUID() } as TableCellComponent;
+    setCellComponents(rowId, columnId, [...base, created]);
+    setExpandedComponent(`${rowId}:${columnId}:${created.id}`);
+  }
+
+  function removeComponentFromCell(rowId: string, columnId: string, cell: TableConfigCell, componentId: string) {
+    const base = materializeComponents(cell);
+    const next = base
+      .filter((c) => c.id !== componentId)
+      .map((c) => (c.type === "casilla" && c.gates ? { ...c, gates: c.gates.filter((g) => g !== componentId) } : c));
+    setCellComponents(rowId, columnId, next);
+  }
+
+  function updateComponentInCell(rowId: string, columnId: string, cell: TableConfigCell, componentId: string, patch: Record<string, unknown>) {
+    const base = materializeComponents(cell);
+    const next = base.map((c) => (c.id === componentId ? ({ ...c, ...patch } as TableCellComponent) : c));
+    setCellComponents(rowId, columnId, next);
+  }
+
+  // Drag & drop nativo para reordenar DENTRO de una celda — mismo patrón
+  // que VS-049 (builder de jerarquía), scope = `${rowId}:${columnId}` para
+  // que un componente nunca se pueda "soltar" en otra celda.
+  function reorderComponentInCell(rowId: string, columnId: string, cell: TableConfigCell, fromId: string, toId: string) {
+    const base = materializeComponents(cell);
+    const fromIdx = base.findIndex((c) => c.id === fromId);
+    const toIdx = base.findIndex((c) => c.id === toId);
+    if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+    const next = [...base];
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved!);
+    setCellComponents(rowId, columnId, next);
+  }
+
+  // Un componente "casilla" revela a otros de la MISMA celda por id propio
+  // (`gates`) — reemplaza la regla implícita legacy ("extraFields siempre
+  // gated si cellType === casilla"), ver docs/engines/form.md.
+  function toggleComponentGate(rowId: string, columnId: string, cell: TableConfigCell, casillaId: string, targetId: string) {
+    const base = materializeComponents(cell);
+    const next = base.map((c) => {
+      if (c.id !== casillaId || c.type !== "casilla") return c;
+      const gates = c.gates ?? [];
+      return { ...c, gates: gates.includes(targetId) ? gates.filter((g) => g !== targetId) : [...gates, targetId] };
+    });
+    setCellComponents(rowId, columnId, next);
+  }
+
+  // VS-076: soltar una tarjeta de la paleta siempre AGREGA un componente al
+  // final del array de esa celda — nunca reemplaza (a diferencia de la
+  // Fase 1/VS-071, cuyo modelo de 1-control-por-celda sí necesitaba
+  // confirmación de reemplazo). Sin `window.confirm`: ya no hay nada que
+  // perder.
   function handleCellDrop(e: React.DragEvent, rowId: string, columnId: string) {
     e.preventDefault();
     e.stopPropagation();
@@ -332,22 +406,7 @@ function TableConfigEditor({
     setDraggedItem(null);
     if (!item) return;
     const existing = rows.find((r) => r.id === rowId)?.cells.find((c) => c.columnId === columnId);
-    if (existing && hasMeaningfulCellConfig(existing)) {
-      const ok = window.confirm(
-        `Esta celda ya tiene contenido configurado. ¿Reemplazar su control por "${item.label}"? Se perderá la configuración específica del tipo anterior.`,
-      );
-      if (!ok) return;
-    }
-    applyCellPatch(rowId, columnId, item.patch);
-  }
-
-  // VS-071: "Calculado" no se arrastra (es de solo lectura, sin "valor" que
-  // soltar) — se aplica por click a la celda actualmente expandida.
-  function applyCalculadoToExpanded() {
-    if (!expandedCell) return;
-    const [rowId, columnId] = expandedCell.split(":");
-    if (!rowId || !columnId) return;
-    applyCellPatch(rowId, columnId, { cellType: "calculado" });
+    addComponentToCell(rowId, columnId, existing, item.create());
   }
 
   function removeColumn(columnId: string) {
@@ -430,7 +489,6 @@ function TableConfigEditor({
       columns,
       rows: rows.map((r) => (r.id === rowId ? { ...r, cells: [...r.cells, { columnId, cellType: "texto", editable: true }] } : r)),
     });
-    setExpandedCell(`${rowId}:${columnId}`);
   }
 
   function removeCell(rowId: string, columnId: string) {
@@ -467,245 +525,218 @@ function TableConfigEditor({
     });
   }
 
-  function addCellOption(rowId: string, columnId: string, current: TableConfigCell | undefined) {
-    updateCell(rowId, columnId, { options: [...(current?.options ?? []), { id: crypto.randomUUID(), label: "" }] });
+  // VS-076: CRUD de las opciones de un componente "seleccion_desplegable" —
+  // mismo patrón que el CRUD de opciones legacy (VS-016/022), ahora
+  // parametrizado por `componentId` en vez de operar sobre la celda entera.
+  function addComponentOption(rowId: string, columnId: string, cell: TableConfigCell, componentId: string, currentOptions: { id: string; label: string }[]) {
+    updateComponentInCell(rowId, columnId, cell, componentId, { options: [...currentOptions, { id: crypto.randomUUID(), label: "" }] });
   }
 
-  function updateCellOption(rowId: string, columnId: string, optionId: string, label: string, current: TableConfigCell | undefined) {
-    updateCell(rowId, columnId, { options: (current?.options ?? []).map((o) => (o.id === optionId ? { ...o, label } : o)) });
-  }
-
-  function removeCellOption(rowId: string, columnId: string, optionId: string, current: TableConfigCell | undefined) {
-    if ((current?.options?.length ?? 0) <= 1) return;
-    updateCell(rowId, columnId, { options: (current?.options ?? []).filter((o) => o.id !== optionId) });
-  }
-
-  // VS-069 (docs/engines/form.md "Referencias y campos adicionales por
-  // celda"): CRUD del array `extraFields` — reemplaza el flujo "Agregar
-  // campo al marcar…" de un solo campo (VS-065). Disponible para cualquier
-  // cellType editable, no solo "casilla" — el gating (revelado tras marcar
-  // vs. siempre visible) lo decide Runtime/Preview según el tipo, no acá.
-  function addCellExtraField(rowId: string, columnId: string, type: CellExtraField["type"], current: TableConfigCell | undefined) {
-    const field: CellExtraField =
-      type === "seleccion_desplegable"
-        ? { type: "seleccion_desplegable", options: [{ id: crypto.randomUUID(), label: "" }] }
-        : type === "texto_corto"
-          ? { type: "texto_corto" }
-          : { type: "numero" };
-    updateCell(rowId, columnId, { extraFields: [...(current?.extraFields ?? []), field] });
-  }
-
-  function updateCellExtraField(
+  function updateComponentOption(
     rowId: string,
     columnId: string,
-    index: number,
-    patch: Partial<CellExtraField>,
-    current: TableConfigCell | undefined,
+    cell: TableConfigCell,
+    componentId: string,
+    optionId: string,
+    label: string,
+    currentOptions: { id: string; label: string }[],
   ) {
-    updateCell(rowId, columnId, {
-      extraFields: (current?.extraFields ?? []).map((f, i) => (i === index ? ({ ...f, ...patch } as CellExtraField) : f)),
-    });
+    updateComponentInCell(rowId, columnId, cell, componentId, { options: currentOptions.map((o) => (o.id === optionId ? { ...o, label } : o)) });
   }
 
-  function removeCellExtraField(rowId: string, columnId: string, index: number, current: TableConfigCell | undefined) {
-    updateCell(rowId, columnId, { extraFields: (current?.extraFields ?? []).filter((_, i) => i !== index) });
+  function removeComponentOption(rowId: string, columnId: string, cell: TableConfigCell, componentId: string, optionId: string, currentOptions: { id: string; label: string }[]) {
+    if (currentOptions.length <= 1) return;
+    updateComponentInCell(rowId, columnId, cell, componentId, { options: currentOptions.filter((o) => o.id !== optionId) });
   }
 
-  // VS-069 (docs/engines/form.md "Referencias y campos adicionales por
-  // celda"): editor de la lista `extraFields` — un único bloque reusado
-  // desde 2 lugares (celda "casilla", gated tras marcar; cualquier otro tipo
-  // editable, siempre visible), parametrizado solo por el texto del
-  // encabezado — el gating real vive en Runtime/Preview, no acá.
-  function renderExtraFields(row: TableConfigRows[number], col: TableConfigColumns[number], cell: TableConfigCell, heading: string) {
-    return (
-      <div className="sub-options" style={{ marginLeft: "var(--space-4)" }}>
-        <span className="field__label">{heading}</span>
-        {(cell.extraFields ?? []).map((field, index) => (
-          <div key={index}>
-            <div className="option-row option-row--sub">
-              <span className="field__label">
-                {field.type === "seleccion_desplegable" && "Selección desplegable"}
-                {field.type === "texto_corto" && "Texto corto"}
-                {field.type === "numero" && "Número"}
-              </span>
+  // VS-076: campos de configuración de UN componente — reemplaza el switch
+  // gigante por `cellType` de la Fase 1 (VS-071), ahora mucho más chico
+  // porque cada componente ya no necesita cargar con las ramas de los
+  // demás (gating de casilla, referencias/extraFields "compañeros",
+  // editable/contenido fijo — todo eso ahora son componentes hermanos
+  // independientes, no secciones condicionales dentro de un mismo switch).
+  function renderComponentFields(
+    row: TableConfigRows[number],
+    col: TableConfigColumns[number],
+    cell: TableConfigCell,
+    component: TableCellComponent,
+    siblings: TableCellComponent[],
+  ) {
+    const patch = (p: Record<string, unknown>) => updateComponentInCell(row.id, col.id, cell, component.id, p);
+    switch (component.type) {
+      case "texto_fijo":
+        return (
+          <label className="field">
+            <span className="field__label">Contenido</span>
+            <RichTextEditor value={component.content ?? ""} onChange={(html) => patch({ content: html })} ariaLabel="Contenido del texto fijo" />
+          </label>
+        );
+      case "texto_corto":
+        return (
+          <>
+            <label className="field">
+              <span className="field__label">Etiqueta (opcional)</span>
+              <input value={component.label ?? ""} onChange={(e) => patch({ label: e.target.value === "" ? undefined : e.target.value })} />
+            </label>
+            <label className="field">
+              <span className="field__label">Longitud máxima</span>
               <input
-                placeholder="Etiqueta (opcional)"
-                value={field.label ?? ""}
-                onChange={(e) =>
-                  updateCellExtraField(row.id, col.id, index, { label: e.target.value === "" ? undefined : e.target.value }, cell)
+                type="number"
+                value={component.maxLength ?? ""}
+                onChange={(e) => patch({ maxLength: e.target.value === "" ? undefined : Number(e.target.value) })}
+              />
+            </label>
+          </>
+        );
+      case "numero":
+        return (
+          <div className="field-grid">
+            <label className="field">
+              <span className="field__label">Etiqueta (opcional)</span>
+              <input value={component.label ?? ""} onChange={(e) => patch({ label: e.target.value === "" ? undefined : e.target.value })} />
+            </label>
+            <label className="field">
+              <span className="field__label">Unidad</span>
+              <input
+                value={component.unit ?? ""}
+                placeholder="ej. met. ton. CO2e, %"
+                onChange={(e) => patch({ unit: e.target.value === "" ? undefined : e.target.value })}
+              />
+            </label>
+            <label className="field">
+              <span className="field__label">Unidades separadas por comas</span>
+              <input
+                key={`${component.id}-units`}
+                defaultValue={component.availableUnits?.join(", ") ?? ""}
+                placeholder="ej. MWh, GJ, kWh"
+                onBlur={(e) =>
+                  patch({
+                    availableUnits:
+                      e.target.value.trim() === "" ? undefined : e.target.value.split(",").map((s) => s.trim()).filter((s) => s.length > 0),
+                  })
                 }
               />
-              <Button type="button" variant="danger" size="sm" onClick={() => removeCellExtraField(row.id, col.id, index, cell)}>
-                Quitar
-              </Button>
-            </div>
-            {field.type === "seleccion_desplegable" && (
-              <div className="options" style={{ marginLeft: "var(--space-4)" }}>
-                {field.options.map((fo) => (
-                  <div className="option-row option-row--sub" key={fo.id}>
-                    <div className="option-row__editor">
-                      <RichTextEditor
-                        value={fo.label}
-                        onChange={(html) =>
-                          updateCellExtraField(
-                            row.id,
-                            col.id,
-                            index,
-                            { options: field.options.map((o) => (o.id === fo.id ? { ...o, label: html } : o)) },
-                            cell,
-                          )
-                        }
-                        ariaLabel="Texto de la opción del campo"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      size="sm"
-                      onClick={() =>
-                        updateCellExtraField(row.id, col.id, index, { options: field.options.filter((o) => o.id !== fo.id) }, cell)
-                      }
-                      disabled={field.options.length <= 1}
-                    >
-                      Quitar
-                    </Button>
-                  </div>
-                ))}
+            </label>
+          </div>
+        );
+      case "seleccion_desplegable":
+        return (
+          <div className="sub-options">
+            {component.options.map((opt) => (
+              <div className="option-row option-row--sub" key={opt.id}>
+                <div className="option-row__editor">
+                  <RichTextEditor
+                    value={opt.label}
+                    onChange={(html) => updateComponentOption(row.id, col.id, cell, component.id, opt.id, html, component.options)}
+                    ariaLabel="Opción"
+                  />
+                </div>
                 <Button
                   type="button"
+                  variant="danger"
                   size="sm"
-                  onClick={() =>
-                    updateCellExtraField(
-                      row.id,
-                      col.id,
-                      index,
-                      { options: [...field.options, { id: crypto.randomUUID(), label: "" }] },
-                      cell,
-                    )
-                  }
+                  onClick={() => removeComponentOption(row.id, col.id, cell, component.id, opt.id, component.options)}
+                  disabled={component.options.length <= 1}
                 >
-                  Agregar opción
+                  Quitar
                 </Button>
               </div>
-            )}
-            {field.type === "texto_corto" && (
-              <label className="field" style={{ marginLeft: "var(--space-4)" }}>
-                <span className="field__label">Longitud máxima</span>
-                <input
-                  type="number"
-                  value={field.maxLength ?? ""}
-                  onChange={(e) =>
-                    updateCellExtraField(row.id, col.id, index, { maxLength: e.target.value === "" ? undefined : Number(e.target.value) }, cell)
-                  }
-                />
-              </label>
-            )}
-            {field.type === "numero" && (
-              <div className="field-grid" style={{ marginLeft: "var(--space-4)" }}>
-                <label className="field">
-                  <span className="field__label">Mínimo</span>
-                  <input
-                    type="number"
-                    value={field.min ?? ""}
-                    onChange={(e) =>
-                      updateCellExtraField(row.id, col.id, index, { min: e.target.value === "" ? undefined : Number(e.target.value) }, cell)
-                    }
-                  />
-                </label>
-                <label className="field">
-                  <span className="field__label">Máximo</span>
-                  <input
-                    type="number"
-                    value={field.max ?? ""}
-                    onChange={(e) =>
-                      updateCellExtraField(row.id, col.id, index, { max: e.target.value === "" ? undefined : Number(e.target.value) }, cell)
-                    }
-                  />
-                </label>
-                <label className="field">
-                  <span className="field__label">Unidad</span>
-                  <input
-                    value={field.unit ?? ""}
-                    onChange={(e) =>
-                      updateCellExtraField(row.id, col.id, index, { unit: e.target.value === "" ? undefined : e.target.value }, cell)
-                    }
-                  />
-                </label>
+            ))}
+            <Button type="button" size="sm" onClick={() => addComponentOption(row.id, col.id, cell, component.id, component.options)}>
+              Agregar opción
+            </Button>
+          </div>
+        );
+      case "casilla": {
+        // VS-076: reemplaza el gating implícito legacy ("extraFields de una
+        // casilla siempre se revelan al marcar") por una relación explícita
+        // — el admin elige QUÉ componentes hermanos revela esta casilla.
+        const otherComponents = siblings.filter((c) => c.id !== component.id);
+        return (
+          <>
+            <label className="field">
+              <span className="field__label">Etiqueta de la casilla</span>
+              <RichTextEditor value={component.checkboxLabel ?? ""} onChange={(html) => patch({ checkboxLabel: html })} ariaLabel="Etiqueta de la casilla" />
+            </label>
+            {otherComponents.length > 0 && (
+              <div className="sub-options">
+                <span className="field__label">Revela estos elementos al marcarse:</span>
+                {otherComponents.map((sibling) => {
+                  const siblingPreview = componentPreviewText(sibling);
+                  return (
+                    <label className="field field--checkbox" key={sibling.id}>
+                      <input
+                        type="checkbox"
+                        checked={(component.gates ?? []).includes(sibling.id)}
+                        onChange={() => toggleComponentGate(row.id, col.id, cell, component.id, sibling.id)}
+                      />
+                      <span className="field__label">
+                        {COMPONENT_TYPE_LABEL[sibling.type]}
+                        {siblingPreview ? ` — ${siblingPreview}` : ""}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             )}
+          </>
+        );
+      }
+      case "referencia":
+        return (
+          <div className="field-grid">
+            <label className="field">
+              <span className="field__label">Máximo de referencias</span>
+              <input
+                type="number"
+                min={1}
+                value={component.references?.maxUrls ?? ""}
+                placeholder="3"
+                onChange={(e) =>
+                  patch({ references: { ...component.references, maxUrls: e.target.value === "" ? undefined : Number(e.target.value) } })
+                }
+              />
+            </label>
+            <label className="field">
+              <span className="field__label">Tipo de referencia</span>
+              <select
+                value={component.references?.refType ?? "public"}
+                onChange={(e) => patch({ references: { ...component.references, refType: e.target.value === "flexible" ? "flexible" : undefined } })}
+              >
+                <option value="public">URL pública</option>
+                <option value="flexible">Flexible (URL o documento interno)</option>
+              </select>
+            </label>
           </div>
-        ))}
-        <select
-          value=""
-          onChange={(e) => {
-            if (!e.target.value) return;
-            addCellExtraField(row.id, col.id, e.target.value as CellExtraField["type"], cell);
-          }}
-        >
-          <option value="">Agregar campo…</option>
-          <option value="seleccion_desplegable">Selección desplegable</option>
-          <option value="texto_corto">Texto corto</option>
-          <option value="numero">Número</option>
-        </select>
-      </div>
-    );
-  }
-
-  // VS-069: referencias por celda, ya no exclusivas de cellType
-  // "referencia" — mismo par maxUrls/refType ya usado a nivel de
-  // Elemento/opción/sub-opción, disponible para cualquier celda editable.
-  function addCellReferences(rowId: string, columnId: string) {
-    updateCell(rowId, columnId, { references: {} });
-  }
-
-  function removeCellReferences(rowId: string, columnId: string) {
-    updateCell(rowId, columnId, { references: undefined });
-  }
-
-  function updateCellReferencesMaxUrls(rowId: string, columnId: string, maxUrls: number | undefined, current: TableConfigCell | undefined) {
-    updateCell(rowId, columnId, { references: { ...current?.references, maxUrls } });
-  }
-
-  function updateCellReferencesRefType(
-    rowId: string,
-    columnId: string,
-    refType: "public" | "flexible" | undefined,
-    current: TableConfigCell | undefined,
-  ) {
-    updateCell(rowId, columnId, { references: { ...current?.references, refType } });
-  }
-
-  const CELL_TYPE_LABEL: Record<TableConfigCell["cellType"], string> = {
-    texto: "Texto",
-    numero: "Número",
-    seleccion_desplegable: "Selección",
-    calculado: "Calculado",
-    casilla: "Casilla de verificación",
-    referencia: "Referencia (archivo o enlace)",
-  };
-
-  // VS-066 (docs/engines/form.md "Vista previa de contenido en el chip de
-  // celda"): antes el chip colapsado solo mostraba el tipo ("Fijo",
-  // "Texto"...) — el admin tenía que expandir cada celda para recordar qué
-  // había puesto. Ahora agrega un extracto del texto real de la celda, para
-  // que la grilla completa sea legible sin expandir nada.
-  function cellPreviewText(cell: TableConfigCell): string | undefined {
-    // VS-070: el extracto de una casilla considera lo que el evaluado
-    // marca (`checkboxLabel`) y, si no hay etiqueta, lo que revela al
-    // marcar (`revealContent`) — el admin ve qué revela la casilla sin
-    // expandir la celda.
-    const candidates = [
-      cell.content,
-      cell.cellType === "casilla" ? cell.checkboxLabel ?? cell.revealContent : undefined,
-      cell.cellType === "calculado" ? cell.expression : undefined,
-    ];
-    for (const raw of candidates) {
-      if (!raw) continue;
-      const plain = stripCommentHtml(raw).trim();
-      if (!plain) continue;
-      return plain.length > 40 ? `${plain.slice(0, 40)}…` : plain;
+        );
+      case "calculado":
+        return (
+          <label className="field">
+            <span className="field__label">Fórmula (referencia otras filas de esta columna con {"{"}filaId{"}"})</span>
+            <input value={component.expression} placeholder="ej. {r1}+{r2}+{r3}" onChange={(e) => patch({ expression: e.target.value })} />
+            {formulaError(component.expression) && (
+              <p className="alert" role="alert">
+                {formulaError(component.expression)}
+              </p>
+            )}
+            <div className="table-config-grid__formula-refs">
+              {rows
+                .map((r, i) => ({ r, i }))
+                .filter(({ r }) => r.id !== row.id)
+                .map(({ r, i }) => (
+                  <button
+                    type="button"
+                    key={r.id}
+                    className="table-config-grid__formula-ref"
+                    onClick={() => patch({ expression: `${component.expression}{${r.id}}` })}
+                  >
+                    Fila {i + 1}
+                  </button>
+                ))}
+            </div>
+          </label>
+        );
     }
-    return undefined;
   }
 
   // VS-073: selección válida para "Combinar" (≥2 columnas de la misma fila)
@@ -745,15 +776,6 @@ function TableConfigEditor({
             {item.label}
           </div>
         ))}
-        <button
-          type="button"
-          className="table-config-palette__card table-config-palette__card--action"
-          onClick={applyCalculadoToExpanded}
-          disabled={!expandedCell}
-          title={expandedCell ? "Aplicar a la celda seleccionada" : "Seleccioná (click) una celda primero"}
-        >
-          Calculado
-        </button>
       </div>
       <div className="table-config-grid-wrap">
         {combinableSelection && (
@@ -797,7 +819,7 @@ function TableConfigEditor({
             });
             return (
             <tr key={row.id}>
-              {columns.map((col, colIdx) => {
+              {columns.map((col) => {
                 if (coveredColumnIds.has(col.id)) return null;
                 const cell = row.cells.find((c) => c.columnId === col.id);
                 const cellKey = `${row.id}:${col.id}`;
@@ -832,396 +854,117 @@ function TableConfigEditor({
                     </td>
                   );
                 }
-                const editable = cell.editable !== false;
-                  // "calculado" es de solo lectura por naturaleza (lo llena
-                  // la fórmula, no el evaluado ni el admin) — es un tercer
-                  // modo de renderizado, no un caso de "editable"/"fijo".
-                  // Antes vivía dentro de la rama `editable`, así que
-                  // desmarcar "Editable" ocultaba la fórmula y la
-                  // reemplazaba por un editor de contenido fijo vacío,
-                  // perdiendo el acceso a la expresión sin borrar los datos
-                  // (bug real, hallado 2026-08-15 reproduciendo un reporte
-                  // de usuario: "no me permite construir tablas" con una
-                  // fila calculada de solo lectura).
-                  const isCalculado = cell.cellType === "calculado";
-                  const preview = cellPreviewText(cell);
-                  const isSelected = Boolean(selection && selection.rowId === row.id && selection.columnIds.includes(col.id));
-                  const cellClasses = [
-                    "table-config-grid__cell",
-                    dragOverCellKey === cellKey && "table-config-grid__cell--drop-active",
-                    isSelected && selection!.columnIds.length > 1 && "table-config-grid__cell--selected",
-                  ]
-                    .filter(Boolean)
-                    .join(" ");
-                  return (
-                    <td
-                      key={col.id}
-                      className={cellClasses}
-                      colSpan={cell.colSpan}
-                      onMouseDown={(e) => handleCellMouseDown(e, row.id, col.id)}
-                      onMouseEnter={() => handleCellMouseEnter(row.id, col.id)}
-                      onDragOver={(e) => {
-                        if (!draggedItem) return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
-                      onDragEnter={(e) => {
-                        if (!draggedItem) return;
-                        e.stopPropagation();
-                        setDragOverCellKey(cellKey);
-                      }}
-                      onDragLeave={(e) => {
-                        e.stopPropagation();
-                        setDragOverCellKey((k) => (k === cellKey ? null : k));
-                      }}
-                      onDrop={(e) => handleCellDrop(e, row.id, col.id)}
-                    >
-                      <button
-                        type="button"
-                        className="table-config-grid__chip"
-                        onClick={() => setExpandedCell(expandedCell === cellKey ? null : cellKey)}
-                        title={preview}
-                      >
-                        <span className="table-config-grid__chip-type">
-                          {isCalculado ? "Calculado" : editable ? CELL_TYPE_LABEL[cell.cellType] : "Fijo"}
-                        </span>
-                        {preview && <span className="table-config-grid__chip-preview">{preview}</span>}
-                      </button>
-                      <button
-                        type="button"
-                        className="table-config-grid__remove-cell"
-                        onClick={() => removeCell(row.id, col.id)}
-                        title="Quitar celda"
-                        aria-label="Quitar celda"
-                      >
-                        ×
-                      </button>
-                      {expandedCell === cellKey && (
-                        <div className="table-config-grid__cell-config">
-                          <label className="field">
-                            <span className="field__label">Tipo</span>
-                            <select
-                              value={cell.cellType}
-                              onChange={(e) => {
-                                // VS-071: delega a `applyCellPatch` — mismo
-                                // reset de config específica de tipo que
-                                // antes vivía acá a mano, ahora compartido
-                                // con el flujo de arrastrar una tarjeta de
-                                // la paleta. `references` NO se resetea (ver
-                                // `applyCellPatch`) — adjunto independiente
-                                // del tipo principal desde VS-069.
-                                applyCellPatch(row.id, col.id, { cellType: e.target.value as TableConfigCell["cellType"] });
-                              }}
-                            >
-                              <option value="texto">Texto</option>
-                              <option value="numero">Número</option>
-                              <option value="seleccion_desplegable">Selección desplegable</option>
-                              <option value="calculado">Calculado</option>
-                              <option value="casilla">Casilla de verificación</option>
-                              <option value="referencia">Referencia (archivo o enlace)</option>
-                            </select>
-                          </label>
-
-                          {columns.length - colIdx > 1 && (
-                            <label className="field">
-                              <span className="field__label">Combinar con columnas siguientes</span>
-                              <input
-                                type="number"
-                                min={1}
-                                max={columns.length - colIdx}
-                                value={cell.colSpan ?? 1}
-                                onChange={(e) => {
-                                  const n = e.target.value === "" ? 1 : Number(e.target.value);
-                                  updateCellColSpan(row.id, col.id, n > 1 ? n : undefined);
-                                }}
-                              />
-                              <span className="hint">1 = sin combinar (celda normal)</span>
-                            </label>
-                          )}
-
-                          {isCalculado ? (
-                            <label className="field">
-                              <span className="field__label">Fórmula (referencia otras filas de esta columna con {"{"}filaId{"}"})</span>
-                              <input
-                                value={cell.expression ?? ""}
-                                placeholder="ej. {r1}+{r2}+{r3}"
-                                onChange={(e) => updateCell(row.id, col.id, { expression: e.target.value })}
-                              />
-                              {formulaError(cell.expression ?? "") && (
-                                <p className="alert" role="alert">
-                                  {formulaError(cell.expression ?? "")}
-                                </p>
-                              )}
-                              <div className="table-config-grid__formula-refs">
-                                {rows
-                                  .map((r, i) => ({ r, i }))
-                                  .filter(({ r }) => r.id !== row.id)
-                                  .map(({ r, i }) => (
-                                    <button
-                                      type="button"
-                                      key={r.id}
-                                      className="table-config-grid__formula-ref"
-                                      onClick={() => updateCell(row.id, col.id, { expression: `${cell.expression ?? ""}{${r.id}}` })}
-                                    >
-                                      Fila {i + 1}
-                                    </button>
-                                  ))}
-                              </div>
-                            </label>
-                          ) : (
-                            <>
-                              <label className="field field--checkbox">
-                                <input
-                                  type="checkbox"
-                                  checked={editable}
-                                  onChange={(e) => updateCell(row.id, col.id, { editable: e.target.checked })}
-                                />
-                                <span className="field__label">{editable ? "Editable (lo llena el evaluado)" : "Solo lectura (contenido fijo)"}</span>
-                              </label>
-
-                              {!editable ? (
-                                <label className="field">
-                                  <span className="field__label">Contenido fijo</span>
-                                  <RichTextEditor
-                                    value={cell.content ?? ""}
-                                    onChange={(html) => updateCell(row.id, col.id, { content: html })}
-                                    ariaLabel="Contenido fijo de la celda"
-                                  />
-                                </label>
-                              ) : (
-                                <>
-                                  {/* VS-063 (docs/engines/form.md "Contenido
-                                      fijo como prefijo de una celda
-                                      editable"): mismo `content` que la rama
-                                      !editable, ahora renderizado ANTES del
-                                      control en vez de reemplazarlo. */}
-                                  <label className="field">
-                                    <span className="field__label">Texto fijo antes del control (opcional)</span>
-                                    <RichTextEditor
-                                      value={cell.content ?? ""}
-                                      onChange={(html) => updateCell(row.id, col.id, { content: html })}
-                                      ariaLabel="Texto fijo antes del control de la celda"
-                                    />
-                                  </label>
-
-                                  {cell.cellType === "texto" && (
-                                    <label className="field">
-                                      <span className="field__label">Longitud máxima</span>
-                                      <input
-                                        type="number"
-                                        value={cell.maxLength ?? ""}
-                                        onChange={(e) => updateCell(row.id, col.id, { maxLength: e.target.value === "" ? undefined : Number(e.target.value) })}
-                                      />
-                                    </label>
-                                  )}
-
-                                  {cell.cellType === "numero" && (
-                                    <div className="field-grid">
-                                      <label className="field">
-                                        <span className="field__label">Unidad</span>
-                                        <input
-                                          value={cell.unit ?? ""}
-                                          placeholder="ej. met. ton. CO2e, %"
-                                          onChange={(e) => updateCell(row.id, col.id, { unit: e.target.value === "" ? undefined : e.target.value })}
-                                        />
-                                      </label>
-                                      <label className="field">
-                                        <span className="field__label">Unidades separadas por comas</span>
-                                        <input
-                                          key={cellKey}
-                                          defaultValue={cell.availableUnits?.join(", ") ?? ""}
-                                          placeholder="ej. MWh, GJ, kWh"
-                                          onBlur={(e) =>
-                                            updateCell(row.id, col.id, {
-                                              availableUnits:
-                                                e.target.value.trim() === ""
-                                                  ? undefined
-                                                  : e.target.value.split(",").map((s) => s.trim()).filter((s) => s.length > 0),
-                                            })
-                                          }
-                                        />
-                                      </label>
-                                    </div>
-                                  )}
-
-                                  {cell.cellType === "seleccion_desplegable" && (
-                                    <div className="sub-options">
-                                      {(cell.options ?? []).map((opt) => (
-                                        <div className="option-row option-row--sub" key={opt.id}>
-                                          <div className="option-row__editor">
-                                            <RichTextEditor
-                                              value={opt.label}
-                                              onChange={(html) => updateCellOption(row.id, col.id, opt.id, html, cell)}
-                                              ariaLabel="Opción de celda"
-                                            />
-                                          </div>
-                                          <Button
-                                            type="button"
-                                            variant="danger"
-                                            size="sm"
-                                            onClick={() => removeCellOption(row.id, col.id, opt.id, cell)}
-                                            disabled={(cell.options?.length ?? 0) <= 1}
-                                          >
-                                            Quitar
-                                          </Button>
-                                        </div>
-                                      ))}
-                                      <Button type="button" size="sm" onClick={() => addCellOption(row.id, col.id, cell)}>
-                                        Agregar opción
-                                      </Button>
-                                    </div>
-                                  )}
-
-                                  {cell.cellType === "casilla" && (
-                                    <>
-                                      {/* VS-064 (docs/engines/form.md "Etiqueta
-                                          propia de una celda casilla"): texto de
-                                          la propia casilla — distinto de "Texto
-                                          fijo antes del control" de arriba (ese
-                                          es el título/descripción de la celda,
-                                          este es lo que el evaluado marca). */}
-                                      <label className="field">
-                                        <span className="field__label">Etiqueta de la casilla</span>
-                                        <RichTextEditor
-                                          value={cell.checkboxLabel ?? ""}
-                                          onChange={(html) => updateCell(row.id, col.id, { checkboxLabel: html })}
-                                          ariaLabel="Etiqueta de la casilla"
-                                        />
-                                      </label>
-                                      {/* VS-070 (docs/engines/form.md
-                                          "Contenido fijo revelado en celdas
-                                          casilla"): párrafo fijo que aparece
-                                          DENTRO del área revelada, tras
-                                          marcar, ANTES de los campos —
-                                          hallazgo real
-                                          (MAT_MaterialIssues_Selection: "La
-                                          empresa presenta el caso de negocio
-                                          para este asunto relevante:").
-                                          Distinto de "Etiqueta de la casilla"
-                                          (siempre visible) y de "Texto fijo
-                                          antes del control" (siempre visible,
-                                          antes del checkbox). */}
-                                      <label className="field">
-                                        <span className="field__label">Texto fijo revelado al marcar (opcional)</span>
-                                        <RichTextEditor
-                                          value={cell.revealContent ?? ""}
-                                          onChange={(html) => updateCell(row.id, col.id, { revealContent: html })}
-                                          ariaLabel="Texto fijo revelado al marcar"
-                                        />
-                                      </label>
-                                      {renderExtraFields(row, col, cell, "Campos revelados al marcar")}
-                                    </>
-                                  )}
-
-                                  {/* VS-069 (docs/engines/form.md
-                                      "Referencias y campos adicionales por
-                                      celda"): campos "compañeros" SIEMPRE
-                                      visibles junto al control principal —
-                                      hallazgo real (MAT_MaterialIssues_Selection):
-                                      una celda seleccion_desplegable trae un
-                                      campo de texto libre mostrado siempre
-                                      junto al <select>, sin checkbox que lo
-                                      condicione. No aplica a "casilla" (ese
-                                      tipo ya tiene su propia sección arriba,
-                                      con gating distinto) ni a "referencia"
-                                      (sin control principal propio). */}
-                                  {cell.cellType !== "casilla" &&
-                                    cell.cellType !== "referencia" &&
-                                    renderExtraFields(row, col, cell, "Campos adicionales (siempre visibles)")}
-
-                                  {/* VS-067/VS-069 (docs/engines/form.md
-                                      "Referencias y campos adicionales por
-                                      celda"): mismo par maxUrls/refType ya
-                                      usado a nivel de Elemento/opción/
-                                      sub-opción (VS-039/045) — ya NO exclusivo
-                                      de cellType "referencia" (hallazgo real:
-                                      una celda seleccion_desplegable puede
-                                      adjuntar referencias Y ADEMÁS tener su
-                                      propio control principal). Para
-                                      "referencia" sigue siendo la config
-                                      COMPLETA de la celda (sin botón
-                                      "Agregar…"); para el resto es opcional. */}
-                                  {cell.cellType === "referencia" ? (
-                                    <div className="field-grid">
-                                      <label className="field">
-                                        <span className="field__label">Máximo de referencias</span>
-                                        <input
-                                          type="number"
-                                          min={1}
-                                          value={cell.references?.maxUrls ?? ""}
-                                          placeholder="3"
-                                          onChange={(e) => updateCellReferencesMaxUrls(row.id, col.id, e.target.value === "" ? undefined : Number(e.target.value), cell)}
-                                        />
-                                      </label>
-                                      <label className="field">
-                                        <span className="field__label">Tipo de referencia</span>
-                                        <select
-                                          value={cell.references?.refType ?? "public"}
-                                          onChange={(e) => updateCellReferencesRefType(row.id, col.id, e.target.value === "flexible" ? "flexible" : undefined, cell)}
-                                        >
-                                          <option value="public">URL pública</option>
-                                          <option value="flexible">Flexible (URL o documento interno)</option>
-                                        </select>
-                                      </label>
-                                    </div>
-                                  ) : cell.references ? (
-                                    <div className="field-grid">
-                                      <label className="field">
-                                        <span className="field__label">Máximo de referencias</span>
-                                        <input
-                                          type="number"
-                                          min={1}
-                                          value={cell.references.maxUrls ?? ""}
-                                          placeholder="3"
-                                          onChange={(e) => updateCellReferencesMaxUrls(row.id, col.id, e.target.value === "" ? undefined : Number(e.target.value), cell)}
-                                        />
-                                      </label>
-                                      <label className="field">
-                                        <span className="field__label">Tipo de referencia</span>
-                                        <select
-                                          value={cell.references.refType ?? "public"}
-                                          onChange={(e) => updateCellReferencesRefType(row.id, col.id, e.target.value === "flexible" ? "flexible" : undefined, cell)}
-                                        >
-                                          <option value="public">URL pública</option>
-                                          <option value="flexible">Flexible (URL o documento interno)</option>
-                                        </select>
-                                      </label>
-                                      <Button type="button" variant="danger" size="sm" onClick={() => removeCellReferences(row.id, col.id)}>
-                                        Quitar referencias
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <Button type="button" size="sm" onClick={() => addCellReferences(row.id, col.id)}>
-                                      Agregar referencias
-                                    </Button>
-                                  )}
-                                </>
-                              )}
-                            </>
-                          )}
-                          <div className="table-config-grid__cell-footer">
-                            <Button type="button" variant="danger" size="sm" onClick={() => removeRow(row.id)} disabled={rows.length <= 1}>
-                              Quitar fila
-                            </Button>
-                            {/* VS-070: duplicar la columna completa a la
-                                derecha (clonando la config de cada celda) —
-                                caso real: 3 columnas "Material N" idénticas. */}
-                            <Button
+                const components = normalizeCellComponents(cell);
+                const isSelected = Boolean(selection && selection.rowId === row.id && selection.columnIds.includes(col.id));
+                const cellClasses = [
+                  "table-config-grid__cell",
+                  dragOverCellKey === cellKey && "table-config-grid__cell--drop-active",
+                  isSelected && selection!.columnIds.length > 1 && "table-config-grid__cell--selected",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+                // VS-076: el footer de acciones de fila/columna aparece una
+                // sola vez por celda, cuando CUALQUIERA de sus componentes
+                // está expandido — evita repetirlo N veces (uno por
+                // componente) o esconderlo por completo.
+                const anyComponentExpanded = expandedComponent?.startsWith(`${row.id}:${col.id}:`) ?? false;
+                return (
+                  <td
+                    key={col.id}
+                    className={cellClasses}
+                    colSpan={cell.colSpan}
+                    onMouseDown={(e) => handleCellMouseDown(e, row.id, col.id)}
+                    onMouseEnter={() => handleCellMouseEnter(row.id, col.id)}
+                    onDragOver={(e) => {
+                      if (!draggedItem) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDragEnter={(e) => {
+                      if (!draggedItem) return;
+                      e.stopPropagation();
+                      setDragOverCellKey(cellKey);
+                    }}
+                    onDragLeave={(e) => {
+                      e.stopPropagation();
+                      setDragOverCellKey((k) => (k === cellKey ? null : k));
+                    }}
+                    onDrop={(e) => handleCellDrop(e, row.id, col.id)}
+                  >
+                    <div className="table-config-cell-components">
+                      {components.map((component) => {
+                        const componentKey = `${row.id}:${col.id}:${component.id}`;
+                        const preview = componentPreviewText(component);
+                        const isReordering =
+                          draggedComponentRef?.rowId === row.id &&
+                          draggedComponentRef.columnId === col.id &&
+                          draggedComponentRef.componentId !== component.id;
+                        return (
+                          <div
+                            key={component.id}
+                            className="table-config-cell-component"
+                            draggable
+                            onDragStart={(e) => {
+                              e.stopPropagation();
+                              e.dataTransfer.effectAllowed = "move";
+                              setDraggedComponentRef({ rowId: row.id, columnId: col.id, componentId: component.id });
+                            }}
+                            onDragEnd={() => setDraggedComponentRef(null)}
+                            onDragOver={(e) => {
+                              if (!isReordering) return;
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onDrop={(e) => {
+                              if (!isReordering || !draggedComponentRef) return;
+                              e.preventDefault();
+                              e.stopPropagation();
+                              reorderComponentInCell(row.id, col.id, cell, draggedComponentRef.componentId, component.id);
+                              setDraggedComponentRef(null);
+                            }}
+                          >
+                            <button
                               type="button"
-                              size="sm"
-                              onClick={() => duplicateColumn(col.id)}
-                              title="Duplicar esta columna a la derecha"
+                              className="table-config-grid__chip"
+                              onClick={() => setExpandedComponent(expandedComponent === componentKey ? null : componentKey)}
+                              title={preview}
                             >
-                              Duplicar columna
-                            </Button>
-                            <Button type="button" variant="danger" size="sm" onClick={() => removeColumn(col.id)} disabled={columns.length <= 1}>
-                              Quitar columna
-                            </Button>
+                              <span className="table-config-grid__chip-type">{COMPONENT_TYPE_LABEL[component.type]}</span>
+                              {preview && <span className="table-config-grid__chip-preview">{preview}</span>}
+                            </button>
+                            <button
+                              type="button"
+                              className="table-config-grid__remove-cell"
+                              onClick={() => removeComponentFromCell(row.id, col.id, cell, component.id)}
+                              title="Quitar componente"
+                              aria-label="Quitar componente"
+                            >
+                              ×
+                            </button>
+                            {expandedComponent === componentKey && (
+                              <div className="table-config-grid__cell-config">
+                                {renderComponentFields(row, col, cell, component, components)}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      )}
-                    </td>
-                  );
+                        );
+                      })}
+                    </div>
+                    {anyComponentExpanded && (
+                      <div className="table-config-grid__cell-footer">
+                        <Button type="button" variant="danger" size="sm" onClick={() => removeRow(row.id)} disabled={rows.length <= 1}>
+                          Quitar fila
+                        </Button>
+                        <Button type="button" size="sm" onClick={() => duplicateColumn(col.id)} title="Duplicar esta columna a la derecha">
+                          Duplicar columna
+                        </Button>
+                        <Button type="button" variant="danger" size="sm" onClick={() => removeColumn(col.id)} disabled={columns.length <= 1}>
+                          Quitar columna
+                        </Button>
+                      </div>
+                    )}
+                  </td>
+                );
                 })}
               {rowIdx === 0 && (
                 <td className="table-config-grid__add-col" rowSpan={rows.length}>

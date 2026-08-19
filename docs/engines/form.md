@@ -1849,3 +1849,33 @@ Diferida a VS-078 (cierre de la Fase 2): framework/evaluación QA temporal repli
 - **Un componente `calculado` que referencie un componente de otra tabla o de otro Elemento** — fuera del contrato actual de `engine/formula` (las referencias son dentro del mismo Subindicador/misma tabla); sin cambio de alcance en este slice.
 - **Reordenar/agregar/quitar componentes desde el Runtime** — la estructura de la celda la define el admin (Builder), igual criterio que el resto de `engine/form` (agregar/quitar filas o columnas de una tabla tampoco es potestad del evaluado).
 - **Componentes `texto_fijo`/`calculado` como target de `gates`** — un checkbox puede revelar cualquier componente, pero no tiene sentido "revelar" un `calculado` (se evalúa siempre) ni impedirlo; no se bloquea a nivel de schema por simplicidad, es una convención de uso del Builder, no una regla validada.
+
+## Builder de Fase 2: componentes reales, N independientes por celda (VS-076)
+
+Implementa el Builder sobre el schema/adaptador de VS-075. `TableConfigEditor` (`apps/web/components/subindicator-editor.tsx`) reemplaza el chip único por celda (Fase 1) por una pila vertical de chips, uno por `normalizeCellComponents(cell)[i]` — cada uno con su propio popover, botón "×" y drag-handle.
+
+### Materialización al primer edit
+
+`materializeComponents(cell)`: si `cell.components` ya existe, se usa tal cual; si no, toma `normalizeCellComponents(cell)` y **regenera** cada id `legacy-*` a un `crypto.randomUUID()` real (remapeando también los `gates` de una casilla, para que sigan apuntando a los ids nuevos de sus hermanos). Toda mutación (agregar/quitar/reordenar/editar un componente, o togglear un `gates`) pasa primero por acá — es el único punto donde una celda legacy se convierte en una celda "Fase 2" de verdad. `setCellComponents` es el único punto de escritura final: si el array queda vacío, quita la celda completa (mismo resultado que el botón "Quitar celda" ya existente) en vez de dejar una celda sin nada que mostrar.
+
+### Paleta: agregar ya no reemplaza
+
+A diferencia de la Fase 1 (donde soltar una tarjeta sobre una celda ocupada **reemplazaba** el control principal, con `window.confirm` de por medio porque había algo que perder), en la Fase 2 arrastrar una tarjeta **siempre agrega** un componente al final del array de esa celda — nunca hay nada que perder, así que el `window.confirm` desaparece. Esto también permite que **"Calculado" sea una tarjeta arrastrable más** (en Fase 1 quedaba fuera, con un botón aparte aplicado a la celda expandida, precisamente para evitar el riesgo de reemplazo accidental — riesgo que ya no existe).
+
+### Popover por componente, no por celda
+
+Cada componente tiene su propio popover (mismo mecanismo visual de VS-072, anclado — ahora al chip del componente, no a la celda completa, porque `.table-config-cell-component` también es `position: relative`). El contenido del popover se redujo mucho respecto al switch gigante de la Fase 1: ya no hay selector de tipo (arrastrar/soltar ya lo fija), ni toggle editable/fijo (un `texto_fijo` es su propio tipo de componente), ni secciones condicionales de "companions" (`extraFields`/`references` ya no son casos especiales — son, sencillamente, otros componentes en el mismo array). El único caso con UI propia es `casilla`: en vez del gating implícito legacy ("los `extraFields` de una casilla siempre se revelan al marcarla"), el popover muestra una lista de checkboxes — "Revela estos elementos al marcarse" — una por cada componente hermano, y el admin elige explícitamente cuáles quedan en el `gates` de esa casilla.
+
+### Reordenar y combinar
+
+Reordenar usa el mismo drag & drop nativo HTML5 que el resto del Builder (VS-049/VS-071), con scope `${rowId}:${columnId}` — un componente nunca puede soltarse fuera de su propia celda. La selección de celdas + Combinar/Separar (VS-073) no cambia: sigue operando sobre `colSpan` a nivel de celda, sin relación con los componentes que contiene.
+
+### Decisión menor: sin fallback numérico de `colSpan`
+
+La Fase 1 (VS-073) había dejado el input numérico "Combinar con columnas siguientes" coexistiendo dentro del popover de la celda, como fallback manual detrás de la selección+botón. Al mover la configuración a popovers **por componente** (no hay más "el popover de la celda"), ese fallback no tiene dónde vivir de forma natural — se retira. La selección de celdas + "Combinar celdas"/"Separar celdas" (VS-073) ya cubre el caso de uso real sin necesitar un segundo camino.
+
+### Fuera de alcance (explícito)
+
+- **Cambiar el tipo de un componente ya creado** — no es parte del pedido original (arrastrar/reordenar/configurar/eliminar); para cambiar de tipo, se quita el componente y se arrastra uno nuevo.
+- **Mover un componente de una celda a otra por drag & drop** — el scope de reordenamiento es intencionalmente por celda; no hay caso real pedido de mover contenido entre celdas.
+- **Verificación en producción con `pnpm dev`/typecheck/tests locales** — mismo criterio que el resto de este documento; verificación funcional en `csa-v3-web.vercel.app` vía Playwright MCP.
