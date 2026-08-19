@@ -907,15 +907,6 @@ function TableConfigEditor({
                           <div
                             key={component.id}
                             className="table-config-cell-component"
-                            draggable
-                            onDragStart={(e) => {
-                              e.stopPropagation();
-                              e.dataTransfer.effectAllowed = "move";
-                              draggedComponentRef.current = { rowId: row.id, columnId: col.id, componentId: component.id };
-                            }}
-                            onDragEnd={() => {
-                              draggedComponentRef.current = null;
-                            }}
                             onDragOver={(e) => {
                               const dragged = draggedComponentRef.current;
                               if (!dragged || dragged.rowId !== row.id || dragged.columnId !== col.id || dragged.componentId === component.id) return;
@@ -931,6 +922,33 @@ function TableConfigEditor({
                               draggedComponentRef.current = null;
                             }}
                           >
+                            {/* VS-076 fix: el drag debe INICIAR en un
+                                elemento dedicado, no en un <button> anidado
+                                — arrastrar desde un control interactivo es
+                                poco confiable tanto para un mouse real como
+                                para automatización (confirmado verificando
+                                en producción: el drag nunca completaba
+                                cuando `draggable` vivía en el wrapper y el
+                                mousedown caía sobre el chip). También es una
+                                mejora de UX real: un grip visible es una
+                                afordancia de "esto se arrastra" más clara
+                                que "arrastrá el texto". */}
+                            <span
+                              className="table-config-cell-component__handle"
+                              draggable
+                              aria-hidden="true"
+                              title="Arrastrar para reordenar"
+                              onDragStart={(e) => {
+                                e.stopPropagation();
+                                e.dataTransfer.effectAllowed = "move";
+                                draggedComponentRef.current = { rowId: row.id, columnId: col.id, componentId: component.id };
+                              }}
+                              onDragEnd={() => {
+                                draggedComponentRef.current = null;
+                              }}
+                            >
+                              ⠿
+                            </span>
                             <button
                               type="button"
                               className="table-config-grid__chip"

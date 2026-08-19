@@ -2222,10 +2222,19 @@ input[type="checkbox"] {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  cursor: grab;
 }
 
-.table-config-cell-component:active {
+/* VS-076 fix: grip dedicado para iniciar el drag — no el chip completo (que
+   es un <button> con su propio click). */
+.table-config-cell-component__handle {
+  cursor: grab;
+  color: var(--ink-muted);
+  padding: 0 2px;
+  line-height: 1;
+  user-select: none;
+}
+
+.table-config-cell-component__handle:active {
   cursor: grabbing;
 }
 
