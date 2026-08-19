@@ -250,7 +250,15 @@ function TableConfigEditor({
   // reordenar — scope propio, distinto de `draggedItem` (paleta → celda,
   // que siempre AGREGA). Solo se acepta un drop de reordenamiento si el
   // componente de origen y el de destino son de la MISMA celda.
-  const [draggedComponentRef, setDraggedComponentRef] = useState<{ rowId: string; columnId: string; componentId: string } | null>(null);
+  // `useRef`, no `useState`: `onDragStart` y el `onDragOver`/`onDrop` que lo
+  // consultan pueden dispararse en la misma ráfaga de eventos nativos antes
+  // de que React llegue a re-renderizar — un state quedaría leyendo el
+  // valor de UN render atrás (bug real encontrado verificando en
+  // producción: el primer `dragover` nunca alcanzaba a ver el
+  // `draggedComponentRef` recién seteado, así que nunca llamaba
+  // `preventDefault()` y el navegador rechazaba el drop entero). Un ref se
+  // lee siempre al valor actual, sin depender del ciclo de render.
+  const draggedComponentRef = useRef<{ rowId: string; columnId: string; componentId: string } | null>(null);
 
   // VS-073: selección de celdas adyacentes de UNA fila para combinar/separar
   // — `selectionAnchor` es la celda donde empezó la selección (click o
@@ -895,10 +903,6 @@ function TableConfigEditor({
                       {components.map((component) => {
                         const componentKey = `${row.id}:${col.id}:${component.id}`;
                         const preview = componentPreviewText(component);
-                        const isReordering =
-                          draggedComponentRef?.rowId === row.id &&
-                          draggedComponentRef.columnId === col.id &&
-                          draggedComponentRef.componentId !== component.id;
                         return (
                           <div
                             key={component.id}
@@ -907,20 +911,24 @@ function TableConfigEditor({
                             onDragStart={(e) => {
                               e.stopPropagation();
                               e.dataTransfer.effectAllowed = "move";
-                              setDraggedComponentRef({ rowId: row.id, columnId: col.id, componentId: component.id });
+                              draggedComponentRef.current = { rowId: row.id, columnId: col.id, componentId: component.id };
                             }}
-                            onDragEnd={() => setDraggedComponentRef(null)}
+                            onDragEnd={() => {
+                              draggedComponentRef.current = null;
+                            }}
                             onDragOver={(e) => {
-                              if (!isReordering) return;
+                              const dragged = draggedComponentRef.current;
+                              if (!dragged || dragged.rowId !== row.id || dragged.columnId !== col.id || dragged.componentId === component.id) return;
                               e.preventDefault();
                               e.stopPropagation();
                             }}
                             onDrop={(e) => {
-                              if (!isReordering || !draggedComponentRef) return;
+                              const dragged = draggedComponentRef.current;
+                              if (!dragged || dragged.rowId !== row.id || dragged.columnId !== col.id || dragged.componentId === component.id) return;
                               e.preventDefault();
                               e.stopPropagation();
-                              reorderComponentInCell(row.id, col.id, cell, draggedComponentRef.componentId, component.id);
-                              setDraggedComponentRef(null);
+                              reorderComponentInCell(row.id, col.id, cell, dragged.componentId, component.id);
+                              draggedComponentRef.current = null;
                             }}
                           >
                             <button
