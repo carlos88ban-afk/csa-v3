@@ -21,7 +21,16 @@ export type EvidenceRef = z.infer<typeof evidenceRef>;
 // mismo criterio de mapas keyed-por-id ya usado en todo el motor (answers
 // en sí, las claves sintéticas ::status/::na/::comment/::unit).
 export const tableCellValue = z.union([z.string(), z.number()]);
-export const tableValue = z.record(z.string(), z.record(z.string(), tableCellValue));
+export type TableCellValue = z.infer<typeof tableCellValue>;
+// VS-074/075 (docs/engines/form.md "Fase 2: componentes independientes por
+// celda"): una celda con `formTableCell.components` guarda un mapa
+// componentId -> valor en vez de un único escalar. Qué formato aplica lo
+// decide el SCHEMA (¿esa celda tiene `components`?), nunca se infiere del
+// valor guardado — una celda legacy sigue siendo puramente escalar, cero
+// cambio de comportamiento para datos/código ya existentes.
+export const tableCellComponentValue = z.record(z.string(), tableCellValue);
+export type TableCellComponentValue = z.infer<typeof tableCellComponentValue>;
+export const tableValue = z.record(z.string(), z.record(z.string(), z.union([tableCellValue, tableCellComponentValue])));
 export type TableValue = z.infer<typeof tableValue>;
 
 // Referencias flexibles por opción/sub-opción (VS-045, docs/engines/form.md):
@@ -57,6 +66,16 @@ export interface Response {
   updatedAt: Date;
 }
 
+// VS-074/075: una celda de tabla puede ser el escalar legacy o el mapa
+// componentId -> valor de la Fase 2 (ver `tableValue` arriba) — mismo
+// criterio recursivo "algún valor no vacío cuenta como respondido" un nivel
+// más adentro para el segundo caso.
+function hasCellValue(cell: TableCellValue | TableCellComponentValue): boolean {
+  if (cell === undefined || cell === "") return false;
+  if (typeof cell === "object") return Object.values(cell).some((v) => v !== undefined && v !== "");
+  return true;
+}
+
 // Criterio compartido de "¿tiene respuesta?": lo usa progreso (docs/engines/persistence.md) y visibilidad (docs/engines/rule.md).
 export function hasAnswer(value: AnswerValue | undefined): boolean {
   if (value === undefined || value === "") return false;
@@ -65,7 +84,7 @@ export function hasAnswer(value: AnswerValue | undefined): boolean {
   // alguna celda de alguna fila tiene valor — no exige la tabla completa,
   // mismo criterio "guarda estado intermedio" del resto del motor.
   if (typeof value === "object") {
-    return Object.values(value).some((row) => Object.values(row).some((cell) => cell !== undefined && cell !== ""));
+    return Object.values(value).some((row) => Object.values(row).some((cell) => hasCellValue(cell)));
   }
   return true;
 }

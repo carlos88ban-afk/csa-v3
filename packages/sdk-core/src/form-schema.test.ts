@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formElement, formSchema } from "./form-schema.js";
+import { formElement, formSchema, normalizeCellComponents, type FormTableCell } from "./form-schema.js";
 
 describe("formElement", () => {
   it.each([
@@ -1161,5 +1161,138 @@ describe("formSchema", () => {
       ],
     });
     expect(result.success).toBe(true);
+  });
+});
+
+// VS-074/075 (docs/engines/form.md "Fase 2: componentes independientes por
+// celda"): `normalizeCellComponents` es el adaptador de lectura no
+// destructivo — celdas legacy (sin `components` propio) se sintetizan,
+// celdas con `components` tienen prioridad total. `cell()` arma el mínimo
+// FormTableCell válido (columnId/cellType obligatorios, todo lo demás
+// opcional) para no repetirlo en cada caso.
+function cell(patch: Partial<FormTableCell> & Pick<FormTableCell, "cellType">): FormTableCell {
+  return { columnId: "col-1", ...patch };
+}
+
+describe("normalizeCellComponents", () => {
+  it("celda con `components` propio: prioridad total, se devuelve tal cual sin sintetizar", () => {
+    const explicit: FormTableCell["components"] = [{ id: "a", type: "texto_corto", maxLength: 10 }];
+    expect(normalizeCellComponents(cell({ cellType: "texto", components: explicit }))).toBe(explicit);
+  });
+
+  it("celda legacy 'texto' editable: sintetiza 1 componente texto_corto con id determinista", () => {
+    const result = normalizeCellComponents(cell({ cellType: "texto", editable: true, maxLength: 200 }));
+    expect(result).toEqual([{ id: "legacy-control", type: "texto_corto", maxLength: 200 }]);
+  });
+
+  it("celda legacy 'numero' editable: sintetiza 1 componente numero con unit/availableUnits", () => {
+    const result = normalizeCellComponents(cell({ cellType: "numero", editable: true, unit: "met. ton. CO2e" }));
+    expect(result).toEqual([{ id: "legacy-control", type: "numero", unit: "met. ton. CO2e", availableUnits: undefined }]);
+  });
+
+  it("celda legacy 'seleccion_desplegable' sin opciones todavía: sin control (celda vacía en construcción, sin errores)", () => {
+    expect(normalizeCellComponents(cell({ cellType: "seleccion_desplegable", editable: true }))).toEqual([]);
+  });
+
+  it("celda legacy 'seleccion_desplegable' con opciones: sintetiza el control con las opciones tal cual", () => {
+    const options = [{ id: "a", label: "A" }];
+    const result = normalizeCellComponents(cell({ cellType: "seleccion_desplegable", editable: true, options }));
+    expect(result).toEqual([{ id: "legacy-control", type: "seleccion_desplegable", options }]);
+  });
+
+  it("celda legacy con `content` prefijo antes del control: texto_fijo primero, control después", () => {
+    const result = normalizeCellComponents(cell({ cellType: "texto", editable: true, content: "<p>Fijo</p>" }));
+    expect(result).toEqual([
+      { id: "legacy-content", type: "texto_fijo", content: "<p>Fijo</p>" },
+      { id: "legacy-control", type: "texto_corto", maxLength: undefined },
+    ]);
+  });
+
+  it("celda legacy `editable: false` con content: solo texto_fijo, sin control", () => {
+    const result = normalizeCellComponents(cell({ cellType: "texto", editable: false, content: "<p>Solo texto</p>" }));
+    expect(result).toEqual([{ id: "legacy-content", type: "texto_fijo", content: "<p>Solo texto</p>" }]);
+  });
+
+  it("celda legacy `editable: false` sin content: array vacío", () => {
+    expect(normalizeCellComponents(cell({ cellType: "texto", editable: false }))).toEqual([]);
+  });
+
+  it("celda legacy 'calculado': solo el control, ignora content/references aunque estén presentes", () => {
+    const result = normalizeCellComponents(
+      cell({ cellType: "calculado", expression: "{r1}+{r2}", content: "<p>ignorado</p>", references: { maxUrls: 3 } }),
+    );
+    expect(result).toEqual([{ id: "legacy-control", type: "calculado", expression: "{r1}+{r2}" }]);
+  });
+
+  it("celda legacy 'calculado' sin expression (estado inválido en construcción): array vacío, no lanza", () => {
+    expect(normalizeCellComponents(cell({ cellType: "calculado" }))).toEqual([]);
+  });
+
+  it("celda legacy 'referencia': solo el control con las references embebidas, sin componente 'legacy-references' duplicado", () => {
+    const references = { maxUrls: 3, refType: "public" as const };
+    const result = normalizeCellComponents(cell({ cellType: "referencia", editable: true, references }));
+    expect(result).toEqual([{ id: "legacy-control", type: "referencia", references }]);
+  });
+
+  it("celda legacy con `references` como adjunto independiente (cellType !== 'referencia'): agrega 'legacy-references' primero", () => {
+    const references = { maxUrls: 2 };
+    const result = normalizeCellComponents(cell({ cellType: "seleccion_desplegable", editable: true, options: [{ id: "a", label: "A" }], references }));
+    expect(result).toEqual([
+      { id: "legacy-references", type: "referencia", references },
+      { id: "legacy-control", type: "seleccion_desplegable", options: [{ id: "a", label: "A" }] },
+    ]);
+  });
+
+  it("celda legacy no-casilla con extraFields: se sintetizan SIEMPRE VISIBLES (sin gates), antes del content/control", () => {
+    const result = normalizeCellComponents(
+      cell({
+        cellType: "seleccion_desplegable",
+        editable: true,
+        options: [{ id: "a", label: "A" }],
+        content: "<p>Fijo</p>",
+        extraFields: [{ type: "texto_corto", label: "Nombre del tema", maxLength: 200 }],
+      }),
+    );
+    expect(result).toEqual([
+      { id: "legacy-extra-0", type: "texto_corto", label: "Nombre del tema", maxLength: 200 },
+      { id: "legacy-content", type: "texto_fijo", content: "<p>Fijo</p>" },
+      { id: "legacy-control", type: "seleccion_desplegable", options: [{ id: "a", label: "A" }] },
+    ]);
+  });
+
+  it("celda legacy 'casilla' con revealContent + extraFields: los gatea el componente casilla por id", () => {
+    const result = normalizeCellComponents(
+      cell({
+        cellType: "casilla",
+        editable: true,
+        checkboxLabel: "Marcar si aplica",
+        revealContent: "<p>Detalle al marcar</p>",
+        extraFields: [
+          { type: "texto_corto", label: "Comentario" },
+          { type: "seleccion_desplegable", label: "Impacto", options: [{ id: "alto", label: "Alto" }] },
+        ],
+      }),
+    );
+    expect(result).toEqual([
+      {
+        id: "legacy-control",
+        type: "casilla",
+        checkboxLabel: "Marcar si aplica",
+        gates: ["legacy-reveal-content", "legacy-extra-0", "legacy-extra-1"],
+      },
+      { id: "legacy-reveal-content", type: "texto_fijo", content: "<p>Detalle al marcar</p>" },
+      { id: "legacy-extra-0", type: "texto_corto", label: "Comentario", maxLength: undefined },
+      { id: "legacy-extra-1", type: "seleccion_desplegable", label: "Impacto", options: [{ id: "alto", label: "Alto" }] },
+    ]);
+  });
+
+  it("celda legacy 'casilla' sin revealContent ni extraFields: gates ausente (undefined), no un array vacío", () => {
+    const result = normalizeCellComponents(cell({ cellType: "casilla", editable: true, checkboxLabel: "Marcar" }));
+    expect(result).toEqual([{ id: "legacy-control", type: "casilla", checkboxLabel: "Marcar", gates: undefined }]);
+  });
+
+  it("es determinista: llamar 2 veces sobre la misma celda legacy da los mismos ids", () => {
+    const c = cell({ cellType: "casilla", editable: true, revealContent: "<p>x</p>", extraFields: [{ type: "numero", label: "N" }] });
+    expect(normalizeCellComponents(c).map((x) => x.id)).toEqual(normalizeCellComponents(c).map((x) => x.id));
   });
 });

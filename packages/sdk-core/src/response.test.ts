@@ -231,6 +231,21 @@ describe("hasAnswer", () => {
   it("retorna true para una tabla_datos con al menos una celda llena", () => {
     expect(hasAnswer({ total: { fy2023: "", fy2024: 120.5 } })).toBe(true);
   });
+
+  // VS-074/075 (docs/engines/form.md "Fase 2: componentes independientes
+  // por celda"): una celda puede ser el mapa componentId -> valor en vez
+  // del escalar legacy — mismo criterio recursivo un nivel más adentro.
+  it("retorna false para una celda con componentes cuando todos están vacíos", () => {
+    expect(hasAnswer({ total: { fy2023: { "comp-1": "", "comp-2": "" } } })).toBe(false);
+  });
+
+  it("retorna true para una celda con componentes cuando al menos uno tiene valor", () => {
+    expect(hasAnswer({ total: { fy2023: { "comp-1": "", "comp-2": 42 } } })).toBe(true);
+  });
+
+  it("retorna true cuando conviven una celda legacy escalar y una celda con componentes en la misma tabla", () => {
+    expect(hasAnswer({ total: { fy2023: "" }, coverage: { fy2023: { "comp-1": "Ambiental" } } })).toBe(true);
+  });
 });
 
 describe("isAnswered", () => {

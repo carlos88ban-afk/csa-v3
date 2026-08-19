@@ -1800,9 +1800,10 @@ Runtime, Preview, Export y el Builder de Fase 2 llaman **siempre** a `normalizeC
 
 Orden emitido (idéntico al orden de render ya documentado en VS-070 "Orden de renderizado por celda", para que el resultado visual de una celda legacy no cambie ni un píxel):
 
-- Cualquier tipo editable ≠ `casilla`: `[legacy-references?, ...legacy-extra-i (sin gates — siempre visibles), legacy-content?, legacy-control]`.
+- `cellType === "calculado"`: `[legacy-control]` únicamente — "calculado" es de solo lectura por naturaleza y hoy se evalúa siempre sin importar `editable`/`content`/`extraFields`/`references` (VS-047, "tercer modo de renderizado"); la síntesis respeta ese mismo corto-circuito, sin aplicar ninguna otra regla de esta tabla.
+- `editable === false` (y `cellType !== "calculado"`): `[legacy-content?]` únicamente (sin control — mismo criterio que hoy, celda de solo presentación).
+- Cualquier otro tipo editable ≠ `casilla`: `[legacy-references?, ...legacy-extra-i (sin gates — siempre visibles), legacy-content?, legacy-control]`.
 - `casilla`: `[legacy-references?, legacy-content?, legacy-control (casilla, gates: [legacy-reveal-content?, ...legacy-extra-i]), legacy-reveal-content?, ...legacy-extra-i]`.
-- `editable === false`: `[legacy-content?]` únicamente (sin control — mismo criterio que hoy, celda de solo presentación).
 
 ### Valor de respuesta — `TableValue` ensanchado solo para celdas nuevas
 

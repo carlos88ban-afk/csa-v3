@@ -133,6 +133,52 @@ const formOptionBase = z.object({
 // editable"): `content` ya no se ignora cuando editable !== false — si está
 // presente en una celda editable, se renderiza como texto fijo ANTES del
 // control interactivo (mismo `content`, mismo campo, sin cambio de schema).
+//
+// VS-074 (docs/engines/form.md "Fase 2: componentes independientes por
+// celda"): shape del array `components` — cada componente es independiente
+// (tipo/config/valor propios), a diferencia del modelo legacy de arriba
+// ("1 control principal + companions de rol fijo"). Un discriminated union,
+// mismo patrón que `formElement`. `gates` (solo en "casilla") reemplaza la
+// regla implícita "extraFields solo se revela si cellType === 'casilla'"
+// por una relación explícita entre componentes hermanos por `id`.
+const tableCellComponent = z.discriminatedUnion("type", [
+  z.object({ id: z.string().min(1), type: z.literal("texto_fijo"), content: z.string().optional() }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("texto_corto"),
+    label: z.string().optional(),
+    maxLength: z.number().int().positive().optional(),
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("numero"),
+    label: z.string().optional(),
+    // `min`/`max` (origen: extraFields legacy, subOptionField) y
+    // `availableUnits` (origen: control principal legacy, numero de celda)
+    // conviven en un solo tipo — unifica los 2 shapes distintos que
+    // "numero" tenía en el modelo legacy según de dónde viniera.
+    min: z.number().optional(),
+    max: z.number().optional(),
+    unit: z.string().min(1).optional(),
+    availableUnits: z.array(z.string().min(1)).min(1).optional(),
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("seleccion_desplegable"),
+    label: z.string().optional(),
+    options: z.array(formOptionBase).min(1),
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("casilla"),
+    checkboxLabel: z.string().optional(),
+    gates: z.array(z.string().min(1)).optional(),
+  }),
+  z.object({ id: z.string().min(1), type: z.literal("referencia"), references: optionReferences.optional() }),
+  z.object({ id: z.string().min(1), type: z.literal("calculado"), expression: z.string().min(1) }),
+]);
+export type TableCellComponent = z.infer<typeof tableCellComponent>;
+
 const formTableCell = z.object({
   columnId: z.string().min(1),
   cellType: formTableCellType,
@@ -198,6 +244,13 @@ const formTableCell = z.object({
   // cellType === "referencia" sigue siendo el ÚNICO contenido de la celda
   // (sin control principal propio), comportamiento sin cambios.
   references: optionReferences.optional(),
+  // VS-074/075 (docs/engines/form.md "Fase 2: componentes independientes
+  // por celda"): aditivo, celda por celda — cuando está presente tiene
+  // prioridad TOTAL sobre los campos legacy de arriba para render/valor/
+  // export (ver `normalizeCellComponents`). Nunca `.default()`, mismo
+  // criterio que el resto de este archivo; ninguna celda existente se
+  // reescribe al agregar este campo.
+  components: z.array(tableCellComponent).min(1).optional(),
 })
 // VS-043: si cellType es "calculado", expression es obligatorio
 .superRefine((cell, ctx) => {
@@ -240,6 +293,115 @@ export type FormTableColumn = z.infer<typeof formTableColumn>;
 export type FormTableCell = z.infer<typeof formTableCell>;
 export type FormTableRow = z.infer<typeof formTableRow>;
 export type TablaDatosConfig = z.infer<typeof tablaDatosConfig>;
+
+// VS-074/075 (docs/engines/form.md "Fase 2: componentes independientes por
+// celda", tabla "Origen legacy → Componente sintetizado"): ids DETERMINISTAS
+// (no crypto.randomUUID()) — deben ser los mismos en cada llamada para que
+// las claves sintéticas de respuesta (`${...}::${component.id}`) no cambien
+// entre renders de una misma celda legacy.
+const LEGACY_CONTENT_ID = "legacy-content";
+const LEGACY_CONTROL_ID = "legacy-control";
+const LEGACY_REVEAL_CONTENT_ID = "legacy-reveal-content";
+const LEGACY_REFERENCES_ID = "legacy-references";
+function legacyExtraId(index: number): string {
+  return `legacy-extra-${index}`;
+}
+
+// Reconstruye el `TableCellComponent` del control principal legacy
+// (`cellType` + su config específica) — mapeo 1:1, ver tabla en el doc.
+// `undefined` si la celda no alcanza a tener un control válido todavía
+// (ej. `seleccion_desplegable` recién creada sin opciones, `calculado` sin
+// expression) — mismo criterio de tolerancia que el resto del motor con
+// autosave (guarda/lee estado intermedio, no exige completitud).
+function synthesizeLegacyControl(cell: FormTableCell): TableCellComponent | undefined {
+  switch (cell.cellType) {
+    case "texto":
+      return { id: LEGACY_CONTROL_ID, type: "texto_corto", maxLength: cell.maxLength };
+    case "numero":
+      return { id: LEGACY_CONTROL_ID, type: "numero", unit: cell.unit, availableUnits: cell.availableUnits };
+    case "seleccion_desplegable":
+      return cell.options?.length
+        ? { id: LEGACY_CONTROL_ID, type: "seleccion_desplegable", options: cell.options }
+        : undefined;
+    case "casilla":
+      return { id: LEGACY_CONTROL_ID, type: "casilla", checkboxLabel: cell.checkboxLabel, gates: undefined };
+    case "referencia":
+      return { id: LEGACY_CONTROL_ID, type: "referencia", references: cell.references };
+    case "calculado":
+      return cell.expression?.trim() ? { id: LEGACY_CONTROL_ID, type: "calculado", expression: cell.expression } : undefined;
+  }
+}
+
+// VS-074/075: sintetiza el array de componentes equivalente a una celda
+// legacy (sin `components` propio) — orden y reglas exactas documentadas en
+// docs/engines/form.md ("Fase 2: componentes independientes por celda").
+function synthesizeLegacyComponents(cell: FormTableCell): TableCellComponent[] {
+  // "calculado" es de solo lectura por naturaleza y se evalúa siempre sin
+  // importar editable/content/extraFields/references (VS-047, "tercer modo
+  // de renderizado") — corto-circuito, ninguna otra regla de esta función
+  // aplica.
+  if (cell.cellType === "calculado") {
+    const control = synthesizeLegacyControl(cell);
+    return control ? [control] : [];
+  }
+
+  if (cell.editable === false) {
+    return cell.content ? [{ id: LEGACY_CONTENT_ID, type: "texto_fijo", content: cell.content }] : [];
+  }
+
+  const control = synthesizeLegacyControl(cell);
+  const contentComponent: TableCellComponent | undefined = cell.content
+    ? { id: LEGACY_CONTENT_ID, type: "texto_fijo", content: cell.content }
+    : undefined;
+  const referencesComponent: TableCellComponent | undefined =
+    cell.cellType !== "referencia" && cell.references
+      ? { id: LEGACY_REFERENCES_ID, type: "referencia", references: cell.references }
+      : undefined;
+  const extraComponents: TableCellComponent[] = (cell.extraFields ?? []).map((field, index) =>
+    field.type === "seleccion_desplegable"
+      ? { id: legacyExtraId(index), type: "seleccion_desplegable", label: field.label, options: field.options }
+      : field.type === "texto_corto"
+        ? { id: legacyExtraId(index), type: "texto_corto", label: field.label, maxLength: field.maxLength }
+        : { id: legacyExtraId(index), type: "numero", label: field.label, min: field.min, max: field.max, unit: field.unit },
+  );
+
+  if (cell.cellType === "casilla") {
+    const revealContentComponent: TableCellComponent | undefined = cell.revealContent
+      ? { id: LEGACY_REVEAL_CONTENT_ID, type: "texto_fijo", content: cell.revealContent }
+      : undefined;
+    const gatedIds = [
+      ...(revealContentComponent ? [LEGACY_REVEAL_CONTENT_ID] : []),
+      ...extraComponents.map((c) => c.id),
+    ];
+    const gatedControl: TableCellComponent | undefined =
+      control && control.type === "casilla" ? { ...control, gates: gatedIds.length > 0 ? gatedIds : undefined } : control;
+    return [
+      ...(referencesComponent ? [referencesComponent] : []),
+      ...(contentComponent ? [contentComponent] : []),
+      ...(gatedControl ? [gatedControl] : []),
+      ...(revealContentComponent ? [revealContentComponent] : []),
+      ...extraComponents,
+    ];
+  }
+
+  return [
+    ...(referencesComponent ? [referencesComponent] : []),
+    ...extraComponents,
+    ...(contentComponent ? [contentComponent] : []),
+    ...(control ? [control] : []),
+  ];
+}
+
+// VS-074/075: adaptador de lectura no destructivo — Runtime/Preview/Export/
+// Builder llaman SIEMPRE a esta función en vez de leer `cell.cellType`
+// directo. Celdas con `components` propio: prioridad total, se devuelven
+// tal cual. Celdas legacy: se sintetiza el equivalente, sin reescribir
+// ningún dato (ver docs/engines/form.md "Fase 2: componentes independientes
+// por celda").
+export function normalizeCellComponents(cell: FormTableCell): TableCellComponent[] {
+  if (cell.components?.length) return cell.components;
+  return synthesizeLegacyComponents(cell);
+}
 
 const subOption = z.object({
   id: z.string().min(1),
