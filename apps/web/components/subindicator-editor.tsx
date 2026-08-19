@@ -933,10 +933,17 @@ function TableConfigEditor({
                                 mejora de UX real: un grip visible es una
                                 afordancia de "esto se arrastra" más clara
                                 que "arrastrá el texto". */}
+                            {/* role="button" real (no aria-hidden): es un
+                                control interactivo genuino, ocultarlo del
+                                árbol de accesibilidad sería un bug — un
+                                usuario de lector de pantalla necesita poder
+                                descubrirlo tanto como verlo visualmente. */}
                             <span
                               className="table-config-cell-component__handle"
                               draggable
-                              aria-hidden="true"
+                              role="button"
+                              tabIndex={-1}
+                              aria-label={`Reordenar ${COMPONENT_TYPE_LABEL[component.type]}`}
                               title="Arrastrar para reordenar"
                               onDragStart={(e) => {
                                 e.stopPropagation();
