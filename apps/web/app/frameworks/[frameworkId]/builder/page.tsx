@@ -140,7 +140,7 @@ export default function BuilderPage() {
     (async () => {
       let fw: { id: string; name: string } | null = null;
       try {
-        fw = await api.get<{ id: string; name: string }>(`/api/frameworks/${frameworkId}`);
+        fw = (await api.get<{ framework: { id: string; name: string } }>(`/api/frameworks/${frameworkId}`)).framework;
       } catch (err) {
         setTreeMessage(err instanceof Error ? err.message : "No se pudo cargar el formulario");
       }

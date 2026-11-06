@@ -19,7 +19,7 @@ describe("componentRegistry", () => {
 
 describe("questionNumber (VS-021)", () => {
   it("es 0-N, 1-based, reinicia en cada Subindicador", () => {
-    expect(questionNumber(0)).toBe("0.1");
-    expect(questionNumber(4)).toBe("0.5");
+    expect(questionNumber(0)).toBe("1.");
+    expect(questionNumber(4)).toBe("5.");
   });
 });

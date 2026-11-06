@@ -1989,7 +1989,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
         <span aria-live="polite">
           {saveStatus === "saving" && <Pill variant="accent">Guardando…</Pill>}
           {saveStatus === "saved" && <Pill variant="good">Guardado</Pill>}
-          {saveStatus === "idle" && revisionNumber !== null && <Pill>Rev. {revisionNumber}</Pill>}
+          {saveStatus === "idle" && revisionNumber !== null && <Pill variant="good">Guardado</Pill>}
         </span>
         <span style={{ marginInlineStart: "auto" }}>
           <Button type="button" size="sm" variant="secondary" onClick={() => setPreviewOpen(true)}>

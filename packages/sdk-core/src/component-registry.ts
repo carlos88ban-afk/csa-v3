@@ -39,7 +39,7 @@ export const componentRegistry = [
 // dentro de la lista ya filtrada a isQuestion (y a visibleIf en el Runtime)
 // — reinicia en cada Subindicador, no es un contador global.
 export function questionNumber(questionIndex: number): string {
-  return `0.${questionIndex + 1}`;
+  return `${questionIndex + 1}.`;
 }
 
 // Chequeo de exhaustividad en compile-time: si FormElement["type"] gana o
