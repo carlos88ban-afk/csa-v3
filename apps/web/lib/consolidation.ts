@@ -10,7 +10,7 @@ import { formatAnswer } from "@/lib/evaluation-export";
 // Capa de consolidacion: reglas por tipo de pregunta, calculadas siempre desde
 // las respuestas de cada unidad (fuente de verdad).
 //   numero            -> suma
-//   Si/No             -> Si si alguna unidad responde Si
+//   Si/No             -> Sí si alguna unidad responde Sí
 //   texto             -> todos los sustentos, con la sigla de la unidad
 //   evidencia / URL   -> todos los archivos / enlaces, con la sigla
 //   otras selecciones -> conteo de unidades por opcion
@@ -70,7 +70,7 @@ export function consolidateElement(
       const yesNo = labels.length > 0 && labels.every((l) => l === "si" || l === "no");
       if (yesNo) {
         const anyYes = texts.some((t) => norm(plain(t.text)) === "si");
-        return { rule: "Si si alguna unidad responde Si", value: anyYes ? "Sí" : "No", contributions };
+        return { rule: "Sí si alguna unidad responde Sí", value: anyYes ? "Sí" : "No", contributions };
       }
       const counts = new Map<string, number>();
       for (const t of texts) counts.set(plain(t.text), (counts.get(plain(t.text)) ?? 0) + 1);

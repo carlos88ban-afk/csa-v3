@@ -1,4 +1,4 @@
-import { getEvaluationForBusinessUnit, requireActiveMember } from "@plataforma-csa/db";
+import { getAppContext, getEvaluationForBusinessUnit, unitOwnsEvidenceKey } from "@plataforma-csa/db";
 import { toErrorResponse } from "@/lib/api-errors";
 import { belongsToEvaluation, createDownloadUrl, evidenceExists, isR2Configured } from "@/lib/r2";
 
@@ -12,7 +12,9 @@ interface Params {
 export async function POST(request: Request, { params }: Params) {
   try {
     const { id } = await params;
-    const { organizationId } = await requireActiveMember(request.headers);
+    const ctx = await getAppContext(request.headers);
+    if (!ctx.unitId) return Response.json({ error: "FORBIDDEN" }, { status: 403 });
+    const organizationId = ctx.unitId;
     const ev = await getEvaluationForBusinessUnit(id, organizationId);
     if (!isR2Configured()) {
       return Response.json({ error: "EVIDENCES_NOT_CONFIGURED" }, { status: 503 });
@@ -25,6 +27,10 @@ export async function POST(request: Request, { params }: Params) {
     // Anti-IDOR por key: solo se puede descargar lo que pertenece a esta
     // Evaluación (mismo criterio que la ruta pública).
     if (!belongsToEvaluation(key, ev.id)) {
+      return Response.json({ error: "key_NOT_FOUND" }, { status: 404 });
+    }
+    // Solo evidencias de las respuestas de la propia unidad.
+    if (!(await unitOwnsEvidenceKey(ev.id, organizationId, key))) {
       return Response.json({ error: "key_NOT_FOUND" }, { status: 404 });
     }
     if (!(await evidenceExists(key))) {

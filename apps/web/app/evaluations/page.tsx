@@ -52,6 +52,13 @@ export default function EvaluationsPage() {
   const [current, setCurrent] = useState<Current | null | undefined>(undefined);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [f, setF] = useState({ unit: "", dimension: "", responsible: "", state: "" });
+  const [confirmClose, setConfirmClose] = useState(false);
+
+  async function closeNow() {
+    if (!current) return;
+    await api.post(`/api/evaluations/${current.id}/close`, {});
+    window.location.reload();
+  }
 
   useEffect(() => {
     if (me?.appRole !== "corporate_admin") return;
@@ -105,6 +112,15 @@ export default function EvaluationsPage() {
           <a className="btn btn--secondary" href={`/frameworks/${current.frameworkId}/builder`}>Editar estructura</a>
           <a className="btn btn--secondary" href="/consolidado">Ver consolidado</a>
           <a className="btn btn--primary" href={`/api/evaluations/${current.id}/export-xlsx`}>Exportar Excel</a>
+          {!closed &&
+            (confirmClose ? (
+              <>
+                <button type="button" className="btn btn--danger" onClick={() => void closeNow()}>Sí, cerrar ahora</button>
+                <button type="button" className="btn btn--secondary" onClick={() => setConfirmClose(false)}>Cancelar</button>
+              </>
+            ) : (
+              <button type="button" className="btn btn--secondary" onClick={() => setConfirmClose(true)}>Cerrar evaluación</button>
+            ))}
         </span>
       </div>
       <p className="page__lead">

@@ -46,6 +46,18 @@ type SnapshotSubindicator = EvaluationSnapshot["dimensions"][number]["indicators
  *   así lo dice el spec explícitamente para evitar confusión de numeración
  *   discontinua.
  */
+/**
+ * Un bloque aplica a una unidad si tiene alguna pregunta propia que le
+ * aplica. Las evidencias por defecto no cuentan: un bloque cuyas preguntas
+ * (distintas de evidencias) no aplican a la unidad se oculta completo.
+ */
+export function blockAppliesToUnit(sub: SnapshotSubindicator, unitId: string): boolean {
+  const els = sub.formSchema?.elements ?? [];
+  const own = els.filter((el) => isQuestion(el) && el.type !== "evidencia");
+  if (own.length === 0) return true;
+  return own.some((el) => !el.appliesTo || el.appliesTo.includes(unitId));
+}
+
 function filterSnapshotByExclusions(
   snapshot: EvaluationSnapshot,
   exclusions: Array<{ subindicatorId: string; elementId: string | null }>,
@@ -86,16 +98,17 @@ function filterSnapshotByExclusions(
     return { ...sub, formSchema: { ...sub.formSchema, elements: filteredElements } };
   }
 
-  const keep = (sub: SnapshotSubindicator) => !allowedSubindicators || allowedSubindicators.has(sub.id);
+  const keep = (sub: SnapshotSubindicator) =>
+    blockAppliesToUnit(sub, unitId) && (!allowedSubindicators || allowedSubindicators.has(sub.id));
   const dimensions = snapshot.dimensions
     .map((dim) => ({
       ...dim,
       indicators: dim.indicators
         .map((ind) => ({ ...ind, subindicators: ind.subindicators.filter(keep).map(filterSubindicator) }))
-        .filter((ind) => !allowedSubindicators || ind.subindicators.length > 0),
+        .filter((ind) => ind.subindicators.length > 0),
       subindicators: dim.subindicators.filter(keep).map(filterSubindicator),
     }))
-    .filter((dim) => !allowedSubindicators || dim.indicators.length > 0 || dim.subindicators.length > 0);
+    .filter((dim) => dim.indicators.length > 0 || dim.subindicators.length > 0);
   return { ...snapshot, dimensions };
 }
 

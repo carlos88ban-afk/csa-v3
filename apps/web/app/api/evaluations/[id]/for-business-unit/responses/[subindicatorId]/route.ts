@@ -6,7 +6,12 @@ import {
   getResponse,
   upsertResponse,
 } from "@plataforma-csa/db";
-import { preserveReviewKeys, type ResponseAnswers, upsertResponseInput } from "@plataforma-csa/sdk-core";
+import {
+  assertPublicResponseUpdateAllowed,
+  preserveReviewKeys,
+  type ResponseAnswers,
+  upsertResponseInput,
+} from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
 interface Params {
@@ -30,7 +35,10 @@ export async function PUT(request: Request, { params }: Params) {
     await assertAnswersRespectExclusions(evaluationId, subindicatorId, organizationId, answers);
 
     const current = await getResponse(evaluationId, subindicatorId, organizationId);
-    const safeAnswers = preserveReviewKeys((current?.answers as ResponseAnswers | undefined) ?? {}, answers);
+    const currentAnswers = (current?.answers as ResponseAnswers | undefined) ?? {};
+    // Aprobar/entregar es del revisor; lo aprobado queda congelado.
+    assertPublicResponseUpdateAllowed(currentAnswers, answers);
+    const safeAnswers = preserveReviewKeys(currentAnswers, answers);
     const row = await upsertResponse(evaluationId, subindicatorId, safeAnswers, organizationId, {
       id: ctx.userId,
       name: ctx.userName,

@@ -84,6 +84,7 @@ type SetStatus = (
 ) => Promise<boolean>;
 
 function QuestionReviewRow({
+  evaluationId,
   subId,
   el,
   index,
@@ -91,6 +92,7 @@ function QuestionReviewRow({
   pending,
   setStatus,
 }: {
+  evaluationId: string;
   subId: string;
   el: FormElement;
   index: number;
@@ -103,7 +105,8 @@ function QuestionReviewRow({
   const [showHistory, setShowHistory] = useState(false);
   const na = answers[naKey(el.id)] as string | undefined;
   const markedNA = na === "true";
-  const comment = (answers[commentKey(el.id)] as string | undefined) ?? "";
+  const rawComment = (answers[commentKey(el.id)] as string | undefined) ?? "";
+  const comment = rawComment.replace(/<[^>]*>/g, "").trim() === "" ? "" : rawComment;
   const derived = deriveStatus(answers[statusKey(el.id)] as string | undefined, isAnswered(answers[el.id], na));
   const observation = (answers[reviewKey(el.id)] as string | undefined) ?? "";
   const history = parseReviewHistory(answers[historyKey(el.id)]);
@@ -132,6 +135,23 @@ function QuestionReviewRow({
         {answerText && (
           <p className="comment-preview" style={{ whiteSpace: "pre-wrap" }}>
             <strong>Respuesta:</strong> {answerText}
+          </p>
+        )}
+        {el.type === "evidencia" && Array.isArray(answers[el.id]) && (answers[el.id] as unknown[]).length > 0 && (
+          <p className="comment-preview">
+            {(answers[el.id] as Array<{ key?: string; name?: string }>).map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                className="btn btn--secondary btn--sm"
+                onClick={async () => {
+                  const r = await api.post<{ url: string }>(`/api/evaluations/${evaluationId}/evidences/download-url`, { key: f.key });
+                  window.open(r.url, "_blank");
+                }}
+              >
+                Descargar {f.name}
+              </button>
+            ))}
           </p>
         )}
         {comment && (
@@ -201,6 +221,7 @@ function QuestionReviewRow({
 // Subindicadores directos bajo Dimensión (VS-029, docs/domain/evaluation-hierarchy.md)
 // — mismo contenido de tarjeta, solo cambia de dónde cuelga en el árbol.
 function SubindicatorReviewCard({
+  evaluationId,
   unitId,
   sub,
   subNumber,
@@ -208,6 +229,7 @@ function SubindicatorReviewCard({
   pending,
   setStatus,
 }: {
+  evaluationId: string;
   unitId: string;
   sub: SnapshotSubindicator;
   subNumber: string;
@@ -232,6 +254,7 @@ function SubindicatorReviewCard({
       <ul className="entry-list">
         {questions.map((el, qIndex) => (
           <QuestionReviewRow
+            evaluationId={evaluationId}
             key={el.id}
             subId={sub.id}
             el={el}
@@ -328,8 +351,8 @@ export default function ReviewPage({ params }: Props) {
           "Framework" ahora enlaza al Builder, que reemplazó su función. */}
       <Breadcrumb
         items={[
-          { label: "Formularios", href: "/frameworks" },
-          { label: evaluation.title, href: `/frameworks/${frameworkId}/builder` },
+          { label: "Evaluación", href: "/evaluations" },
+          { label: evaluation.title },
           { label: "Revisión" },
         ]}
       />
@@ -352,6 +375,7 @@ export default function ReviewPage({ params }: Props) {
               </h3>
               {ind.subindicators.map((sub, subIndex) => (
                 <SubindicatorReviewCard
+                  evaluationId={evaluationId}
                   unitId={unitId}
                   key={sub.id}
                   sub={sub}
@@ -367,6 +391,7 @@ export default function ReviewPage({ params }: Props) {
               numerados después de todos los Indicadores de la Dimensión. */}
           {dim.subindicators.map((sub, subIndex) => (
             <SubindicatorReviewCard
+              evaluationId={evaluationId}
               unitId={unitId}
               key={sub.id}
               sub={sub}

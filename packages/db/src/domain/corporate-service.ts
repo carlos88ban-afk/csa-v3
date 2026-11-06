@@ -184,8 +184,7 @@ export async function listBlocks(evaluationId: string, unitId: string): Promise<
   const snapshot = ev.snapshot as EvaluationSnapshot;
   const push = (dim: Snap, ind: string | null, sub: Snap["subindicators"][number]) => {
     // Solo bloques que aplican a la unidad (al menos una pregunta).
-    const applicable = (sub.formSchema?.elements ?? []).some((el) => !el.appliesTo || el.appliesTo.includes(unitId));
-    if (!applicable) return;
+    if (!blockAppliesToUnit(sub, unitId)) return;
     const a = byBlock.get(sub.id);
     rows.push({
       subindicatorId: sub.id,
@@ -348,7 +347,7 @@ import {
   type FormElement,
   type ResponseAnswers,
 } from "@plataforma-csa/sdk-core";
-import { getEvaluationForBusinessUnit } from "./business-unit-access.js";
+import { blockAppliesToUnit, getEvaluationForBusinessUnit } from "./business-unit-access.js";
 import { listResponses } from "./response-service.js";
 import { response } from "../schema/response.js";
 
@@ -379,12 +378,14 @@ export interface OverviewRow {
 export async function getOverview(evaluationId: string, corporateOrgId: string): Promise<OverviewRow[]> {
   const units = (await listUnits(corporateOrgId)).filter((u) => u.active);
   const out: OverviewRow[] = [];
-  for (const unit of units) {
-    const filtered = await getEvaluationForBusinessUnit(evaluationId, unit.id).catch(() => null);
-    if (!filtered) continue;
-    const responses = await listResponses(evaluationId, unit.id);
+  await Promise.all(units.map(async (unit) => {
+    const [filtered, responses, blocks] = await Promise.all([
+      getEvaluationForBusinessUnit(evaluationId, unit.id).catch(() => null),
+      listResponses(evaluationId, unit.id),
+      listBlocks(evaluationId, unit.id),
+    ]);
+    if (!filtered) return;
     const bySub = new Map(responses.map((r) => [r.subindicatorId, r]));
-    const blocks = await listBlocks(evaluationId, unit.id);
     const respBy = new Map(blocks.map((b) => [b.subindicatorId, b]));
     const snap = filtered.snapshot as EvaluationSnapshot;
     const visit = (dim: Snap, ind: string | null, sub: Snap["subindicators"][number]) => {
@@ -430,9 +431,11 @@ export async function getOverview(evaluationId: string, corporateOrgId: string):
       for (const ind of dim.indicators) for (const sub of ind.subindicators) visit(dim, ind.title, sub);
       for (const sub of dim.subindicators) visit(dim, null, sub);
     }
-  }
+  }));
   void response;
-  return out;
+  // Orden estable: el de las unidades (por nombre).
+  const order = new Map(units.map((u, i) => [u.id, i]));
+  return out.sort((x, y) => (order.get(x.unitId) ?? 0) - (order.get(y.unitId) ?? 0));
 }
 
 export async function getCurrentEvaluation(corporateOrgId: string) {
@@ -470,4 +473,31 @@ export async function getConsolidationData(evaluationId: string, corporateOrgId:
       answers: r.answers as ResponseAnswers,
     })),
   };
+}
+
+/** Cierra la evaluación: desde ahora no se admiten más respuestas. */
+export async function closeEvaluation(corporateOrgId: string, evaluationId: string) {
+  const rows = await db
+    .update(evaluation)
+    .set({ dueDate: new Date() })
+    .where(and(eq(evaluation.id, evaluationId), eq(evaluation.organizationId, corporateOrgId)))
+    .returning({ id: evaluation.id });
+  if (rows.length === 0) throw new NotFoundError("evaluation");
+}
+
+/** La evidencia pertenece a una respuesta de esta unidad en esta evaluación. */
+export async function unitOwnsEvidenceKey(evaluationId: string, unitId: string, key: string): Promise<boolean> {
+  const rows = await db
+    .select({ answers: response.answers })
+    .from(response)
+    .where(and(eq(response.evaluationId, evaluationId), eq(response.businessUnitOrganizationId, unitId)));
+  return rows.some((r) => JSON.stringify(r.answers).includes(JSON.stringify(key)));
+}
+
+export async function evaluationBelongsToOrg(evaluationId: string, corporateOrgId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: evaluation.id })
+    .from(evaluation)
+    .where(and(eq(evaluation.id, evaluationId), eq(evaluation.organizationId, corporateOrgId)));
+  return !!row;
 }
