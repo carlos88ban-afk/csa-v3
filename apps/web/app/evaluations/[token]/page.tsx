@@ -467,17 +467,16 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
           {/* VS-020 (docs/engines/persistence.md, "Botones Save/Cancel/Reset"):
               aditivo sobre el autosave — no lo reemplaza. Cancelar y
               Restablecer comparten la misma función a propósito. */}
-          <div className="runtime-topbar__actions">
-            <button type="button" className="btn btn--primary btn--sm" onClick={handleSave} disabled={!dirty || deadlineLocked}>
-              Guardar
-            </button>
-            <button type="button" className="btn btn--secondary btn--sm" onClick={handleCancelOrReset} disabled={!dirty}>
-              Cancelar
-            </button>
-            <button type="button" className="btn btn--secondary btn--sm" onClick={handleCancelOrReset} disabled={!dirty}>
-              Restablecer
-            </button>
-          </div>
+          {!deadlineLocked && dirty && (
+            <div className="runtime-topbar__actions">
+              <button type="button" className="btn btn--primary btn--sm" onClick={handleSave}>
+                Guardar cambios
+              </button>
+              <button type="button" className="btn btn--secondary btn--sm" onClick={handleCancelOrReset}>
+                Descartar
+              </button>
+            </div>
+          )}
           <button
             type="button"
             className="btn btn--secondary btn--sm"

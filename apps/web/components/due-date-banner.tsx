@@ -4,6 +4,8 @@
 // compartido entre Runtime público y autenticado que avisa del vencimiento
 // próximo o informa del cierre tras dueDate.
 
+import { formatDueDate } from "@/lib/due-date";
+
 interface DueDateBannerProps {
   dueDate: string | Date | null;
   contactEmail: string | null;
@@ -20,13 +22,13 @@ export function DueDateBanner({ dueDate, contactEmail }: DueDateBannerProps) {
   if (now >= due) {
     return (
       <div className="due-date-banner due-date-banner--closed">
-        <strong>Esta evaluación ha finalizado.</strong>
+        <strong>El plazo para responder terminó.</strong>
         <p>
-          El plazo de recepción venció el {due.toLocaleDateString()}.
+          Se cerró el {formatDueDate(due)} y ya no se pueden modificar respuestas.
           {contactEmail && (
             <>
               {" "}
-              Si necesitas una extensión, contacta a{" "}
+              Si necesitas más tiempo, escribe a{" "}
               <a href={`mailto:${contactEmail}`}>
                 {contactEmail}
               </a>
@@ -42,8 +44,8 @@ export function DueDateBanner({ dueDate, contactEmail }: DueDateBannerProps) {
   if (now >= threeDaysBefore) {
     return (
       <div className="due-date-banner due-date-banner--expiring">
-        <strong>El plazo está por vencer.</strong>
-        <p>Esta evaluación debe completarse antes del {due.toLocaleDateString()}.</p>
+        <strong>El plazo está por terminar.</strong>
+        <p>Completa tus respuestas antes del {formatDueDate(due)}.</p>
       </div>
     );
   }

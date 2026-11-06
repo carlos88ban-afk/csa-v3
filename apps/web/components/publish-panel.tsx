@@ -8,6 +8,7 @@
 // XLSX consolidado, exclusiones por Subindicador/elemento) vive ahora en
 // un panel del Builder.
 
+import { dueDateToInput, inputToDueDate } from "@/lib/due-date";
 import { useEffect, useState } from "react";
 import type { Evaluation, EvaluationAssignment } from "@plataforma-csa/sdk-core";
 import { api } from "@/lib/api-client";
@@ -28,8 +29,8 @@ interface UnitProgress {
 }
 
 function toDateInputValue(dueDate: unknown): string {
-  if (!dueDate || typeof dueDate !== "string") return "";
-  return dueDate.slice(0, 10);
+  if (!dueDate || (typeof dueDate !== "string" && !(dueDate instanceof Date))) return "";
+  return dueDateToInput(dueDate);
 }
 
 function EvaluationRow({
@@ -93,7 +94,7 @@ function EvaluationRow({
       const body: { dueDate?: string; contactEmail: string | null } = {
         contactEmail: contactEmail.trim() === "" ? null : contactEmail.trim(),
       };
-      if (dueDate.trim() !== "") body.dueDate = dueDate;
+      if (dueDate.trim() !== "") body.dueDate = inputToDueDate(dueDate);
       await api.patch(`/api/evaluations/${evaluation.id}`, body);
       setDeadlineSaved(true);
     } catch (err) {

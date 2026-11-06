@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import type { CreateEvaluationInput, EvaluationSnapshot, UpdateEvaluationInput } from "@plataforma-csa/sdk-core";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "../client.js";
 import { dimension, indicator, subindicator } from "../schema/domain.js";
 import { evaluation } from "../schema/evaluation.js";
@@ -35,21 +35,24 @@ async function buildSnapshot(
   const dimensions = await db
     .select()
     .from(dimension)
-    .where(and(eq(dimension.frameworkId, frameworkId), eq(dimension.organizationId, organizationId)));
+    .where(and(eq(dimension.frameworkId, frameworkId), eq(dimension.organizationId, organizationId)))
+    .orderBy(asc(dimension.order));
 
   const snapshotDimensions = await Promise.all(
     dimensions.map(async (dim) => {
       const indicators = await db
         .select()
         .from(indicator)
-        .where(and(eq(indicator.dimensionId, dim.id), eq(indicator.organizationId, organizationId)));
+        .where(and(eq(indicator.dimensionId, dim.id), eq(indicator.organizationId, organizationId)))
+        .orderBy(asc(indicator.order));
 
       const snapshotIndicators = await Promise.all(
         indicators.map(async (ind) => {
           const subindicators = await db
             .select()
             .from(subindicator)
-            .where(and(eq(subindicator.indicatorId, ind.id), eq(subindicator.organizationId, organizationId)));
+            .where(and(eq(subindicator.indicatorId, ind.id), eq(subindicator.organizationId, organizationId)))
+            .orderBy(asc(subindicator.order));
 
           return {
             id: ind.id,
@@ -66,7 +69,8 @@ async function buildSnapshot(
       const directSubindicators = await db
         .select()
         .from(subindicator)
-        .where(and(eq(subindicator.dimensionId, dim.id), eq(subindicator.organizationId, organizationId)));
+        .where(and(eq(subindicator.dimensionId, dim.id), eq(subindicator.organizationId, organizationId)))
+        .orderBy(asc(subindicator.order));
 
       return {
         id: dim.id,

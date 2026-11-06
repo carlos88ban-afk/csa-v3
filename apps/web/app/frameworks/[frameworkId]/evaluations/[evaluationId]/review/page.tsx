@@ -23,6 +23,7 @@ import {
 import { use, useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
 import { Breadcrumb, Button, Card, Pill } from "@/components/ui";
+import { RichLabel } from "@/components/rich-label";
 
 // VS-018 (docs/engines/persistence.md, "Estado por pregunta + flujo
 // Approved/Submitted"): página nueva, autenticada, bajo la jerarquía del
@@ -97,7 +98,7 @@ function SubindicatorReviewCard({
           return (
             <li key={el.id} className="entry-list__row">
               <span className="entry-list__main">
-                {questionNumber(qIndex)} {el.label || "(sin texto)"}{" "}
+                {questionNumber(qIndex)} <RichLabel html={el.label ?? ""} fallback="(sin texto)" />{" "}
                 <Pill variant={statusVariant(derived)}>{STATUS_LABEL[derived]}</Pill>
                 {markedNA && <Pill variant="warn">N/A</Pill>}
                 {comment && (
@@ -198,8 +199,8 @@ export default function ReviewPage({ params }: Props) {
           "Framework" ahora enlaza al Builder, que reemplazó su función. */}
       <Breadcrumb
         items={[
-          { label: "Frameworks", href: "/frameworks" },
-          { label: "Framework", href: `/frameworks/${frameworkId}/builder` },
+          { label: "Formularios", href: "/frameworks" },
+          { label: evaluation.title, href: `/frameworks/${frameworkId}/builder` },
           { label: "Revisión" },
         ]}
       />
