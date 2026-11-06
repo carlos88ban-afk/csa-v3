@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Framework } from "@plataforma-csa/sdk-core";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
@@ -12,6 +13,7 @@ import { useMe } from "@/lib/use-me";
 // "Estructura": las evaluaciones (una por año) con sus bloques y preguntas.
 // Duplicar copia todo para armar la del año siguiente.
 export default function FrameworksPage() {
+  const router = useRouter();
   const { me, loading } = useMe();
   const { data: fwData, reload } = useCachedGet<{ frameworks: Framework[] }>("/api/frameworks");
   const frameworks = fwData?.frameworks ?? null;
@@ -43,7 +45,7 @@ export default function FrameworksPage() {
     setBusy(true);
     try {
       const res = await api.post<{ id: string }>(`/api/frameworks/${dup.id}/duplicate`, { name: dup.name });
-      window.location.href = `/frameworks/${res.id}/builder`;
+      router.push(`/frameworks/${res.id}/builder`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo duplicar");
       setBusy(false);

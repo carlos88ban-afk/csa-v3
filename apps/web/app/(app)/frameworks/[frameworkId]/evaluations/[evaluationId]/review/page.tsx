@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   commentKey,
   componentRegistry,
@@ -340,7 +342,7 @@ export default function ReviewPage({ params }: Props) {
     return (
       <main className="page">
         <h1>Revisión</h1>
-        <p className="page__lead">Elige una unidad desde la pantalla de <a href="/evaluations">Evaluación</a> para revisar sus respuestas.</p>
+        <p className="page__lead">Elige una unidad desde la pantalla de <Link href="/evaluations">Evaluación</Link> para revisar sus respuestas.</p>
       </main>
     );
 

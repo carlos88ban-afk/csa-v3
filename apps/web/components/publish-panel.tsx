@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 // Publicar = abrir la evaluacion vigente. Solo existe una a la vez: al
 // publicar, la anterior se cierra. Todas las unidades activas participan; lo
 // que ve cada una lo define el "Aplica a" de cada pregunta.
@@ -70,7 +72,7 @@ export function PublishPanel({ frameworkId, open, onClose }: { frameworkId: stri
           {error && <p className="alert" role="alert">{error}</p>}
           {done && (
             <p className="alert" role="status">
-              Publicada. <a href="/evaluations">Ver el avance de las unidades</a>
+              Publicada. <Link href="/evaluations">Ver el avance de las unidades</Link>
             </p>
           )}
           <h4>Publicaciones anteriores de esta estructura</h4>
