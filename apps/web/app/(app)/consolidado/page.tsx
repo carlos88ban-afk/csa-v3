@@ -82,7 +82,7 @@ export default function ConsolidadoPage() {
                   <td>{r.answeredUnits}/{r.applicableUnits}</td>
                   <td>{r.rule}</td>
                   <td style={{ whiteSpace: "pre-wrap" }}><strong>{r.value}</strong></td>
-                  <td style={{ whiteSpace: "pre-wrap" }}>{r.type === "texto_corto" || r.type === "texto_largo" || r.type === "evidencia" || r.type === "url_publica" ? "" : r.contributions}</td>
+                  <td style={{ whiteSpace: "pre-wrap" }}>{r.type === "texto_corto" || r.type === "texto_largo" || r.type === "fecha" || r.type === "evidencia" || r.type === "url_publica" ? "" : r.contributions}</td>
                 </tr>
               ))}
             </tbody>

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { IBM_Plex_Mono, Public_Sans } from "next/font/google";
 import "./globals.css";
+import "./builder-doc.css";
 
 const publicSans = Public_Sans({
   subsets: ["latin"],

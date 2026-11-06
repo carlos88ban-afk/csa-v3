@@ -19,6 +19,7 @@ import { api } from "@/lib/api-client";
 import { Button, Pill } from "@/components/ui";
 import { FormPreview } from "@/components/form-preview";
 import { RichTextEditor } from "@/components/rich-text-editor";
+import { RichLabel } from "@/components/rich-label";
 
 interface Props {
   subindicatorId: string;
@@ -34,6 +35,7 @@ const TYPE_META: Record<FormElement["type"], { glyph: string; description: strin
   texto_corto: { glyph: "Ａ", description: "Respuesta breve de una línea", example: 'ej. "Año fiscal 2024"' },
   texto_largo: { glyph: "¶", description: "Respuesta extensa en varias líneas", example: 'ej. "Describí la política implementada"' },
   numero: { glyph: "#", description: "Valor numérico con unidad opcional", example: 'ej. "42 met. ton. CO2e"' },
+  fecha: { glyph: "📅", description: "Fecha de calendario", example: 'ej. "Fecha de la auditoría"' },
   seleccion_unica: { glyph: "◉", description: "Una opción entre varias (admite sub-opciones)", example: 'ej. "Sí / No / Parcialmente"' },
   seleccion_multiple: { glyph: "☑", description: "Varias opciones seleccionables a la vez", example: 'ej. "Alcances 1, 2 y 3"' },
   seleccion_desplegable: { glyph: "▾", description: "Lista desplegable de opciones", example: 'ej. "Régimen fiscal…"' },
@@ -46,7 +48,7 @@ const TYPE_META: Record<FormElement["type"], { glyph: string; description: strin
 };
 
 const ELEMENT_PALETTE: { category: string; items: FormElement["type"][] }[] = [
-  { category: "Preguntas", items: ["texto_corto", "texto_largo", "numero", "seleccion_unica", "seleccion_multiple", "seleccion_desplegable"] },
+  { category: "Preguntas", items: ["texto_corto", "texto_largo", "numero", "fecha", "seleccion_unica", "seleccion_multiple", "seleccion_desplegable"] },
   { category: "Contenido", items: ["instruccion", "banner"] },
   { category: "Datos adjuntos", items: ["evidencia", "url_publica"] },
   { category: "Estructurados", items: ["tabla_datos"] },
@@ -58,12 +60,97 @@ const ELEMENT_PALETTE: { category: string; items: FormElement["type"][] }[] = [
 const QUICK_ADD: { label: string; type: FormElement["type"] }[] = [
   { label: "Texto", type: "texto_corto" },
   { label: "Número", type: "numero" },
-  { label: "Elección", type: "seleccion_unica" },
+  { label: "Selección única", type: "seleccion_unica" },
+  { label: "Selección múltiple", type: "seleccion_multiple" },
   { label: "Tabla", type: "tabla_datos" },
+  { label: "Evidencia", type: "evidencia" },
+  { label: "Fecha", type: "fecha" },
+  { label: "URL", type: "url_publica" },
 ];
 
+// Nombres para personas no técnicas (el registry conserva los nombres internos).
+const TYPE_NAME: Record<FormElement["type"], string> = {
+  texto_corto: "Texto corto",
+  texto_largo: "Texto largo",
+  numero: "Número",
+  fecha: "Fecha",
+  seleccion_unica: "Selección única",
+  seleccion_multiple: "Selección múltiple",
+  seleccion_desplegable: "Lista desplegable",
+  tabla_datos: "Tabla",
+  evidencia: "Evidencia",
+  url_publica: "URL",
+  calculado: "Cálculo automático",
+  instruccion: "Texto informativo",
+  banner: "Aviso",
+};
+function typeName(type: FormElement["type"]): string {
+  return TYPE_NAME[type];
+}
+const TYPE_SELECT_GROUPS: { group: string; items: FormElement["type"][] }[] = [
+  {
+    group: "Respuesta",
+    items: ["texto_corto", "texto_largo", "numero", "fecha", "seleccion_unica", "seleccion_multiple", "seleccion_desplegable", "tabla_datos", "evidencia", "url_publica", "calculado"],
+  },
+  { group: "Contenido", items: ["instruccion", "banner"] },
+];
+
+// Las opciones se escriben como texto plano; el modelo las guarda como HTML.
+function plainOf(label: string): string {
+  if (!/[<&]/.test(label)) return label;
+  const d = document.createElement("div");
+  d.innerHTML = label;
+  return d.textContent ?? "";
+}
+function toLabel(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Textarea de una línea que crece con el contenido (opciones largas se leen completas).
+function GrowArea({ value, onChange, onKeyDown, placeholder, ariaLabel, dataOpt }: {
+  value: string;
+  onChange: (v: string) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  placeholder?: string;
+  ariaLabel?: string;
+  dataOpt?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      className="q-option__input"
+      data-opt={dataOpt}
+      placeholder={placeholder}
+      aria-label={ariaLabel}
+      value={value}
+      onChange={(e) => onChange(e.target.value.replace(/\n/g, " "))}
+      onKeyDown={onKeyDown}
+    />
+  );
+}
+
+// Duplicado profundo: todos los ids internos se regeneran (los ids que apuntan
+// fuera del elemento, como visibleIf, se conservan).
+function cloneWithNewIds(el: FormElement): FormElement {
+  const json = JSON.stringify(el);
+  const map = new Map<string, string>();
+  const out = json.replace(/"id":"([^"]+)"/g, (_m, id: string) => {
+    if (!map.has(id)) map.set(id, crypto.randomUUID());
+    return `"id":"${map.get(id)}"`;
+  });
+  return JSON.parse(out) as FormElement;
+}
+
 // Secciones colapsables de cada card (contrato 4).
-type SectionId = "texts" | "options" | "visibleIf" | "formula" | "advanced";
+type SectionId = "texts" | "options" | "visibleIf" | "formula" | "advanced" | "more";
 
 type QuestionComponentType = Extract<(typeof componentRegistry)[number], { isQuestion: true }>["type"];
 const QUESTION_TYPES = new Set<QuestionComponentType>(
@@ -89,6 +176,7 @@ function newElement(type: FormElement["type"]): FormElement {
     case "texto_corto":
     case "texto_largo":
     case "numero":
+    case "fecha":
     case "instruccion":
     case "evidencia":
     case "url_publica":
@@ -1041,6 +1129,9 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [focusNewId, setFocusNewId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   // Estado de plegado por card (contrato 4): overrides del usuario sobre los
   // defaults por sección; vive solo en memoria, no en el schema.
   const [sectionOverrides, setSectionOverrides] = useState<Record<string, Partial<Record<SectionId, boolean>>>>({});
@@ -1141,12 +1232,67 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
   // label. Un solo camino para plantillas rápidas y paleta.
   function insertElement(mode: "quick" | "palette", type: FormElement["type"]) {
     const el = newElement(type);
-    commit([...elements, el]);
+    // Se inserta justo después de la pregunta que se está editando (como en un
+    // documento); sin selección, al final.
+    const at = activeId ? elements.findIndex((x) => x.id === activeId) : -1;
+    const next = [...elements];
+    next.splice(at >= 0 ? at + 1 : next.length, 0, el);
+    commit(next);
+    setActiveId(el.id);
+    setFocusNewId(el.id);
     if (mode === "palette") setPaletteOpen(false);
     requestAnimationFrame(() => {
       elementRefs.current[el.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
       labelRefs.current[el.id]?.focus();
     });
+  }
+
+  function duplicateElement(id: string) {
+    const index = elements.findIndex((x) => x.id === id);
+    if (index < 0) return;
+    const copy = cloneWithNewIds(elements[index]!);
+    const next = [...elements];
+    next.splice(index + 1, 0, copy);
+    commit(next);
+    setActiveId(copy.id);
+    setFocusNewId(null);
+  }
+
+  // Cambiar el tipo conserva texto, ayuda, obligatoriedad y opciones.
+  function changeType(id: string, type: FormElement["type"]) {
+    const cur = elements.find((x) => x.id === id);
+    if (!cur || cur.type === type) return;
+    const fresh = newElement(type) as Record<string, unknown>;
+    const old = cur as Record<string, unknown>;
+    const merged: Record<string, unknown> = { ...fresh, id: cur.id, label: cur.label, visibleIf: cur.visibleIf, appliesTo: cur.appliesTo };
+    if (isQuestion(cur)) {
+      merged.helpText = cur.helpText;
+      if (type !== "calculado") merged.required = old.required;
+    }
+    if ("options" in fresh && Array.isArray(old.options)) merged.options = old.options;
+    commit(elements.map((x) => (x.id === id ? (merged as unknown as FormElement) : x)));
+  }
+
+  function focusOption(optionId: string) {
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLTextAreaElement>(`textarea[data-opt="${optionId}"]`)?.focus();
+    });
+  }
+
+  // Enter en una opción crea la siguiente justo debajo (como una lista de Notion).
+  function addOptionAfter(elementId: string, afterOptionId: string | null) {
+    const newId = crypto.randomUUID();
+    commit(
+      elements.map((el) => {
+        if (el.id !== elementId) return el;
+        if (el.type !== "seleccion_unica" && el.type !== "seleccion_multiple" && el.type !== "seleccion_desplegable") return el;
+        const idx = afterOptionId ? el.options.findIndex((o) => o.id === afterOptionId) : el.options.length - 1;
+        const options = [...el.options];
+        options.splice(idx + 1, 0, { id: newId, label: "" });
+        return { ...el, options };
+      }),
+    );
+    focusOption(newId);
   }
 
   function toggleSection(id: string, section: SectionId, open: boolean) {
@@ -1982,158 +2128,308 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
 
   if (!subindicator) return <div className="loading">Cargando...</div>;
 
+  const addBar = (
+    <div className="add-bar" role="group" aria-label="Agregar una pregunta">
+      <span className="add-bar__label">＋ Agregar</span>
+      {QUICK_ADD.map((q) => (
+        <button key={q.type} type="button" className="add-bar__chip" onClick={() => insertElement("quick", q.type)}>
+          <span aria-hidden="true">{TYPE_META[q.type].glyph}</span> {q.label}
+        </button>
+      ))}
+      <button type="button" className="add-bar__chip add-bar__chip--more" onClick={() => setPaletteOpen(true)}>
+        Más…
+      </button>
+    </div>
+  );
+
   return (
     <>
-      <div className="entry-list__main">
-        <h1>{subindicator.title}</h1>
+      <div className="doc-head">
+        <h1 className="doc-head__title">{subindicator.title}</h1>
         {/* 4.1.3 Status Messages — ver docs/architecture/accessibility.md */}
-        <span aria-live="polite">
+        <span aria-live="polite" className="doc-head__status">
           {saveStatus === "saving" && <Pill variant="accent">Guardando…</Pill>}
           {saveStatus === "saved" && <Pill variant="good">Guardado</Pill>}
           {saveStatus === "idle" && revisionNumber !== null && <Pill variant="good">Guardado</Pill>}
         </span>
-        <span style={{ marginInlineStart: "auto" }}>
-          <Button type="button" size="sm" variant="secondary" onClick={() => setPreviewOpen(true)}>
-            Vista previa
-          </Button>
-        </span>
+        <Button type="button" size="sm" variant="secondary" onClick={() => setPreviewOpen(true)}>
+          Vista previa
+        </Button>
       </div>
       {saveStatus === "error" && <p className="alert" role="alert">Error al guardar: {saveError}</p>}
 
-      <div className="editor-toolbar">
-        <span className="editor-toolbar__label">Agregar pregunta:</span>
-        {QUICK_ADD.map((q) => (
-          <Button key={q.type} type="button" size="sm" onClick={() => insertElement("quick", q.type)}>
-            {q.label}
-          </Button>
-        ))}
-        <Button type="button" size="sm" variant="secondary" onClick={() => setPaletteOpen(true)}>
-          Más tipos de pregunta…
-        </Button>
-      </div>
-
-      <h2>Preguntas y contenido</h2>
       {elements.length === 0 ? (
-        <p className="empty">Todavía no hay elementos en este formulario. Usá las plantillas rápidas de arriba.</p>
+        <div className="doc-empty">
+          <p>Este tema todavía no tiene preguntas. Empieza eligiendo qué tipo de respuesta necesitas:</p>
+          {addBar}
+        </div>
       ) : (
         <ol className="element-list">
           {elements.map((el, index) => {
             const numberBadge = questionLabels.get(el.id) ?? "Contenido";
-            const textsOpen = isSectionOpen(el.id, "texts", el.label.trim() === "");
-            const optionsOpen = isSectionOpen(
-              el.id,
-              "options",
-              el.type === "tabla_datos"
-                ? false // VS-048: sin label de columna/fila que pueda estar "incompleto"
-                : "options" in el
-                  ? el.options.some((o) => o.label.trim() === "")
-                  : false,
-            );
+                        const optionsOpen = isSectionOpen(el.id, "options", el.type === "tabla_datos");
             const visibleIfOpen = isSectionOpen(el.id, "visibleIf", false);
             const formulaOpen = isSectionOpen(el.id, "formula", el.type === "calculado" && (el.expression ?? "").trim() === "");
             const advancedOpen = isSectionOpen(el.id, "advanced", false);
 
+            const isActive = activeId === el.id;
+            if (!isActive) {
+              const optionPreview = "options" in el ? el.options.slice(0, 4) : [];
+              const restricted = el.appliesTo && el.appliesTo.length > 0;
+              return (
+                <li
+                  key={el.id}
+                  className="element-card element-card--compact"
+                  ref={(node) => {
+                    elementRefs.current[el.id] = node;
+                  }}
+                >
+                  <div
+                    className="qc"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Editar ${typeName(el.type)} ${numberBadge}`}
+                    onClick={() => setActiveId(el.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setActiveId(el.id);
+                      }
+                    }}
+                  >
+                    <span className="qc__num">{isQuestion(el) ? numberBadge : "•"}</span>
+                    <span className="qc__body">
+                      <span className="qc__title">
+                        {el.type === "banner" ? el.label || <em>Aviso sin título</em> : <RichLabel html={el.label} fallback={<em>Pregunta sin escribir</em>} />}
+                      </span>
+                      {optionPreview.length > 0 && (
+                        <span className="qc__opts">
+                          {optionPreview.map((o) => plainOf(o.label) || "…").join(" · ")}
+                          {"options" in el && el.options.length > 4 ? " · …" : ""}
+                        </span>
+                      )}
+                    </span>
+                    <span className="qc__meta">
+                      <span className="qc__type">{typeName(el.type)}</span>
+                      {isQuestion(el) && el.type !== "calculado" && el.required && <Pill variant="warn">Obligatoria</Pill>}
+                      {restricted && <Pill>{el.appliesTo!.length} unidad{el.appliesTo!.length === 1 ? "" : "es"}</Pill>}
+                      {el.visibleIf && <Pill>Condicional</Pill>}
+                    </span>
+                  </div>
+                </li>
+              );
+            }
+            const hasOptionList =
+              el.type === "seleccion_unica" || el.type === "seleccion_multiple" || el.type === "seleccion_desplegable";
+            const moreOpenDefault = el.type === "tabla_datos" || el.type === "calculado";
+
             return (
               <li
                 key={el.id}
-                className="element-card"
+                className="element-card element-card--active"
                 ref={(node) => {
                   elementRefs.current[el.id] = node;
                 }}
               >
-                <div className="element-card__head">
-                  <span className="element-card__type">
-                    <span className="element-card__glyph" aria-hidden="true">
-                      {TYPE_META[el.type].glyph}
+                <div className="qa__bar">
+                  <span className="qa__num">{isQuestion(el) ? numberBadge : "Contenido"}</span>
+                  <select
+                    className="qa__type"
+                    aria-label="Tipo de respuesta"
+                    value={el.type}
+                    onChange={(e) => changeType(el.id, e.target.value as FormElement["type"])}
+                  >
+                    {TYPE_SELECT_GROUPS.map((g) => (
+                      <optgroup key={g.group} label={g.group}>
+                        {g.items.map((t) => (
+                          <option key={t} value={t}>
+                            {typeName(t)}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <span className="qa__spacer" />
+                  <button type="button" className="qa__icon" aria-label="Subir" onClick={() => moveElement(el.id, -1)} disabled={index === 0}>
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="qa__icon"
+                    aria-label="Bajar"
+                    onClick={() => moveElement(el.id, 1)}
+                    disabled={index === elements.length - 1}
+                  >
+                    ↓
+                  </button>
+                  <button type="button" className="qa__icon" aria-label="Duplicar" title="Duplicar" onClick={() => duplicateElement(el.id)}>
+                    ⧉
+                  </button>
+                  {pendingDelete === el.id ? (
+                    <span className="qa__confirm">
+                      ¿Borrar?{" "}
+                      <button
+                        type="button"
+                        className="qa__danger"
+                        onClick={() => {
+                          setPendingDelete(null);
+                          removeElement(el.id);
+                        }}
+                      >
+                        Sí
+                      </button>{" "}
+                      <button type="button" className="qa__icon" onClick={() => setPendingDelete(null)}>
+                        No
+                      </button>
                     </span>
-                    {labelOf(el.type)} <Pill>{numberBadge}</Pill>
-                  </span>
-                  <span className="element-card__controls">
-                    <Button type="button" size="sm" onClick={() => moveElement(el.id, -1)} disabled={index === 0} aria-label="Subir">
-                      ▲
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => moveElement(el.id, 1)}
-                      disabled={index === elements.length - 1}
-                      aria-label="Bajar"
-                    >
-                      ▼
-                    </Button>
-                    <Button type="button" variant="danger" size="sm" onClick={() => removeElement(el.id)}>
-                      Borrar
-                    </Button>
-                  </span>
+                  ) : (
+                    <button type="button" className="qa__icon qa__icon--danger" aria-label="Borrar" title="Borrar" onClick={() => setPendingDelete(el.id)}>
+                      🗑
+                    </button>
+                  )}
+                  <button type="button" className="qa__icon" aria-label="Cerrar edición" title="Listo" onClick={() => setActiveId(null)}>
+                    ✓
+                  </button>
                 </div>
 
-                <details
-                  className="element-section"
-                  open={textsOpen}
-                  onToggle={(e) => toggleSection(el.id, "texts", e.currentTarget.open)}
-                >
-                  <summary>
-                    <span className="element-section__caret" aria-hidden="true">
-                      {textsOpen ? "▾" : "▸"}
-                    </span>
-                    Textos
-                  </summary>
-                  <div className="element-section__body">
-                    <label className="field">
-                      <span className="field__label">
-                        {isQuestion(el) ? "Texto de la pregunta" : el.type === "banner" ? "Título" : "Texto"}
-                      </span>
-                      {/* VS-045: labels con formato en todos los Elementos
-                          (docs/engines/form.md); banner.label queda texto plano
-                          (decisión VS-038: el título del banner no lleva HTML) */}
-                      {el.type === "banner" ? (
-                        <input
-                          id={`element-label-${el.id}`}
-                          value={el.label}
-                          onChange={(e) => updateElement(el.id, { label: e.target.value })}
-                          ref={(node) => {
-                            labelRefs.current[el.id] = node;
+                <div className="qa__title">
+                  {el.type === "banner" ? (
+                    <input
+                      className="qa__title-input"
+                      placeholder="Título del aviso"
+                      value={el.label}
+                      onChange={(e) => updateElement(el.id, { label: e.target.value })}
+                      ref={(node) => {
+                        labelRefs.current[el.id] = node;
+                      }}
+                    />
+                  ) : (
+                    <RichTextEditor
+                      value={el.label}
+                      onChange={(html) => updateElement(el.id, { label: html })}
+                      ariaLabel={isQuestion(el) ? "Texto de la pregunta" : "Texto del elemento"}
+                      placeholder={isQuestion(el) ? "Escribe la pregunta…" : "Escribe el texto informativo…"}
+                      autoFocus={focusNewId === el.id}
+                      bare
+                    />
+                  )}
+                </div>
+
+                {el.type === "banner" && (
+                  <RichTextEditor
+                    value={el.content}
+                    onChange={(html) => updateElement(el.id, { content: html })}
+                    ariaLabel="Contenido del aviso"
+                    placeholder="Contenido del aviso…"
+                    bare
+                  />
+                )}
+
+                {isQuestion(el) && (
+                  <input
+                    className="qa__desc"
+                    placeholder="Descripción o ayuda (opcional)"
+                    aria-label="Descripción o ayuda"
+                    value={el.helpText ?? ""}
+                    onChange={(e) => updateElement(el.id, { helpText: e.target.value })}
+                  />
+                )}
+
+                {hasOptionList && (
+                  <div className="q-options">
+                    {el.options.map((opt, oi) => (
+                      <div className="q-option" key={opt.id}>
+                        <span className="q-option__mark" aria-hidden="true">
+                          {el.type === "seleccion_unica" ? "○" : el.type === "seleccion_multiple" ? "☐" : `${oi + 1}.`}
+                        </span>
+                        <GrowArea
+                          dataOpt={opt.id}
+                          placeholder={`Opción ${oi + 1}`}
+                          ariaLabel={`Opción ${oi + 1}`}
+                          value={plainOf(opt.label)}
+                          onChange={(v) => updateOption(el.id, opt.id, toLabel(v))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addOptionAfter(el.id, opt.id);
+                            } else if (e.key === "Backspace" && plainOf(opt.label) === "" && el.options.length > 1) {
+                              e.preventDefault();
+                              const prev = el.options[oi - 1] ?? el.options[oi + 1];
+                              removeOption(el.id, opt.id);
+                              if (prev) focusOption(prev.id);
+                            }
                           }}
                         />
-                      ) : (
-                        <RichTextEditor
-                          value={el.label}
-                          onChange={(html) => updateElement(el.id, { label: html })}
-                          ariaLabel={isQuestion(el) ? "Texto de la pregunta" : "Texto del elemento"}
-                        />
-                      )}
-                    </label>
-                    {el.type === "banner" && (
-                      <RichTextEditor
-                        value={el.content}
-                        onChange={(html) => updateElement(el.id, { content: html })}
-                        label="Contenido"
-                        ariaLabel="Contenido del banner"
-                      />
-                    )}
-                    {isQuestion(el) && (
-                      <div className="field-grid">
-                        <label className="field">
-                          <span className="field__label">Ayuda</span>
-                          <input value={el.helpText ?? ""} onChange={(e) => updateElement(el.id, { helpText: e.target.value })} />
-                        </label>
-                        {el.type !== "calculado" && (
-                          <label className="field field--checkbox">
-                            <input
-                              type="checkbox"
-                              checked={el.required ?? false}
-                              onChange={(e) => updateElement(el.id, { required: e.target.checked })}
-                            />
-                            <span className="field__label">Obligatorio</span>
-                          </label>
-                        )}
+                        {el.type !== "seleccion_desplegable" && (opt.subOptions?.length || opt.table || opt.field || opt.references || opt.secondaryOptions?.length) ? (
+                          <button
+                            type="button"
+                            className="q-option__detail"
+                            title="Esta opción tiene sub-opciones, tabla, campo o enlaces"
+                            onClick={() => {
+                              toggleSection(el.id, "more", true);
+                              toggleSection(el.id, "options", true);
+                            }}
+                          >
+                            con detalle
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="q-option__x"
+                          aria-label={`Quitar opción ${oi + 1}`}
+                          disabled={el.options.length <= 1}
+                          onClick={() => removeOption(el.id, opt.id)}
+                        >
+                          ✕
+                        </button>
                       </div>
-                    )}
-                    {isQuestion(el) && (
-                      <AppliesToPicker value={el.appliesTo} onChange={(next) => updateElement(el.id, { appliesTo: next })} />
-                    )}
+                    ))}
+                    <button type="button" className="q-option__add" onClick={() => addOptionAfter(el.id, null)}>
+                      + Agregar opción
+                    </button>
                   </div>
-                </details>
+                )}
+
+                {el.type === "numero" && (
+                  <label className="qa__inline">
+                    <span>Unidad</span>
+                    <input
+                      placeholder="ej. kg, %, S/"
+                      value={el.unit ?? ""}
+                      onChange={(e) => updateElement(el.id, { unit: e.target.value === "" ? undefined : e.target.value })}
+                    />
+                  </label>
+                )}
+
+                {isQuestion(el) && (
+                  <div className="qa__foot">
+                    {el.type !== "calculado" && (
+                      <label className="qa__switch">
+                        <input
+                          type="checkbox"
+                          checked={el.required ?? false}
+                          onChange={(e) => updateElement(el.id, { required: e.target.checked })}
+                        />
+                        <span>Obligatoria</span>
+                      </label>
+                    )}
+                    <AppliesToPicker value={el.appliesTo} onChange={(next) => updateElement(el.id, { appliesTo: next })} />
+                  </div>
+                )}
+
+                <details
+                  className="more-options"
+                  open={isSectionOpen(el.id, "more", moreOpenDefault)}
+                  onToggle={(e) => toggleSection(el.id, "more", e.currentTarget.open)}
+                >
+                  <summary>
+                    {el.type === "tabla_datos"
+                      ? "Estructura de la tabla y opciones avanzadas"
+                      : el.type === "calculado"
+                        ? "Fórmula y opciones avanzadas"
+                        : "Más opciones (condiciones, límites, sub-opciones)"}
+                  </summary>
+                  <div className="more-options__body">
 
                 {(el.type === "seleccion_unica" ||
                   el.type === "seleccion_multiple" ||
@@ -2148,7 +2444,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                       <span className="element-section__caret" aria-hidden="true">
                         {optionsOpen ? "▾" : "▸"}
                       </span>
-                      {el.type === "tabla_datos" ? "Columnas y filas" : "Opciones de respuesta"}
+                      {el.type === "tabla_datos" ? "Columnas y filas" : "Sub-opciones, enlaces y tablas por opción"}
                     </summary>
                     <div className="element-section__body">
                       {el.type === "seleccion_desplegable" && (
@@ -3442,11 +3738,14 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                     </div>
                   </details>
                 )}
+                  </div>
+                </details>
               </li>
             );
           })}
         </ol>
       )}
+      {elements.length > 0 && <div className="add-bar-wrap">{addBar}</div>}
 
       {paletteOpen && (
         <>

@@ -19,6 +19,9 @@ export function RichTextEditor({
   ariaLabel,
   label,
   disabled,
+  placeholder,
+  autoFocus,
+  bare,
 }: {
   value: string;
   onChange: (html: string) => void;
@@ -26,6 +29,10 @@ export function RichTextEditor({
   /** Texto visible arriba del editor — si se omite, el componente no renderiza field__label (el caller ya tiene uno propio). */
   label?: string;
   disabled?: boolean;
+  placeholder?: string;
+  autoFocus?: boolean;
+  /** Sin barra visible: aparece al enfocar (estilo documento). */
+  bare?: boolean;
 }) {
   const editor = useEditor({
     immediatelyRender: false,
@@ -42,6 +49,7 @@ export function RichTextEditor({
         orderedList: false,
       }),
     ],
+    autofocus: autoFocus ? "end" : false,
     editorProps: {
       attributes: { "aria-label": ariaLabel, class: "comment-editor__content" },
     },
@@ -63,7 +71,7 @@ export function RichTextEditor({
   }, [editor, disabled]);
 
   return (
-    <div className="field">
+    <div className={bare ? "field rich--bare" : "field"}>
       {label && <span className="field__label">{label}</span>}
       <div className="rich-toolbar" role="toolbar" aria-label={`Formato — ${ariaLabel}`}>
         <button
@@ -97,7 +105,14 @@ export function RichTextEditor({
           •
         </button>
       </div>
-      <EditorContent editor={editor} className="comment-editor" />
+      <div className="rich__wrap">
+        {placeholder && !value.replace(/<[^>]*>/g, "").trim() && (
+          <span className="rich__placeholder" aria-hidden="true">
+            {placeholder}
+          </span>
+        )}
+        <EditorContent editor={editor} className="comment-editor" />
+      </div>
     </div>
   );
 }

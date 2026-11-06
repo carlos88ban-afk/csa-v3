@@ -87,6 +87,7 @@ export function consolidateElement(
     }
     case "texto_corto":
     case "texto_largo":
+    case "fecha":
       return { rule: "Sustentos de todas las unidades", value: contributions, contributions };
     case "evidencia":
       return { rule: "Archivos de todas las unidades", value: contributions, contributions };

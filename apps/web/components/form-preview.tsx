@@ -217,7 +217,7 @@ function PreviewElement({
     );
   }
 
-  if (element.type === "texto_corto" || element.type === "texto_largo" || element.type === "numero") {
+  if (element.type === "texto_corto" || element.type === "texto_largo" || element.type === "numero" || element.type === "fecha") {
     const value = answers[element.id];
     return (
       <div className="field runtime-question">
@@ -226,6 +226,9 @@ function PreviewElement({
           {element.helpText && <span className="runtime-question__help">{element.helpText}</span>}
           {element.type === "texto_corto" && (
             <input value={(value as string) ?? ""} maxLength={element.maxLength} onChange={(e) => onChange(e.target.value)} />
+          )}
+          {element.type === "fecha" && (
+            <input type="date" value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} />
           )}
           {element.type === "texto_largo" && (
             <textarea

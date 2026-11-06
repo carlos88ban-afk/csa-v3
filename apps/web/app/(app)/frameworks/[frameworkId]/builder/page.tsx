@@ -156,27 +156,8 @@ export default function BuilderPage() {
     let alive = true;
     (async () => {
       try {
-        const [{ dimensions }] = await Promise.all([
-          api.get<{ dimensions: { id: string; title: string }[] }>(`/api/dimensions?frameworkId=${frameworkId}`),
-        ]);
+        const { tree } = await api.get<{ tree: TreeDimension[] }>(`/api/frameworks/${frameworkId}/tree`);
         if (!alive) return;
-        const tree: TreeDimension[] = [];
-        for (const dimRow of dimensions) {
-          const [{ indicators }] = await Promise.all([
-            api.get<{ indicators: { id: string; title: string }[] }>(`/api/indicators?dimensionId=${dimRow.id}`),
-          ]);
-          const indWithSubs: TreeIndicator[] = [];
-          for (const ind of indicators) {
-            const [{ subindicators }] = await Promise.all([
-              api.get<{ subindicators: TreeSubindicator[] }>(`/api/subindicators?indicatorId=${ind.id}`),
-            ]);
-            indWithSubs.push({ indicator: ind, subs: subindicators });
-          }
-          const [{ subindicators: directSubs }] = await Promise.all([
-            api.get<{ subindicators: TreeSubindicator[] }>(`/api/subindicators?dimensionId=${dimRow.id}`),
-          ]);
-          tree.push({ dimension: dimRow, indicators: indWithSubs, directSubs });
-        }
 
         const resolved = resolveFocus(tree, initialRaw);
         const nextFocus = resolved ?? initialRaw;

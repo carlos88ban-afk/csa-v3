@@ -2146,7 +2146,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
   // El <label> envuelve SOLO el input/textarea/número — ver nota de
   // seleccion_desplegable arriba sobre por qué naCommentRow/statusRow viven
   // fuera de él (VS-030).
-  if (element.type === "texto_corto" || element.type === "texto_largo" || element.type === "numero") {
+  if (element.type === "texto_corto" || element.type === "texto_largo" || element.type === "numero" || element.type === "fecha") {
     return (
       <div className="field runtime-question">
         <label className="field">
@@ -2163,6 +2163,10 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
               disabled={locked}
               onChange={(e) => onChange(e.target.value)}
             />
+          )}
+
+          {element.type === "fecha" && (
+            <input type="date" value={(value as string) ?? ""} disabled={locked} onChange={(e) => onChange(e.target.value)} />
           )}
 
           {element.type === "texto_largo" && (

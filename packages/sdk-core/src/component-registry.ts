@@ -23,6 +23,7 @@ export const componentRegistry = [
   { type: "texto_corto", label: "Texto corto", isQuestion: true, version: 1 },
   { type: "texto_largo", label: "Texto largo", isQuestion: true, version: 1 },
   { type: "numero", label: "Número", isQuestion: true, version: 1 },
+  { type: "fecha", label: "Fecha", isQuestion: true, version: 1 },
   { type: "seleccion_unica", label: "Selección única", isQuestion: true, version: 1 },
   { type: "seleccion_multiple", label: "Selección múltiple", isQuestion: true, version: 1 },
   { type: "seleccion_desplegable", label: "Selección desplegable", isQuestion: true, version: 1 },

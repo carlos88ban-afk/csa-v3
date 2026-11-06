@@ -491,6 +491,11 @@ export const formElement = z.discriminatedUnion("type", [
     type: z.literal("texto_largo"),
     maxLength: z.number().int().positive().optional(),
   }),
+  // Fecha (calendario): la respuesta es un string ISO yyyy-mm-dd.
+  z.object({
+    ...questionBase,
+    type: z.literal("fecha"),
+  }),
   z.object({
     ...questionBase,
     type: z.literal("numero"),

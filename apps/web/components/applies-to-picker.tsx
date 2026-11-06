@@ -40,16 +40,14 @@ export function AppliesToPicker({
   }
 
   return (
-    <fieldset className="field">
-      <legend className="field__label">Aplica a</legend>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-        {units.map((u) => (
-          <label key={u.id} className="field--checkbox" style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggle(u.id)} />
-            <span>{u.sigla || u.name}</span>
-          </label>
-        ))}
-      </div>
+    <fieldset className="applies">
+      <legend className="applies__label">Aplica a</legend>
+      {units.map((u) => (
+        <label key={u.id} className={`applies__chip${selected.has(u.id) ? " applies__chip--on" : ""}`}>
+          <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggle(u.id)} />
+          <span>{u.sigla || u.name}</span>
+        </label>
+      ))}
     </fieldset>
   );
 }
