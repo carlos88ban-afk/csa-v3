@@ -4,6 +4,7 @@ import { organization } from "better-auth/plugins";
 import { defaultRoles } from "better-auth/plugins/organization/access";
 import { db } from "./client.js";
 import * as schema from "./schema/auth.js";
+import { emailTemplates, sendEmail } from "./email.js";
 
 /**
  * No hay proveedor de email/SMTP decidido en el stack (ver docs/adr/).
@@ -15,8 +16,20 @@ import * as schema from "./schema/auth.js";
  * que este hook nunca intenta enviar correo de verdad.
  */
 export let invitationEmailCallCount = 0;
-async function sendInvitationEmail() {
+async function sendInvitationEmail(data: {
+  id: string;
+  email: string;
+  inviter: { user: { name?: string | null; email: string } };
+  organization: { name: string };
+}) {
   invitationEmailCallCount += 1;
+  const base = process.env.BETTER_AUTH_URL ?? "";
+  const tpl = emailTemplates.invitation({
+    organization: data.organization.name,
+    inviter: data.inviter.user.name || data.inviter.user.email,
+    url: `${base}/accept-invitation/${data.id}`,
+  });
+  await sendEmail({ to: data.email, ...tpl });
 }
 
 export const auth = betterAuth({
