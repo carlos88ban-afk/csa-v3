@@ -14,7 +14,7 @@ function slugify(name: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
-const ROLE_LABEL: Record<string, string> = { owner: "Dueño", editor: "Editor", evaluador: "Evaluador" };
+const ROLE_LABEL: Record<string, string> = { owner: "Administrador", editor: "Editor", evaluador: "Evaluador" };
 
 interface OrgMember {
   id: string;
@@ -184,51 +184,27 @@ export default function OrganizationsPage() {
       render: (org) =>
         activeOrganization?.id !== org.id ? (
           <Button type="button" size="sm" onClick={() => handleSetActive(org.id)}>
-            Usar esta
+            Cambiar a esta
           </Button>
         ) : null,
     },
   ];
 
+  const multipleOrgs = (organizations?.length ?? 0) > 1;
+
   return (
     <main className="page">
-      <h1>Tus organizaciones</h1>
+      <h1>Equipo</h1>
       {activeOrganization && (
-        <p>
-          Organización activa: <strong>{activeOrganization.name}</strong> — <a href="/frameworks">ir a Formularios</a>
+        <p className="page__lead">
+          Personas con acceso a <strong>{activeOrganization.name}</strong>. Los <strong>Editores</strong> arman y
+          publican formularios; los <strong>Evaluadores</strong> solo responden y revisan.
         </p>
       )}
 
-      <Card>
-        {orgsPending ? (
-          <p className="empty">Cargando organizaciones...</p>
-        ) : (
-          <DataTable
-            columns={orgColumns}
-            rows={organizations ?? []}
-            rowKey={(org) => org.id}
-            emptyLabel="Todavía no perteneces a ninguna organización."
-          />
-        )}
-      </Card>
-
-      <h2>Crear organización nueva</h2>
-      <Card>
-        <form className="form form--row" onSubmit={handleCreate}>
-          <label className="field">
-            <span className="field__label">Nombre</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} required />
-          </label>
-          <Button type="submit" variant="primary" disabled={submitting || name.trim().length === 0}>
-            {submitting ? "Creando..." : "Crear"}
-          </Button>
-        </form>
-        {error && <p className="alert" role="alert">{error}</p>}
-      </Card>
-
       {activeOrganization && (
         <>
-          <h2>Miembros de {activeOrganization.name}</h2>
+          <h2>Miembros</h2>
           <Card>
             {members === null ? (
               <p className="empty">Cargando miembros...</p>
@@ -260,18 +236,18 @@ export default function OrganizationsPage() {
 
           {isOwner && (
             <>
-              <h3>Invitar miembro</h3>
+              <h2>Invitar a alguien</h2>
               <Card>
                 <form className="form form--row" onSubmit={handleInvite}>
                   <label className="field">
-                    <span className="field__label">Email</span>
+                    <span className="field__label">Correo</span>
                     <input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} required />
                   </label>
                   <label className="field">
-                    <span className="field__label">Rol</span>
+                    <span className="field__label">Puede</span>
                     <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "editor" | "evaluador")}>
-                      <option value="editor">Editor</option>
-                      <option value="evaluador">Evaluador</option>
+                      <option value="editor">Armar y publicar formularios</option>
+                      <option value="evaluador">Solo responder y revisar</option>
                     </select>
                   </label>
                   <Button type="submit" variant="primary" disabled={inviting || inviteEmail.trim().length === 0}>
@@ -281,7 +257,7 @@ export default function OrganizationsPage() {
                 {inviteError && <p className="alert" role="alert">{inviteError}</p>}
                 {inviteLink && (
                   <p>
-                    Comparte este link manualmente (sin envío de email, ver <code>organization-user.md</code>):{" "}
+                    Copia este enlace y envíaselo a la persona (por ahora no se envían correos automáticos):{" "}
                     <a href={inviteLink}>{inviteLink}</a>
                   </p>
                 )}
@@ -290,6 +266,35 @@ export default function OrganizationsPage() {
           )}
         </>
       )}
+
+      {multipleOrgs && (
+        <>
+          <h2>Cambiar de organización</h2>
+          <Card>
+            {orgsPending ? (
+              <p className="empty">Cargando organizaciones...</p>
+            ) : (
+              <DataTable columns={orgColumns} rows={organizations ?? []} rowKey={(org) => org.id} />
+            )}
+          </Card>
+        </>
+      )}
+
+      <details className="page__advanced">
+        <summary>Crear otra organización</summary>
+        <Card>
+          <form className="form form--row" onSubmit={handleCreate}>
+            <label className="field">
+              <span className="field__label">Nombre</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} required />
+            </label>
+            <Button type="submit" variant="primary" disabled={submitting || name.trim().length === 0}>
+              {submitting ? "Creando..." : "Crear"}
+            </Button>
+          </form>
+          {error && <p className="alert" role="alert">{error}</p>}
+        </Card>
+      </details>
     </main>
   );
 }

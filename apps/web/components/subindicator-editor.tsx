@@ -1023,6 +1023,14 @@ function TableConfigEditor({
   );
 }
 
+// Huella comparable del contenido: ignora el envoltorio <p>…</p> que el editor de
+// texto enriquecido agrega a textos simples, para no tratarlo como un cambio real.
+function fingerprintElements(elements: FormElement[]): string {
+  return JSON.stringify(elements, (_key, value) =>
+    typeof value === "string" ? value.replace(/^<p>([^<]*)<\/p>$/, "$1") : value,
+  );
+}
+
 export function SubindicatorEditor({ subindicatorId }: Props) {
   const [subindicator, setSubindicator] = useState<Subindicator | null>(null);
   const [elements, setElements] = useState<FormElement[]>([]);
@@ -1037,6 +1045,9 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
   const [sectionOverrides, setSectionOverrides] = useState<Record<string, Partial<Record<SectionId, boolean>>>>({});
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Contenido tal como está guardado en el servidor, en forma comparable: evita
+  // guardar (y subir la revisión) cuando el editor solo normaliza el HTML al cargar.
+  const savedFingerprint = useRef<string | null>(null);
   const elementRefs = useRef<Record<string, HTMLLIElement | null>>({});
   const labelRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const formulaRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -1048,6 +1059,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     api.get<{ subindicator: Subindicator }>(`/api/subindicators/${subindicatorId}`).then((res) => {
       setSubindicator(res.subindicator);
       setElements(res.subindicator.formSchema?.elements ?? []);
+      savedFingerprint.current = fingerprintElements(res.subindicator.formSchema?.elements ?? []);
       setRevisionNumber(res.subindicator.revisionNumber);
     });
   }, [subindicatorId]);
@@ -1082,6 +1094,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
   // nunca disparan un guardado ni bumpean revisionNumber por sí solos.
   function scheduleAutosave(next: FormElement[]) {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    if (savedFingerprint.current !== null && fingerprintElements(next) === savedFingerprint.current) return;
     debounceTimer.current = setTimeout(async () => {
       setSaveStatus("saving");
       setSaveError(null);
@@ -1090,6 +1103,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
           formSchema: { schemaVersion: 1, elements: next },
         });
         setRevisionNumber(res.subindicator.revisionNumber);
+        savedFingerprint.current = fingerprintElements(next);
         setSaveStatus("saved");
       } catch (err) {
         setSaveStatus("error");

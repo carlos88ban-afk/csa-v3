@@ -1,4 +1,5 @@
 "use client";
+import { formatDueDate } from "@/lib/due-date";
 import { DueDateBanner } from "@/components/due-date-banner";
 
 import {
@@ -383,6 +384,9 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
         <div className="runtime-nav__head">
           <strong>{snapshot.frameworkName}</strong>
           <Pill variant="accent">{globalProgress}% completado</Pill>
+          {evaluation.dueDate && (
+            <p className="page__lead">Plazo: {formatDueDate(evaluation.dueDate)}</p>
+          )}
         </div>
 
         {snapshot.dimensions.map((dim, dimIndex) => {
@@ -509,7 +513,7 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
         <DueDateBanner dueDate={evaluation.dueDate} contactEmail={evaluation.contactEmail} />
 
         {!active.sub.formSchema || active.sub.formSchema.elements.length === 0 ? (
-          <p className="empty">Este formulario todavía no tiene elementos.</p>
+          <p className="empty">Esta página todavía no tiene preguntas.</p>
         ) : (
           <div className="runtime-elements">
             {(() => {
@@ -1817,7 +1821,7 @@ function FormTableView({
 }
 
 // VS-018 (docs/engines/persistence.md, "Estado por pregunta"): fila de
-// estado + acción "Marcar como completo", compartida por todos los tipos de
+// estado + acción "Marcar como lista", compartida por todos los tipos de
 // pregunta que capturan respuesta manual (no calculado/instruccion/banner).
 function StatusRow({
   elementId,
@@ -1839,12 +1843,12 @@ function StatusRow({
           className="btn btn--secondary btn--sm"
           onClick={() => onAnswerChange(statusKey(elementId), "completed")}
         >
-          Marcar como completo
+          Marcar como lista
         </button>
       </div>
     );
   }
-  const label = derived === "completed" ? "Completado" : derived === "approved" ? "Aprobado" : "Enviado";
+  const label = derived === "completed" ? "Lista para revisar" : derived === "approved" ? "Aprobada" : "Entregada";
   const variant = derived === "submitted" ? "good" : derived === "approved" ? "accent" : "neutral";
   return (
     <div className="runtime-question__status">
@@ -2026,7 +2030,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
   // VS-057: `formLocked` (plazo vencido) es un cuarto motivo, independiente
   // de los otros tres.
   const locked = formLocked || derived === "approved" || derived === "submitted" || markedNA;
-  // VS-057: "Marcar como completo" también queda oculto con el plazo
+  // VS-057: "Marcar como lista" también queda oculto con el plazo
   // vencido — es otra forma de editar el estado de la respuesta.
   const canComplete = !formLocked && answeredOrNA && (derived === "not_started" || derived === "in_progress");
   const statusRow = (

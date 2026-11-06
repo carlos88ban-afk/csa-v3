@@ -2339,3 +2339,12 @@ input[type="checkbox"] {
   max-width: 60ch;
   margin: 0 0 1.25rem;
 }
+
+.page__advanced {
+  margin-top: 2rem;
+}
+.page__advanced > summary {
+  cursor: pointer;
+  color: var(--ink-muted);
+  margin-bottom: 0.75rem;
+}

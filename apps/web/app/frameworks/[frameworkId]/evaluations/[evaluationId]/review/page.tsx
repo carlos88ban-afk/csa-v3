@@ -47,9 +47,9 @@ function isQuestion(el: FormElement): boolean {
 const STATUS_LABEL: Record<DerivedStatus, string> = {
   not_started: "Sin iniciar",
   in_progress: "En progreso",
-  completed: "Completado",
-  approved: "Aprobado",
-  submitted: "Enviado",
+  completed: "Lista para revisar",
+  approved: "Aprobada",
+  submitted: "Entregada",
 };
 
 function statusVariant(status: DerivedStatus): "neutral" | "accent" | "good" | "warn" {
@@ -124,7 +124,7 @@ function SubindicatorReviewCard({
                   disabled={!canSubmit || busy}
                   onClick={() => void setStatus(sub.id, el.id, "submitted")}
                 >
-                  Enviar
+                  Entregar
                 </Button>
                 <Button
                   type="button"
@@ -133,7 +133,7 @@ function SubindicatorReviewCard({
                   disabled={!canRevert || busy}
                   onClick={() => void setStatus(sub.id, el.id, revertTo)}
                 >
-                  Revertir
+                  Devolver
                 </Button>
               </span>
             </li>
@@ -205,6 +205,10 @@ export default function ReviewPage({ params }: Props) {
         ]}
       />
       <h1>Revisión — {evaluation.title}</h1>
+      <p className="page__lead">
+        Cada respuesta avanza así: <strong>Lista para revisar</strong> → <strong>Aprobada</strong> →{" "}
+        <strong>Entregada</strong>. Con <strong>Devolver</strong> regresa un paso para que se corrija.
+      </p>
       {actionError && <p className="alert" role="alert">{actionError}</p>}
 
       {snapshot.dimensions.map((dim, dimIndex) => (

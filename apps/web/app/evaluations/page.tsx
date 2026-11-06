@@ -69,6 +69,11 @@ export default function EvaluationsPage() {
         isClosed(row) ? <Pill variant="warn">Cerrada</Pill> : <Pill variant="good">Abierta</Pill>,
     },
     {
+      key: "publishedAt",
+      header: "Publicada",
+      render: (row) => formatDueDate(row.publishedAt),
+    },
+    {
       key: "dueDate",
       header: "Plazo",
       render: (row) => (row.dueDate ? formatDueDate(row.dueDate) : "Sin plazo"),

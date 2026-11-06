@@ -750,7 +750,7 @@ export default function BuilderPage() {
                     size="sm"
                     onClick={() => openCreate({ kind: "indicator", dimensionId: firstDim.dimension.id })}
                   >
-                    Crear indicador
+                    Crear subsección
                   </Button>
                   <Button type="button" size="sm" onClick={() => setWizardStep(2)}>
                     Saltar
@@ -769,7 +769,7 @@ export default function BuilderPage() {
                       size="sm"
                       onClick={() => openCreate({ kind: "sub", indicatorId: firstIndicator.indicator.id })}
                     >
-                      Crear subindicador
+                      Crear tema
                     </Button>
                   ) : (
                     <Button
@@ -778,7 +778,7 @@ export default function BuilderPage() {
                       size="sm"
                       onClick={() => openCreate({ kind: "directSub", dimensionId: firstDim.dimension.id })}
                     >
-                      Crear subindicador directo
+                      Crear tema
                     </Button>
                   )}
                 </div>
@@ -831,7 +831,7 @@ export default function BuilderPage() {
         <div className="runtime-content">
           <h1>{targetDim.dimension.title}</h1>
           <p className="empty">
-            Esta dimensión todavía no tiene indicadores ni subindicadores. Creá un indicador (o uno directo) para
+            Esta sección todavía no tiene subsecciones ni temas. Crea una subsección (o un tema directo) para
             empezar.
           </p>
           <div className="runtime-topbar__actions">
@@ -841,14 +841,14 @@ export default function BuilderPage() {
               size="sm"
               onClick={() => openCreate({ kind: "indicator", dimensionId: targetDim.dimension.id })}
             >
-              Crear indicador
+              Crear subsección
             </Button>
             <Button
               type="button"
               size="sm"
               onClick={() => openCreate({ kind: "directSub", dimensionId: targetDim.dimension.id })}
             >
-              Crear subindicador directo
+              Crear tema
             </Button>
           </div>
         </div>
@@ -867,7 +867,7 @@ export default function BuilderPage() {
               size="sm"
               onClick={() => openCreate({ kind: "sub", indicatorId: targetInd.indicator.id })}
             >
-              Crear subindicador
+              Crear tema
             </Button>
           </div>
         </div>
@@ -920,7 +920,7 @@ export default function BuilderPage() {
             <div className="builder-nav__head">
               <strong>{framework.name}</strong>
               <div className="builder-nav__head-row">
-                <Pill>{flat.length} subindicadores</Pill>
+                <Pill>{flat.length} temas</Pill>
                 <button
                   type="button"
                   className="builder-nav__action builder-nav__action--always"
@@ -943,7 +943,7 @@ export default function BuilderPage() {
             {creating?.kind === "dimension" && (
               <form className="builder-nav__form" onSubmit={submitCreate}>
                 <label className="field__label" htmlFor="builder-title-dimension">
-                  Título del dimensión
+                  Título de la sección
                 </label>
                 <input
                   id="builder-title-dimension"
@@ -1036,7 +1036,7 @@ export default function BuilderPage() {
                       <button
                         type="button"
                         className="builder-nav__action"
-                        aria-label={`Crear indicador en ${d.dimension.title}`}
+                        aria-label={`Crear subsección en ${d.dimension.title}`}
                         onClick={() => openCreate({ kind: "indicator", dimensionId: d.dimension.id })}
                       >
                         ＋
@@ -1044,7 +1044,7 @@ export default function BuilderPage() {
                       <button
                         type="button"
                         className="builder-nav__action"
-                        aria-label={`Renombrar dimensión ${d.dimension.title}`}
+                        aria-label={`Renombrar sección ${d.dimension.title}`}
                         onClick={() => startRename("dimension", d.dimension.id, d.dimension.title)}
                       >
                         ✎
@@ -1063,7 +1063,7 @@ export default function BuilderPage() {
                   {renamingDim && (
                     <form className="builder-nav__form" onSubmit={submitRename}>
                       <label className="field__label" htmlFor="builder-rename-dimension">
-                        Renombrar dimensión
+                        Renombrar sección
                       </label>
                       <input
                         id="builder-rename-dimension"
@@ -1092,7 +1092,7 @@ export default function BuilderPage() {
                   {confirmingDim && (
                     <form className="builder-nav__confirm" onSubmit={submitDelete}>
                       <p>
-                        Borrar la dimensión <strong>{confirmingDim.title}</strong> y todo su contenido?
+                        Borrar la sección <strong>{confirmingDim.title}</strong> y todo su contenido?
                       </p>
                       {confirmingDim.error && (
                         <p className="alert" role="alert">
@@ -1113,7 +1113,7 @@ export default function BuilderPage() {
                   {creatingInd && (
                     <form className="builder-nav__form" onSubmit={submitCreate}>
                       <label className="field__label" htmlFor="builder-title-indicator">
-                        Título del indicador
+                        Título de la subsección
                       </label>
                       <input
                         id="builder-title-indicator"
@@ -1143,7 +1143,7 @@ export default function BuilderPage() {
                   {creatingDirectSub && (
                     <form className="builder-nav__form" onSubmit={submitCreate}>
                       <label className="field__label" htmlFor="builder-title-directsub">
-                        Título del subindicador
+                        Título del tema
                       </label>
                       <input
                         id="builder-title-directsub"
@@ -1212,7 +1212,7 @@ export default function BuilderPage() {
                                 <button
                                   type="button"
                                   className="builder-nav__action"
-                                  aria-label={`Crear subindicador en ${ind.indicator.title}`}
+                                  aria-label={`Crear tema en ${ind.indicator.title}`}
                                   onClick={() => openCreate({ kind: "sub", indicatorId: ind.indicator.id })}
                                 >
                                   ＋
@@ -1220,7 +1220,7 @@ export default function BuilderPage() {
                                 <button
                                   type="button"
                                   className="builder-nav__action"
-                                  aria-label={`Renombrar indicador ${ind.indicator.title}`}
+                                  aria-label={`Renombrar subsección ${ind.indicator.title}`}
                                   onClick={() => startRename("indicator", ind.indicator.id, ind.indicator.title)}
                                 >
                                   ✎
@@ -1239,7 +1239,7 @@ export default function BuilderPage() {
                             {renamingInd && (
                               <form className="builder-nav__form" onSubmit={submitRename}>
                                 <label className="field__label" htmlFor="builder-rename-indicator">
-                                  Renombrar indicador
+                                  Renombrar subsección
                                 </label>
                                 <input
                                   id="builder-rename-indicator"
@@ -1268,7 +1268,7 @@ export default function BuilderPage() {
                             {confirmingInd && (
                               <form className="builder-nav__confirm" onSubmit={submitDelete}>
                                 <p>
-                                  Borrar el indicador <strong>{confirmingInd.title}</strong> y sus subindicadores?
+                                  Borrar la subsección <strong>{confirmingInd.title}</strong> y sus temas?
                                 </p>
                                 {confirmingInd.error && (
                                   <p className="alert" role="alert">
@@ -1289,7 +1289,7 @@ export default function BuilderPage() {
                             {creatingSub && (
                               <form className="builder-nav__form" onSubmit={submitCreate}>
                                 <label className="field__label" htmlFor="builder-title-sub">
-                                  Título del subindicador
+                                  Título del tema
                                 </label>
                                 <input
                                   id="builder-title-sub"
@@ -1374,7 +1374,7 @@ export default function BuilderPage() {
                                       {renamingSub && (
                                         <form className="builder-nav__form" onSubmit={submitRename}>
                                           <label className="field__label" htmlFor="builder-rename-sub">
-                                            Renombrar subindicador
+                                            Renombrar tema
                                           </label>
                                           <input
                                             id="builder-rename-sub"
@@ -1405,7 +1405,7 @@ export default function BuilderPage() {
                                       {confirmingSub && (
                                         <form className="builder-nav__confirm" onSubmit={submitDelete}>
                                           <p>
-                                            Borrar el subindicador <strong>{confirmingSub.title}</strong>?
+                                            Borrar el tema <strong>{confirmingSub.title}</strong>?
                                           </p>
                                           {confirmingSub.error && (
                                             <p className="alert" role="alert">
@@ -1427,7 +1427,7 @@ export default function BuilderPage() {
                                 })}
                                 {ind.subs.length === 0 && (
                                   <p className="builder-nav__empty">
-                                    Sin subindicadores todavía — usá ＋ en el indicador.
+                                    Sin temas todavía — usa ＋ en la subsección.
                                   </p>
                                 )}
                               </div>
@@ -1504,7 +1504,7 @@ export default function BuilderPage() {
                                 {renamingSub && (
                                   <form className="builder-nav__form" onSubmit={submitRename}>
                                     <label className="field__label" htmlFor="builder-rename-directsub">
-                                      Renombrar subindicador
+                                      Renombrar tema
                                     </label>
                                     <input
                                       id="builder-rename-directsub"
@@ -1533,7 +1533,7 @@ export default function BuilderPage() {
                                 {confirmingSub && (
                                   <form className="builder-nav__confirm" onSubmit={submitDelete}>
                                     <p>
-                                      Borrar el subindicador <strong>{confirmingSub.title}</strong>?
+                                      Borrar el tema <strong>{confirmingSub.title}</strong>?
                                     </p>
                                     {confirmingSub.error && (
                                       <p className="alert" role="alert">
