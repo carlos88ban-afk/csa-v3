@@ -553,34 +553,14 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
 // Página pública (ver docs/engines/persistence.md): sin sesión, sin
 // requireActiveMember del lado del API. Wrapper delgado sobre RuntimeCore —
 // arma el adapter con las 3 URLs públicas por token.
-export default function PublicEvaluationPage({ params }: Props) {
-  const { token } = use(params);
-  const adapter = useMemo<RuntimeAdapter>(
-    () => ({
-      fetchEvaluation: () =>
-        api.get<{ evaluation: Evaluation }>(`/api/public/evaluations/${token}`).then((res) => res.evaluation),
-      fetchResponses: () =>
-        api
-          .get<{ responses: Array<{ subindicatorId: string; answers: ResponseAnswers }> }>(
-            `/api/public/evaluations/${token}/responses`,
-          )
-          .then((res) => res.responses),
-      saveResponse: (subindicatorId, answers) =>
-        api.put(`/api/public/evaluations/${token}/responses/${subindicatorId}`, { answers }),
-    }),
-    [token],
+export default function PublicEvaluationPage(_props: Props) {
+  // Los enlaces publicos ya no existen: cada usuario entra con su cuenta.
+  return (
+    <main className="page page--narrow">
+      <h1>Enlace no disponible</h1>
+      <p>Esta evaluación ahora se responde iniciando sesión. <a href="/login">Iniciar sesión</a></p>
+    </main>
   );
-  // VS-058 (docs/domain/business-units.md, "Acceso del evaluado"): el prop
-  // `evidenceToken` de ElementView (y de ahí para abajo) en realidad pasó a
-  // contener la URL BASE de las rutas de evidencia, no el token pelado — acá
-  // se arma con el token público; en el modo autenticado
-  // (AuthenticatedEvaluationPage) se arma con el id de la Evaluación contra
-  // las rutas for-business-unit/evidences. El nombre del prop quedó como
-  // "token" en toda la cadena de componentes para no tocar cada call site
-  // recursivo (SubOptionsView/OptionReferencesView) — mismo valor, semántica
-  // ampliada, ver el comentario en ElementViewProps más abajo.
-  const evidenceBase = `/api/public/evaluations/${token}/evidences`;
-  return <RuntimeCore adapter={adapter} evidenceToken={evidenceBase} />;
 }
 
 interface ElementViewProps {

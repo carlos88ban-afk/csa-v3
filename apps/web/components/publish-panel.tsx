@@ -1,358 +1,96 @@
 "use client";
 
-// VS-054/055/059 (docs/domain/business-units.md, "Panel Publicar" +
-// "Dashboard de avance corporativo" + "Filtrado de preguntas por unidad"):
-// reemplaza la pantalla /frameworks/[frameworkId] (eliminada) —
-// Publicación completa (generar/listar/revocar Evaluaciones, plazo/
-// contacto, asignación de unidades de negocio, progreso por unidad, export
-// XLSX consolidado, exclusiones por Subindicador/elemento) vive ahora en
-// un panel del Builder.
+// Publicar = abrir la evaluacion vigente. Solo existe una a la vez: al
+// publicar, la anterior se cierra. Todas las unidades activas participan; lo
+// que ve cada una lo define el "Aplica a" de cada pregunta.
 
-import { dueDateToInput, inputToDueDate } from "@/lib/due-date";
 import { useEffect, useState } from "react";
-import type { Evaluation, EvaluationAssignment } from "@plataforma-csa/sdk-core";
+import type { Evaluation } from "@plataforma-csa/sdk-core";
 import { api } from "@/lib/api-client";
+import { inputToDueDate } from "@/lib/due-date";
+import { formatDueDate } from "@/lib/due-date";
 import { Button, Pill } from "@/components/ui";
-import { ExclusionEditor } from "@/components/exclusion-editor";
 
-interface ChildOrganization {
-  id: string;
-  name: string;
-}
-
-interface UnitProgress {
-  businessUnitOrganizationId: string;
-  name: string;
-  total: number;
-  answered: number;
-  percent: number;
-}
-
-function toDateInputValue(dueDate: unknown): string {
-  if (!dueDate || (typeof dueDate !== "string" && !(dueDate instanceof Date))) return "";
-  return dueDateToInput(dueDate);
-}
-
-function EvaluationRow({
-  evaluation,
-  frameworkId,
-  childOrgs,
-  onRevoke,
-}: {
-  evaluation: Evaluation;
-  frameworkId: string;
-  childOrgs: ChildOrganization[];
-  onRevoke: (id: string) => void;
-}) {
-  const [assignments, setAssignments] = useState<EvaluationAssignment[] | null>(null);
-  const [progress, setProgress] = useState<UnitProgress[] | null>(null);
-  const [dueDate, setDueDate] = useState(toDateInputValue(evaluation.dueDate));
-  const [contactEmail, setContactEmail] = useState(evaluation.contactEmail ?? "");
-  const [savingDeadline, setSavingDeadline] = useState(false);
-  const [deadlineError, setDeadlineError] = useState<string | null>(null);
-  const [deadlineSaved, setDeadlineSaved] = useState(false);
-  const [assignBusy, setAssignBusy] = useState<string | null>(null);
-  const [revoking, setRevoking] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
-  // VS-059: qué unidad tiene su editor de exclusiones abierto — a lo sumo
-  // una por vez por Evaluación, alcanza para no complicar el estado.
-  const [exclusionsOpenFor, setExclusionsOpenFor] = useState<string | null>(null);
-
-  useEffect(() => {
-    api
-      .get<{ assignments: EvaluationAssignment[] }>(`/api/evaluations/${evaluation.id}/assignments`)
-      .then((res) => setAssignments(res.assignments))
-      .catch(() => setAssignments([]));
-  }, [evaluation.id]);
-
-  // Dashboard de progreso (VS-055): solo tiene sentido pedirlo si hay al
-  // menos una unidad asignada — recién se sabe eso después de que
-  // `assignments` resuelve. Se refetchea con la longitud de assignments
-  // (no la referencia, que cambia en cada asignar/desasignar) para no
-  // perder la actualización cuando el admin marca/desmarca un checkbox.
-  useEffect(() => {
-    if (!assignments || assignments.length === 0) {
-      setProgress(null);
-      return;
-    }
-    api
-      .get<{ units: UnitProgress[] }>(`/api/evaluations/${evaluation.id}/progress`)
-      .then((res) => setProgress(res.units))
-      .catch(() => setProgress(null));
-  }, [evaluation.id, assignments?.length]);
-
-  const deadlinePassed = !!evaluation.dueDate && new Date(evaluation.dueDate) <= new Date();
-
-  // dueDate solo se envía si el admin escribió algo — el service rechaza
-  // (400 dueDate_CANNOT_CLEAR) intentar volver a null un plazo ya fijado, y
-  // dejar el campo vacío en este form no debe interpretarse como esa
-  // intención (ver docs/domain/business-units.md, "Plazo de recepción").
-  async function handleSaveDeadline() {
-    setSavingDeadline(true);
-    setDeadlineError(null);
-    setDeadlineSaved(false);
-    try {
-      const body: { dueDate?: string; contactEmail: string | null } = {
-        contactEmail: contactEmail.trim() === "" ? null : contactEmail.trim(),
-      };
-      if (dueDate.trim() !== "") body.dueDate = inputToDueDate(dueDate);
-      await api.patch(`/api/evaluations/${evaluation.id}`, body);
-      setDeadlineSaved(true);
-    } catch (err) {
-      setDeadlineError(err instanceof Error ? err.message : "No se pudo guardar");
-    } finally {
-      setSavingDeadline(false);
-    }
-  }
-
-  async function toggleAssignment(org: ChildOrganization) {
-    if (!assignments) return;
-    const existing = assignments.find((a) => a.businessUnitOrganizationId === org.id);
-    setAssignBusy(org.id);
-    try {
-      if (existing) {
-        await api.del(`/api/evaluations/${evaluation.id}/assignments/${existing.id}`);
-        setAssignments((prev) => (prev ?? []).filter((a) => a.id !== existing.id));
-      } else {
-        const { assignment } = await api.post<{ assignment: EvaluationAssignment }>(
-          `/api/evaluations/${evaluation.id}/assignments`,
-          { businessUnitOrganizationId: org.id },
-        );
-        setAssignments((prev) => [...(prev ?? []), assignment]);
-      }
-    } catch {
-      // Estado real no cambió — el checkbox vuelve solo en el próximo render.
-    } finally {
-      setAssignBusy(null);
-    }
-  }
-
-  async function handleRevoke() {
-    setRevoking(true);
-    try {
-      await api.del(`/api/evaluations/${evaluation.id}`);
-      onRevoke(evaluation.id);
-    } finally {
-      setRevoking(false);
-    }
-  }
-
-  const hasAssignments = (assignments?.length ?? 0) > 0;
-
-  return (
-    <li className="entry-list__row publish-panel__row">
-      <div className="entry-list__main">
-        {deadlinePassed ? <Pill variant="warn">Cerrada</Pill> : <Pill variant="good">Abierta</Pill>}
-        <span className="empty">
-          Publicada el {new Date(evaluation.publishedAt).toLocaleDateString("es-PE", { timeZone: "America/Lima", day: "numeric", month: "long", year: "numeric" })}
-        </span>
-        {hasAssignments ? (
-          <span className="empty">Se envía a cada unidad de negocio</span>
-        ) : (
-          <>
-            <a href={`/evaluations/${evaluation.token}`}>Abrir formulario</a>
-            <Button
-              type="button"
-              size="sm"
-              onClick={async () => {
-                await navigator.clipboard.writeText(`${window.location.origin}/evaluations/${evaluation.token}`);
-                setLinkCopied(true);
-                setTimeout(() => setLinkCopied(false), 2000);
-              }}
-            >
-              {linkCopied ? "Enlace copiado" : "Copiar enlace"}
-            </Button>
-          </>
-        )}
-      </div>
-      <div className="entry-list__actions">
-        <a href={`/frameworks/${frameworkId}/evaluations/${evaluation.id}/review`}>Revisar respuestas</a>
-        {hasAssignments ? (
-          <a href={`/api/evaluations/${evaluation.id}/export-xlsx`}>Descargar consolidado (Excel)</a>
-        ) : (
-          <a href={`/api/evaluations/${evaluation.id}/export`}>Descargar respuestas (CSV)</a>
-        )}
-        {confirmDelete ? (
-          <>
-            <span className="empty">Se borrarán también todas las respuestas.</span>
-            <Button type="button" variant="danger" size="sm" onClick={() => void handleRevoke()} disabled={revoking}>
-              {revoking ? "Eliminando..." : "Sí, eliminar"}
-            </Button>
-            <Button type="button" size="sm" onClick={() => setConfirmDelete(false)} disabled={revoking}>
-              Cancelar
-            </Button>
-          </>
-        ) : (
-          <Button type="button" variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>
-            Eliminar
-          </Button>
-        )}
-      </div>
-
-      <div className="form form--row publish-panel__deadline">
-        <label className="field">
-          <span className="field__label">Fecha límite</span>
-          <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-        </label>
-        <label className="field">
-          <span className="field__label">Correo de contacto</span>
-          <input
-            type="email"
-            value={contactEmail}
-            onChange={(e) => setContactEmail(e.target.value)}
-            placeholder="admin@empresa.com"
-          />
-        </label>
-        <Button type="button" size="sm" onClick={() => void handleSaveDeadline()} disabled={savingDeadline}>
-          {savingDeadline ? "Guardando..." : "Guardar plazo"}
-        </Button>
-        {deadlineSaved && <Pill variant="good">Guardado</Pill>}
-      </div>
-      {deadlineError && (
-        <p className="alert" role="alert">
-          {deadlineError}
-        </p>
-      )}
-
-      {childOrgs.length > 0 && (
-        <div className="publish-panel__units">
-          <span className="field__label">Unidades de negocio</span>
-          {assignments === null ? (
-            <p className="empty">Cargando…</p>
-          ) : (
-            <ul className="publish-panel__unit-list">
-              {childOrgs.map((org) => {
-                const assignment = assignments.find((a) => a.businessUnitOrganizationId === org.id);
-                const assigned = !!assignment;
-                const unitProgress = progress?.find((p) => p.businessUnitOrganizationId === org.id);
-                const exclusionsOpen = assignment && exclusionsOpenFor === assignment.id;
-                return (
-                  <li key={org.id}>
-                    <label className="field field--checkbox">
-                      <input
-                        type="checkbox"
-                        checked={assigned}
-                        disabled={assignBusy === org.id}
-                        onChange={() => void toggleAssignment(org)}
-                      />
-                      {org.name}
-                    </label>
-                    {/* Dashboard de avance (VS-055, docs/domain/business-units.md
-                        "Dashboard de avance corporativo"): progreso por unidad
-                        + si el plazo (compartido por toda la Evaluación) venció. */}
-                    {assigned && unitProgress && (
-                      <span className="publish-panel__unit-progress">
-                        <Pill variant={unitProgress.percent === 100 ? "good" : "accent"}>
-                          {unitProgress.percent}% ({unitProgress.answered}/{unitProgress.total})
-                        </Pill>
-                        {deadlinePassed && <Pill variant="warn">Plazo vencido</Pill>}
-                      </span>
-                    )}
-                    {/* VS-059: editor de exclusiones — solo tiene sentido para
-                        una unidad ya asignada (necesita un assignmentId real). */}
-                    {assignment && (
-                      <button
-                        type="button"
-                        className="exclusion-editor__toggle"
-                        onClick={() => setExclusionsOpenFor(exclusionsOpen ? null : assignment.id)}
-                      >
-                        {exclusionsOpen ? "▾" : "▸"} Exclusiones
-                      </button>
-                    )}
-                    {exclusionsOpen && assignment && (
-                      <ExclusionEditor evaluationId={evaluation.id} assignmentId={assignment.id} />
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      )}
-    </li>
-  );
-}
-
-export function PublishPanel({
-  frameworkId,
-  open,
-  onClose,
-}: {
-  frameworkId: string;
-  open: boolean;
-  onClose: () => void;
-}) {
+export function PublishPanel({ frameworkId, open, onClose }: { frameworkId: string; open: boolean; onClose: () => void }) {
   const [evaluations, setEvaluations] = useState<Evaluation[] | null>(null);
-  const [childOrgs, setChildOrgs] = useState<ChildOrganization[]>([]);
+  const [dueDate, setDueDate] = useState("");
   const [publishing, setPublishing] = useState(false);
-  const [publishError, setPublishError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
+  const load = () =>
     api
       .get<{ evaluations: Evaluation[] }>(`/api/evaluations?frameworkId=${frameworkId}`)
-      .then((res) => setEvaluations(res.evaluations));
-    api
-      .get<{ organizations: ChildOrganization[] }>("/api/organizations/children")
-      .then((res) => setChildOrgs(res.organizations))
-      .catch(() => setChildOrgs([]));
+      .then((r) => setEvaluations(r.evaluations))
+      .catch(() => setEvaluations([]));
+
+  useEffect(() => {
+    if (open) void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, frameworkId]);
 
-  async function handlePublish() {
-    setPublishError(null);
+  if (!open) return null;
+
+  async function publish() {
     setPublishing(true);
+    setError(null);
     try {
-      const { evaluation } = await api.post<{ evaluation: Evaluation }>("/api/evaluations", { frameworkId });
-      setEvaluations((prev) => [...(prev ?? []), evaluation]);
+      await api.post("/api/evaluations", { frameworkId, ...(dueDate ? { dueDate: inputToDueDate(dueDate) } : {}) });
+      setDone(true);
+      await load();
     } catch (err) {
-      setPublishError(err instanceof Error ? err.message : "No se pudo publicar");
+      setError(err instanceof Error ? err.message : "No se pudo publicar");
     } finally {
       setPublishing(false);
     }
   }
-
-  function handleRevoked(id: string) {
-    setEvaluations((prev) => (prev ?? []).filter((e) => e.id !== id));
-  }
-
-  if (!open) return null;
 
   return (
     <>
       <div className="form-preview-backdrop" onClick={onClose} aria-hidden="true" />
       <div className="form-preview-drawer" role="dialog" aria-modal="true" aria-label="Publicar">
         <div className="form-preview-drawer__head">
-          <h3>Publicar</h3>
+          <h3>Publicar evaluación</h3>
           <button type="button" className="form-preview-drawer__close" onClick={onClose} aria-label="Cerrar">
             ✕
           </button>
         </div>
         <div className="form-preview publish-panel">
-          <Button type="button" variant="primary" onClick={() => void handlePublish()} disabled={publishing}>
-            {publishing ? "Publicando..." : "Publicar ahora"}
+          <p>
+            Al publicar, esta pasa a ser la <strong>evaluación vigente</strong> y la anterior se cierra. Todas las unidades activas la
+            responden desde su cuenta; cada una ve solo las preguntas que le aplican.
+          </p>
+          <label className="field">
+            <span className="field__label">Plazo (opcional)</span>
+            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </label>
+          <Button type="button" variant="primary" onClick={() => void publish()} disabled={publishing}>
+            {publishing ? "Publicando..." : "Publicar como vigente"}
           </Button>
-          {publishError && (
-            <p className="alert" role="alert">
-              {publishError}
+          {error && <p className="alert" role="alert">{error}</p>}
+          {done && (
+            <p className="alert" role="status">
+              Publicada. <a href="/evaluations">Ver el avance de las unidades</a>
             </p>
           )}
-
+          <h4>Publicaciones anteriores de esta estructura</h4>
           {evaluations === null ? (
             <p className="empty">Cargando…</p>
           ) : evaluations.length === 0 ? (
-            <p className="empty">Todavía no publicaste este formulario.</p>
+            <p className="empty">Todavía no publicaste esta estructura.</p>
           ) : (
             <ul className="entry-list">
-              {evaluations.map((ev) => (
-                <EvaluationRow
-                  key={ev.id}
-                  evaluation={ev}
-                  frameworkId={frameworkId}
-                  childOrgs={childOrgs}
-                  onRevoke={handleRevoked}
-                />
-              ))}
+              {evaluations.map((ev, i) => {
+                const closed = !!ev.dueDate && new Date(ev.dueDate) <= new Date();
+                return (
+                  <li key={ev.id} className="entry-list__row">
+                    <span className="entry-list__main">
+                      {formatDueDate(ev.publishedAt as unknown as string)}{" "}
+                      {i === 0 && !closed ? <Pill variant="good">Vigente</Pill> : <Pill variant="warn">Cerrada</Pill>}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

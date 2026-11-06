@@ -4,6 +4,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../client.js";
 import { organization } from "../schema/auth.js";
 import { evaluationAssignment, evaluationAssignmentExclusion } from "../schema/evaluation-assignment.js";
+import { evaluation } from "../schema/evaluation.js";
 import { getEvaluation } from "./evaluation-service.js";
 import { NotFoundError } from "./service.js";
 
@@ -71,16 +72,30 @@ export async function listAssignments(organizationId: string, evaluationId: stri
 // (su propia organización activa), no de la matriz — usado por el flujo de
 // acceso autenticado del evaluado (ver "Acceso del evaluado" en el spec).
 export async function getAssignmentForBusinessUnit(evaluationId: string, businessUnitOrganizationId: string) {
-  const [row] = await db
-    .select()
-    .from(evaluationAssignment)
-    .where(
-      and(
-        eq(evaluationAssignment.evaluationId, evaluationId),
-        eq(evaluationAssignment.businessUnitOrganizationId, businessUnitOrganizationId),
-      ),
-    );
-  return row ?? null;
+  const find = async () => {
+    const [row] = await db
+      .select()
+      .from(evaluationAssignment)
+      .where(
+        and(
+          eq(evaluationAssignment.evaluationId, evaluationId),
+          eq(evaluationAssignment.businessUnitOrganizationId, businessUnitOrganizationId),
+        ),
+      );
+    return row ?? null;
+  };
+  const existing = await find();
+  if (existing) return existing;
+  // Toda unidad activa de la organizacion duena participa en la evaluacion:
+  // la asignacion se crea al primer acceso.
+  const [ev] = await db.select().from(evaluation).where(eq(evaluation.id, evaluationId));
+  const [unit] = await db.select().from(organization).where(eq(organization.id, businessUnitOrganizationId));
+  if (!ev || !unit || unit.parentOrganizationId !== ev.organizationId || !unit.active) return null;
+  await db
+    .insert(evaluationAssignment)
+    .values({ id: randomUUID(), evaluationId, businessUnitOrganizationId })
+    .onConflictDoNothing();
+  return find();
 }
 
 async function requireOwnedAssignment(organizationId: string, evaluationId: string, assignmentId: string) {

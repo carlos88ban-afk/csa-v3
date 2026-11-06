@@ -7,7 +7,8 @@ import {
   type FormElement,
   type ResponseAnswers,
 } from "@plataforma-csa/sdk-core";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { blockAssignment } from "../schema/corporate.js";
 import { db } from "../client.js";
 import { evaluationAssignment } from "../schema/evaluation-assignment.js";
 import { evaluation } from "../schema/evaluation.js";
@@ -48,6 +49,8 @@ type SnapshotSubindicator = EvaluationSnapshot["dimensions"][number]["indicators
 function filterSnapshotByExclusions(
   snapshot: EvaluationSnapshot,
   exclusions: Array<{ subindicatorId: string; elementId: string | null }>,
+  unitId: string,
+  allowedSubindicators: Set<string> | null,
 ): EvaluationSnapshot {
   // Agrupar exclusiones por subindicatorId para lookup rápido.
   const exclusionMap = new Map<string, Set<string | null>>();
@@ -59,6 +62,13 @@ function filterSnapshotByExclusions(
   }
 
   function filterSubindicator(sub: SnapshotSubindicator): SnapshotSubindicator {
+    // Aplicabilidad por unidad (appliesTo en el elemento): ausente = todas.
+    if (sub.formSchema) {
+      const applicable = sub.formSchema.elements.filter((el) => !el.appliesTo || el.appliesTo.includes(unitId));
+      if (applicable.length !== sub.formSchema.elements.length) {
+        sub = { ...sub, formSchema: { ...sub.formSchema, elements: applicable } };
+      }
+    }
     const excluded = exclusionMap.get(sub.id);
     if (!excluded) return sub; // Sin exclusiones, devuelve sin cambios.
     
@@ -76,17 +86,17 @@ function filterSnapshotByExclusions(
     return { ...sub, formSchema: { ...sub.formSchema, elements: filteredElements } };
   }
 
-  return {
-    ...snapshot,
-    dimensions: snapshot.dimensions.map((dim) => ({
+  const keep = (sub: SnapshotSubindicator) => !allowedSubindicators || allowedSubindicators.has(sub.id);
+  const dimensions = snapshot.dimensions
+    .map((dim) => ({
       ...dim,
-      indicators: dim.indicators.map((ind) => ({
-        ...ind,
-        subindicators: ind.subindicators.map(filterSubindicator),
-      })),
-      subindicators: dim.subindicators.map(filterSubindicator),
-    })),
-  };
+      indicators: dim.indicators
+        .map((ind) => ({ ...ind, subindicators: ind.subindicators.filter(keep).map(filterSubindicator) }))
+        .filter((ind) => !allowedSubindicators || ind.subindicators.length > 0),
+      subindicators: dim.subindicators.filter(keep).map(filterSubindicator),
+    }))
+    .filter((dim) => !allowedSubindicators || dim.indicators.length > 0 || dim.subindicators.length > 0);
+  return { ...snapshot, dimensions };
 }
 
 /**
@@ -95,7 +105,12 @@ function filterSnapshotByExclusions(
  * - 403 si la unidad no tiene asignación vigente para la Evaluación.
  * - Devuelve el snapshot con exclusiones aplicadas.
  */
-export async function getEvaluationForBusinessUnit(evaluationId: string, businessUnitOrganizationId: string) {
+export async function getEvaluationForBusinessUnit(
+  evaluationId: string,
+  businessUnitOrganizationId: string,
+  /** Un evaluador solo ve los bloques que tiene asignados. */
+  viewer?: { userId: string; appRole: string },
+) {
   // Verificar que la Evaluación exista (sin org — está en modo corporativo,
   // no aplica tenant-scoping tradicional aquí).
   const [ev] = await db.select().from(evaluation).where(eq(evaluation.id, evaluationId));
@@ -107,7 +122,26 @@ export async function getEvaluationForBusinessUnit(evaluationId: string, busines
 
   // Aplicar exclusiones.
   const exclusions = await listExclusions(assignment.id);
-  const filteredSnapshot = filterSnapshotByExclusions(ev.snapshot as EvaluationSnapshot, exclusions);
+  let allowed: Set<string> | null = null;
+  if (viewer && viewer.appRole === "evaluator") {
+    const rows = await db
+      .select({ subindicatorId: blockAssignment.subindicatorId })
+      .from(blockAssignment)
+      .where(
+        and(
+          eq(blockAssignment.evaluationId, evaluationId),
+          eq(blockAssignment.businessUnitId, businessUnitOrganizationId),
+          eq(blockAssignment.userId, viewer.userId),
+        ),
+      );
+    allowed = new Set(rows.map((r) => r.subindicatorId));
+  }
+  const filteredSnapshot = filterSnapshotByExclusions(
+    ev.snapshot as EvaluationSnapshot,
+    exclusions,
+    businessUnitOrganizationId,
+    allowed,
+  );
 
   return {
     ...ev,

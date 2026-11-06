@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import type { CreateEvaluationInput, EvaluationSnapshot, UpdateEvaluationInput } from "@plataforma-csa/sdk-core";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNull, ne, or } from "drizzle-orm";
 import { db } from "../client.js";
 import { dimension, indicator, subindicator } from "../schema/domain.js";
 import { evaluation } from "../schema/evaluation.js";
@@ -115,6 +115,17 @@ export async function createEvaluation(organizationId: string, input: CreateEval
     .returning();
   const [row] = rows;
   if (!row) throw new Error("Failed to insert evaluation");
+  // Una sola evaluacion vigente: las anteriores abiertas se cierran ahora.
+  await db
+    .update(evaluation)
+    .set({ dueDate: new Date() })
+    .where(
+      and(
+        eq(evaluation.organizationId, organizationId),
+        or(isNull(evaluation.dueDate), gt(evaluation.dueDate, new Date())),
+        ne(evaluation.id, row.id),
+      ),
+    );
   return row;
 }
 

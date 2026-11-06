@@ -1,28 +1,25 @@
-import { auth, getEvaluation, requireWriteAccess, setElementStatus } from "@plataforma-csa/db";
+import { getEvaluation, requireCorporateAdmin, setElementStatus } from "@plataforma-csa/db";
 import { setElementStatusInput } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
-
-// VS-018 (ver docs/engines/persistence.md, "Estado por pregunta + flujo
-// Approved/Submitted"): autenticada y tenant-scoped, a diferencia de
-// public/evaluations/[token]/responses/[subindicatorId] — aprobar/enviar es
-// una acción de revisión de la Organización, no del evaluado (mismo criterio
-// que evaluations/[id]/export, no vive bajo public/).
 
 interface Params {
   params: Promise<{ id: string; subindicatorId: string }>;
 }
 
+// Revision por unidad: el administrador corporativo aprueba, entrega o devuelve
+// respuestas de una unidad concreta (?unit=).
 export async function PATCH(request: Request, { params }: Params) {
   try {
     const { id, subindicatorId } = await params;
-    const { organizationId } = await requireWriteAccess(request.headers);
-    const evaluation = await getEvaluation(organizationId, id);
+    const ctx = await requireCorporateAdmin(request.headers);
+    const evaluation = await getEvaluation(ctx.corporateOrgId, id);
     if (!evaluation) return Response.json({ error: "evaluation_NOT_FOUND" }, { status: 404 });
+    const unit = new URL(request.url).searchParams.get("unit");
+    if (!unit) return Response.json({ error: "UNIT_REQUIRED" }, { status: 400 });
 
     const { elementId, status, comment } = setElementStatusInput.parse(await request.json());
-    const session = await auth.api.getSession({ headers: request.headers });
-    const row = await setElementStatus(evaluation.id, subindicatorId, elementId, status, undefined, {
-      by: session?.user.email ?? "Revisor",
+    const row = await setElementStatus(evaluation.id, subindicatorId, elementId, status, unit, {
+      by: ctx.userName,
       comment,
     });
     return Response.json({ response: row });

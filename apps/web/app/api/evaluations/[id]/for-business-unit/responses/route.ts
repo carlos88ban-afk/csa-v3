@@ -1,12 +1,5 @@
-import {
-  getAssignmentForBusinessUnit,
-  listResponses,
-  requireActiveMember,
-} from "@plataforma-csa/db";
+import { getAppContext, getAssignmentForBusinessUnit, listResponses } from "@plataforma-csa/db";
 import { toErrorResponse } from "@/lib/api-errors";
-
-// VS-054 (docs/domain/business-units.md, "Acceso del evaluado"): carga las
-// respuestas de la unidad de negocio autenticada para una Evaluación.
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -14,17 +7,14 @@ interface Params {
 
 export async function GET(request: Request, { params }: Params) {
   try {
-    const { organizationId } = await requireActiveMember(request.headers);
+    const ctx = await getAppContext(request.headers);
+    if (!ctx.unitId) return Response.json({ error: "FORBIDDEN" }, { status: 403 });
     const { id: evaluationId } = await params;
-
-    // Validar que la unidad tiene asignación para esta Evaluación (403 si no).
-    const assignment = await getAssignmentForBusinessUnit(evaluationId, organizationId);
+    const assignment = await getAssignmentForBusinessUnit(evaluationId, ctx.unitId);
     if (!assignment) {
       return Response.json({ error: "evaluation_assignment_NOT_FOUND" }, { status: 403 });
     }
-
-    // listResponses ya filtra por businessUnitOrganizationId (VS-051).
-    const responses = await listResponses(evaluationId, organizationId);
+    const responses = await listResponses(evaluationId, ctx.unitId);
     return Response.json({ responses });
   } catch (error) {
     return toErrorResponse(error);

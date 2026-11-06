@@ -35,6 +35,9 @@ export const response = pgTable(
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
     answers: jsonb("answers").notNull(),
+    // Trazabilidad: quién guardó por última vez este bloque.
+    updatedByUserId: text("updated_by_user_id"),
+    updatedByName: text("updated_by_name"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -44,7 +47,7 @@ export const response = pgTable(
   (table) => [
     index("response_evaluationId_idx").on(table.evaluationId),
     index("response_businessUnitOrganizationId_idx").on(table.businessUnitOrganizationId),
-    unique("response_evaluationId_subindicatorId_businessUnit_unique").on(
+    unique("response_eval_sub_unit_uq").on(
       table.evaluationId,
       table.subindicatorId,
       table.businessUnitOrganizationId,

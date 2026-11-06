@@ -12,6 +12,7 @@ export default defineConfig({
     "./src/schema/evaluation.ts",
     "./src/schema/evaluation-assignment.ts",
     "./src/schema/response.ts",
+    "./src/schema/corporate.ts",
   ],
   dbCredentials: {
     url: process.env.DATABASE_URL,

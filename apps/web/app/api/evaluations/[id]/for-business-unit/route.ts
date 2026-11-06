@@ -1,10 +1,5 @@
-import { getEvaluationForBusinessUnit, requireActiveMember } from "@plataforma-csa/db";
+import { getAppContext, getEvaluationForBusinessUnit } from "@plataforma-csa/db";
 import { toErrorResponse } from "@/lib/api-errors";
-
-// VS-053 (docs/domain/business-units.md, "Acceso del evaluado"): ruta
-// autenticada para que una unidad de negocio acceda a su vista filtrada de
-// la Evaluación. Reemplaza el consumo público de /api/public/evaluations/[token]
-// en Runtime cuando la Evaluación tiene asignaciones (modo corporativo).
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -12,12 +7,10 @@ interface Params {
 
 export async function GET(request: Request, { params }: Params) {
   try {
-    const { organizationId } = await requireActiveMember(request.headers);
+    const ctx = await getAppContext(request.headers);
+    if (!ctx.unitId) return Response.json({ error: "FORBIDDEN" }, { status: 403 });
     const { id } = await params;
-
-    // getEvaluationForBusinessUnit lanza 403 si organizationId no tiene
-    // asignación para esta Evaluación, y devuelve el snapshot filtrado.
-    const evaluation = await getEvaluationForBusinessUnit(id, organizationId);
+    const evaluation = await getEvaluationForBusinessUnit(id, ctx.unitId, { userId: ctx.userId, appRole: ctx.appRole });
     return Response.json({ evaluation });
   } catch (error) {
     return toErrorResponse(error);

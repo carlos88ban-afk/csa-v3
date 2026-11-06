@@ -4,7 +4,19 @@ export * as authSchema from "./schema/auth.js";
 export * as domainSchema from "./schema/domain.js";
 export * as evaluationSchema from "./schema/evaluation.js";
 export * as responseSchema from "./schema/response.js";
-export { AuthzError, requireActiveMember, requireWriteAccess, listChildOrganizations } from "./authz.js";
+export {
+  AuthzError,
+  requireActiveMember,
+  requireWriteAccess,
+  listChildOrganizations,
+  getAppContext,
+  requireCorporateAdmin,
+  requireUnitMember,
+  type AppContext,
+  type AppRole,
+} from "./authz.js";
+export * from "./domain/corporate-service.js";
+export * as corporateSchema from "./schema/corporate.js";
 export * from "./domain/service.js";
 export * from "./domain/evaluation-service.js";
 export * from "./domain/response-service.js";

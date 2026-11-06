@@ -95,6 +95,9 @@ export const organization = pgTable(
     // `pnpm db:generate-auth-schema`: el CLI de Better Auth no la añade,
     // pero drizzle-orm no puede inferir el tipo de una self-reference sin
     // ella (TS7022/TS7024). Ver docs/domain/business-units.md.
+    // Unidades de negocio (organizaciones hijas): sigla corta y estado.
+    sigla: text("sigla"),
+    active: boolean("active").default(true).notNull(),
     parentOrganizationId: text("parent_organization_id").references(
       (): AnyPgColumn => organization.id,
       { onDelete: "cascade" },

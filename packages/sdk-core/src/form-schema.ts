@@ -17,6 +17,8 @@ const formElementBase = {
   id: z.string().min(1),
   componentVersion: z.number().int().positive().optional(),
   visibleIf: condition.optional(),
+  // Unidades de negocio a las que aplica este elemento (ids). Ausente = todas.
+  appliesTo: z.array(z.string().min(1)).optional(),
 };
 
 // label/options[].label permiten vacío a propósito: el autosave del Builder

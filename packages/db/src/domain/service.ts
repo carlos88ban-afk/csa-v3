@@ -329,6 +329,14 @@ export async function createSubindicator(organizationId: string, input: CreateSu
       title: input.title,
       description: input.description ?? null,
       order,
+      // Regla de negocio: todo subindicador nace con su sección de
+      // evidencias al final.
+      formSchema: {
+        schemaVersion: 1,
+        elements: [
+          { id: randomUUID(), type: "evidencia", label: "Evidencias", componentVersion: 1, maxFiles: 10 },
+        ],
+      },
     })
     .returning();
   return firstOrThrow(rows, "subindicator");

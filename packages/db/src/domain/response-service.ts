@@ -59,6 +59,7 @@ export async function upsertResponse(
   subindicatorId: string,
   answers: ResponseAnswers,
   businessUnitOrganizationId?: string,
+  actor?: { id: string; name: string },
 ) {
   const [ev] = await db.select().from(evaluation).where(eq(evaluation.id, evaluationId));
   if (!ev) throw new NotFoundError("evaluation");
@@ -79,10 +80,22 @@ export async function upsertResponse(
   const unit = businessUnitOrganizationId ?? ev.organizationId;
   const [row] = await db
     .insert(response)
-    .values({ id: randomUUID(), evaluationId, subindicatorId, businessUnitOrganizationId: unit, answers })
+    .values({
+      id: randomUUID(),
+      evaluationId,
+      subindicatorId,
+      businessUnitOrganizationId: unit,
+      answers,
+      updatedByUserId: actor?.id ?? null,
+      updatedByName: actor?.name ?? null,
+    })
     .onConflictDoUpdate({
       target: [response.evaluationId, response.subindicatorId, response.businessUnitOrganizationId],
-      set: { answers, updatedAt: new Date() },
+      set: {
+        answers,
+        updatedAt: new Date(),
+        ...(actor ? { updatedByUserId: actor.id, updatedByName: actor.name } : {}),
+      },
     })
     .returning();
   if (!row) throw new Error("Failed to upsert response");

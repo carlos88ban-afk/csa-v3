@@ -1,5 +1,6 @@
 "use client";
 
+import { AppliesToPicker } from "@/components/applies-to-picker";
 import {
   FormulaSyntaxError,
   componentRegistry,
@@ -2127,6 +2128,9 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                           </label>
                         )}
                       </div>
+                    )}
+                    {isQuestion(el) && (
+                      <AppliesToPicker value={el.appliesTo} onChange={(next) => updateElement(el.id, { appliesTo: next })} />
                     )}
                   </div>
                 </details>

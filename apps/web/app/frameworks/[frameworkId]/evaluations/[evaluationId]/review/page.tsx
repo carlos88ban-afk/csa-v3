@@ -201,12 +201,14 @@ function QuestionReviewRow({
 // Subindicadores directos bajo Dimensión (VS-029, docs/domain/evaluation-hierarchy.md)
 // — mismo contenido de tarjeta, solo cambia de dónde cuelga en el árbol.
 function SubindicatorReviewCard({
+  unitId,
   sub,
   subNumber,
   answers,
   pending,
   setStatus,
 }: {
+  unitId: string;
   sub: SnapshotSubindicator;
   subNumber: string;
   answers: ResponseAnswers;
@@ -218,7 +220,9 @@ function SubindicatorReviewCard({
     comment?: string,
   ) => Promise<boolean>;
 }) {
-  const questions = (sub.formSchema?.elements ?? []).filter((el) => isQuestion(el) && isElementVisible(el.visibleIf, answers));
+  const questions = (sub.formSchema?.elements ?? []).filter(
+    (el) => isQuestion(el) && (!el.appliesTo || el.appliesTo.includes(unitId)) && isElementVisible(el.visibleIf, answers),
+  );
   if (questions.length === 0) return null;
   return (
     <Card>
@@ -249,11 +253,14 @@ export default function ReviewPage({ params }: Props) {
   const [notFound, setNotFound] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [unitId, setUnitId] = useState<string | null>(null);
+  const [unitLabel, setUnitLabel] = useState("");
 
-  function loadResponses() {
+  function loadResponses(unit: string | null = unitId) {
+    if (!unit) return;
     api
       .get<{ responses: Array<{ subindicatorId: string; answers: ResponseAnswers }> }>(
-        `/api/evaluations/${evaluationId}/responses`,
+        `/api/evaluations/${evaluationId}/responses?unit=${unit}`,
       )
       .then((res) => {
         const map: Record<string, ResponseAnswers> = {};
@@ -267,7 +274,17 @@ export default function ReviewPage({ params }: Props) {
       .get<{ evaluation: Evaluation }>(`/api/evaluations/${evaluationId}`)
       .then((res) => setEvaluation(res.evaluation))
       .catch(() => setNotFound(true));
-    loadResponses();
+    const unit = new URLSearchParams(window.location.search).get("unit");
+    setUnitId(unit);
+    loadResponses(unit);
+    if (unit) {
+      api
+        .get<{ units: Array<{ id: string; name: string; sigla: string | null }> }>("/api/units")
+        .then((r) => {
+          const u = r.units.find((x) => x.id === unit);
+          if (u) setUnitLabel(u.sigla ? `${u.sigla} — ${u.name}` : u.name);
+        });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evaluationId]);
 
@@ -281,7 +298,7 @@ export default function ReviewPage({ params }: Props) {
     setPending(actionKey);
     setActionError(null);
     try {
-      await api.patch(`/api/evaluations/${evaluationId}/responses/${subindicatorId}/status`, { elementId, status, comment });
+      await api.patch(`/api/evaluations/${evaluationId}/responses/${subindicatorId}/status?unit=${unitId}`, { elementId, status, comment });
       loadResponses();
       return true;
     } catch (err) {
@@ -296,6 +313,13 @@ export default function ReviewPage({ params }: Props) {
   if (!evaluation) return <main className="loading">Cargando...</main>;
 
   const { snapshot } = evaluation;
+  if (!unitId)
+    return (
+      <main className="page">
+        <h1>Revisión</h1>
+        <p className="page__lead">Elige una unidad desde la pantalla de <a href="/evaluations">Evaluación</a> para revisar sus respuestas.</p>
+      </main>
+    );
 
   return (
     <main className="page">
@@ -309,7 +333,7 @@ export default function ReviewPage({ params }: Props) {
           { label: "Revisión" },
         ]}
       />
-      <h1>Revisión — {evaluation.title}</h1>
+      <h1>Revisión — {evaluation.title}{unitLabel ? ` · ${unitLabel}` : ""}</h1>
       <p className="page__lead">
         Cada respuesta avanza así: <strong>Lista para revisar</strong> → <strong>Aprobada</strong> →{" "}
         <strong>Entregada</strong>. Con <strong>Devolver</strong> regresa un paso para que se corrija.
@@ -328,6 +352,7 @@ export default function ReviewPage({ params }: Props) {
               </h3>
               {ind.subindicators.map((sub, subIndex) => (
                 <SubindicatorReviewCard
+                  unitId={unitId}
                   key={sub.id}
                   sub={sub}
                   subNumber={subindicatorNumber(dimIndex, indIndex, subIndex)}
@@ -342,6 +367,7 @@ export default function ReviewPage({ params }: Props) {
               numerados después de todos los Indicadores de la Dimensión. */}
           {dim.subindicators.map((sub, subIndex) => (
             <SubindicatorReviewCard
+              unitId={unitId}
               key={sub.id}
               sub={sub}
               subNumber={directSubindicatorNumber(dimIndex, dim.indicators.length, subIndex)}

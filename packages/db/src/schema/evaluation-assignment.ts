@@ -23,7 +23,7 @@ export const evaluationAssignment = pgTable(
   (table) => [
     index("evaluation_assignment_evaluationId_idx").on(table.evaluationId),
     index("evaluation_assignment_businessUnitOrganizationId_idx").on(table.businessUnitOrganizationId),
-    unique("evaluation_assignment_evaluationId_businessUnitOrganizationId_unique").on(
+    unique("eval_assignment_eval_unit_uq").on(
       table.evaluationId,
       table.businessUnitOrganizationId,
     ),

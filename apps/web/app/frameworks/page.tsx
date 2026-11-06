@@ -1,110 +1,115 @@
 "use client";
 
 import type { Framework } from "@plataforma-csa/sdk-core";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
-import { authClient } from "@/lib/auth-client";
 import { Button, Card } from "@/components/ui";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
+import { useMe } from "@/lib/use-me";
 
+// "Estructura": las evaluaciones (una por año) con sus bloques y preguntas.
+// Duplicar copia todo para armar la del año siguiente.
 export default function FrameworksPage() {
-  const router = useRouter();
-  const { data: session, isPending: sessionPending } = authClient.useSession();
-  const { data: activeOrganization, isPending: orgPending } = authClient.useActiveOrganization();
+  const { me, loading } = useMe();
   const [frameworks, setFrameworks] = useState<Framework[] | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [dup, setDup] = useState<{ id: string; name: string } | null>(null);
 
+  const load = () => api.get<{ frameworks: Framework[] }>("/api/frameworks").then((r) => setFrameworks(r.frameworks));
   useEffect(() => {
-    if (!sessionPending && !session) {
-      router.push("/login");
-    }
-  }, [sessionPending, session, router]);
+    if (me?.appRole === "corporate_admin") void load();
+  }, [me]);
 
-  useEffect(() => {
-    if (!orgPending && !activeOrganization) {
-      router.push("/organizations");
-    }
-  }, [orgPending, activeOrganization, router]);
-
-  useEffect(() => {
-    if (activeOrganization) {
-      api.get<{ frameworks: Framework[] }>("/api/frameworks").then((res) => setFrameworks(res.frameworks));
-    }
-  }, [activeOrganization]);
-
-  async function handleCreate(event: React.FormEvent) {
-    event.preventDefault();
+  async function create(e: React.FormEvent) {
+    e.preventDefault();
     setError(null);
-    setSubmitting(true);
+    setBusy(true);
     try {
-      // createFramework() en el backend no calcula dimensionCount (solo listFrameworks lo
-      // agrega vía join) — un framework recién creado siempre empieza en 0 dimensiones.
-      const { framework } = await api.post<{ framework: Omit<Framework, "dimensionCount"> }>("/api/frameworks", {
-        name,
-      });
-      setFrameworks((prev) => [...(prev ?? []), { ...framework, dimensionCount: 0 }]);
+      await api.post("/api/frameworks", { name });
       setName("");
+      await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear el formulario");
+      setError(err instanceof Error ? err.message : "No se pudo crear");
     } finally {
-      setSubmitting(false);
+      setBusy(false);
     }
   }
 
-  if (sessionPending || orgPending || !activeOrganization) return <main className="loading">Cargando...</main>;
+  async function duplicate() {
+    if (!dup) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await api.post<{ id: string }>(`/api/frameworks/${dup.id}/duplicate`, { name: dup.name });
+      window.location.href = `/frameworks/${res.id}/builder`;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo duplicar");
+      setBusy(false);
+    }
+  }
+
+  if (loading || !me) return <main className="loading">Cargando...</main>;
+  if (me.appRole !== "corporate_admin") return <main className="page">Solo el administrador corporativo edita la estructura.</main>;
 
   const columns: DataTableColumn<Framework>[] = [
     {
       key: "name",
-      header: "Nombre",
-      // VS-049 (docs/domain/evaluation-hierarchy.md "Navegación: framework
-      // list → Builder directo"): pedido explícito del usuario — salta la
-      // pantalla intermedia de solo-Dimensiones, confusa por duplicar el
-      // mismo destino que "Abrir editor". Esa pantalla
-      // (/frameworks/[frameworkId]) sigue existiendo para Publicación —
-      // alcanzable desde el breadcrumb del Builder.
+      header: "Evaluación",
       render: (fw) => (
         <a className="entry-list__title" href={`/frameworks/${fw.id}/builder`}>
           {fw.name}
         </a>
       ),
     },
+    { key: "dimensionCount", header: "Dimensiones", numeric: true, render: (fw) => fw.dimensionCount },
     {
-      key: "dimensionCount",
-      header: "Secciones",
-      numeric: true,
-      render: (fw) => fw.dimensionCount,
+      key: "actions",
+      header: "",
+      render: (fw) => (
+        <Button size="sm" onClick={() => setDup({ id: fw.id, name: `${fw.name} (siguiente año)` })}>
+          Duplicar para el próximo año
+        </Button>
+      ),
     },
   ];
 
   return (
     <main className="page">
-      <h1>Formularios</h1>
-      <p className="page__lead">Diseña aquí tus formularios. Cuando estén listos, abre uno y pulsa Publicar para enviarlo a responder.</p>
-
+      <h1>Estructura de la evaluación</h1>
+      <p className="page__lead">
+        Una evaluación por año. Para la siguiente, duplica la anterior: se copian dimensiones, indicadores, subindicadores y preguntas, y solo ajustas lo que cambie.
+      </p>
+      {error && <p className="alert" role="alert">{error}</p>}
+      {dup && (
+        <Card>
+          <label className="field">
+            <span className="field__label">Nombre de la copia</span>
+            <input value={dup.name} onChange={(e) => setDup({ ...dup, name: e.target.value })} />
+          </label>
+          <Button variant="primary" disabled={busy || !dup.name.trim()} onClick={() => void duplicate()}>
+            {busy ? "Duplicando..." : "Duplicar"}
+          </Button>{" "}
+          <Button onClick={() => setDup(null)}>Cancelar</Button>
+        </Card>
+      )}
       <Card>
         {frameworks === null ? (
-          <p className="empty">Cargando formularios...</p>
+          <p className="empty">Cargando...</p>
         ) : (
-          <DataTable columns={columns} rows={frameworks} rowKey={(fw) => fw.id} emptyLabel="Todavía no tienes formularios. Crea el primero abajo." />
+          <DataTable columns={columns} rows={frameworks} rowKey={(fw) => fw.id} emptyLabel="Todavía no hay una evaluación. Crea la primera abajo." />
         )}
       </Card>
-
-      <h2>Nuevo formulario</h2>
+      <h2>Nueva evaluación desde cero</h2>
       <Card>
-        <form className="form form--row" onSubmit={handleCreate}>
+        <form className="form form--row" onSubmit={create}>
           <label className="field">
-            <span className="field__label">Nombre</span>
+            <span className="field__label">Nombre (por ejemplo, CSA 2027)</span>
             <input value={name} onChange={(e) => setName(e.target.value)} required />
           </label>
-          <Button type="submit" variant="primary" disabled={submitting || name.trim().length === 0}>
-            {submitting ? "Creando..." : "Crear"}
-          </Button>
+          <Button type="submit" variant="primary" disabled={busy || !name.trim()}>Crear</Button>
         </form>
-        {error && <p className="alert" role="alert">{error}</p>}
       </Card>
     </main>
   );

@@ -2,13 +2,15 @@ import ExcelJS from "exceljs";
 import {
   getEvaluation,
   getEvaluationForBusinessUnit,
-  listAssignments,
-  listChildOrganizations,
+  getAssignmentForBusinessUnit,
+  getConsolidationData,
   listResponses,
-  requireActiveMember,
+  listUnits,
+  requireCorporateAdmin,
 } from "@plataforma-csa/db";
 import type { EvaluationSnapshot, ResponseAnswers } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
+import { buildConsolidation } from "@/lib/consolidation";
 import { buildExportRows, EXPORT_HEADER, sanitizeExportFilename } from "@/lib/evaluation-export";
 
 // VS-055 (docs/domain/business-units.md, "Exportación consolidada"): export
@@ -57,21 +59,17 @@ function writeSheet(workbook: ExcelJS.Workbook, name: string, header: string[], 
 export async function GET(request: Request, { params }: Params) {
   try {
     const { id } = await params;
-    const { organizationId } = await requireActiveMember(request.headers);
+    const { corporateOrgId: organizationId } = await requireCorporateAdmin(request.headers);
 
     const evaluation = await getEvaluation(organizationId, id);
     if (!evaluation) return Response.json({ error: "evaluation_NOT_FOUND" }, { status: 404 });
 
-    const assignments = await listAssignments(organizationId, id);
-    if (assignments.length === 0) {
-      return Response.json(
-        { error: "evaluation_NOT_CORPORATE_MODE", message: "Esta evaluación no tiene unidades de negocio asignadas — usá Exportar CSV." },
-        { status: 400 },
-      );
+    const unitList = (await listUnits(organizationId)).filter((u) => u.active);
+    const assignments: Array<{ businessUnitOrganizationId: string }> = [];
+    for (const u of unitList) {
+      if (await getAssignmentForBusinessUnit(id, u.id)) assignments.push({ businessUnitOrganizationId: u.id });
     }
-
-    const childOrgs = await listChildOrganizations(organizationId);
-    const nameById = new Map(childOrgs.map((org) => [org.id, org.name]));
+    const nameById = new Map(unitList.map((u) => [u.id, u.sigla ? `${u.sigla} - ${u.name}` : u.name]));
 
     // Primera pasada: resolver el snapshot filtrado + respuestas de cada
     // unidad ANTES de escribir ninguna hoja, para poder escribir
@@ -92,8 +90,16 @@ export async function GET(request: Request, { params }: Params) {
     );
 
     const workbook = new ExcelJS.Workbook();
+    const data = await getConsolidationData(id, organizationId);
+    const consolidation = buildConsolidation(data.snapshot, data.units, data.responses);
+    writeSheet(
+      workbook,
+      "Consolidación corporativa",
+      ["Dimensión", "Indicador", "Bloque", "Pregunta", "Regla", "Consolidado", "Unidades que respondieron", "Aportes por unidad"],
+      consolidation.map((r) => [r.dimension, r.indicator, r.block, r.question, r.rule, r.value, `${r.answeredUnits}/${r.applicableUnits}`, r.contributions]),
+    );
     const consolidatedRows = perUnit.flatMap(({ unitName, rows }) => rows.map((row) => [unitName, ...row]));
-    writeSheet(workbook, "Consolidado", ["Unidad de negocio", ...EXPORT_HEADER], consolidatedRows);
+    writeSheet(workbook, "Detalle por unidad", ["Unidad de negocio", ...EXPORT_HEADER], consolidatedRows);
 
     const usedNames = new Set<string>();
     for (const { unitName, rows } of perUnit) {

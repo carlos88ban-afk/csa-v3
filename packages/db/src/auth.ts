@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins";
 import { defaultRoles } from "better-auth/plugins/organization/access";
+import { eq } from "drizzle-orm";
 import { db } from "./client.js";
 import * as schema from "./schema/auth.js";
 import { emailTemplates, sendEmail } from "./email.js";
@@ -39,6 +40,18 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  databaseHooks: {
+    session: {
+      create: {
+        // Cada usuario pertenece a una sola unidad: al iniciar sesion su
+        // organizacion activa es esa (o la corporativa para administradores).
+        before: async (session: { userId: string }) => {
+          const [m] = await db.select().from(schema.member).where(eq(schema.member.userId, session.userId));
+          return { data: { ...session, activeOrganizationId: m?.organizationId ?? null } };
+        },
+      },
+    },
+  },
   plugins: [
     organization({
       sendInvitationEmail,
@@ -55,6 +68,8 @@ export const auth = betterAuth({
         owner: defaultRoles.owner,
         editor: defaultRoles.member,
         evaluador: defaultRoles.member,
+        unit_admin: defaultRoles.member,
+        evaluator: defaultRoles.member,
       },
       // Jerarquía matriz/unidad de negocio de M14 (VS-050, ver
       // docs/domain/business-units.md). `parentOrganizationId` vive en la
@@ -65,6 +80,8 @@ export const auth = betterAuth({
       schema: {
         organization: {
           additionalFields: {
+            sigla: { type: "string", required: false },
+            active: { type: "boolean", required: false, defaultValue: true },
             parentOrganizationId: {
               type: "string",
               required: false,

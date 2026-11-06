@@ -13,7 +13,7 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   // Soporta volver a una invitación pendiente (VS-014) tras iniciar sesión —
   // leído en un efecto, no en el render, para no acceder a `window` en SSR.
-  const [nextPath, setNextPath] = useState("/organizations");
+  const [nextPath, setNextPath] = useState("/");
 
   useEffect(() => {
     const next = new URLSearchParams(window.location.search).get("next");
@@ -52,9 +52,7 @@ export default function LoginPage() {
           </Button>
         </form>
       </Card>
-      <p>
-        ¿No tienes cuenta? <a href="/signup">Crea una</a>
-      </p>
+      <p>¿No tienes acceso? Pídelo al administrador de tu unidad.</p>
     </main>
   );
 }
