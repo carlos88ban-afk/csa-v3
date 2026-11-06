@@ -1974,12 +1974,12 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
         {/* 4.1.3 Status Messages — ver docs/architecture/accessibility.md */}
         <span aria-live="polite">
           {saveStatus === "saving" && <Pill variant="accent">Guardando…</Pill>}
-          {saveStatus === "saved" && <Pill variant="good">Guardado — rev. {revisionNumber}</Pill>}
+          {saveStatus === "saved" && <Pill variant="good">Guardado</Pill>}
           {saveStatus === "idle" && revisionNumber !== null && <Pill>Rev. {revisionNumber}</Pill>}
         </span>
         <span style={{ marginInlineStart: "auto" }}>
           <Button type="button" size="sm" variant="secondary" onClick={() => setPreviewOpen(true)}>
-            Ver como evaluado
+            Vista previa
           </Button>
         </span>
       </div>
@@ -1993,11 +1993,11 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
           </Button>
         ))}
         <Button type="button" size="sm" variant="secondary" onClick={() => setPaletteOpen(true)}>
-          Agregar elemento completo…
+          Más tipos de pregunta…
         </Button>
       </div>
 
-      <h2>Elementos</h2>
+      <h2>Preguntas y contenido</h2>
       {elements.length === 0 ? (
         <p className="empty">Todavía no hay elementos en este formulario. Usá las plantillas rápidas de arriba.</p>
       ) : (
@@ -3433,9 +3433,9 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
       {paletteOpen && (
         <>
           <div className="builder-palette-backdrop" onClick={() => setPaletteOpen(false)} aria-hidden="true" />
-          <div className="builder-palette" role="dialog" aria-modal="true" aria-label="Agregar elemento" ref={paletteRef}>
+          <div className="builder-palette" role="dialog" aria-modal="true" aria-label="Agregar pregunta o contenido" ref={paletteRef}>
             <div className="builder-palette__head">
-              <h3>Agregar elemento</h3>
+              <h3>Agregar pregunta o contenido</h3>
               <button
                 type="button"
                 className="builder-palette__close"

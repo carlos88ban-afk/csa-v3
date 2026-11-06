@@ -10,7 +10,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (isPending) return;
-    router.push(session ? "/organizations" : "/login");
+    router.push(session ? "/evaluations" : "/login");
   }, [isPending, session, router]);
 
   return <main className="loading">Cargando...</main>;

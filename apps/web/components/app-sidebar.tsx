@@ -5,8 +5,9 @@ import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui";
 
 const NAV_ITEMS = [
-  { href: "/frameworks", label: "Frameworks" },
-  { href: "/organizations", label: "Organizaciones" },
+  { href: "/evaluations", label: "Evaluaciones" },
+  { href: "/frameworks", label: "Formularios" },
+  { href: "/organizations", label: "Equipo" },
 ];
 
 export function AppSidebar() {
@@ -24,7 +25,7 @@ export function AppSidebar() {
 
   return (
     <nav className="app-shell__sidebar" aria-label="Navegación principal">
-      <a href="/frameworks" className="app-sidebar__brand">
+      <a href="/evaluations" className="app-sidebar__brand">
         Plataforma CSA
       </a>
       <ul className="app-sidebar__nav">

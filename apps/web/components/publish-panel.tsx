@@ -53,6 +53,8 @@ function EvaluationRow({
   const [deadlineSaved, setDeadlineSaved] = useState(false);
   const [assignBusy, setAssignBusy] = useState<string | null>(null);
   const [revoking, setRevoking] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   // VS-059: qué unidad tiene su editor de exclusiones abierto — a lo sumo
   // una por vez por Evaluación, alcanza para no complicar el estado.
   const [exclusionsOpenFor, setExclusionsOpenFor] = useState<string | null>(null);
@@ -141,23 +143,51 @@ function EvaluationRow({
   return (
     <li className="entry-list__row publish-panel__row">
       <div className="entry-list__main">
-        <Pill variant="good">Publicada</Pill>
+        {deadlinePassed ? <Pill variant="warn">Cerrada</Pill> : <Pill variant="good">Abierta</Pill>}
+        <span className="empty">
+          Publicada el {new Date(evaluation.publishedAt).toLocaleDateString("es-PE", { timeZone: "America/Lima", day: "numeric", month: "long", year: "numeric" })}
+        </span>
         {hasAssignments ? (
-          <span className="empty">Modo corporativo — sin enlace público</span>
+          <span className="empty">Se envía a cada unidad de negocio</span>
         ) : (
-          <a href={`/evaluations/${evaluation.token}`}>{`/evaluations/${evaluation.token}`}</a>
+          <>
+            <a href={`/evaluations/${evaluation.token}`}>Abrir formulario</a>
+            <Button
+              type="button"
+              size="sm"
+              onClick={async () => {
+                await navigator.clipboard.writeText(`${window.location.origin}/evaluations/${evaluation.token}`);
+                setLinkCopied(true);
+                setTimeout(() => setLinkCopied(false), 2000);
+              }}
+            >
+              {linkCopied ? "Enlace copiado" : "Copiar enlace"}
+            </Button>
+          </>
         )}
       </div>
       <div className="entry-list__actions">
-        <a href={`/frameworks/${frameworkId}/evaluations/${evaluation.id}/review`}>Revisar</a>
+        <a href={`/frameworks/${frameworkId}/evaluations/${evaluation.id}/review`}>Revisar respuestas</a>
         {hasAssignments ? (
-          <a href={`/api/evaluations/${evaluation.id}/export-xlsx`}>Exportar XLSX consolidado</a>
+          <a href={`/api/evaluations/${evaluation.id}/export-xlsx`}>Descargar consolidado (Excel)</a>
         ) : (
-          <a href={`/api/evaluations/${evaluation.id}/export`}>Exportar CSV</a>
+          <a href={`/api/evaluations/${evaluation.id}/export`}>Descargar respuestas (CSV)</a>
         )}
-        <Button type="button" variant="danger" size="sm" onClick={() => void handleRevoke()} disabled={revoking}>
-          {revoking ? "Revocando..." : "Revocar"}
-        </Button>
+        {confirmDelete ? (
+          <>
+            <span className="empty">Se borrarán también todas las respuestas.</span>
+            <Button type="button" variant="danger" size="sm" onClick={() => void handleRevoke()} disabled={revoking}>
+              {revoking ? "Eliminando..." : "Sí, eliminar"}
+            </Button>
+            <Button type="button" size="sm" onClick={() => setConfirmDelete(false)} disabled={revoking}>
+              Cancelar
+            </Button>
+          </>
+        ) : (
+          <Button type="button" variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>
+            Eliminar
+          </Button>
+        )}
       </div>
 
       <div className="form form--row publish-panel__deadline">
@@ -300,7 +330,7 @@ export function PublishPanel({
         </div>
         <div className="form-preview publish-panel">
           <Button type="button" variant="primary" onClick={() => void handlePublish()} disabled={publishing}>
-            {publishing ? "Publicando..." : "Publicar nueva evaluación"}
+            {publishing ? "Publicando..." : "Publicar ahora"}
           </Button>
           {publishError && (
             <p className="alert" role="alert">
@@ -311,7 +341,7 @@ export function PublishPanel({
           {evaluations === null ? (
             <p className="empty">Cargando…</p>
           ) : evaluations.length === 0 ? (
-            <p className="empty">Todavía no se publicó ninguna evaluación.</p>
+            <p className="empty">Todavía no publicaste este formulario.</p>
           ) : (
             <ul className="entry-list">
               {evaluations.map((ev) => (

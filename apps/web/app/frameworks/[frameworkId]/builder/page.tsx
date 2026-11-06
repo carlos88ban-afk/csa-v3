@@ -90,9 +90,9 @@ function resolveFocus(tree: TreeDimension[], raw: string | null): string | null 
 }
 
 const KIND_META = {
-  dimension: { noun: "Dimensión", renamed: "renombrada", deleted: "borrada" },
-  indicator: { noun: "Indicador", renamed: "renombrado", deleted: "borrado" },
-  sub: { noun: "Subindicador", renamed: "renombrado", deleted: "borrado" },
+  dimension: { noun: "Sección", renamed: "renombrada", deleted: "borrada" },
+  indicator: { noun: "Subsección", renamed: "renombrada", deleted: "borrada" },
+  sub: { noun: "Tema", renamed: "renombrado", deleted: "borrado" },
 } as const;
 
 export default function BuilderPage() {
@@ -142,7 +142,7 @@ export default function BuilderPage() {
       try {
         fw = await api.get<{ id: string; name: string }>(`/api/frameworks/${frameworkId}`);
       } catch (err) {
-        setTreeMessage(err instanceof Error ? err.message : "No se pudo cargar el framework");
+        setTreeMessage(err instanceof Error ? err.message : "No se pudo cargar el formulario");
       }
       if (!alive) return;
       setFramework(fw);
@@ -252,9 +252,9 @@ export default function BuilderPage() {
   // inline del árbol ya reportan en treeMessage).
   useEffect(() => {
     if (!treeMessage) return;
-    if (treeMessage.startsWith("Dimensión")) setWizardStep((s) => Math.max(s, 1));
-    if (treeMessage.startsWith("Indicador")) setWizardStep((s) => Math.max(s, 2));
-    if (treeMessage.startsWith("Subindicador")) setWizardStep((s) => Math.max(s, 3));
+    if (treeMessage.startsWith("Sección")) setWizardStep((s) => Math.max(s, 1));
+    if (treeMessage.startsWith("Subsección")) setWizardStep((s) => Math.max(s, 2));
+    if (treeMessage.startsWith("Tema")) setWizardStep((s) => Math.max(s, 3));
   }, [treeMessage]);
 
   useEffect(() => {
@@ -489,7 +489,7 @@ export default function BuilderPage() {
           title,
         });
         setDims((prev) => [...(prev ?? []), { dimension, indicators: [], directSubs: [] }]);
-        setTreeMessage(`Dimensión ${dimension.title} creada`);
+        setTreeMessage(`Sección ${dimension.title} creada`);
         setCreating(null);
         setFocusId(dimension.id);
       } else if (c.kind === "indicator" && c.dimensionId) {
@@ -502,7 +502,7 @@ export default function BuilderPage() {
             d.dimension.id === c.dimensionId ? { ...d, indicators: [...d.indicators, { indicator, subs: [] }] } : d,
           ),
         );
-        setTreeMessage(`Indicador ${indicator.title} creado`);
+        setTreeMessage(`Subsección ${indicator.title} creada`);
         setCreating(null);
         // La selección pasa al indicador recién creado (panel de orientación
         // "crear subindicador") y el flujo continúa directo al primer sub.
@@ -530,7 +530,7 @@ export default function BuilderPage() {
           });
           return next;
         });
-        setTreeMessage(`Subindicador ${subindicator.title} creado`);
+        setTreeMessage(`Tema ${subindicator.title} creado`);
         setCreating(null);
         // Bug 2026-08-14 (docs/project_notes/bugs.md): con el asistente
         // activo esto antes NO seleccionaba el subindicador recién creado —
@@ -556,7 +556,7 @@ export default function BuilderPage() {
           if (di >= 0) next.delete(di);
           return next;
         });
-        setTreeMessage(`Subindicador ${subindicator.title} creado`);
+        setTreeMessage(`Tema ${subindicator.title} creado`);
         setCreating(null);
         selectSub(subindicator.id);
       }
@@ -683,18 +683,18 @@ export default function BuilderPage() {
 
     const WIZARD = [
       {
-        title: "Dimensión",
-        text: "Agrupá sus preguntas por área temática, ej. “Ambiental”, “Social” o “Gobernanza”. Es el nivel más alto de la estructura.",
+        title: "Sección",
+        text: "Agrupa tus preguntas por área, por ejemplo “Ambiental”, “Social” o “Gobernanza”.",
         optional: false,
       },
       {
-        title: "Indicador",
-        text: "Opcional: agrupa preguntas dentro de una dimensión, ej. “Emisiones”. ¿No lo necesitás? Saltalo.",
+        title: "Subsección",
+        text: "Opcional: divide una sección en partes, por ejemplo “Emisiones”. Si no la necesitas, sáltala.",
         optional: true,
       },
       {
-        title: "Subindicador",
-        text: "Un subindicador es un formulario de preguntas, ej. “Huella de carbono total”.",
+        title: "Tema",
+        text: "Un tema es una página de preguntas, por ejemplo “Huella de carbono total”.",
         optional: false,
       },
     ];
@@ -724,7 +724,7 @@ export default function BuilderPage() {
             })}
             <li className={`builder-wizard__step${finalStep ? " builder-wizard__step--active" : ""}`}>
               <span className="builder-wizard__badge">{finalStep ? "✓" : 4}</span>
-              <strong>Primer elemento</strong>
+              <strong>Primera pregunta</strong>
               {!finalStep && <span className="builder-wizard__note"> pendiente</span>}
             </li>
           </ol>
@@ -735,7 +735,7 @@ export default function BuilderPage() {
                 <p className="empty">{WIZARD[0]!.text}</p>
                 <div className="runtime-topbar__actions">
                   <Button type="button" variant="primary" size="sm" onClick={() => openCreate({ kind: "dimension" })}>
-                    Crear dimensión
+                    Crear sección
                   </Button>
                 </div>
               </>
@@ -789,12 +789,12 @@ export default function BuilderPage() {
                 <p className="empty">
                   {firstSub ? (
                     <>
-                      Tu primer formulario <strong>{firstSub.title}</strong> está listo. Agregá sus preguntas con las
+                      Tu primer tema <strong>{firstSub.title}</strong> está listo. Agrega sus preguntas con las
                       plantillas <strong>Texto</strong>, <strong>Número</strong>, <strong>Elección</strong> o{" "}
                       <strong>Tabla</strong> del editor.
                     </>
                   ) : (
-                    "Estructura creada. Elegí un subindicador en el árbol para empezar a editar."
+                    "Estructura creada. Elige un tema en el árbol para empezar a editar."
                   )}
                 </p>
                 <div className="runtime-topbar__actions">
@@ -859,7 +859,7 @@ export default function BuilderPage() {
       return (
         <div className="runtime-content">
           <h1>{targetInd.indicator.title}</h1>
-          <p className="empty">Este indicador todavía no tiene subindicadores. Creá el primero para empezar a editar.</p>
+          <p className="empty">Esta subsección todavía no tiene temas. Crea el primero para empezar a editar.</p>
           <div className="runtime-topbar__actions">
             <Button
               type="button"
@@ -877,7 +877,7 @@ export default function BuilderPage() {
     return (
       <div className="runtime-content">
         <h1>Editor</h1>
-        <p className="empty">Seleccioná un subindicador en el árbol para editar su formulario.</p>
+        <p className="empty">Elige un tema en el árbol para editar sus preguntas.</p>
       </div>
     );
   }
@@ -891,7 +891,7 @@ export default function BuilderPage() {
             eliminó — "Framework" ya no tiene a dónde linkear salvo la lista. */}
         <Breadcrumb
           items={[
-            { label: "Frameworks", href: "/frameworks" },
+            { label: "Formularios", href: "/frameworks" },
             { label: framework?.name ?? "Editor" },
           ]}
         />
@@ -924,7 +924,7 @@ export default function BuilderPage() {
                 <button
                   type="button"
                   className="builder-nav__action builder-nav__action--always"
-                  aria-label="Crear dimensión"
+                  aria-label="Crear sección"
                   onClick={() => openCreate({ kind: "dimension" })}
                 >
                   ＋
@@ -951,7 +951,7 @@ export default function BuilderPage() {
                   value={creating.title}
                   disabled={creating.busy}
                   onChange={(e) => setCreating({ ...creating, title: e.target.value, error: null })}
-                  placeholder="Nueva dimensión"
+                  placeholder="Nueva sección"
                   required
                 />
                 {creating.error && (
@@ -993,7 +993,7 @@ export default function BuilderPage() {
             ) : (
               <>
                 {dims.length === 0 && !creating && (
-                  <p className="builder-nav__empty">Todavía no hay dimensiones. Creá la primera con ＋.</p>
+                  <p className="builder-nav__empty">Todavía no hay secciones. Crea la primera con ＋.</p>
                 )}
 
             {dims.map((d, di) => {
@@ -1121,7 +1121,7 @@ export default function BuilderPage() {
                         value={creatingInd.title}
                         disabled={creatingInd.busy}
                         onChange={(e) => setCreating({ ...creatingInd, title: e.target.value, error: null })}
-                        placeholder="Nuevo indicador"
+                        placeholder="Nueva subsección"
                         required
                       />
                       {creatingInd.error && (
@@ -1153,7 +1153,7 @@ export default function BuilderPage() {
                         onChange={(e) =>
                           setCreating({ ...creatingDirectSub, title: e.target.value, error: null })
                         }
-                        placeholder="Nuevo subindicador directo"
+                        placeholder="Nuevo tema"
                         required
                       />
                       {creatingDirectSub.error && (
@@ -1173,7 +1173,7 @@ export default function BuilderPage() {
                   )}
 
                   {dimOpen && (
-                    <div role="group" aria-label={`Indicadores de ${d.dimension.title}`}>
+                    <div role="group" aria-label={`Subsecciones de ${d.dimension.title}`}>
                       {d.indicators.map((ind, ii) => {
                         const indOpen = !collapsedInds.has(`${di}:${ii}`);
                         const creatingSub =
@@ -1297,7 +1297,7 @@ export default function BuilderPage() {
                                   value={creatingSub.title}
                                   disabled={creatingSub.busy}
                                   onChange={(e) => setCreating({ ...creatingSub, title: e.target.value, error: null })}
-                                  placeholder="Nuevo subindicador"
+                                  placeholder="Nuevo tema"
                                   required
                                 />
                                 {creatingSub.error && (
@@ -1317,7 +1317,7 @@ export default function BuilderPage() {
                             )}
 
                             {indOpen && (
-                              <div role="group" aria-label={`Subindicadores de ${ind.indicator.title}`}>
+                              <div role="group" aria-label={`Temas de ${ind.indicator.title}`}>
                                 {ind.subs.map((s, si) => {
                                   const renamingSub = renaming?.kind === "sub" && renaming.id === s.id ? renaming : null;
                                   const confirmingSub =
@@ -1355,7 +1355,7 @@ export default function BuilderPage() {
                                           <button
                                             type="button"
                                             className="builder-nav__action"
-                                            aria-label={`Renombrar subindicador ${s.title}`}
+                                            aria-label={`Renombrar tema ${s.title}`}
                                             onClick={() => startRename("sub", s.id, s.title)}
                                           >
                                             ✎
@@ -1363,7 +1363,7 @@ export default function BuilderPage() {
                                           <button
                                             type="button"
                                             className="builder-nav__action builder-nav__action--danger"
-                                            aria-label={`Borrar subindicador ${s.title}`}
+                                            aria-label={`Borrar tema ${s.title}`}
                                             onClick={() => requestDelete("sub", s.id, s.title)}
                                           >
                                             🗑
@@ -1436,10 +1436,10 @@ export default function BuilderPage() {
                         );
                       })}
                       {d.indicators.length === 0 && d.directSubs.length === 0 && (
-                        <p className="builder-nav__empty">Sin indicadores todavía — usá ＋ en la dimensión.</p>
+                        <p className="builder-nav__empty">Sin subsecciones todavía — usa ＋ en la sección.</p>
                       )}
                       {d.directSubs.length > 0 && (
-                        <div role="group" aria-label={`Subindicadores directos de ${d.dimension.title}`}>
+                        <div role="group" aria-label={`Temas de ${d.dimension.title}`}>
                           {d.directSubs.map((s, si2) => {
                             const isActive = selectedId === s.id;
                             // Bug preexistente encontrado al restructurar este
@@ -1485,7 +1485,7 @@ export default function BuilderPage() {
                                     <button
                                       type="button"
                                       className="builder-nav__action"
-                                      aria-label={`Renombrar subindicador ${s.title}`}
+                                      aria-label={`Renombrar tema ${s.title}`}
                                       onClick={() => startRename("sub", s.id, s.title)}
                                     >
                                       ✎
@@ -1493,7 +1493,7 @@ export default function BuilderPage() {
                                     <button
                                       type="button"
                                       className="builder-nav__action builder-nav__action--danger"
-                                      aria-label={`Borrar subindicador ${s.title}`}
+                                      aria-label={`Borrar tema ${s.title}`}
                                       onClick={() => requestDelete("sub", s.id, s.title)}
                                     >
                                       🗑

@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import type { CreateEvaluationInput, EvaluationSnapshot, UpdateEvaluationInput } from "@plataforma-csa/sdk-core";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "../client.js";
 import { dimension, indicator, subindicator } from "../schema/domain.js";
 import { evaluation } from "../schema/evaluation.js";
@@ -123,6 +123,22 @@ export async function listEvaluations(organizationId: string, frameworkId: strin
     .select()
     .from(evaluation)
     .where(and(eq(evaluation.frameworkId, frameworkId), eq(evaluation.organizationId, organizationId)));
+}
+
+// Listado global para la pantalla "Evaluaciones": sin el snapshot (pesado).
+export async function listAllEvaluations(organizationId: string) {
+  return db
+    .select({
+      id: evaluation.id,
+      frameworkId: evaluation.frameworkId,
+      token: evaluation.token,
+      title: evaluation.title,
+      dueDate: evaluation.dueDate,
+      publishedAt: evaluation.publishedAt,
+    })
+    .from(evaluation)
+    .where(eq(evaluation.organizationId, organizationId))
+    .orderBy(desc(evaluation.publishedAt));
 }
 
 export async function getEvaluation(organizationId: string, id: string) {

@@ -2333,3 +2333,9 @@ input[type="checkbox"] {
   padding-top: var(--space-2);
   border-top: 1px solid var(--border);
 }
+
+.page__lead {
+  color: var(--ink-muted);
+  max-width: 60ch;
+  margin: 0 0 1.25rem;
+}

@@ -195,7 +195,7 @@ export default function OrganizationsPage() {
       <h1>Tus organizaciones</h1>
       {activeOrganization && (
         <p>
-          Organización activa: <strong>{activeOrganization.name}</strong> — <a href="/frameworks">ir a Frameworks</a>
+          Organización activa: <strong>{activeOrganization.name}</strong> — <a href="/frameworks">ir a Formularios</a>
         </p>
       )}
 

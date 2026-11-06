@@ -215,7 +215,7 @@ export function ExclusionEditor({ evaluationId, assignmentId }: { evaluationId: 
       </ul>
       {exclusions.length > 0 && (
         <p className="exclusion-editor__summary">
-          <Pill variant="accent">{exclusions.filter((e) => e.elementId === null).length} Subindicador(es) excluido(s)</Pill>{" "}
+          <Pill variant="accent">{exclusions.filter((e) => e.elementId === null).length} tema(s) excluido(s)</Pill>{" "}
           <Pill variant="accent">{exclusions.filter((e) => e.elementId !== null).length} pregunta(s) excluida(s)</Pill>
         </p>
       )}

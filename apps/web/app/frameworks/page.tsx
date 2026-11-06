@@ -48,7 +48,7 @@ export default function FrameworksPage() {
       setFrameworks((prev) => [...(prev ?? []), { ...framework, dimensionCount: 0 }]);
       setName("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear el framework");
+      setError(err instanceof Error ? err.message : "No se pudo crear el formulario");
     } finally {
       setSubmitting(false);
     }
@@ -74,7 +74,7 @@ export default function FrameworksPage() {
     },
     {
       key: "dimensionCount",
-      header: "Dimensiones",
+      header: "Secciones",
       numeric: true,
       render: (fw) => fw.dimensionCount,
     },
@@ -82,17 +82,18 @@ export default function FrameworksPage() {
 
   return (
     <main className="page">
-      <h1>Frameworks — {activeOrganization.name}</h1>
+      <h1>Formularios</h1>
+      <p className="page__lead">Diseña aquí tus formularios. Cuando estén listos, abre uno y pulsa Publicar para enviarlo a responder.</p>
 
       <Card>
         {frameworks === null ? (
-          <p className="empty">Cargando frameworks...</p>
+          <p className="empty">Cargando formularios...</p>
         ) : (
-          <DataTable columns={columns} rows={frameworks} rowKey={(fw) => fw.id} emptyLabel="Todavía no hay frameworks." />
+          <DataTable columns={columns} rows={frameworks} rowKey={(fw) => fw.id} emptyLabel="Todavía no tienes formularios. Crea el primero abajo." />
         )}
       </Card>
 
-      <h2>Nuevo framework</h2>
+      <h2>Nuevo formulario</h2>
       <Card>
         <form className="form form--row" onSubmit={handleCreate}>
           <label className="field">

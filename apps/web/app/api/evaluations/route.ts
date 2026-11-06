@@ -1,4 +1,4 @@
-import { createEvaluation, listEvaluations, requireActiveMember, requireWriteAccess } from "@plataforma-csa/db";
+import { createEvaluation, listAllEvaluations, listEvaluations, requireActiveMember, requireWriteAccess } from "@plataforma-csa/db";
 import { createEvaluationInput } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
@@ -7,7 +7,7 @@ export async function GET(request: Request) {
     const { organizationId } = await requireActiveMember(request.headers);
     const frameworkId = new URL(request.url).searchParams.get("frameworkId");
     if (!frameworkId) {
-      return Response.json({ error: "frameworkId_QUERY_PARAM_REQUIRED" }, { status: 400 });
+      return Response.json({ evaluations: await listAllEvaluations(organizationId) });
     }
     const rows = await listEvaluations(organizationId, frameworkId);
     return Response.json({ evaluations: rows });
