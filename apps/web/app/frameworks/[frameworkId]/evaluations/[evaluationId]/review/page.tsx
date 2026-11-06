@@ -12,6 +12,9 @@ import {
   naKey,
   questionNumber,
   sanitizeCommentHtml,
+  historyKey,
+  parseReviewHistory,
+  reviewKey,
   statusKey,
   subindicatorNumber,
   type DerivedStatus,
@@ -21,6 +24,7 @@ import {
   type ResponseAnswers,
 } from "@plataforma-csa/sdk-core";
 import { use, useEffect, useState } from "react";
+import { formatAnswer } from "@/lib/evaluation-export";
 import { api } from "@/lib/api-client";
 import { Breadcrumb, Button, Card, Pill } from "@/components/ui";
 import { RichLabel } from "@/components/rich-label";
@@ -52,6 +56,18 @@ const STATUS_LABEL: Record<DerivedStatus, string> = {
   submitted: "Entregada",
 };
 
+const ACTION_LABEL = { approved: "Aprobó", delivered: "Entregó", returned: "Devolvió" } as const;
+
+function formatEventDate(iso: string): string {
+  return new Date(iso).toLocaleString("es-PE", {
+    timeZone: "America/Lima",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function statusVariant(status: DerivedStatus): "neutral" | "accent" | "good" | "warn" {
   if (status === "submitted") return "good";
   if (status === "approved") return "accent";
@@ -59,6 +75,127 @@ function statusVariant(status: DerivedStatus): "neutral" | "accent" | "good" | "
 }
 
 type SnapshotSubindicator = EvaluationSnapshot["dimensions"][number]["indicators"][number]["subindicators"][number];
+
+type SetStatus = (
+  subindicatorId: string,
+  elementId: string,
+  status: "completed" | "approved" | "submitted" | null,
+  comment?: string,
+) => Promise<boolean>;
+
+function QuestionReviewRow({
+  subId,
+  el,
+  index,
+  answers,
+  pending,
+  setStatus,
+}: {
+  subId: string;
+  el: FormElement;
+  index: number;
+  answers: ResponseAnswers;
+  pending: string | null;
+  setStatus: SetStatus;
+}) {
+  const [returning, setReturning] = useState(false);
+  const [note, setNote] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
+  const na = answers[naKey(el.id)] as string | undefined;
+  const markedNA = na === "true";
+  const comment = (answers[commentKey(el.id)] as string | undefined) ?? "";
+  const derived = deriveStatus(answers[statusKey(el.id)] as string | undefined, isAnswered(answers[el.id], na));
+  const observation = (answers[reviewKey(el.id)] as string | undefined) ?? "";
+  const history = parseReviewHistory(answers[historyKey(el.id)]);
+  const isReturned = observation !== "" && derived !== "completed" && derived !== "approved" && derived !== "submitted";
+  const busy = pending === `${subId}:${el.id}`;
+  const canApprove = derived === "completed";
+  const canSubmit = derived === "approved";
+  const canRevert = derived === "completed" || derived === "approved" || derived === "submitted";
+  const revertTo = derived === "submitted" ? "approved" : derived === "approved" ? "completed" : null;
+  const answerText = markedNA ? "" : formatAnswer(el, answers[el.id], markedNA, answers);
+
+  async function confirmReturn() {
+    const ok = await setStatus(subId, el.id, revertTo, note.trim());
+    if (ok) {
+      setReturning(false);
+      setNote("");
+    }
+  }
+
+  return (
+    <li className="entry-list__row" style={{ flexWrap: "wrap" }}>
+      <span className="entry-list__main">
+        {questionNumber(index)} <RichLabel html={el.label ?? ""} fallback="(sin texto)" />{" "}
+        {isReturned ? <Pill variant="warn">Devuelta para corregir</Pill> : <Pill variant={statusVariant(derived)}>{STATUS_LABEL[derived]}</Pill>}
+        {markedNA && <Pill variant="warn">N/A</Pill>}
+        {answerText && (
+          <p className="comment-preview" style={{ whiteSpace: "pre-wrap" }}>
+            <strong>Respuesta:</strong> {answerText}
+          </p>
+        )}
+        {comment && (
+          <p className="comment-preview">
+            Comentario confidencial: <span dangerouslySetInnerHTML={{ __html: sanitizeCommentHtml(comment) }} />
+          </p>
+        )}
+        {isReturned && (
+          <p className="comment-preview" style={{ whiteSpace: "pre-wrap" }}>
+            <strong>Observación pendiente:</strong> {observation}
+          </p>
+        )}
+        {history.length > 0 && (
+          <>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => setShowHistory((v) => !v)}>
+              {showHistory ? "Ocultar historial" : `Ver historial (${history.length})`}
+            </button>
+            {showHistory && (
+              <ul className="comment-preview">
+                {history.map((ev, i) => (
+                  <li key={i}>
+                    {formatEventDate(ev.at)} · {ev.by} {ACTION_LABEL[ev.action]}
+                    {ev.text ? `: ${ev.text}` : ""}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </span>
+      <span className="entry-list__actions">
+        <Button type="button" variant="primary" size="sm" disabled={!canApprove || busy} onClick={() => void setStatus(subId, el.id, "approved")}>
+          Aprobar
+        </Button>
+        <Button type="button" variant="primary" size="sm" disabled={!canSubmit || busy} onClick={() => void setStatus(subId, el.id, "submitted")}>
+          Entregar
+        </Button>
+        <Button type="button" variant="secondary" size="sm" disabled={!canRevert || busy} onClick={() => setReturning((v) => !v)}>
+          Devolver
+        </Button>
+      </span>
+      {returning && (
+        <div style={{ flexBasis: "100%" }}>
+          <label>
+            ¿Qué debe corregir el evaluado? (obligatorio)
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={3}
+              maxLength={2000}
+              style={{ width: "100%" }}
+            />
+          </label>
+          <Button type="button" variant="primary" size="sm" disabled={note.trim() === "" || busy} onClick={() => void confirmReturn()}>
+            Devolver con observación
+          </Button>{" "}
+          <Button type="button" variant="secondary" size="sm" onClick={() => setReturning(false)}>
+            Cancelar
+          </Button>
+        </div>
+      )}
+    </li>
+  );
+}
 
 // Extraído para reusarse en dos sitios: Subindicadores bajo Indicador y
 // Subindicadores directos bajo Dimensión (VS-029, docs/domain/evaluation-hierarchy.md)
@@ -74,7 +211,12 @@ function SubindicatorReviewCard({
   subNumber: string;
   answers: ResponseAnswers;
   pending: string | null;
-  setStatus: (subindicatorId: string, elementId: string, status: "completed" | "approved" | "submitted" | null) => void;
+  setStatus: (
+    subindicatorId: string,
+    elementId: string,
+    status: "completed" | "approved" | "submitted" | null,
+    comment?: string,
+  ) => Promise<boolean>;
 }) {
   const questions = (sub.formSchema?.elements ?? []).filter((el) => isQuestion(el) && isElementVisible(el.visibleIf, answers));
   if (questions.length === 0) return null;
@@ -84,61 +226,17 @@ function SubindicatorReviewCard({
         {subNumber} {sub.title}
       </h4>
       <ul className="entry-list">
-        {questions.map((el, qIndex) => {
-          const na = answers[naKey(el.id)] as string | undefined;
-          const markedNA = na === "true";
-          const comment = (answers[commentKey(el.id)] as string | undefined) ?? "";
-          const derived = deriveStatus(answers[statusKey(el.id)] as string | undefined, isAnswered(answers[el.id], na));
-          const actionKey = `${sub.id}:${el.id}`;
-          const busy = pending === actionKey;
-          const canApprove = derived === "completed";
-          const canSubmit = derived === "approved";
-          const canRevert = derived === "completed" || derived === "approved" || derived === "submitted";
-          const revertTo = derived === "submitted" ? "approved" : derived === "approved" ? "completed" : null;
-          return (
-            <li key={el.id} className="entry-list__row">
-              <span className="entry-list__main">
-                {questionNumber(qIndex)} <RichLabel html={el.label ?? ""} fallback="(sin texto)" />{" "}
-                <Pill variant={statusVariant(derived)}>{STATUS_LABEL[derived]}</Pill>
-                {markedNA && <Pill variant="warn">N/A</Pill>}
-                {comment && (
-                  <p className="comment-preview">
-                    Comentario confidencial: <span dangerouslySetInnerHTML={{ __html: sanitizeCommentHtml(comment) }} />
-                  </p>
-                )}
-              </span>
-              <span className="entry-list__actions">
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  disabled={!canApprove || busy}
-                  onClick={() => void setStatus(sub.id, el.id, "approved")}
-                >
-                  Aprobar
-                </Button>
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  disabled={!canSubmit || busy}
-                  onClick={() => void setStatus(sub.id, el.id, "submitted")}
-                >
-                  Entregar
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={!canRevert || busy}
-                  onClick={() => void setStatus(sub.id, el.id, revertTo)}
-                >
-                  Devolver
-                </Button>
-              </span>
-            </li>
-          );
-        })}
+        {questions.map((el, qIndex) => (
+          <QuestionReviewRow
+            key={el.id}
+            subId={sub.id}
+            el={el}
+            index={qIndex}
+            answers={answers}
+            pending={pending}
+            setStatus={setStatus}
+          />
+        ))}
       </ul>
     </Card>
   );
@@ -173,15 +271,22 @@ export default function ReviewPage({ params }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evaluationId]);
 
-  async function setStatus(subindicatorId: string, elementId: string, status: "completed" | "approved" | "submitted" | null) {
+  async function setStatus(
+    subindicatorId: string,
+    elementId: string,
+    status: "completed" | "approved" | "submitted" | null,
+    comment?: string,
+  ): Promise<boolean> {
     const actionKey = `${subindicatorId}:${elementId}`;
     setPending(actionKey);
     setActionError(null);
     try {
-      await api.patch(`/api/evaluations/${evaluationId}/responses/${subindicatorId}/status`, { elementId, status });
+      await api.patch(`/api/evaluations/${evaluationId}/responses/${subindicatorId}/status`, { elementId, status, comment });
       loadResponses();
+      return true;
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "No se pudo actualizar el estado");
+      return false;
     } finally {
       setPending(null);
     }

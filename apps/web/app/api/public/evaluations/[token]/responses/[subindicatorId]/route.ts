@@ -1,5 +1,5 @@
 import { getEvaluationByToken, getResponse, isCorporateMode, upsertResponse } from "@plataforma-csa/db";
-import { assertPublicResponseUpdateAllowed, type ResponseAnswers, upsertResponseInput } from "@plataforma-csa/sdk-core";
+import { assertPublicResponseUpdateAllowed, preserveReviewKeys, type ResponseAnswers, upsertResponseInput } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
 // Sin auth a propósito, mismo criterio que ../../route.ts (ver docs/engines/persistence.md):
@@ -28,8 +28,9 @@ export async function PUT(request: Request, { params }: Params) {
     // público no puede fabricar/tocar un estado approved/submitted ni la
     // respuesta que ya quedó congelada por uno.
     const current = await getResponse(ev.id, subindicatorId);
-    assertPublicResponseUpdateAllowed((current?.answers as ResponseAnswers | undefined) ?? {}, answers);
-    const row = await upsertResponse(ev.id, subindicatorId, answers);
+    const currentAnswers = (current?.answers as ResponseAnswers | undefined) ?? {};
+    assertPublicResponseUpdateAllowed(currentAnswers, answers);
+    const row = await upsertResponse(ev.id, subindicatorId, preserveReviewKeys(currentAnswers, answers));
     return Response.json({ response: row });
   } catch (error) {
     return toErrorResponse(error);

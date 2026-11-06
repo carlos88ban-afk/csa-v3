@@ -5,7 +5,7 @@ import {
   requireActiveMember,
   upsertResponse,
 } from "@plataforma-csa/db";
-import { upsertResponseInput } from "@plataforma-csa/sdk-core";
+import { preserveReviewKeys, type ResponseAnswers, upsertResponseInput } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
 // VS-053 (docs/domain/business-units.md, "Acceso del evaluado"): guardado
@@ -36,7 +36,9 @@ export async function PUT(request: Request, { params }: Params) {
 
     // upsertResponse ya valida el bloqueo por dueDate (VS-052) — no hay que
     // repetir esa validación aquí.
-    const row = await upsertResponse(evaluationId, subindicatorId, answers, organizationId);
+    const current = await getResponse(evaluationId, subindicatorId, organizationId);
+    const safeAnswers = preserveReviewKeys((current?.answers as ResponseAnswers | undefined) ?? {}, answers);
+    const row = await upsertResponse(evaluationId, subindicatorId, safeAnswers, organizationId);
     return Response.json({ response: row });
   } catch (error) {
     return toErrorResponse(error);

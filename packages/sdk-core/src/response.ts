@@ -107,6 +107,9 @@ export function deriveStatus(explicit: string | undefined, answered: boolean): D
 export const setElementStatusInput = z.object({
   elementId: z.string().min(1),
   status: elementStatus.nullable(),
+  // Observación del revisor: obligatoria al devolver (la exige el servicio),
+  // opcional en el resto de transiciones.
+  comment: z.string().trim().max(2000).optional(),
 });
 export type SetElementStatusInput = z.infer<typeof setElementStatusInput>;
 
@@ -171,4 +174,48 @@ export function unitKey(elementId: string): string {
 }
 export function isAnswered(value: AnswerValue | undefined, na: string | undefined): boolean {
   return hasAnswer(value) || na === "true";
+}
+
+// Revisión: observaciones del revisor e historial, guardados junto a la
+// respuesta con claves sintéticas (mismo patrón que ::status/::na/::comment).
+// `::review` = observación vigente (texto plano) mientras la pregunta está
+// devuelta; `::history` = JSON con los eventos de revisión de esa pregunta.
+export function reviewKey(elementId: string): string {
+  return `${elementId}::review`;
+}
+export function historyKey(elementId: string): string {
+  return `${elementId}::history`;
+}
+
+export type ReviewAction = "approved" | "delivered" | "returned";
+
+export interface ReviewEvent {
+  at: string;
+  by: string;
+  action: ReviewAction;
+  text: string;
+}
+
+export function parseReviewHistory(raw: unknown): ReviewEvent[] {
+  if (typeof raw !== "string") return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as ReviewEvent[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Las claves de revisión las escribe solo el revisor: el lado del evaluado
+// nunca puede crearlas, cambiarlas ni borrarlas al guardar su mapa completo.
+export function preserveReviewKeys(current: ResponseAnswers, incoming: ResponseAnswers): ResponseAnswers {
+  const next: ResponseAnswers = {};
+  for (const [key, value] of Object.entries(incoming)) {
+    if (key.endsWith("::review") || key.endsWith("::history")) continue;
+    next[key] = value;
+  }
+  for (const [key, value] of Object.entries(current)) {
+    if (key.endsWith("::review") || key.endsWith("::history")) next[key] = value;
+  }
+  return next;
 }

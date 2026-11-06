@@ -37,6 +37,7 @@ import {
   type TableCellValue,
   type TablaDatosConfig,
   type TableValue,
+  reviewKey,
 } from "@plataforma-csa/sdk-core";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -2033,8 +2034,19 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
   // VS-057: "Marcar como lista" también queda oculto con el plazo
   // vencido — es otra forma de editar el estado de la respuesta.
   const canComplete = !formLocked && answeredOrNA && (derived === "not_started" || derived === "in_progress");
+  const observation = (answers[reviewKey(element.id)] as string | undefined) ?? "";
+  const showObservation = observation !== "" && (derived === "not_started" || derived === "in_progress");
   const statusRow = (
-    <StatusRow elementId={element.id} derived={derived} canComplete={canComplete} onAnswerChange={onAnswerChange} />
+    <>
+      {showObservation && (
+        <div className="alert" role="status" style={{ whiteSpace: "pre-wrap" }}>
+          <strong>El revisor devolvió esta respuesta para corregir:</strong>
+          <br />
+          {observation}
+        </div>
+      )}
+      <StatusRow elementId={element.id} derived={derived} canComplete={canComplete} onAnswerChange={onAnswerChange} />
+    </>
   );
   const naCommentRow = (
     <NaCommentRow

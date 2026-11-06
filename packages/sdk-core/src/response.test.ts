@@ -269,3 +269,20 @@ describe("isAnswered", () => {
     expect(isAnswered(undefined, "false")).toBe(false);
   });
 });
+
+describe("review keys", () => {
+  it("preserveReviewKeys ignora ::review/::history del cliente y conserva los del servidor", async () => {
+    const { preserveReviewKeys } = await import("./response");
+    const out = preserveReviewKeys(
+      { "a::review": "corrige", "a::history": "[]", a: "x" },
+      { a: "y", "a::review": "hack", "b::history": "[]" },
+    );
+    expect(out).toEqual({ a: "y", "a::review": "corrige", "a::history": "[]" });
+  });
+
+  it("parseReviewHistory tolera basura", async () => {
+    const { parseReviewHistory } = await import("./response");
+    expect(parseReviewHistory(undefined)).toEqual([]);
+    expect(parseReviewHistory("no-json")).toEqual([]);
+  });
+});

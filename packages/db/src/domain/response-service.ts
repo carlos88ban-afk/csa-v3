@@ -1,12 +1,18 @@
 import { randomUUID } from "node:crypto";
 import type { ElementStatus, ResponseAnswers } from "@plataforma-csa/sdk-core";
-import { statusKey } from "@plataforma-csa/sdk-core";
+import {
+  historyKey,
+  parseReviewHistory,
+  reviewKey,
+  statusKey,
+  type ReviewAction,
+} from "@plataforma-csa/sdk-core";
 import type { EvaluationSnapshot } from "@plataforma-csa/sdk-core";
 import { and, eq } from "drizzle-orm";
 import { db } from "../client.js";
 import { evaluation } from "../schema/evaluation.js";
 import { response } from "../schema/response.js";
-import { EvaluationLockedError, NotFoundError } from "./service.js";
+import { EvaluationLockedError, NotFoundError, ValidationError } from "./service.js";
 
 // Motor engine/persistence v1 (ver docs/engines/persistence.md). Sin
 // `organizationId`: el acceso a estas funciones ya fue resuelto vía token en
@@ -128,23 +134,44 @@ export async function getResponse(
   return row ?? null;
 }
 
+const STATUS_RANK: Record<string, number> = { completed: 1, approved: 2, submitted: 3 };
+
 // Solo la llama la ruta autenticada (owner/editor, ya de confianza vía
 // requireWriteAccess) — sin el resguardo de assertPublicResponseUpdateAllowed,
 // que es exclusivo del lado público sin sesión.
+//
+// Revisión: cada cambio de estado deja un evento en el historial de la
+// pregunta. Bajar de estado (devolver) exige una observación, que queda como
+// observación vigente (`::review`) hasta que la pregunta se apruebe de nuevo.
 export async function setElementStatus(
   evaluationId: string,
   subindicatorId: string,
   elementId: string,
   status: ElementStatus | null,
   businessUnitOrganizationId?: string,
+  review?: { by: string; comment?: string | undefined },
 ) {
   const current = await getResponse(evaluationId, subindicatorId, businessUnitOrganizationId);
   const answers: ResponseAnswers = { ...(current?.answers as ResponseAnswers | undefined) };
   const key = statusKey(elementId);
+  const previous = typeof answers[key] === "string" ? (answers[key] as string) : undefined;
+  const returning = (STATUS_RANK[status ?? ""] ?? 0) < (STATUS_RANK[previous ?? ""] ?? 0);
+  const comment = review?.comment?.trim() ?? "";
+  if (returning && comment === "") throw new ValidationError("review_COMMENT_REQUIRED");
+
   if (status === null) {
     delete answers[key];
   } else {
     answers[key] = status;
+  }
+
+  if (review && (returning || status === "approved" || status === "submitted")) {
+    const action: ReviewAction = returning ? "returned" : status === "approved" ? "approved" : "delivered";
+    const history = parseReviewHistory(answers[historyKey(elementId)]);
+    history.push({ at: new Date().toISOString(), by: review.by, action, text: comment });
+    answers[historyKey(elementId)] = JSON.stringify(history);
+    if (returning) answers[reviewKey(elementId)] = comment;
+    else delete answers[reviewKey(elementId)];
   }
   return upsertResponse(evaluationId, subindicatorId, answers, businessUnitOrganizationId);
 }

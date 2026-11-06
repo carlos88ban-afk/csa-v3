@@ -1,4 +1,4 @@
-import { getEvaluation, requireWriteAccess, setElementStatus } from "@plataforma-csa/db";
+import { auth, getEvaluation, requireWriteAccess, setElementStatus } from "@plataforma-csa/db";
 import { setElementStatusInput } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
@@ -19,8 +19,12 @@ export async function PATCH(request: Request, { params }: Params) {
     const evaluation = await getEvaluation(organizationId, id);
     if (!evaluation) return Response.json({ error: "evaluation_NOT_FOUND" }, { status: 404 });
 
-    const { elementId, status } = setElementStatusInput.parse(await request.json());
-    const row = await setElementStatus(evaluation.id, subindicatorId, elementId, status);
+    const { elementId, status, comment } = setElementStatusInput.parse(await request.json());
+    const session = await auth.api.getSession({ headers: request.headers });
+    const row = await setElementStatus(evaluation.id, subindicatorId, elementId, status, undefined, {
+      by: session?.user.email ?? "Revisor",
+      comment,
+    });
     return Response.json({ response: row });
   } catch (error) {
     return toErrorResponse(error);

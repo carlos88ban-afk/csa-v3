@@ -300,7 +300,7 @@ function formatOptionLabel(opt: SeleccionOption, elementId: string, answers: Res
   return label;
 }
 
-function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, answers: ResponseAnswers): string {
+export function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, answers: ResponseAnswers): string {
   // VS-019 (docs/engines/persistence.md, "N/A + comentario confidencial"):
   // N/A gana sobre cualquier valor residual de un intento anterior — la
   // exportación debe mostrar "N/A" explícito, no una celda vacía
@@ -361,9 +361,9 @@ function formatAnswer(element: FormElement, value: unknown, markedNA: boolean, a
 const STATUS_LABEL: Record<ReturnType<typeof deriveStatus>, string> = {
   not_started: "Sin iniciar",
   in_progress: "En progreso",
-  completed: "Completado",
-  approved: "Aprobado",
-  submitted: "Enviado",
+  completed: "Lista para revisar",
+  approved: "Aprobada",
+  submitted: "Entregada",
 };
 
 type SnapshotSubindicator = EvaluationSnapshot["dimensions"][number]["indicators"][number]["subindicators"][number];
