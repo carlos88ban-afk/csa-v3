@@ -122,7 +122,8 @@ export async function listEvaluations(organizationId: string, frameworkId: strin
   return db
     .select()
     .from(evaluation)
-    .where(and(eq(evaluation.frameworkId, frameworkId), eq(evaluation.organizationId, organizationId)));
+    .where(and(eq(evaluation.frameworkId, frameworkId), eq(evaluation.organizationId, organizationId)))
+    .orderBy(desc(evaluation.publishedAt));
 }
 
 // Listado global para la pantalla "Evaluaciones": sin el snapshot (pesado).
