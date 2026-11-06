@@ -2348,3 +2348,14 @@ input[type="checkbox"] {
   color: var(--ink-muted);
   margin-bottom: 0.75rem;
 }
+
+.page__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.page__head h1 {
+  margin: 0;
+}

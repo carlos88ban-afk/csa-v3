@@ -96,7 +96,12 @@ export default function EvaluationsPage() {
 
   return (
     <main className="page">
-      <h1>Evaluaciones</h1>
+      <div className="page__head">
+        <h1>Evaluaciones</h1>
+        <a className="btn btn--primary" href="/frameworks">
+          Enviar un formulario
+        </a>
+      </div>
       <p className="page__lead">
         Aquí ves cada formulario que enviaste a responder, si sigue abierto y cómo van las respuestas.
       </p>
