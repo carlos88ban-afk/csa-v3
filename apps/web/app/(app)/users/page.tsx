@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
+import { useCachedGet } from "@/lib/api-cache";
 import { Button, Card, Pill } from "@/components/ui";
 import { ROLE_LABEL, useMe, type Me } from "@/lib/use-me";
 
@@ -23,21 +24,16 @@ interface Unit {
 
 export default function UsersPage() {
   const { me, loading } = useMe();
-  const [users, setUsers] = useState<UserRow[] | null>(null);
-  const [units, setUnits] = useState<Unit[]>([]);
+  const { data: usersData, reload } = useCachedGet<{ users: UserRow[] }>(me.appRole === "evaluator" ? null : "/api/users");
+  const { data: unitsData } = useCachedGet<{ units: Unit[] }>(me.appRole === "evaluator" ? null : "/api/units");
+  const users = usersData?.users ?? null;
+  const units = (unitsData?.units ?? []).filter((u) => u.active);
   const [form, setForm] = useState({ name: "", email: "", role: "evaluator" as Me["appRole"], unitId: "" });
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
 
-  const load = () => api.get<{ users: UserRow[] }>("/api/users").then((r) => setUsers(r.users));
-  useEffect(() => {
-    if (!me || me.appRole === "evaluator") return;
-    void load();
-    void api.get<{ units: Unit[] }>("/api/units").then((r) => {
-      setUnits(r.units.filter((u) => u.active));
-    });
-  }, [me]);
+  const load = reload;
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -70,7 +66,6 @@ export default function UsersPage() {
     }
   }
 
-  if (loading || !me) return <main className="loading">Cargando...</main>;
   if (me.appRole === "evaluator") return <main className="page">No tienes acceso a esta sección.</main>;
   const isCorp = me.appRole === "corporate_admin";
 

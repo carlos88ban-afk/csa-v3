@@ -12,7 +12,7 @@
 import type { Evaluation, ResponseAnswers } from "@plataforma-csa/sdk-core";
 import { use, useMemo } from "react";
 import { api } from "@/lib/api-client";
-import { RuntimeCore, type RuntimeAdapter } from "@/app/evaluations/[token]/page";
+import { RuntimeCore, type RuntimeAdapter } from "@/app/(app)/evaluations/[token]/page";
 
 interface Props {
   params: Promise<{ id: string }>;

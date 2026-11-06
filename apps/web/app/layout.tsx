@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { IBM_Plex_Mono, Public_Sans } from "next/font/google";
-import { AppShell } from "@/components/app-shell";
 import "./globals.css";
 
 const publicSans = Public_Sans({
@@ -28,7 +27,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <a href="#main-content" className="skip-link">
           Saltar al contenido
         </a>
-        <AppShell>{children}</AppShell>
+        {children}
       </body>
     </html>
   );

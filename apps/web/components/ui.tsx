@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import Link from "next/link";
 import { Fragment } from "react";
 
 // Componentes compartidos del sistema de diseño — ver
@@ -41,7 +42,7 @@ export function Breadcrumb({ items }: { items: Crumb[] }) {
       {items.map((item, index) => (
         <Fragment key={index}>
           {index > 0 && <span className="breadcrumb__sep">›</span>}
-          {item.href ? <a href={item.href}>{item.label}</a> : <span className="breadcrumb__current">{item.label}</span>}
+          {item.href ? <Link href={item.href}>{item.label}</Link> : <span className="breadcrumb__current">{item.label}</span>}
         </Fragment>
       ))}
     </nav>

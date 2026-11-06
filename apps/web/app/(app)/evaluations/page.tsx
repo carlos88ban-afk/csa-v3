@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import { api } from "@/lib/api-client";
+import { useCachedGet } from "@/lib/api-cache";
 import { Card, Pill } from "@/components/ui";
 import { useMe } from "@/lib/use-me";
 import { formatDueDate } from "@/lib/due-date";
@@ -48,25 +50,22 @@ const fmt = (iso: string) =>
 // Inicio del administrador corporativo: la evaluación vigente, el avance por
 // unidad y por bloque, con filtros y trazabilidad.
 export default function EvaluationsPage() {
-  const { me, loading } = useMe();
-  const [current, setCurrent] = useState<Current | null | undefined>(undefined);
-  const [rows, setRows] = useState<Row[] | null>(null);
+  const { me } = useMe();
+  const { data: curData, reload: reloadCurrent } = useCachedGet<{ evaluation: Current | null }>(
+    me.appRole === "corporate_admin" ? "/api/current-evaluation" : null,
+  );
+  const current = curData === undefined ? undefined : curData.evaluation;
+  const { data: ovData } = useCachedGet<{ rows: Row[] }>(current ? `/api/evaluations/${current.id}/overview` : null);
+  const rows = ovData?.rows ?? null;
   const [f, setF] = useState({ unit: "", dimension: "", responsible: "", state: "" });
   const [confirmClose, setConfirmClose] = useState(false);
 
   async function closeNow() {
     if (!current) return;
     await api.post(`/api/evaluations/${current.id}/close`, {});
-    window.location.reload();
+    setConfirmClose(false);
+    await reloadCurrent();
   }
-
-  useEffect(() => {
-    if (me?.appRole !== "corporate_admin") return;
-    api.get<{ evaluation: Current | null }>("/api/current-evaluation").then(async (r) => {
-      setCurrent(r.evaluation);
-      if (r.evaluation) setRows((await api.get<{ rows: Row[] }>(`/api/evaluations/${r.evaluation.id}/overview`)).rows);
-    });
-  }, [me]);
 
   const units = useMemo(() => {
     const m = new Map<string, { name: string; total: number; answered: number }>();
@@ -79,15 +78,20 @@ export default function EvaluationsPage() {
     return m;
   }, [rows]);
 
-  if (loading || !me) return <main className="loading">Cargando...</main>;
   if (me.appRole !== "corporate_admin") return <main className="page">Esta sección es para el administrador corporativo.</main>;
-  if (current === undefined) return <main className="loading">Cargando...</main>;
+  if (current === undefined)
+    return (
+      <main className="page">
+        <h1>Evaluación</h1>
+        <p className="empty">Cargando…</p>
+      </main>
+    );
   if (current === null)
     return (
       <main className="page">
         <h1>Evaluación</h1>
         <p className="page__lead">
-          Aún no hay una evaluación vigente. Ve a <a href="/frameworks">Estructura</a>, arma o duplica la del año y pulsa <strong>Publicar</strong>.
+          Aún no hay una evaluación vigente. Ve a <Link href="/frameworks">Estructura</Link>, arma o duplica la del año y pulsa <strong>Publicar</strong>.
         </p>
       </main>
     );
@@ -109,8 +113,8 @@ export default function EvaluationsPage() {
       <div className="page__head">
         <h1>{current.title}</h1>
         <span className="entry-list__actions">
-          <a className="btn btn--secondary" href={`/frameworks/${current.frameworkId}/builder`}>Editar estructura</a>
-          <a className="btn btn--secondary" href="/consolidado">Ver consolidado</a>
+          <Link className="btn btn--secondary" href={`/frameworks/${current.frameworkId}/builder`}>Editar estructura</Link>
+          <Link className="btn btn--secondary" href="/consolidado">Ver consolidado</Link>
           <a className="btn btn--primary" href={`/api/evaluations/${current.id}/export-xlsx`}>Exportar Excel</a>
           {!closed &&
             (confirmClose ? (
@@ -180,9 +184,9 @@ export default function EvaluationsPage() {
                   <td><Pill variant={stateOf(r) === "Entregada" ? "good" : stateOf(r) === "Devuelta" ? "warn" : "neutral"}>{stateOf(r)}</Pill></td>
                   <td>{r.updatedBy ? `${r.updatedBy} · ${r.updatedAt ? fmt(r.updatedAt) : ""}` : "—"}</td>
                   <td>
-                    <a className="btn btn--secondary btn--sm" href={`/frameworks/${current.frameworkId}/evaluations/${current.id}/review?unit=${r.unitId}`}>
+                    <Link className="btn btn--secondary btn--sm" href={`/frameworks/${current.frameworkId}/evaluations/${current.id}/review?unit=${r.unitId}`}>
                       Revisar
-                    </a>
+                    </Link>
                   </td>
                 </tr>
               ))}

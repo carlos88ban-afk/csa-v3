@@ -30,7 +30,8 @@ export default function LoginPage() {
       setError(signInError.message ?? "Credenciales incorrectas");
       return;
     }
-    router.push(nextPath);
+    router.replace(nextPath);
+    router.refresh();
   }
 
   return (

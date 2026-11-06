@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui";
-import { ROLE_LABEL, useMe, type Me } from "@/lib/use-me";
+import { useMe } from "@/components/me-provider";
+import { HOME_BY_ROLE, ROLE_LABEL, type Me } from "@/lib/me";
 
 const NAV: Record<Me["appRole"], Array<{ href: string; label: string }>> = {
   corporate_admin: [
@@ -29,44 +31,39 @@ const NAV: Record<Me["appRole"], Array<{ href: string; label: string }>> = {
 export function AppSidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { data: session } = authClient.useSession();
   const { me } = useMe();
-
-  if (!session) return null;
 
   async function handleSignOut() {
     await authClient.signOut();
-    router.push("/login");
+    router.replace("/login");
+    router.refresh();
   }
-
-  const items = me ? NAV[me.appRole] : [];
-  const home = me?.appRole === "corporate_admin" ? "/evaluations" : "/mi-evaluacion";
 
   return (
     <nav className="app-shell__sidebar" aria-label="Navegación principal">
-      <a href={home} className="app-sidebar__brand">
+      <Link href={HOME_BY_ROLE[me.appRole]} className="app-sidebar__brand">
         Plataforma CSA
-      </a>
+      </Link>
       <ul className="app-sidebar__nav">
-        {items.map((item) => {
+        {NAV[me.appRole].map((item) => {
           const active = pathname?.startsWith(item.href);
           return (
             <li key={item.href}>
-              <a
+              <Link
                 href={item.href}
                 className={`app-sidebar__nav-item${active ? " app-sidebar__nav-item--active" : ""}`}
                 aria-current={active ? "page" : undefined}
               >
                 {item.label}
-              </a>
+              </Link>
             </li>
           );
         })}
       </ul>
       <div className="app-sidebar__footer">
-        {me && <strong>{me.unitName ? `${me.unitSigla ?? ""} ${me.unitName}`.trim() : "Corporativo"}</strong>}
-        {me && <span className="app-sidebar__footer-email">{ROLE_LABEL[me.appRole]}</span>}
-        <span className="app-sidebar__footer-email">{session.user.email}</span>
+        <strong>{me.unitName ? `${me.unitSigla ?? ""} ${me.unitName}`.trim() : "Corporativo"}</strong>
+        <span className="app-sidebar__footer-email">{ROLE_LABEL[me.appRole]}</span>
+        <span className="app-sidebar__footer-email">{me.email}</span>
         <Button type="button" size="sm" onClick={handleSignOut}>
           Cerrar sesión
         </Button>

@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import type { Framework } from "@plataforma-csa/sdk-core";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
+import { useCachedGet } from "@/lib/api-cache";
 import { Button, Card } from "@/components/ui";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
 import { useMe } from "@/lib/use-me";
@@ -11,16 +13,14 @@ import { useMe } from "@/lib/use-me";
 // Duplicar copia todo para armar la del año siguiente.
 export default function FrameworksPage() {
   const { me, loading } = useMe();
-  const [frameworks, setFrameworks] = useState<Framework[] | null>(null);
+  const { data: fwData, reload } = useCachedGet<{ frameworks: Framework[] }>("/api/frameworks");
+  const frameworks = fwData?.frameworks ?? null;
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dup, setDup] = useState<{ id: string; name: string } | null>(null);
 
-  const load = () => api.get<{ frameworks: Framework[] }>("/api/frameworks").then((r) => setFrameworks(r.frameworks));
-  useEffect(() => {
-    if (me?.appRole === "corporate_admin") void load();
-  }, [me]);
+  const load = reload;
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -50,7 +50,6 @@ export default function FrameworksPage() {
     }
   }
 
-  if (loading || !me) return <main className="loading">Cargando...</main>;
   if (me.appRole !== "corporate_admin") return <main className="page">Solo el administrador corporativo edita la estructura.</main>;
 
   const columns: DataTableColumn<Framework>[] = [
@@ -58,9 +57,9 @@ export default function FrameworksPage() {
       key: "name",
       header: "Evaluación",
       render: (fw) => (
-        <a className="entry-list__title" href={`/frameworks/${fw.id}/builder`}>
+        <Link className="entry-list__title" href={`/frameworks/${fw.id}/builder`}>
           {fw.name}
-        </a>
+        </Link>
       ),
     },
     { key: "dimensionCount", header: "Dimensiones", numeric: true, render: (fw) => fw.dimensionCount },

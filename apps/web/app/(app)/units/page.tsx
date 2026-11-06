@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
+import { useCachedGet } from "@/lib/api-cache";
 import { Button, Card, Pill } from "@/components/ui";
 import { useMe } from "@/lib/use-me";
 
@@ -14,17 +15,15 @@ interface Unit {
 
 export default function UnitsPage() {
   const { me, loading } = useMe();
-  const [units, setUnits] = useState<Unit[] | null>(null);
+  const { data: unitsData, reload } = useCachedGet<{ units: Unit[] }>("/api/units");
+  const units = unitsData?.units ?? null;
   const [name, setName] = useState("");
   const [sigla, setSigla] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState({ name: "", sigla: "" });
   const [error, setError] = useState<string | null>(null);
 
-  const load = () => api.get<{ units: Unit[] }>("/api/units").then((r) => setUnits(r.units));
-  useEffect(() => {
-    if (me?.appRole === "corporate_admin") void load();
-  }, [me]);
+  const load = reload;
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -50,7 +49,6 @@ export default function UnitsPage() {
     }
   }
 
-  if (loading || !me) return <main className="loading">Cargando...</main>;
   if (me.appRole !== "corporate_admin") return <main className="page">Solo el administrador corporativo gestiona unidades.</main>;
 
   return (

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
+import { useCachedGet } from "@/lib/api-cache";
 import { Button, Card, Pill } from "@/components/ui";
 import { useMe } from "@/lib/use-me";
 
@@ -24,17 +25,15 @@ const fmt = (iso: string) =>
 
 export default function ConsultasPage() {
   const { me, loading } = useMe();
-  const [items, setItems] = useState<Inquiry[] | null>(null);
+  const { data: inqData, reload } = useCachedGet<{ inquiries: Inquiry[] }>("/api/inquiries");
+  const items = inqData?.inquiries ?? null;
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<"all" | "open" | "answered">("all");
   const [error, setError] = useState<string | null>(null);
 
-  const load = () => api.get<{ inquiries: Inquiry[] }>("/api/inquiries").then((r) => setItems(r.inquiries));
-  useEffect(() => {
-    if (me) void load();
-  }, [me]);
+  const load = reload;
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -59,7 +58,6 @@ export default function ConsultasPage() {
     }
   }
 
-  if (loading || !me) return <main className="loading">Cargando...</main>;
   const isCorp = me.appRole === "corporate_admin";
   const shown = (items ?? []).filter((i) => filter === "all" || i.status === filter);
 

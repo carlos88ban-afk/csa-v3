@@ -13,3 +13,6 @@ test-results/
 .DS_Store
 
 .vercel
+.playwright-mcp/
+detales de apis.txt
+.playwright-mcp/
