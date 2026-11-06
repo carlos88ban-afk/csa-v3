@@ -20,6 +20,7 @@ import { Button, Pill } from "@/components/ui";
 import { FormPreview } from "@/components/form-preview";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { RichLabel } from "@/components/rich-label";
+import { PasteImport } from "@/components/paste-import";
 
 interface Props {
   subindicatorId: string;
@@ -1128,6 +1129,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [focusNewId, setFocusNewId] = useState<string | null>(null);
@@ -1246,6 +1248,32 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
       labelRefs.current[el.id]?.focus();
     });
   }
+
+  // Inserta varios elementos (importación de texto pegado) tras la pregunta activa.
+  function insertMany(els: FormElement[]) {
+    if (!els.length) return;
+    const at = activeId ? elements.findIndex((x) => x.id === activeId) : -1;
+    const next = [...elements];
+    next.splice(at >= 0 ? at + 1 : next.length, 0, ...els);
+    commit(next);
+    setPasteText(null);
+    setActiveId(null);
+    requestAnimationFrame(() => elementRefs.current[els[0]!.id]?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }
+
+  // Pegar texto en cualquier parte del documento (fuera de un campo) abre la importación.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && t.closest("input, textarea, select, [contenteditable='true'], .ProseMirror")) return;
+      const txt = e.clipboardData?.getData("text/plain") ?? "";
+      if (txt.trim().length < 3) return;
+      e.preventDefault();
+      setPasteText(txt);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
 
   function duplicateElement(id: string) {
     const index = elements.findIndex((x) => x.id === id);
@@ -2139,11 +2167,15 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
       <button type="button" className="add-bar__chip add-bar__chip--more" onClick={() => setPaletteOpen(true)}>
         Más…
       </button>
+      <button type="button" className="add-bar__chip add-bar__chip--paste" onClick={() => setPasteText("")}>
+        📋 Pegar cuestionario
+      </button>
     </div>
   );
 
   return (
     <>
+      {pasteText !== null && <PasteImport initialText={pasteText} onClose={() => setPasteText(null)} onInsert={insertMany} />}
       <div className="doc-head">
         <h1 className="doc-head__title">{subindicator.title}</h1>
         {/* 4.1.3 Status Messages — ver docs/architecture/accessibility.md */}
@@ -2152,6 +2184,9 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
           {saveStatus === "saved" && <Pill variant="good">Guardado</Pill>}
           {saveStatus === "idle" && revisionNumber !== null && <Pill variant="good">Guardado</Pill>}
         </span>
+        <Button type="button" size="sm" variant="secondary" onClick={() => setPasteText("")}>
+          📋 Pegar cuestionario
+        </Button>
         <Button type="button" size="sm" variant="secondary" onClick={() => setPreviewOpen(true)}>
           Vista previa
         </Button>
@@ -2160,7 +2195,9 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
 
       {elements.length === 0 ? (
         <div className="doc-empty">
-          <p>Este tema todavía no tiene preguntas. Empieza eligiendo qué tipo de respuesta necesitas:</p>
+          <p className="doc-empty__lead">Pega aquí tu cuestionario (Word, Excel, PDF…) y lo convierto en preguntas.</p>
+          <button type="button" className="doc-empty__paste" onClick={() => setPasteText("")}>📋 Pegar cuestionario</button>
+          <p className="doc-empty__or">o empieza escribiendo, eligiendo el tipo de respuesta:</p>
           {addBar}
         </div>
       ) : (

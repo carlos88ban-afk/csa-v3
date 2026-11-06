@@ -4,6 +4,10 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### Builder — Importar desde texto pegado (2026-11-06)
+
+`parsePastedText` (sdk-core) + panel "Pegar cuestionario" en el Builder: el texto pegado se interpreta en preguntas, opciones, tablas y avisos; el usuario revisa y ajusta. Ver `docs/engines/form.md` "Importar desde texto pegado".
+
 ### VS-078 — Export migra a render por componentes, cierre de la Fase 2 (2026-08-19)
 
 `formatEmbeddedTable` (`apps/web/lib/evaluation-export.ts`) itera `normalizeCellComponents(cellCfg)` igual que Runtime/Preview (VS-077) — `formatTableCell`/`formatTableComponent` (nuevos) resuelven cada componente con la misma clave por origen (legacy vs. Fase 2), respetan `gates`, y unen los valores no vacíos de una celda con `", "` (mismo separador ya usado entre celdas de una fila). El `tabla_datos` suelto de nivel de Elemento (dentro de `formatAnswer`) dejó de duplicar esta lógica — delega directo a `formatEmbeddedTable(element, element.id, answers)`. Elimina `resolveExtraFields` (sin consumidores tras la unificación); su soporte de `label` como prefijo se generaliza a cualquier componente `texto_corto`/`numero`/`seleccion_desplegable` con `label`, sea legacy o Fase 2.

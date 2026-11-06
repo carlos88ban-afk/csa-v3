@@ -1951,3 +1951,9 @@ Es una unificación de formato de texto plano, sin pérdida de datos ni cambio d
 ### Verificación
 
 Framework QA temporal en producción: tabla Fase 2 con celda multi-componente exportada a CSV confirmando cada componente por separado, más la celda legacy real de 25 celdas (`CSA 2026 — Réplica QA`, "SISTEMA DE UN SOLO NIVEL") exportada sin pérdida de datos (contenido idéntico, formato de texto según la unificación de arriba). Ver checkpoint para el resultado.
+
+## Importar desde texto pegado (Builder documento)
+
+`parsePastedText(texto)` (`packages/sdk-core/src/paste-parser.ts`, función pura) convierte texto de Word/Excel/PDF/Typeform/CSA en `FormElement[]` con `confidence` (alta/media/baja) y `reason`. El Builder lo muestra como borrador (panel "Pegar cuestionario"): el usuario cambia el tipo, quita elementos o inserta todo tras la pregunta activa. Pegar con Ctrl+V fuera de un campo abre el panel.
+
+Reglas: `○`/`( )` → selección única; `☐`/`[ ]` → múltiple; viñetas/letras → única (múltiple si el texto dice "marque todas…"); sangría mayor = sub-opciones; `___ kWh` → número con unidad; `| a | b |` o tabs (Excel) → `tabla_datos` (primera fila = encabezados); "Aviso/Nota/Requisito:" → `banner`; evidencia/URL/fecha por palabras clave; `¿…? Sí/No` → única Sí/No; texto sin pistas → texto corto (confianza baja). No interpreta "Responsable" ni "Aplica a" (se ajustan después en la pregunta).
