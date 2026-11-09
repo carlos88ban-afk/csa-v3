@@ -116,3 +116,32 @@ describe("parsePastedText — orientación vacía", () => {
     expect(g.confidence).toBe("baja");
   });
 });
+
+describe("parsePastedText — bloques de sub-opciones con encabezado (S&P 1.2.16)", () => {
+  const txt = [
+    "¿La empresa tiene mecanismos de gobernanza ESG?",
+    "",
+    "○ Sí, la empresa cuenta con mecanismos.",
+    "    Se permiten un máximo de 3, solo URL públicas",
+    "    §§ Supervisión de la junta",
+    "    ☐ Existe responsabilidad a nivel de junta directiva:",
+    "        ○ Un comité dedicado a ESG",
+    "        ○ Otro comité de la junta",
+    "    §§ Supervisión ejecutiva",
+    "    ☐ Existe un puesto designado:",
+    "        ○ Nivel C",
+    "        ○ Otro cargo ejecutivo",
+    "○ No, la empresa no informa.",
+  ].join("\n");
+  it("bloque primario + secundario con encabezado y radios de nivel 2", () => {
+    const o = (parsePastedText(txt)[0]!.element as any).options[0];
+    expect(o.subOptionsHeading).toBe("Supervisión de la junta");
+    expect(o.subOptions).toHaveLength(1);
+    expect(o.subOptions[0].subOptions).toHaveLength(2);
+    expect(o.subOptions[0].subOptionsExclusive).toBe(true);
+    expect(o.secondaryOptionsHeading).toBe("Supervisión ejecutiva");
+    expect(o.secondaryOptions[0].subOptions).toHaveLength(2);
+    expect(o.secondaryOptions[0].subOptionsExclusive).toBe(true);
+    expect(o.references).toEqual({ maxUrls: 3, refType: "public" });
+  });
+});

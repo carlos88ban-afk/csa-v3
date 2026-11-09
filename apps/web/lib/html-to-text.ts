@@ -118,6 +118,8 @@ function liSp(e: Element, level: Element, ind: number, out: string[], marker: st
     const nxt = kids[k + 1];
     if (c.tagName === "P") {
       const label = clean(inl(c));
+      // Encabezado de un bloque de sub-opciones (título + lista de casillas/radios): "§§ título"; la lista se procesa en la siguiente vuelta.
+      if (label && nxt && (nxt.tagName === "OL" || nxt.tagName === "UL") && nxt.querySelector("input[type=checkbox], input[type=radio]")) { out.push(PAD.repeat(ind + 1) + "§§ " + label); continue; }
       if (nxt?.querySelector("table") && !nxt.closest(".reference-table")) { out.push(PAD.repeat(ind + 1) + "§ " + label); continue; }
       if (nxt && (nxt.querySelector("input.sims-select-trigger") || nxt.querySelector("select"))) { out.push(PAD.repeat(ind + 1) + label + " ▾"); k++; continue; }
       if (nxt?.querySelector("input, textarea")) { out.push(PAD.repeat(ind + 1) + label + " _____"); k++; continue; }

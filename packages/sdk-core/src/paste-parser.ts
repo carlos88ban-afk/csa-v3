@@ -211,7 +211,7 @@ const BANNER_START = /^\s*(aviso|nota|importante|requisito|atención|atencion|re
 const MULTI_HINT = /seleccione (?:todas|todos|las que|los que)|marque (?:todas|todos|las que|los que)|una o más|una o mas|varias opciones|puede(?:n)? (?:elegir|seleccionar) (?:más|mas|varias)|todas las que apliquen|select all/i;
 const YES_NO_INLINE = /[(\[]?\s*(s[ií])\s*[\/|,]\s*(no)\s*[)\]]?\s*[?.]?\s*$/i;
 
-type Opt = { text: string; subs: string[]; tableRows?: string[][]; tables?: string[][][]; titles?: (string | undefined)[] | undefined; refMax?: number; refPublic?: boolean; subTables?: (string[][] | undefined)[]; subsRadio?: boolean; lastSubIndent?: number; field?: { label: string; list: boolean }; pendingTitle?: string | undefined; ignored?: number };
+type Opt = { text: string; subs: string[]; tableRows?: string[][]; tables?: string[][][]; titles?: (string | undefined)[] | undefined; refMax?: number; refPublic?: boolean; subTables?: (string[][] | undefined)[]; subsRadio?: boolean; lastSubIndent?: number | undefined; subsHeading?: string | undefined; subSubs?: string[][]; subSubsRadio?: boolean[]; secondary?: { heading: string; subs: string[]; subSubs: string[][]; subSubsRadio: boolean[]; radio: boolean }; field?: { label: string; list: boolean }; pendingTitle?: string | undefined; ignored?: number };
 
 let listsSeen = 0;
 function makeOptions(items: Opt[]) {
@@ -237,9 +237,23 @@ function makeOptions(items: Opt[]) {
           const rows = o.subTables?.[si];
           const st = rows && rows.length ? tableConfig(rows) : null;
           if (st) listsSeen += st.lists;
-          return { id: uid(), label: esc(s), ...(st ? { table: { columns: st.columns, rows: st.rows } } : {}) };
+          const ss = o.subSubs?.[si];
+          return {
+            id: uid(), label: esc(s),
+            ...(st ? { table: { columns: st.columns, rows: st.rows } } : {}),
+            ...(ss && ss.length ? { subOptions: ss.map((x) => ({ id: uid(), label: esc(x) })), ...(o.subSubsRadio?.[si] ? { subOptionsExclusive: true } : {}) } : {}),
+          };
         }),
         ...(o.subsRadio ? { subOptionsExclusive: true } : {}),
+        ...(o.subsHeading ? { subOptionsHeading: esc(o.subsHeading) } : {}),
+      } : {}),
+      ...(o.secondary && o.secondary.subs.length ? {
+        secondaryOptionsHeading: esc(o.secondary.heading),
+        secondaryOptions: o.secondary.subs.map((s, si) => {
+          const ss = o.secondary!.subSubs[si];
+          return { id: uid(), label: esc(s), ...(ss && ss.length ? { subOptions: ss.map((x) => ({ id: uid(), label: esc(x) })), ...(o.secondary!.subSubsRadio[si] ? { subOptionsExclusive: true } : {}) } : {}) };
+        }),
+        ...(o.secondary.radio ? { secondaryOptionsExclusive: true } : {}),
       } : {}),
       ...(t ? { table: { ...(o.titles?.[0] ? { title: esc(o.titles[0]) } : {}), columns: t.columns, rows: t.rows } } : {}),
       ...(more.length ? { moreTables: more } : {}),
@@ -556,6 +570,13 @@ function readOptions(lines: string[], start: number) {
       const titleMark = trimmed.match(/^§\s*(.+)$/);
       const fieldMark = trimmed.match(/^(.{1,80}?)\s*(_{3,}|▾)\s*$/);
       if (refHint) { last.refMax = Number(refHint[1]); last.refPublic = /p[úu]blic/i.test(trimmed); j++; continue; }
+      const blockMark = trimmed.match(/^§§\s*(.+)$/);
+      if (blockMark) {
+        if (last.subs.length === 0 && last.subsHeading === undefined) last.subsHeading = blockMark[1]!.trim();
+        else last.secondary = { heading: blockMark[1]!.trim(), subs: [], subSubs: [], subSubsRadio: [], radio: false };
+        last.lastSubIndent = undefined;
+        j++; continue;
+      }
       if (titleMark) { last.pendingTitle = titleMark[1]!.trim(); j++; continue; }
       if (fieldMark && !isTableLine(ln) && om.marker === null && !isLetter) { last.field = { label: fieldMark[1]!.trim(), list: fieldMark[2] === "▾" }; j++; continue; }
       // Tabla bajo una SUB-opción (más sangría que su marcador): pertenece a esa sub-opción, no a la opción padre.
@@ -578,7 +599,22 @@ function readOptions(lines: string[], start: number) {
         last.tableRows = last.tables[0]!;
       }
       else if (isTableSeparator(ln)) { /* separador */ }
-      else if (om.marker !== null || isLetter) { last.subs.push(isLetter ? ln.replace(LETTER, "").trim() : om.text); last.lastSubIndent = ind; if (om.marker === "radio") last.subsRadio = true; }
+      else if (om.marker !== null || isLetter) {
+        const text = isLetter ? ln.replace(LETTER, "").trim() : om.text;
+        const subsArr = last.secondary ? last.secondary.subs : last.subs;
+        if (last.lastSubIndent !== undefined && ind >= last.lastSubIndent + 2 && subsArr.length > 0) {
+          // nivel 2: radio/casilla bajo una sub-opción (p. ej. casilla "Existe responsabilidad…" → radios de comité)
+          const si = subsArr.length - 1;
+          const ssAll = last.secondary ? last.secondary.subSubs : (last.subSubs ??= []);
+          const ssRadio = last.secondary ? last.secondary.subSubsRadio : (last.subSubsRadio ??= []);
+          (ssAll[si] ??= []).push(text);
+          if (om.marker === "radio") ssRadio[si] = true;
+        } else {
+          subsArr.push(text);
+          last.lastSubIndent = ind;
+          if (om.marker === "radio") { if (last.secondary) last.secondary.radio = true; else last.subsRadio = true; }
+        }
+      }
       else last.ignored = (last.ignored ?? 0) + 1;
       j++; continue;
     }
