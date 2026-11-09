@@ -53,3 +53,29 @@ describe("parsePastedText", () => {
     for (const p of r) expect(formElement.safeParse(p.element).success).toBe(true);
   });
 });
+
+describe("parsePastedText — correcciones QA (hallazgos 1-3)", () => {
+  it("#1 'Describa… emisiones (máx. 500 palabras)' → texto largo, no número", () => {
+    const r = parsePastedText("Describa las acciones de reducción de emisiones (máx. 500 palabras)");
+    expect(r[0]!.element.type).toBe("texto_largo");
+  });
+  it("#1 una pregunta de cifra sigue siendo número", () => {
+    expect(types("¿Cuántas toneladas de residuos generó?")).toEqual(["numero"]);
+  });
+  it("#2 fila de Excel con celdas vacías se queda dentro de la tabla", () => {
+    const r = parsePastedText("Año\tAlcance 1\tAlcance 2\tUnidad\n2023\t1250\t980\tt\n2024\t1100\t850\tt\n2025\t\t\t");
+    expect(r).toHaveLength(1);
+    expect(r[0]!.element.type).toBe("tabla_datos");
+    expect((r[0]!.element as any).rows).toHaveLength(4); // encabezado + 3 filas
+  });
+  it("#3 ☐ Sí/No/Parcialmente → selección única", () => {
+    const r = parsePastedText("1. ¿La empresa tiene política de eficiencia energética?\n☐ Sí\n☐ No\n☐ Parcialmente");
+    expect(r[0]!.element.type).toBe("seleccion_unica");
+  });
+  it("#3 ☐ con 'seleccione todas' sigue siendo múltiple", () => {
+    expect(types("Seleccione todas las certificaciones que posee:\n☐ ISO 14001\n☐ LEED")).toEqual(["seleccion_multiple"]);
+  });
+  it("#3 ☐ con opciones temáticas sigue siendo múltiple", () => {
+    expect(types("Materiales\n☐ Papel\n☐ Vidrio")).toEqual(["seleccion_multiple"]);
+  });
+});

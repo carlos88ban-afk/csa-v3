@@ -4,6 +4,7 @@ import {
   type EvaluationSnapshot,
   type FormElement,
   type ResponseAnswers,
+  splitAnswerText,
 } from "@plataforma-csa/sdk-core";
 import { formatAnswer } from "@/lib/evaluation-export";
 
@@ -73,7 +74,11 @@ export function consolidateElement(
         return { rule: "Sí si alguna unidad responde Sí", value: anyYes ? "Sí" : "No", contributions };
       }
       const counts = new Map<string, number>();
-      for (const t of texts) counts.set(plain(t.text), (counts.get(plain(t.text)) ?? 0) + 1);
+      // El conteo agrupa por la opción elegida; las tablas embebidas van en el detalle por unidad.
+      for (const t of texts) {
+        const k = plain(splitAnswerText(t.text).lead);
+        counts.set(k, (counts.get(k) ?? 0) + 1);
+      }
       return {
         rule: "Conteo por opción",
         value: [...counts].map(([k, n]) => `${k}: ${n}`).join("; "),
@@ -82,7 +87,7 @@ export function consolidateElement(
     }
     case "seleccion_multiple": {
       const all = new Set<string>();
-      for (const t of texts) t.text.split("; ").forEach((x) => x && all.add(plain(x)));
+      for (const t of texts) splitAnswerText(t.text).lead.split("; ").forEach((x) => x && all.add(plain(x)));
       return { rule: "Unión de opciones", value: [...all].join("; "), contributions };
     }
     case "texto_corto":

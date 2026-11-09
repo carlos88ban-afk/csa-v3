@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { EvaluationSnapshot, ResponseAnswers } from "@plataforma-csa/sdk-core";
+import { splitAnswerText, type EvaluationSnapshot, type ResponseAnswers } from "@plataforma-csa/sdk-core";
 import { api } from "@/lib/api-client";
 import { Card } from "@/components/ui";
 import { useMe } from "@/lib/use-me";
@@ -12,6 +12,35 @@ interface Data {
   snapshot: EvaluationSnapshot;
   units: UnitRef[];
   responses: Array<{ unitId: string; subindicatorId: string; answers: ResponseAnswers }>;
+}
+
+// Un aporte "SIGLA: texto (Tabla: …)" → etiqueta de unidad + frase + tablas reales.
+function Contribution({ line }: { line: string }) {
+  const idx = line.indexOf(": ");
+  const unit = idx > 0 ? line.slice(0, idx) : "";
+  const parts = splitAnswerText(idx > 0 ? line.slice(idx + 2) : line);
+  return (
+    <div className="consol-contrib">
+      {unit && <span className="consol-contrib__unit">{unit}</span>}
+      {parts.lead && <p className="consol-contrib__lead">{parts.lead}</p>}
+      {parts.tables.map((t, ti) => (
+        <table key={ti} className="consol-subtable">
+          {parts.tables.length > 1 && <caption>{t.title}</caption>}
+          <thead>
+            <tr><th />{t.headers.map((h) => <th key={h}>{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {t.rows.map((r, ri) => (
+              <tr key={ri}>
+                <th scope="row">{r.label}</th>
+                {t.headers.map((h) => <td key={h}>{r.cells[h] ?? ""}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ))}
+    </div>
+  );
 }
 
 export default function ConsolidadoPage() {
@@ -82,7 +111,7 @@ export default function ConsolidadoPage() {
                   <td>{r.answeredUnits}/{r.applicableUnits}</td>
                   <td>{r.rule}</td>
                   <td style={{ whiteSpace: "pre-wrap" }}><strong>{r.value}</strong></td>
-                  <td style={{ whiteSpace: "pre-wrap" }}>{r.type === "texto_corto" || r.type === "texto_largo" || r.type === "fecha" || r.type === "evidencia" || r.type === "url_publica" ? "" : r.contributions}</td>
+                  <td>{r.type === "texto_corto" || r.type === "texto_largo" || r.type === "fecha" || r.type === "evidencia" || r.type === "url_publica" ? "" : r.contributions.split("\n").filter(Boolean).map((l, li) => <Contribution key={li} line={l} />)}</td>
                 </tr>
               ))}
             </tbody>

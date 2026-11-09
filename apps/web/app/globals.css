@@ -2367,3 +2367,27 @@ input[type="checkbox"] {
 .skeleton--card { height: 220px; width: 100%; }
 @keyframes skeleton-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+
+/* --- Consolidado: aportes por unidad con tablas reales ------------------ */
+.consol-contrib { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-3); }
+.consol-contrib__unit {
+  align-self: flex-start;
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.consol-contrib__lead { margin: 0; }
+.consol-subtable { border-collapse: collapse; font-size: var(--text-xs); max-width: 100%; }
+.consol-subtable caption { text-align: left; font-weight: 600; padding-bottom: var(--space-1); }
+.consol-subtable th, .consol-subtable td {
+  border: 1px solid var(--border);
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+  vertical-align: top;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.consol-subtable thead th { background: var(--surface-muted); color: var(--ink-muted); }

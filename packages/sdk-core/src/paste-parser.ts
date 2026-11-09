@@ -192,6 +192,11 @@ function inferFromLabel(label: string, rawLine: string): { type: ElementType; un
   const blank = BLANK_FILL.test(rawLine);
   const unit = rawLine.match(UNITS)?.[0];
   if (blank && unit) return { type: "numero", unit, confidence: "alta", reason: `Casilla con unidad (${unit})` };
+  // Un enunciado que PIDE UNA EXPLICACIÓN es texto largo aunque nombre un tema numérico
+  // ("Describa las acciones de reducción de emisiones (máx. 500 palabras)").
+  const EXPLAIN = /^[¿\s]*(describ|explique|detall|justifi|comente|indique c[oó]mo|sustent|argument|resuma|especifique las|cu[aá]l es el proceso|c[oó]mo )|\b\d+\s*(palabras|caracteres)\b/;
+  if (EXPLAIN.test(l) && !blank)
+    return { type: "texto_largo", confidence: "alta", reason: "Pide una explicación → texto largo" };
   if (/cuánt|cuant|cantidad|número de|numero de|total de|porcentaje|% de|consumo|emisiones|monto|importe|n\.º|nº/.test(l))
     return { type: "numero", unit, confidence: "media", reason: "Parece pedir una cifra" };
   if (blank && !unit) return { type: "texto_corto", confidence: "media", reason: "Espacio en blanco para completar" };
@@ -331,7 +336,9 @@ export function parsePastedText(input: string): ParsedItem[] {
     if (isTableLine(raw)) {
       const rows: string[][] = [];
       let j = i;
-      while (j < lines.length && lines[j]!.trim() !== "" && (isTableLine(lines[j]!) || isTableSeparator(lines[j]!))) {
+      // Una fila de Excel con celdas vacías ("2025\t\t\t") sigue siendo fila de la tabla.
+      const isRowCont = (l: string) => l.includes("\t") && !l.includes("|") && rows.length >= 1 && rows[0]!.length >= 2 && splitCells(l).length >= 2 && splitCells(l).some(Boolean);
+      while (j < lines.length && lines[j]!.trim() !== "" && (isTableLine(lines[j]!) || isTableSeparator(lines[j]!) || isRowCont(lines[j]!))) {
         if (!isTableSeparator(lines[j]!)) rows.push(splitCells(lines[j]!));
         j++;
       }
@@ -569,15 +576,21 @@ function readOptions(lines: string[], start: number) {
 
 function buildChoice(label: string, help: string | undefined, items: Opt[], multi: boolean, hasBullet: boolean, context: string): ParsedItem {
   const multiHint = MULTI_HINT.test(context);
-  const isMulti = multi || multiHint;
+  // ☐ es ambiguo (Word lo usa también para Sí/No). Opciones excluyentes por naturaleza
+  // (Sí/No/Parcialmente/N/A…) sin pedido explícito de "marque varias" → selección única.
+  const exclusiveSet = items.length >= 2 && items.length <= 5 &&
+    items.some((o) => /^(s[ií]|no)(?=[\s,.:;]|$)/i.test(o.text.trim())) &&
+    items.every((o) => /^(s[ií]|no|parcial(?:mente)?|n\/a|no aplica|no aplicable|en proceso|en parte|ninguno?a?)(?=[\s,.:;]|$)/i.test(o.text.trim()));
+  const checkDowngraded = multi && !multiHint && exclusiveSet;
+  const isMulti = (multi && !checkDowngraded) || multiHint;
   const type: ElementType = isMulti ? "seleccion_multiple" : "seleccion_unica";
-  const confidence: PasteConfidence = multi ? "alta" : multiHint ? "media" : hasBullet && items.length > 2 ? "media" : "alta";
+  const confidence: PasteConfidence = checkDowngraded ? "media" : multi ? "alta" : multiHint ? "media" : hasBullet && items.length > 2 ? "media" : "alta";
   // "Se permiten un máximo de N, solo URL públicas" = bloque de enlaces de la pregunta, no texto de ayuda.
   const refRe = /Se permiten un m[aá]ximo de (\d+)[^.]*(?:URL|enlaces)[^.]*\.?/i;
   const refMatch = help ? help.match(refRe) : null;
   const refMax = refMatch ? Number(refMatch[1]) : 0;
   const helpClean = help ? help.replace(refRe, "").replace(/\s{2,}/g, " ").trim() : help;
-  const reason = multi ? "Casillas ☐ → selección múltiple" : multiHint ? "El texto pide marcar varias → selección múltiple" : hasBullet ? "Lista con viñetas → selección única (cámbiala si admite varias)" : "Opciones excluyentes → selección única";
+  const reason = checkDowngraded ? "Opciones Sí / No / Parcialmente son excluyentes → selección única (cámbiala si admite varias)" : multi ? "Casillas ☐ → selección múltiple" : multiHint ? "El texto pide marcar varias → selección múltiple" : hasBullet ? "Lista con viñetas → selección única (cámbiala si admite varias)" : "Opciones excluyentes → selección única";
   return {
     element: {
       id: uid(), type, label: esc(label), ...(helpClean ? { helpText: esc(helpClean) } : {}),
