@@ -177,18 +177,26 @@ function formatEmbeddedTable(table: TablaDatosConfig, tableKey: string, answers:
   const tableValue = answers[tableKey];
   if (typeof tableValue !== "object" || tableValue === null || Array.isArray(tableValue)) return null;
   const tableMap = tableValue as TableValue;
+  // Nombres legibles: el texto fijo de la primera columna rotula la fila y el de la primera fila rotula la columna.
+  const fixedText = (row: (typeof table.rows)[number] | undefined, colId: string | undefined): string => {
+    const c = row && colId ? cellConfig(row, colId) : undefined;
+    return c && c.editable === false && c.content ? stripCommentHtml(c.content).replace(/\s+/g, " ").trim() : "";
+  };
+  const firstCol = table.columns[0]?.id;
   const serialized = table.rows
     .map((row, rowIdx) => {
       const rowValue = tableMap[row.id] ?? {};
+      const rowName = rowIdx > 0 ? fixedText(row, firstCol) : "";
       const cells = table.columns
         .map((col, colIdx) => {
           const cellCfg = cellConfig(row, col.id);
           if (!cellCfg) return null;
           const formatted = formatTableCell(cellCfg, rowValue[col.id], row.id, col.id, tableKey, answers);
-          return formatted ? `Columna ${colIdx + 1}=${formatted}` : null;
+          const colName = fixedText(table.rows[0], col.id);
+          return formatted ? `${colName || `Columna ${colIdx + 1}`}=${formatted}` : null;
         })
         .filter((c): c is string => c !== null);
-      return cells.length > 0 ? `Fila ${rowIdx + 1}: ${cells.join(", ")}` : null;
+      return cells.length > 0 ? `${rowName || `Fila ${rowIdx + 1}`}: ${cells.join(", ")}` : null;
     })
     .filter((r): r is string => r !== null)
     .join("; ");
