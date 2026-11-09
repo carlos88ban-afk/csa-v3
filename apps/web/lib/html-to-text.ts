@@ -5,8 +5,10 @@
 const BLOCK = new Set(["DIV", "P", "SECTION", "ARTICLE", "UL", "OL", "LI", "TABLE", "FORM", "HEADER", "FOOTER", "MAIN", "ASIDE", "TR", "TD", "TH", "TBODY", "THEAD", "HR", "FIGURE", "DL", "DT", "DD", "BLOCKQUOTE", "PRE", "LEGEND", "FIELDSET", "H1", "H2", "H3", "H4", "H5", "H6"]);
 const PAD = "    ";
 
-const clean = (s: string) =>
-  s.replace(/ /g, " ").replace(/\s+/g, " ").replace(/\d+ de un m[aá]ximo de \d+ caracteres/gi, "").replace(/m[aá]ximo \d+ caracteres/gi, "").trim();
+const clean = (s: string, keepCounter = false) => {
+  const t = s.replace(/ /g, " ").replace(/\s+/g, " ");
+  return (keepCounter ? t : t.replace(/\d+ de un m[aá]ximo de \d+ caracteres/gi, "").replace(/m[aá]ximo \d+ caracteres/gi, "")).trim();
+};
 
 function token(el: Element): string {
   const t = (el.getAttribute("type") || "text").toLowerCase();
@@ -44,12 +46,44 @@ function cut(s: string, n: number) {
   return s.length <= n ? s : s.slice(0, n).replace(/\s+\S*$/, "") + "…";
 }
 
+// Una celda de tabla puede mezclar texto, campos, listas, casillas y enlaces: cada pieza va
+// separada por " ¦ " para que el intérprete la reconstruya completa (sin recortar nada).
+function cellText(c: Element): string {
+  const pieces: string[] = [];
+  let buf = "";
+  const flush = () => { const t = clean(buf, true).replace(/\|/g, "/"); if (t) pieces.push(t); buf = ""; };
+  const walk = (n: Node) => {
+    n.childNodes.forEach((ch) => {
+      if (ch.nodeType === 3) { buf += ch.textContent ?? ""; return; }
+      if (ch.nodeType !== 1) return;
+      const e = ch as Element;
+      const tg = e.tagName;
+      if (e.matches(".sims-input.reference, .reference-table, .reference-add")) { flush(); return; }
+      if (tg === "INPUT") {
+        const tk = token(e).trim();
+        if (tk === "○" || tk === "☐") buf += tk + " ";
+        else if (e.classList.contains("sims-select-trigger")) { flush(); pieces.push("▾"); }
+        else if (tk) { flush(); pieces.push(tk); }
+        return;
+      }
+      if (tg === "TEXTAREA") { flush(); pieces.push("_____"); return; }
+      if (tg === "BR") { flush(); return; }
+      if (e.classList.contains("sims-select-trigger")) { flush(); pieces.push("▾"); return; }
+      if (BLOCK.has(tg)) { flush(); walk(e); flush(); return; }
+      walk(e);
+    });
+  };
+  walk(c);
+  flush();
+  return pieces.join(" ¦ ");
+}
+
 function table(t: Element, ind: number, out: string[]) {
   const rows = [...t.querySelectorAll(":scope > thead > tr, :scope > tbody > tr, :scope > tr")];
   const lines: string[] = [];
   rows.forEach((r, idx) => {
     const cells = [...r.children].filter((c) => c.tagName === "TD" || c.tagName === "TH");
-    const txt = cells.map((c, i) => cut(clean(inl(c)).replace(/\|/g, "/"), i === 0 ? 110 : 70));
+    const txt = cells.map((c) => cut(cellText(c), 1500));
     if (txt.some((x) => x)) lines.push(PAD.repeat(ind) + "| " + txt.join(" | ") + " |");
     void idx;
   });
@@ -109,7 +143,12 @@ export function looksLikeHtml(s: string) {
 
 export function htmlToMarkedText(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
-  doc.querySelectorAll("script,style,button,select,nav,noscript,template,[hidden],.jodit-source__mirror,.custom-bar,.navigation,.MuiTable-root,.sims-button,.reference-table").forEach((n) => n.remove());
+  doc.querySelectorAll("select").forEach((sel) => {
+    const opts = [...sel.querySelectorAll("option")].map((o) => (o.textContent ?? "").trim()).filter(Boolean);
+    const useful = opts.length >= 3 ? opts.slice(1) : opts;
+    sel.replaceWith(doc.createTextNode(useful.length >= 2 ? useful.map((o) => "○ " + o).join(" ") : " "));
+  });
+  doc.querySelectorAll("script,style,button,nav,noscript,template,[hidden],.jodit-source__mirror,.custom-bar,.navigation,.MuiTable-root,.sims-button,.reference-table").forEach((n) => n.remove());
   doc.querySelectorAll<HTMLElement>("[style]").forEach((n) => { if (/display:\s*none/i.test(n.getAttribute("style") ?? "")) n.remove(); });
   const sp = doc.querySelectorAll(".questionnaire-banner, .questionaires-list");
   const out: string[] = [];

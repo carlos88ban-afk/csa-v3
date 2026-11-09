@@ -61,12 +61,71 @@ const isTableLine = (line: string) =>
   (line.includes("\t") && splitCells(line).filter(Boolean).length >= 2);
 const isTableSeparator = (line: string) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(line) && line.includes("-");
 
+// Celdas con varias piezas (texto + campo + lista + casilla + enlaces): el HTML las separa con " ¦ ".
+const SEP = " ¦ ";
+const REF_HINT = /m[aá]ximo de (\d+)[^¦]*\bURLs?/i;
+function pieceHtml(pieces: string[]) {
+  if (pieces.length === 1) return esc(pieces[0]!);
+  return pieces.map((t, i) => (i === 0 ? `<p><strong>${esc(t)}</strong></p>` : `<p>${esc(t)}</p>`)).join("");
+}
+function cellComponents(txt: string): { comps: Record<string, unknown>[]; lists: number } | null {
+  const pieces = txt.split(SEP).map((x) => x.trim()).filter(Boolean);
+  const comps: Record<string, unknown>[] = [];
+  let lists = 0;
+  for (let i = 0; i < pieces.length; i++) {
+    const t = pieces[i]!;
+    const counter = t.match(/^\d+ de un m[aá]ximo de (\d+) caracteres$/i);
+    if (counter) {
+      const prev = [...comps].reverse().find((c) => c.type === "texto_corto");
+      if (prev) prev.maxLength = Number(counter[1]);
+      continue;
+    }
+    if (/^[#%]?_{3,}$/.test(t)) {
+      if (t.startsWith("%")) comps.push({ id: uid(), type: "numero", unit: "%" });
+      else if (t.startsWith("#")) comps.push({ id: uid(), type: "numero" });
+      else comps.push({ id: uid(), type: "texto_corto" });
+      continue;
+    }
+    if (t === "▾") {
+      const prev = comps[comps.length - 1];
+      let label: string | undefined;
+      if (prev && prev.type === "texto_fijo" && /^selecci[oó]n/i.test(String(prev.content ?? "").replace(/&[a-z]+;/g, ""))) {
+        label = String(prev.content);
+        comps.pop();
+      }
+      lists++;
+      comps.push({ id: uid(), type: "seleccion_desplegable", ...(label ? { label } : {}), options: [{ id: uid(), label: "Opción 1" }, { id: uid(), label: "Opción 2" }] });
+      continue;
+    }
+    if (t.startsWith("○")) {
+      const opts = [t];
+      while (pieces[i + 1]?.startsWith("○")) opts.push(pieces[++i]!);
+      const labels = opts.join(" ").split("○").map((x) => x.trim()).filter(Boolean);
+      comps.push({ id: uid(), type: "seleccion_desplegable", options: labels.map((l) => ({ id: uid(), label: esc(l) })) });
+      continue;
+    }
+    if (t.startsWith("☐")) {
+      comps.push({ id: uid(), type: "casilla", checkboxLabel: esc(t.replace(/^☐\s*/, "")) });
+      continue;
+    }
+    const ref = t.match(REF_HINT);
+    if (ref) {
+      comps.push({ id: uid(), type: "referencia", references: { maxUrls: Number(ref[1]) } });
+      continue;
+    }
+    comps.push({ id: uid(), type: "texto_fijo", content: esc(t) });
+  }
+  return comps.length ? { comps, lists } : null;
+}
+
+let listsToReview = 0;
 function tableConfig(rows: string[][]) {
+  listsToReview = 0;
   const width = Math.max(...rows.map((r) => r.length));
   const columns = Array.from({ length: width }, () => ({ id: uid() }));
   const headerRow = {
     id: uid(),
-    cells: columns.map((c, i) => ({ columnId: c.id, cellType: "texto" as const, editable: false, content: esc(rows[0]![i] ?? "") })),
+    cells: columns.map((c, i) => ({ columnId: c.id, cellType: "texto" as const, editable: false, content: pieceHtml((rows[0]![i] ?? "").split(SEP).filter(Boolean).length ? (rows[0]![i] ?? "").split(SEP).filter(Boolean) : [""]) })),
   };
   const body = rows.slice(1);
   const dataRows = (body.length ? body : [[]]).map((r) => ({
@@ -74,7 +133,11 @@ function tableConfig(rows: string[][]) {
     cells: columns.map((c, i) => {
       const txt = r[i] ?? "";
       // Primera columna con texto = nombre de la fila (solo lectura); el resto se captura.
-      if (i === 0 && txt) return { columnId: c.id, cellType: "texto" as const, editable: false, content: esc(txt) };
+      if (i === 0 && txt) return { columnId: c.id, cellType: "texto" as const, editable: false, content: pieceHtml(txt.split(SEP).filter(Boolean)) };
+      if (txt.includes(SEP) || REF_HINT.test(txt)) {
+        const cc = cellComponents(txt);
+        if (cc) { listsToReview += cc.lists; return { columnId: c.id, cellType: "texto" as const, editable: true, components: cc.comps as never }; }
+      }
       // Celdas de respuesta: una casilla suelta "☐ Sí" → casilla; "____" → texto; varias ☐ → texto con la lista como guía.
       if (/%_{3,}/.test(txt)) return { columnId: c.id, cellType: "numero" as const, editable: true, unit: "%" };
       if (/#_{3,}/.test(txt)) {
@@ -91,7 +154,7 @@ function tableConfig(rows: string[][]) {
       return { columnId: c.id, cellType: "texto" as const, editable: true, ...(hint ? { content: esc(hint) } : {}) };
     }),
   }));
-  return { width, columns, rows: [headerRow, ...dataRows] };
+  return { width, columns, lists: listsToReview, rows: [headerRow, ...dataRows] };
 }
 
 // Encabezados con año anterior al más reciente ("FY 2022"… "FY 2025") = candidatos a dato histórico.
@@ -143,9 +206,12 @@ const YES_NO_INLINE = /[(\[]?\s*(s[ií])\s*[\/|,]\s*(no)\s*[)\]]?\s*[?.]?\s*$/i;
 
 type Opt = { text: string; subs: string[]; tableRows?: string[][]; ignored?: number };
 
+let listsSeen = 0;
 function makeOptions(items: Opt[]) {
+  listsSeen = 0;
   return items.map((o) => {
     const t = o.tableRows && o.tableRows.length ? tableConfig(o.tableRows) : null;
+    if (t) listsSeen += t.lists;
     return {
       id: uid(),
       label: esc(o.text),
@@ -473,6 +539,6 @@ function buildChoice(label: string, help: string | undefined, items: Opt[], mult
       id: uid(), type, label: esc(label), ...(help ? { helpText: esc(help) } : {}),
       options: makeOptions(items), componentVersion: version(type),
     } as FormElement,
-    confidence, reason: reason + (items.some((o) => o.subs.length) ? " · con sub-opciones" : "") + (items.some((o) => o.tableRows?.length) ? " · con tabla dentro de una opción" + items.map((o) => histNote(o.tableRows ?? [])).find(Boolean) : ""),
+    confidence, reason: reason + (items.some((o) => o.subs.length) ? " · con sub-opciones" : "") + (items.some((o) => o.tableRows?.length) ? " · con tabla dentro de una opción" + (items.map((o) => histNote(o.tableRows ?? [])).find(Boolean) ?? "") : "") + (listsSeen ? ` · revisa las opciones de ${listsSeen} lista(s) desplegable(s): el original no las muestra` : ""),
   };
 }

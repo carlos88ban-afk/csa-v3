@@ -257,3 +257,16 @@ select.pi__type { font: inherit; font-size: var(--text-xs); border: 0; backgroun
 .bn__snip { color: var(--ink-muted); font-size: var(--text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
 .bn__body { padding: 4px 0 8px 30px; }
 .bn__opt { display: flex; gap: 6px; align-items: center; font-size: var(--text-sm); color: var(--ink-muted); margin-top: 6px; }
+
+.lc-mixed{display:flex;flex-direction:column;gap:6px;flex:1;min-width:230px;padding:2px}
+.lc-mixed__item{position:relative;display:flex;gap:4px;align-items:flex-start}
+.lc-mixed__field{display:flex;flex-direction:column;gap:2px;flex:1}
+.lc-mixed__x{border:0;background:transparent;color:var(--ink-muted);cursor:pointer;opacity:0;font-size:12px}
+.lc-mixed__item:hover .lc-mixed__x,.lc-mixed__item:focus-within .lc-mixed__x{opacity:1}
+.lc-mixed__add{display:flex;gap:2px;flex-wrap:wrap;opacity:0;transition:opacity .12s}
+.lc-mixed:hover .lc-mixed__add,.lc-mixed:focus-within .lc-mixed__add{opacity:1}
+.lc-table textarea.lc-text,.lc-mixed textarea.lc-text{resize:none;overflow:hidden;field-sizing:content;min-height:0;width:auto;flex:1;font:inherit;padding:4px 8px;border:1px solid transparent;background:transparent;box-shadow:none}
+.lc-table textarea.lc-text:hover,.lc-table textarea.lc-text:focus{border-color:var(--border,#475467)}
+.lc-ref{font-size:var(--text-sm);color:var(--ink-muted);border:1px dashed color-mix(in srgb,var(--ink) 30%,transparent);border-radius:6px;padding:6px 8px;display:flex;gap:6px;align-items:center}
+.lc-ref input{width:5ch}
+.lc-opts{width:100%}

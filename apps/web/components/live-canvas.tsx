@@ -7,19 +7,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormElement, FormTableCell, FormTableRow, TablaDatosConfig } from "@plataforma-csa/sdk-core";
 
-const uid = () => crypto.randomUUID();
+import { MixedCell, plainOf, toLabel, htmlLines, linesHtml, type Comp } from "@/components/mixed-cell";
 
-function plainOf(label: string): string {
-  if (!/[<&]/.test(label)) return label;
-  const d = document.createElement("div");
-  d.innerHTML = label;
-  return d.textContent ?? "";
-}
-const toLabel = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const uid = () => crypto.randomUUID();
 
 /* ───────────── tipos de celda con nombres humanos ───────────── */
 
-type Kind = "label" | "text" | "number" | "percent" | "list" | "check" | "special";
+type Kind = "label" | "text" | "number" | "percent" | "list" | "check" | "mixed" | "special";
 
 const KIND_NAME: Record<Kind, string> = {
   label: "Título o texto de la tabla",
@@ -28,12 +22,14 @@ const KIND_NAME: Record<Kind, string> = {
   percent: "El evaluado escribe un porcentaje",
   list: "El evaluado elige de una lista",
   check: "El evaluado marca una casilla",
+  mixed: "Varios elementos juntos (texto, campos, lista, casilla, enlaces)",
   special: "Celda con configuración especial",
 };
 
 function kindOf(c: FormTableCell | undefined): Kind {
   if (!c) return "label";
-  if (c.components?.length || c.cellType === "calculado" || c.cellType === "referencia") return "special";
+  if (c.components?.length) return "mixed";
+  if (c.cellType === "calculado" || c.cellType === "referencia") return "special";
   if (c.editable === false) return "label";
   if (c.cellType === "numero") return c.unit === "%" ? "percent" : "number";
   if (c.cellType === "seleccion_desplegable") return "list";
@@ -52,6 +48,12 @@ function applyKind(c: FormTableCell, k: Kind): FormTableCell {
     case "percent": return { ...base, cellType: "numero", unit: "%" };
     case "list": return { ...base, cellType: "seleccion_desplegable", options: c.options?.length ? c.options : [{ id: uid(), label: "Sí" }, { id: uid(), label: "No" }] };
     case "check": return { ...base, cellType: "casilla", checkboxLabel: c.checkboxLabel ?? "Sí" };
+    case "mixed": {
+      const comps: Comp[] = [];
+      if (c.content) comps.push({ id: uid(), type: "texto_fijo", content: c.content });
+      comps.push({ id: uid(), type: "texto_corto" });
+      return { ...base, components: comps };
+    }
     default: return c;
   }
 }
@@ -191,12 +193,13 @@ function TableCanvas({ table, onChange }: { table: TablaDatosConfig; onChange: (
                   <td key={col.id} className={`lc-cell lc-cell--${k}${head && k === "label" ? " lc-cell--head" : ""}`}>
                     <div className="lc-cell__box">
                       {k === "label" && (
-                        <input
-                          className="lc-input"
-                          value={c.content ?? ""}
+                        <textarea
+                          className="lc-input lc-text"
+                          rows={1}
+                          value={htmlLines(c.content ?? "")}
                           placeholder={ri === 0 || ci === 0 ? "Escribe…" : ""}
                           aria-label="Texto de la celda"
-                          onChange={(e) => setCell(ri, col.id, (x) => ({ ...x, content: e.target.value }))}
+                          onChange={(e) => setCell(ri, col.id, (x) => ({ ...x, content: linesHtml(e.target.value) }))}
                           onPaste={(e) => {
                             const t = e.clipboardData.getData("text/plain");
                             if (/[\t\n]/.test(t.trim())) { e.preventDefault(); pasteGrid(ri, ci, t); }
@@ -233,13 +236,14 @@ function TableCanvas({ table, onChange }: { table: TablaDatosConfig; onChange: (
                           />
                         </label>
                       )}
+                      {k === "mixed" && <MixedCell cell={c} onChange={(comps) => setCell(ri, col.id, (x) => ({ ...x, components: comps }))} />}
                       {k === "special" && <span className="lc-special">{plainOf(c.content ?? "") || "Celda especial"}</span>}
                       <button type="button" className="lc-cell__kind" title="¿Qué va en esta celda?" aria-label="Cambiar el contenido de la celda" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setPos({ top: Math.min(r.bottom + 4, window.innerHeight - 330), left: Math.max(8, Math.min(r.left - 200, window.innerWidth - 300)) }); setMenu(menu === key ? null : key); }}>⌄</button>
                     </div>
                     {menu === key && (
                       <div className="lc-menu" role="menu" style={{ top: pos.top, left: pos.left }}>
                         <div className="lc-menu__title">¿Qué va en esta celda?</div>
-                        {(["label", "text", "number", "percent", "list", "check"] as Kind[]).map((opt) => (
+                        {(["label", "text", "number", "percent", "list", "check", "mixed"] as Kind[]).map((opt) => (
                           <button key={opt} type="button" role="menuitemradio" aria-checked={k === opt} className={k === opt ? "is-on" : ""} onClick={() => setCell(ri, col.id, (x) => applyKind(x, opt))}>
                             {KIND_NAME[opt]}
                           </button>
