@@ -181,6 +181,7 @@ select.pi__type { font: inherit; font-size: var(--text-xs); border: 0; backgroun
 .lc-input:hover,.lc-input:focus{border-color:var(--border,#d0d5dd);background:#fff}
 .lc-input--ghost{border-color:var(--border,#d0d5dd);background:var(--surface-muted,#f6f7f9)}
 .lc-option__tools{display:flex;gap:4px;opacity:0;transition:opacity .12s}
+@media (hover:none){.lc-option__tools{opacity:1}}
 .lc-option:hover .lc-option__tools,.lc-option:focus-within .lc-option__tools{opacity:1}
 .lc-option__tools button,.lc-ghost,.lc-colbar button,.lc-rowbar button{border:0;background:transparent;color:var(--text-muted,#667);cursor:pointer;font-size:12px;padding:2px 6px;border-radius:4px}
 .lc-option__tools button:hover,.lc-ghost:hover,.lc-colbar button:hover,.lc-rowbar button:hover{background:var(--surface-muted,#eef0f3)}

@@ -379,7 +379,7 @@ function OptionsCanvas({ el, onChange }: { el: Extract<FormElement, { options: u
             <span className="lc-option__tools">
               {mark !== "list" && !o.references && <button type="button" onClick={() => patch(o.id, { references: { maxUrls: 3 } })}>＋ Enlaces</button>}
               {mark !== "list" && !o.table && <button type="button" onClick={() => patch(o.id, { table: newTable() })}>＋ Tabla</button>}
-              {mark !== "list" && !o.subOptions?.length && <button type="button" onClick={() => patch(o.id, { subOptions: [{ id: uid(), label: "" }] })}>＋ Casillas</button>}
+              {mark !== "list" && !o.subOptions?.length && <button type="button" onClick={() => patch(o.id, { subOptions: [{ id: uid(), label: "" }] })}>＋ Sub-opciones</button>}
               <button type="button" aria-label={`Quitar opción ${oi + 1}`} disabled={opts.length <= 1} onClick={() => set(opts.filter((x) => x.id !== o.id))}>✕</button>
             </span>
           </div>
