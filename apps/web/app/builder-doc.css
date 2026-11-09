@@ -241,3 +241,5 @@ select.pi__type { font: inherit; font-size: var(--text-xs); border: 0; backgroun
 .lc-answer--short { max-width: 220px; }
 .lc-answer--drop { border-style: dashed; color: var(--ink-muted); font-size: var(--text-sm); }
 .lc-numeric--q { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+.lc-numeric--q input.lc-unit{width:12ch;flex:none;padding:6px 8px;border:1px solid color-mix(in srgb, var(--ink) 25%, transparent);border-radius:6px;background:transparent}
+.lc-numeric--q input.lc-answer--short{width:220px}

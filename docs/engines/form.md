@@ -1981,3 +1981,8 @@ Reglas: `○`/`( )` → selección única; `☐`/`[ ]` → múltiple; viñetas/l
 - La pregunta activa se dibuja como la ve el evaluado (`apps/web/components/live-canvas.tsx`): radios/casillas/lista reales con el texto editable en sitio (Enter agrega opción, Backspace en vacío la quita), tablas reales con celdas editables, `＋ Tabla` y `＋ Casillas` dentro de cada opción.
 - Tablas: `＋`/`✕` por fila y columna, arrastrar filas (⠿), pegar un bloque de Excel en una celda de texto (la tabla crece). El tipo de celda se elige con lenguaje de negocio ("El evaluado escribe un número / porcentaje / elige de una lista / marca una casilla / Título de la tabla"); el modelo (`cellType`, `editable`, `unit`) se traduce internamente.
 - Lo que el lienzo no cubre (celdas con campos extra, enlaces, fórmulas, condiciones) sigue en "Ajustes especiales", plegado por defecto.
+
+### Documento vivo (sin modo edición)
+
+- Se eliminó la vista compacta: todas las preguntas del Builder se dibujan como las ve el evaluado y se editan en el mismo sitio. La barra de la pregunta (⠿ mover, tipo, subir/bajar, duplicar, borrar) aparece al pasar el cursor; "Obligatoria", unidades de negocio, datos históricos y "Ajustes especiales" solo en la pregunta con el foco.
+- Reordenar: arrastrar ⠿ y soltar sobre otra pregunta (`dropBefore`). Controles simples (`AnswerPreview`): texto corto/largo, número con unidad editable, fecha, evidencia, URL, calculado.
