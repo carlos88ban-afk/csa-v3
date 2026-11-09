@@ -7,6 +7,7 @@ import { useCachedGet } from "@/lib/api-cache";
 import { Card, Pill } from "@/components/ui";
 import { useMe } from "@/lib/use-me";
 import { formatDueDate } from "@/lib/due-date";
+import { ShareLink } from "@/components/share-link";
 
 interface Current {
   id: string;
@@ -131,6 +132,8 @@ export default function EvaluationsPage() {
         {closed ? <Pill variant="warn">Cerrada</Pill> : <Pill variant="good">Vigente</Pill>} Publicada el {formatDueDate(current.publishedAt)} ·{" "}
         {current.dueDate ? `Plazo: ${formatDueDate(current.dueDate)}` : "Sin plazo"}
       </p>
+
+      <ShareLink title={current.title} closed={closed} />
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {[...units].map(([id, u]) => {

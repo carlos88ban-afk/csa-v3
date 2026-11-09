@@ -1,5 +1,6 @@
 "use client";
 
+import { ShareLink } from "@/components/share-link";
 import Link from "next/link";
 
 // Publicar = abrir la evaluacion vigente. Solo existe una a la vez: al
@@ -71,9 +72,12 @@ export function PublishPanel({ frameworkId, open, onClose }: { frameworkId: stri
           </Button>
           {error && <p className="alert" role="alert">{error}</p>}
           {done && (
-            <p className="alert" role="status">
-              Publicada. <Link href="/evaluations">Ver el avance de las unidades</Link>
-            </p>
+            <>
+              <p className="alert" role="status">
+                Publicada. <Link href="/evaluations">Ver el avance de las unidades</Link>
+              </p>
+              <ShareLink title="Listo para compartir con las unidades" closed={false} />
+            </>
           )}
           <h4>Publicaciones anteriores de esta estructura</h4>
           {evaluations === null ? (

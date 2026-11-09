@@ -2391,3 +2391,12 @@ input[type="checkbox"] {
   letter-spacing: normal;
 }
 .consol-subtable thead th { background: var(--surface-muted); color: var(--ink-muted); }
+
+/* Enlace de la evaluación vigente (inicio del administrador) */
+.share { border: 2px solid var(--accent, #6aa0ff); background: color-mix(in srgb, var(--accent, #6aa0ff) 12%, transparent); border-radius: 12px; padding: 16px 20px; margin: 4px 0 20px; }
+.share__head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 1.05rem; }
+.share__badge { background: #2e9e5b; color: #fff; font-weight: 700; font-size: .8rem; letter-spacing: .04em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; }
+.share__badge--closed { background: #a8741a; }
+.share__hint { margin: 8px 0 12px; opacity: .85; }
+.share__row { display: flex; gap: 10px; flex-wrap: wrap; }
+.share__input { flex: 1 1 320px; min-width: 0; padding: 10px 12px; border-radius: 8px; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; }
