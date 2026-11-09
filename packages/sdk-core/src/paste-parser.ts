@@ -211,7 +211,7 @@ const BANNER_START = /^\s*(aviso|nota|importante|requisito|atención|atencion|re
 const MULTI_HINT = /seleccione (?:todas|todos|las que|los que)|marque (?:todas|todos|las que|los que)|una o más|una o mas|varias opciones|puede(?:n)? (?:elegir|seleccionar) (?:más|mas|varias)|todas las que apliquen|select all/i;
 const YES_NO_INLINE = /[(\[]?\s*(s[ií])\s*[\/|,]\s*(no)\s*[)\]]?\s*[?.]?\s*$/i;
 
-type Opt = { text: string; subs: string[]; tableRows?: string[][]; tables?: string[][][]; titles?: (string | undefined)[] | undefined; refMax?: number; field?: { label: string; list: boolean }; pendingTitle?: string | undefined; ignored?: number };
+type Opt = { text: string; subs: string[]; tableRows?: string[][]; tables?: string[][][]; titles?: (string | undefined)[] | undefined; refMax?: number; refPublic?: boolean; subTables?: (string[][] | undefined)[]; subsRadio?: boolean; lastSubIndent?: number; field?: { label: string; list: boolean }; pendingTitle?: string | undefined; ignored?: number };
 
 let listsSeen = 0;
 function makeOptions(items: Opt[]) {
@@ -232,10 +232,18 @@ function makeOptions(items: Opt[]) {
     return {
       id: uid(),
       label: esc(o.text),
-      ...(o.subs.length ? { subOptions: o.subs.map((s) => ({ id: uid(), label: esc(s) })) } : {}),
+      ...(o.subs.length ? {
+        subOptions: o.subs.map((s, si) => {
+          const rows = o.subTables?.[si];
+          const st = rows && rows.length ? tableConfig(rows) : null;
+          if (st) listsSeen += st.lists;
+          return { id: uid(), label: esc(s), ...(st ? { table: { columns: st.columns, rows: st.rows } } : {}) };
+        }),
+        ...(o.subsRadio ? { subOptionsExclusive: true } : {}),
+      } : {}),
       ...(t ? { table: { ...(o.titles?.[0] ? { title: esc(o.titles[0]) } : {}), columns: t.columns, rows: t.rows } } : {}),
       ...(more.length ? { moreTables: more } : {}),
-      ...(o.refMax ? { references: { maxUrls: o.refMax } } : {}),
+      ...(o.refMax ? { references: { maxUrls: o.refMax, ...(o.refPublic ? { refType: "public" as const } : {}) } } : {}),
       ...(o.field
         ? { field: o.field.list
             ? { type: "seleccion_desplegable" as const, label: esc(o.field.label), options: [{ id: uid(), label: "Opción 1" }, { id: uid(), label: "Opción 2" }] }
@@ -317,7 +325,9 @@ export function parsePastedText(input: string): ParsedItem[] {
       if (body.length && /^#\s+/.test(body[body.length - 1]!) && end < lines.length) body.pop();
       out.push({
         element: { id: uid(), type: "banner", label: esc(raw.trim().replace(/^#\s*/, "")), content: paragraphsToHtml(body), variant: "info", startCollapsed: true, componentVersion: version("banner") } as FormElement,
-        confidence: "alta", reason: `Texto de orientación (${body.filter((l) => l.trim()).length} líneas) → aviso contraíble`,
+        ...(body.filter((l) => l.trim()).length === 0
+          ? { confidence: "baja" as const, reason: "El texto de orientación llegó VACÍO: en el portal despliega «Información adicional…» antes de copiar" }
+          : { confidence: "alta" as const, reason: `Texto de orientación (${body.filter((l) => l.trim()).length} líneas) → aviso contraíble` }),
       });
       i = end;
       // si terminó en la repetición del título, esa línea se descarta
@@ -545,9 +555,17 @@ function readOptions(lines: string[], start: number) {
       const refHint = trimmed.match(/^Se permiten un m[aá]ximo de (\d+)/i);
       const titleMark = trimmed.match(/^§\s*(.+)$/);
       const fieldMark = trimmed.match(/^(.{1,80}?)\s*(_{3,}|▾)\s*$/);
-      if (refHint) { last.refMax = Number(refHint[1]); j++; continue; }
+      if (refHint) { last.refMax = Number(refHint[1]); last.refPublic = /p[úu]blic/i.test(trimmed); j++; continue; }
       if (titleMark) { last.pendingTitle = titleMark[1]!.trim(); j++; continue; }
       if (fieldMark && !isTableLine(ln) && om.marker === null && !isLetter) { last.field = { label: fieldMark[1]!.trim(), list: fieldMark[2] === "▾" }; j++; continue; }
+      // Tabla bajo una SUB-opción (más sangría que su marcador): pertenece a esa sub-opción, no a la opción padre.
+      if (om.marker === null && !isLetter && last.subs.length > 0 && last.lastSubIndent !== undefined && ind >= last.lastSubIndent + 2 && (isTableLine(ln) || isTableSeparator(ln))) {
+        const si = last.subs.length - 1;
+        const tabs = (last.subTables ??= []);
+        const rowsOfSub = (tabs[si] ??= []);
+        if (!isTableSeparator(ln)) rowsOfSub.push(splitCells(ln));
+        j++; continue;
+      }
       if (isTableLine(ln)) {
         // una línea en blanco entre tablas = otra tabla (una pregunta puede traer varias dentro de la misma opción)
         const prevBlank = j > 0 && lines[j - 1]!.trim() === "";
@@ -560,7 +578,7 @@ function readOptions(lines: string[], start: number) {
         last.tableRows = last.tables[0]!;
       }
       else if (isTableSeparator(ln)) { /* separador */ }
-      else if (om.marker !== null || isLetter) last.subs.push(isLetter ? ln.replace(LETTER, "").trim() : om.text);
+      else if (om.marker !== null || isLetter) { last.subs.push(isLetter ? ln.replace(LETTER, "").trim() : om.text); last.lastSubIndent = ind; if (om.marker === "radio") last.subsRadio = true; }
       else last.ignored = (last.ignored ?? 0) + 1;
       j++; continue;
     }

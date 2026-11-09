@@ -111,7 +111,8 @@ function liSp(e: Element, level: Element, ind: number, out: string[], marker: st
     if (first) { out.push(PAD.repeat(ind) + marker); first = false; }
     if (c.matches(".sims-input.reference")) {
       const n = clean(c.querySelector(".hint, .level, span")?.textContent ?? c.textContent ?? "").match(/\d+/)?.[0] ?? "3";
-      out.push(PAD.repeat(ind + 1) + `Se permiten un máximo de ${n} URL`);
+      const pub = /p[úu]blic/i.test(clean(c.querySelector(".hint")?.textContent ?? ""));
+      out.push(PAD.repeat(ind + 1) + (pub ? `Se permiten un máximo de ${n}, solo URL públicas` : `Se permiten un máximo de ${n} URL`));
       continue;
     }
     const nxt = kids[k + 1];
@@ -123,12 +124,14 @@ function liSp(e: Element, level: Element, ind: number, out: string[], marker: st
       if (label) out.push(PAD.repeat(ind + 1) + label);
       continue;
     }
+    // Las listas ANTES que las tablas: una lista de sub-opciones con tablas dentro no debe colapsar a su primera tabla.
+    if (c.tagName === "OL" || c.tagName === "UL") { list(c, ind + 1, out); continue; }
     if (c.tagName === "TABLE" || c.querySelector("table")) {
       const tb = c.tagName === "TABLE" ? c : c.querySelector("table")!;
       if (!tb.classList.contains("reference-table") && !tb.closest(".reference-table")) table(tb, ind + 1, out);
       continue;
     }
-    if (c.tagName === "OL" || c.tagName === "UL") { list(c, ind + 1, out); continue; }
+
   }
 }
 

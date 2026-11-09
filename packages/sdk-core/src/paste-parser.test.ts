@@ -79,3 +79,40 @@ describe("parsePastedText — correcciones QA (hallazgos 1-3)", () => {
     expect(types("Materiales\n☐ Papel\n☐ Vidrio")).toEqual(["seleccion_multiple"]);
   });
 });
+
+describe("parsePastedText — sub-opciones con tabla propia (S&P 1.2.2 Tipo de placa)", () => {
+  const txt = [
+    "¿La empresa informa sobre el tipo de consejo?",
+    "",
+    "○ Sí, la empresa informa.",
+    "    Se permiten un máximo de 3, solo URL públicas",
+    "    ○ SISTEMA DE UN SOLO NIVEL",
+    "        | Tipo de director | Número de miembros |",
+    "        | directores ejecutivos | #_____ ¦ numérico |",
+    "    ○ SISTEMA DE DOS NIVELES",
+    "        | Tipo de tablero | Tipo de director | Número |",
+    "        | Consejo de supervisión | directores independientes | #_____ ¦ numérico |",
+    "○ No, la empresa no informa.",
+  ].join("\n");
+  it("cada sub-opción conserva su tabla y es excluyente (radio)", () => {
+    const el = parsePastedText(txt)[0]!.element as any;
+    const o1 = el.options[0];
+    expect(o1.subOptions).toHaveLength(2);
+    expect(o1.subOptionsExclusive).toBe(true);
+    expect(o1.subOptions[0].table.rows).toHaveLength(2);
+    expect(o1.subOptions[1].table.columns).toHaveLength(3);
+    expect(o1.table).toBeUndefined();
+  });
+  it("'solo URL públicas' → refType public", () => {
+    const el = parsePastedText(txt)[0]!.element as any;
+    expect(el.options[0].references).toEqual({ maxUrls: 3, refType: "public" });
+  });
+});
+
+describe("parsePastedText — orientación vacía", () => {
+  it("un bloque 'Información adicional' sin texto avisa con baja confianza", () => {
+    const r = parsePastedText("Información adicional y guía para preguntas\n\n# Tipo de placa\n¿La empresa informa el tipo?\n\n○ Sí\n○ No");
+    const g = r.find((x) => x.element.type === "banner")!;
+    expect(g.confidence).toBe("baja");
+  });
+});
