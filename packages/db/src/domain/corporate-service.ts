@@ -4,7 +4,7 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { auth } from "../auth.js";
 import type { AppContext } from "../authz.js";
 import { db } from "../client.js";
-import { member, organization, user } from "../schema/auth.js";
+import { account, member, organization, user } from "../schema/auth.js";
 import { blockAssignment, inquiry } from "../schema/corporate.js";
 import { dimension, framework, indicator, subindicator } from "../schema/domain.js";
 import { evaluation } from "../schema/evaluation.js";
@@ -148,6 +148,24 @@ export async function createManagedUser(
     createdAt: new Date(),
   });
   return { userId: created.id, email, initialPassword };
+}
+
+// Genera una contraseña nueva (las vigentes están cifradas y no se pueden mostrar) y
+// la devuelve una sola vez para que el administrador la copie.
+export async function resetManagedUserPassword(ctx: AppContext, userId: string) {
+  const users = await listUsers(ctx);
+  const target = users.find((u) => u.userId === userId);
+  if (!target) throw new NotFoundError("user");
+  const authCtx = await auth.$context;
+  const newPassword = randomBytes(9).toString("base64url");
+  const hash = await authCtx.password.hash(newPassword);
+  const res = await db
+    .update(account)
+    .set({ password: hash, updatedAt: new Date() })
+    .where(and(eq(account.userId, userId), eq(account.providerId, "credential")))
+    .returning({ id: account.id });
+  if (res.length === 0) throw new NotFoundError("account");
+  return { email: target.email, password: newPassword };
 }
 
 export async function removeManagedUser(ctx: AppContext, userId: string) {

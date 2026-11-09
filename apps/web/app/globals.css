@@ -2400,3 +2400,7 @@ input[type="checkbox"] {
 .share__hint { margin: 8px 0 12px; opacity: .85; }
 .share__row { display: flex; gap: 10px; flex-wrap: wrap; }
 .share__input { flex: 1 1 320px; min-width: 0; padding: 10px 12px; border-radius: 8px; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; }
+
+/* Contraseña con mostrar/ocultar/copiar */
+.pw__row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+.pw__input { flex: 1 1 220px; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid currentColor; background: transparent; color: inherit; font-family: ui-monospace, monospace; }

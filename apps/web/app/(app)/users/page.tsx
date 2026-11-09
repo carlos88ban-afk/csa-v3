@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
 import { useCachedGet } from "@/lib/api-cache";
 import { Button, Card, Pill } from "@/components/ui";
+import { PasswordReveal } from "@/components/password-reveal";
 import { ROLE_LABEL, useMe, type Me } from "@/lib/use-me";
 
 interface UserRow {
@@ -55,6 +56,17 @@ export default function UsersPage() {
     }
   }
 
+  async function resetPassword(id: string) {
+    setError(null);
+    try {
+      const res = await api.post<{ email: string; password: string }>(`/api/users/${id}/password`, {});
+      setCreated({ email: res.email, password: res.password });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      setError("No se pudo generar la contraseña.");
+    }
+  }
+
   async function remove(id: string) {
     setError(null);
     try {
@@ -78,12 +90,7 @@ export default function UsersPage() {
           : `Usuarios de ${me.unitName ?? "tu unidad"}. Solo puedes crear usuarios de tu unidad.`}
       </p>
       {error && <p className="alert" role="alert">{error}</p>}
-      {created && (
-        <p className="alert" role="status">
-          Usuario creado: <strong>{created.email}</strong>. Contraseña inicial (cópiala ahora, no se vuelve a mostrar):{" "}
-          <code>{created.password}</code>
-        </p>
-      )}
+      {created && <PasswordReveal email={created.email} password={created.password} onClose={() => setCreated(null)} />}
       <Card>
         <form onSubmit={create} className="field-grid">
           <label className="field">
@@ -137,7 +144,10 @@ export default function UsersPage() {
                           <Button size="sm" onClick={() => setConfirm(null)}>Cancelar</Button>
                         </>
                       ) : (
-                        <Button size="sm" onClick={() => setConfirm(u.userId)}>Eliminar</Button>
+                        <>
+                          <Button size="sm" onClick={() => void resetPassword(u.userId)}>Nueva contraseña</Button>{" "}
+                          <Button size="sm" onClick={() => setConfirm(u.userId)}>Eliminar</Button>
+                        </>
                       ))}
                   </td>
                 </tr>
