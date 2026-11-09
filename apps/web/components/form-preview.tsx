@@ -341,6 +341,19 @@ function PreviewElement({
                 onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::table`, next)}
               />
             )}
+            {isSelected(opt.id) && opt.moreTables?.map((mt, ti) => (
+              <PreviewTableView
+                key={ti}
+                label={opt.label}
+                unitKeyPrefix={`${element.id}::${opt.id}::table${ti + 2}`}
+                columns={mt.columns}
+                rows={mt.rows}
+                table={(answers[`${element.id}::${opt.id}::table${ti + 2}`] as TableValue | undefined) ?? {}}
+                answers={answers}
+                onAnswerChange={onAnswerChange}
+                onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::table${ti + 2}`, next)}
+              />
+            ))}
             {isSelected(opt.id) && (
               <PreviewSubOptions
                 level={1}

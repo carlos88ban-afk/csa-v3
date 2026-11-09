@@ -54,3 +54,13 @@ describe("bloque de enlaces a nivel de pregunta", () => {
     expect(q.helpText ?? "").not.toMatch(/máximo de 3/);
   });
 });
+
+describe("varias tablas dentro de la misma opción", () => {
+  it("una línea en blanco separa tablas; la segunda va en moreTables", () => {
+    const r = parsePastedText("¿Informa?\n○ Sí\n    | A | B |\n    | x | #_____ |\n\n    | C | D |\n    | y | #_____ |\n○ No\n");
+    const o = (r[0]!.element as any).options[0];
+    expect(o.table.rows).toHaveLength(2);
+    expect(o.moreTables).toHaveLength(1);
+    expect(formElement.safeParse(r[0]!.element).success).toBe(true);
+  });
+});

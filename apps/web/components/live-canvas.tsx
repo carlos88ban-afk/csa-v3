@@ -292,6 +292,7 @@ type Opt = {
   subOptionsExclusive?: boolean;
   table?: TablaDatosConfig | undefined;
   references?: object | undefined;
+  moreTables?: TablaDatosConfig[] | undefined;
   [k: string]: unknown;
 };
 
@@ -415,6 +416,17 @@ function OptionsCanvas({ el, onChange }: { el: Extract<FormElement, { options: u
             <div className="lc-nested">
               <TableCanvas table={o.table} onChange={(t) => patch(o.id, { table: t })} />
               <button type="button" className="lc-ghost lc-ghost--danger" onClick={() => patch(o.id, { table: undefined })}>Quitar la tabla de esta opción</button>
+            </div>
+          )}
+          {o.table && (
+            <div className="lc-nested lc-nested--more">
+              {(o.moreTables ?? []).map((mt, ti) => (
+                <div key={ti}>
+                  <TableCanvas table={mt} onChange={(t) => patch(o.id, { moreTables: (o.moreTables ?? []).map((x, k) => (k === ti ? t : x)) })} />
+                  <button type="button" className="lc-ghost lc-ghost--danger" onClick={() => patch(o.id, { moreTables: (o.moreTables ?? []).filter((_, k) => k !== ti) })}>Quitar esta tabla</button>
+                </div>
+              ))}
+              <button type="button" className="lc-ghost" onClick={() => patch(o.id, { moreTables: [...(o.moreTables ?? []), newTable()] })}>＋ Otra tabla</button>
             </div>
           )}
         </div>

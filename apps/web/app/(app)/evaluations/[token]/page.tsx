@@ -2307,6 +2307,23 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                   elementId={element.id}
                 />
               )}
+              {value === opt.id && opt.moreTables?.map((mt, ti) => (
+                <FormTableView
+                  key={ti}
+                  label={opt.label}
+                  unitKeyPrefix={`${element.id}::${opt.id}::table${ti + 2}`}
+                  columns={mt.columns}
+                  rows={mt.rows}
+                  value={answers[`${element.id}::${opt.id}::table${ti + 2}`] as TableValue | undefined}
+                  onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::table${ti + 2}`, next)}
+                  answers={answers}
+                  onAnswerChange={onAnswerChange}
+                  locked={locked}
+                  token={token}
+                  subindicatorId={subindicatorId}
+                  elementId={element.id}
+                />
+              ))}
               {value === opt.id && opt.subOptions && opt.subOptions.length > 0 && (
                 <SubOptionsView
                   subKey={`${element.id}::${opt.id}`}
@@ -2412,6 +2429,23 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                       elementId={element.id}
                     />
                   )}
+                  {selected.includes(opt.id) && opt.moreTables?.map((mt, ti) => (
+                    <FormTableView
+                      key={ti}
+                      label={opt.label}
+                      unitKeyPrefix={`${element.id}::${opt.id}::table${ti + 2}`}
+                      columns={mt.columns}
+                      rows={mt.rows}
+                      value={answers[`${element.id}::${opt.id}::table${ti + 2}`] as TableValue | undefined}
+                      onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::table${ti + 2}`, next)}
+                      answers={answers}
+                      onAnswerChange={onAnswerChange}
+                      locked={locked}
+                      token={token}
+                      subindicatorId={subindicatorId}
+                      elementId={element.id}
+                    />
+                  ))}
                   {selected.includes(opt.id) && opt.subOptions && opt.subOptions.length > 0 && (
                     <SubOptionsView
                       subKey={`${element.id}::${opt.id}`}

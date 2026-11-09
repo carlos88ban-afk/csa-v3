@@ -479,6 +479,8 @@ const formOption = formOptionBase.extend({
   // menos de anidación — caso real: una opción de seleccion_unica trae una
   // tabla completa colgando directo de ella, sin sub-radio intermedio.
   table: tablaDatosConfig.optional(),
+  // Tablas adicionales de la misma opción (el original puede traer varias seguidas).
+  moreTables: z.array(tablaDatosConfig).optional(),
   // VS-062 (docs/engines/form.md "Campo embebido directo en una opción de
   // nivel superior"): mismo campo que subOption.field (VS-040), un nivel
   // menos de anidación — caso real: la opción "Sí" de

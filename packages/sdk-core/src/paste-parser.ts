@@ -204,7 +204,7 @@ const BANNER_START = /^\s*(aviso|nota|importante|requisito|atención|atencion|re
 const MULTI_HINT = /seleccione (?:todas|todos|las que|los que)|marque (?:todas|todos|las que|los que)|una o más|una o mas|varias opciones|puede(?:n)? (?:elegir|seleccionar) (?:más|mas|varias)|todas las que apliquen|select all/i;
 const YES_NO_INLINE = /[(\[]?\s*(s[ií])\s*[\/|,]\s*(no)\s*[)\]]?\s*[?.]?\s*$/i;
 
-type Opt = { text: string; subs: string[]; tableRows?: string[][]; ignored?: number };
+type Opt = { text: string; subs: string[]; tableRows?: string[][]; tables?: string[][][]; ignored?: number };
 
 let listsSeen = 0;
 function makeOptions(items: Opt[]) {
@@ -212,11 +212,17 @@ function makeOptions(items: Opt[]) {
   return items.map((o) => {
     const t = o.tableRows && o.tableRows.length ? tableConfig(o.tableRows) : null;
     if (t) listsSeen += t.lists;
+    const more = (o.tables ?? []).slice(1).filter((r) => r.length).map((r) => {
+      const c = tableConfig(r);
+      listsSeen += c.lists;
+      return { columns: c.columns, rows: c.rows };
+    });
     return {
       id: uid(),
       label: esc(o.text),
       ...(o.subs.length ? { subOptions: o.subs.map((s) => ({ id: uid(), label: esc(s) })) } : {}),
       ...(t ? { table: { columns: t.columns, rows: t.rows } } : {}),
+      ...(more.length ? { moreTables: more } : {}),
     };
   });
 }
@@ -515,7 +521,13 @@ function readOptions(lines: string[], start: number) {
     const nested = items.length > 0 && ind >= baseIndent + 2;
     if (nested) {
       const last = items[items.length - 1]!;
-      if (isTableLine(ln)) (last.tableRows ??= []).push(...(isTableSeparator(ln) ? [] : [splitCells(ln)]));
+      if (isTableLine(ln)) {
+        // una línea en blanco entre tablas = otra tabla (una pregunta puede traer varias dentro de la misma opción)
+        const prevBlank = j > 0 && lines[j - 1]!.trim() === "";
+        if (!last.tables || (prevBlank && last.tables[last.tables.length - 1]!.length > 0)) (last.tables ??= []).push([]);
+        if (!isTableSeparator(ln)) last.tables[last.tables.length - 1]!.push(splitCells(ln));
+        last.tableRows = last.tables[0]!;
+      }
       else if (isTableSeparator(ln)) { /* separador */ }
       else if (om.marker !== null || isLetter) last.subs.push(isLetter ? ln.replace(LETTER, "").trim() : om.text);
       else last.ignored = (last.ignored ?? 0) + 1;

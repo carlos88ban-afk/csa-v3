@@ -293,6 +293,10 @@ function formatOptionLabel(opt: SeleccionOption, elementId: string, answers: Res
     const serialized = formatEmbeddedTable(opt.table, `${optKey}::table`, answers);
     if (serialized) label += ` (Tabla: ${serialized})`;
   }
+  (opt.moreTables ?? []).forEach((mt, ti) => {
+    const serialized = formatEmbeddedTable(mt, `${optKey}::table${ti + 2}`, answers);
+    if (serialized) label += ` (Tabla ${ti + 2}: ${serialized})`;
+  });
   const subParts = formatMarkedSubOptions(opt.subOptions, optKey, answers);
   const secondaryParts = formatMarkedSubOptions(opt.secondaryOptions, `${optKey}::secondary`, answers);
   const allParts = [...subParts, ...secondaryParts];
