@@ -18,6 +18,9 @@ const TYPE_CHOICES: { type: FormElement["type"]; label: string }[] = [
   { type: "instruccion", label: "Texto informativo" },
 ];
 
+// Marcador para el portal S&P: despliega los avisos (su texto existe en el DOM pero Chrome no copia lo oculto) y copia la pregunta.
+const BOOKMARKLET = "javascript:" + encodeURIComponent("(function(){var r=document.querySelector('.main-content.question-page')||document.querySelector('.question-panel');if(!r){alert('Abre una pregunta del cuestionario CSA y vuelve a hacer clic.');return;}var d=r.querySelectorAll('.banner-details');d.forEach(function(e){e.style.display='block';});var s=getSelection();s.removeAllRanges();var g=document.createRange();g.selectNodeContents(r);s.addRange(g);var ok=false;try{ok=document.execCommand('copy');}catch(x){}if(ok){d.forEach(function(e){e.style.display='';});s.removeAllRanges();alert('Pregunta copiada con sus avisos. Pégala en el Builder.');}else{alert('Pregunta seleccionada con sus avisos. Presiona Ctrl+C y pégala en el Builder.');}})()");
+
 const SAMPLE = `Aviso: Esta sección requiere información pública
 
 1. ¿Tiene política de eficiencia energética?
@@ -80,6 +83,9 @@ export function PasteImport({ initialText, onClose, onInsert }: {
   const [overrides, setOverrides] = useState<Record<string, FormElement["type"]>>({});
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const bookmarkletRef = useRef<HTMLAnchorElement>(null);
+  // React no admite hrefs javascript: declarativos; se asigna al montar.
+  useEffect(() => { bookmarkletRef.current?.setAttribute("href", BOOKMARKLET); }, []);
 
   useEffect(() => {
     taRef.current?.focus();
@@ -108,6 +114,14 @@ export function PasteImport({ initialText, onClose, onInsert }: {
           <p>Pega texto de Word, Excel, PDF o Typeform. Yo detecto preguntas, opciones, tablas y avisos; tú solo revisas.</p>
           <button type="button" className="pi__close" onClick={onClose} aria-label="Cerrar">✕</button>
         </header>
+        <details className="pi__tool">
+          <summary>¿Copias desde el portal de S&amp;P? Usa nuestro marcador para no perder los avisos plegados</summary>
+          <p>
+            Arrastra este botón a tu barra de favoritos. En la pregunta del portal, haz clic en él: despliega los avisos
+            («Requisito», «Información adicional…») y copia la pregunta completa. Luego pégala aquí.
+          </p>
+          <a ref={bookmarkletRef} className="pi__bookmarklet" href="#" onClick={(e) => e.preventDefault()}>📋 Copiar pregunta CSA</a>
+        </details>
         <div className="pi__body">
           <div className="pi__src">
             <textarea

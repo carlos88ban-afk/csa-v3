@@ -278,3 +278,8 @@ select.pi__type { font: inherit; font-size: var(--text-xs); border: 0; backgroun
 .runtime-table__title{caption-side:top;text-align:left;font-weight:600;padding:8px 2px}
 .lc-table-title{width:100%;font-weight:600;border:1px solid transparent;background:transparent;padding:4px 6px;font:inherit}
 .lc-table-title:hover,.lc-table-title:focus{border-color:var(--border,#475467)}
+
+.pi__tool { margin: 0 var(--space-4, 16px) 8px; font-size: var(--text-sm); }
+.pi__tool summary { cursor: pointer; color: var(--accent); }
+.pi__tool p { margin: 6px 0; color: var(--ink-muted, inherit); }
+.pi__bookmarklet { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; text-decoration: none; cursor: grab; }

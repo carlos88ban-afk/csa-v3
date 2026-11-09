@@ -340,7 +340,7 @@ export function parsePastedText(input: string): ParsedItem[] {
       out.push({
         element: { id: uid(), type: "banner", label: esc(raw.trim().replace(/^#\s*/, "")), content: paragraphsToHtml(body), variant: "info", startCollapsed: true, componentVersion: version("banner") } as FormElement,
         ...(body.filter((l) => l.trim()).length === 0
-          ? { confidence: "baja" as const, reason: "El texto de orientación llegó VACÍO: en el portal despliega «Información adicional…» antes de copiar" }
+          ? { confidence: "baja" as const, reason: "El texto de orientación llegó VACÍO: usa el marcador «Copiar pregunta CSA» (arriba) o despliega «Información adicional…» antes de copiar" }
           : { confidence: "alta" as const, reason: `Texto de orientación (${body.filter((l) => l.trim()).length} líneas) → aviso contraíble` }),
       });
       i = end;

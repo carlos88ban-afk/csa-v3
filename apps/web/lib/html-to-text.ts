@@ -88,11 +88,29 @@ function cellText(c: Element): string {
 function table(t: Element, ind: number, out: string[]) {
   const rows = [...t.querySelectorAll(":scope > thead > tr, :scope > tbody > tr, :scope > tr")];
   const lines: string[] = [];
-  rows.forEach((r, idx) => {
+  // Celdas combinadas: rowspan → el texto se REPITE en las filas cubiertas (cada fila conserva su contexto,
+  // p. ej. "Consejo de supervisión" en las 3 filas); colspan → relleno vacío para no desalinear las columnas.
+  const carry: Array<{ text: string; left: number } | undefined> = [];
+  rows.forEach((r) => {
     const cells = [...r.children].filter((c) => c.tagName === "TD" || c.tagName === "TH");
-    const txt = cells.map((c) => cut(cellText(c), 1500));
+    const txt: string[] = [];
+    let col = 0;
+    const flushCarry = () => {
+      while (carry[col] && carry[col]!.left > 0) { txt.push(carry[col]!.text); carry[col]!.left--; col++; }
+    };
+    cells.forEach((c) => {
+      flushCarry();
+      const text = cut(cellText(c), 1500);
+      const cs = Math.max(1, parseInt(c.getAttribute("colspan") ?? "1", 10) || 1);
+      const rs = Math.max(1, parseInt(c.getAttribute("rowspan") ?? "1", 10) || 1);
+      for (let k = 0; k < cs; k++) {
+        txt.push(k === 0 ? text : "");
+        if (rs > 1) carry[col] = { text: k === 0 ? text : "", left: rs - 1 };
+        col++;
+      }
+    });
+    flushCarry();
     if (txt.some((x) => x)) lines.push(PAD.repeat(ind) + "| " + txt.join(" | ") + " |");
-    void idx;
   });
   if (lines.length) { out.push(...lines); out.push(""); }
 }
