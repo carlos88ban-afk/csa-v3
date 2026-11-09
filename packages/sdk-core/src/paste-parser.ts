@@ -258,10 +258,13 @@ function paragraphsToHtml(lines: string[]): string {
 
 // ---------- Parser principal ----------
 export function parsePastedText(input: string): ParsedItem[] {
-  const lines = input
+  let lines = input
     .replace(/\r\n?/g, "\n")
     .replace(/ /g, " ")
     .split("\n");
+  // Lo que viene después de "Comentarios adicionales confidenciales" es de la plataforma de origen, no del cuestionario.
+  const cutAt = lines.findIndex((l, k) => SKIP_LINE.test(l) && lines.slice(0, k).some((x) => x.trim() !== ""));
+  if (cutAt > 0) lines = lines.slice(0, cutAt);
   const out: ParsedItem[] = [];
 
   // Si la primera línea (título) se repite más abajo, la primera aparición sobra.

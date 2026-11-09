@@ -36,3 +36,11 @@ describe("celdas compuestas (texto + enlaces + campos + lista + casilla)", () =>
     for (const p of r) expect(formElement.safeParse(p.element).success).toBe(true);
   });
 });
+
+describe("texto de la plataforma de origen al final", () => {
+  it("ignora los comentarios confidenciales y todo lo que sigue", () => {
+    const r = parsePastedText("¿Tiene política?\n○ Sí\n○ No\nComentarios adicionales confidenciales\n\nUtilice el campo de texto a continuación solo en los siguientes casos: (i) para describir cambios.\n\nReferencias añadidas por analistas en 2026\n");
+    expect(r).toHaveLength(1);
+    expect(r[0]!.element.type).toBe("seleccion_unica");
+  });
+});

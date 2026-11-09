@@ -58,7 +58,14 @@ function cellText(c: Element): string {
       if (ch.nodeType !== 1) return;
       const e = ch as Element;
       const tg = e.tagName;
-      if (e.matches(".sims-input.reference, .reference-table, .reference-add")) { flush(); return; }
+      if (e.matches(".sims-input.reference")) {
+        // widget de enlaces: se conserva solo su indicación ("máximo de N …"); lo adjuntado es respuesta, no estructura
+        flush();
+        const hint = clean(e.querySelector(".hint")?.textContent ?? "");
+        pieces.push(hint || "Se permiten un máximo de 3 URL");
+        return;
+      }
+      if (e.matches(".reference-table, .reference-add")) { flush(); return; }
       if (tg === "INPUT") {
         const tk = token(e).trim();
         if (tk === "○" || tk === "☐") buf += tk + " ";
