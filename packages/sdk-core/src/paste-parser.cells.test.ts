@@ -44,3 +44,13 @@ describe("texto de la plataforma de origen al final", () => {
     expect(r[0]!.element.type).toBe("seleccion_unica");
   });
 });
+
+describe("bloque de enlaces a nivel de pregunta", () => {
+  it("la indicación 'máximo de N URL' pasa a ser el bloque de enlaces, no la ayuda", () => {
+    const r = parsePastedText("¿El presidente es independiente?\n\nLas empresas que cotizan deben dar enlaces.\n\nSe permiten un máximo de 3, solo URL públicas.\n\n○ Sí\n○ No\n");
+    const q = r[0]!.element as any;
+    expect(q.references).toEqual({ maxUrls: 3 });
+    expect(q.helpText).toContain("cotizan");
+    expect(q.helpText ?? "").not.toMatch(/máximo de 3/);
+  });
+});

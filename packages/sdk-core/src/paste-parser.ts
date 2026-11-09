@@ -536,11 +536,17 @@ function buildChoice(label: string, help: string | undefined, items: Opt[], mult
   const isMulti = multi || multiHint;
   const type: ElementType = isMulti ? "seleccion_multiple" : "seleccion_unica";
   const confidence: PasteConfidence = multi ? "alta" : multiHint ? "media" : hasBullet && items.length > 2 ? "media" : "alta";
+  // "Se permiten un máximo de N, solo URL públicas" = bloque de enlaces de la pregunta, no texto de ayuda.
+  const refRe = /Se permiten un m[aá]ximo de (\d+)[^.]*(?:URL|enlaces)[^.]*\.?/i;
+  const refMatch = help ? help.match(refRe) : null;
+  const refMax = refMatch ? Number(refMatch[1]) : 0;
+  const helpClean = help ? help.replace(refRe, "").replace(/\s{2,}/g, " ").trim() : help;
   const reason = multi ? "Casillas ☐ → selección múltiple" : multiHint ? "El texto pide marcar varias → selección múltiple" : hasBullet ? "Lista con viñetas → selección única (cámbiala si admite varias)" : "Opciones excluyentes → selección única";
   return {
     element: {
-      id: uid(), type, label: esc(label), ...(help ? { helpText: esc(help) } : {}),
+      id: uid(), type, label: esc(label), ...(helpClean ? { helpText: esc(helpClean) } : {}),
       options: makeOptions(items), componentVersion: version(type),
+      ...(refMax ? { references: { maxUrls: refMax } } : {}),
     } as FormElement,
     confidence, reason: reason + (items.some((o) => o.subs.length) ? " · con sub-opciones" : "") + (items.some((o) => o.tableRows?.length) ? " · con tabla dentro de una opción" + (items.map((o) => histNote(o.tableRows ?? [])).find(Boolean) ?? "") : "") + (listsSeen ? ` · revisa las opciones de ${listsSeen} lista(s) desplegable(s): el original no las muestra` : ""),
   };

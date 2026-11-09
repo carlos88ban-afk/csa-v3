@@ -291,6 +291,7 @@ type Opt = {
   subOptions?: { id: string; label: string }[] | undefined;
   subOptionsExclusive?: boolean;
   table?: TablaDatosConfig | undefined;
+  references?: object | undefined;
   [k: string]: unknown;
 };
 
@@ -303,6 +304,16 @@ function newTable(): TablaDatosConfig {
       { id: uid(), cells: [{ columnId: c1, cellType: "texto", editable: false, content: "" }, { columnId: c2, cellType: "numero" }] },
     ],
   };
+}
+
+function RefChip({ max, onChange, onRemove }: { max: number; onChange: (n: number) => void; onRemove: () => void }) {
+  return (
+    <div className="lc-ref">
+      🔗 Enlaces o documentos de respaldo · máx.
+      <input type="number" min={1} value={max} aria-label="Máximo de enlaces" onChange={(e) => onChange(Math.max(1, Number(e.target.value) || 1))} />
+      <button type="button" className="lc-ghost" aria-label="Quitar enlaces" onClick={onRemove}>✕</button>
+    </div>
+  );
 }
 
 function OptionsCanvas({ el, onChange }: { el: Extract<FormElement, { options: unknown }>; onChange: (patch: Partial<FormElement>) => void }) {
@@ -325,8 +336,16 @@ function OptionsCanvas({ el, onChange }: { el: Extract<FormElement, { options: u
     setFocusId(n.id);
   };
 
+  const qRefs = (el as { references?: { maxUrls?: number } }).references;
   return (
     <div className={`lc-options lc-options--${mark}`}>
+      {mark !== "list" && (
+        qRefs ? (
+          <RefChip max={qRefs.maxUrls ?? 3} onChange={(n) => onChange({ references: { ...qRefs, maxUrls: n } } as Partial<FormElement>)} onRemove={() => onChange({ references: undefined } as Partial<FormElement>)} />
+        ) : (
+          <button type="button" className="lc-ghost" onClick={() => onChange({ references: { maxUrls: 3 } } as Partial<FormElement>)}>＋ Enlaces de respaldo</button>
+        )
+      )}
       {opts.map((o, oi) => (
         <div className="lc-option" key={o.id}>
           <div className="lc-option__row">
@@ -349,11 +368,18 @@ function OptionsCanvas({ el, onChange }: { el: Extract<FormElement, { options: u
               }}
             />
             <span className="lc-option__tools">
+              {mark !== "list" && !o.references && <button type="button" onClick={() => patch(o.id, { references: { maxUrls: 3 } })}>＋ Enlaces</button>}
               {mark !== "list" && !o.table && <button type="button" onClick={() => patch(o.id, { table: newTable() })}>＋ Tabla</button>}
               {mark !== "list" && !o.subOptions?.length && <button type="button" onClick={() => patch(o.id, { subOptions: [{ id: uid(), label: "" }] })}>＋ Casillas</button>}
               <button type="button" aria-label={`Quitar opción ${oi + 1}`} disabled={opts.length <= 1} onClick={() => set(opts.filter((x) => x.id !== o.id))}>✕</button>
             </span>
           </div>
+
+          {o.references && (
+            <div className="lc-sub">
+              <RefChip max={(o.references as { maxUrls?: number }).maxUrls ?? 3} onChange={(n) => patch(o.id, { references: { ...(o.references as object), maxUrls: n } })} onRemove={() => patch(o.id, { references: undefined })} />
+            </div>
+          )}
 
           {o.subOptions && o.subOptions.length > 0 && (
             <div className="lc-sub">
