@@ -21,6 +21,7 @@ import { FormPreview } from "@/components/form-preview";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { RichLabel } from "@/components/rich-label";
 import { PasteImport } from "@/components/paste-import";
+import { clipboardToText } from "@/lib/html-to-text";
 
 interface Props {
   subindicatorId: string;
@@ -1266,7 +1267,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     const onPaste = (e: ClipboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && t.closest("input, textarea, select, [contenteditable='true'], .ProseMirror")) return;
-      const txt = e.clipboardData?.getData("text/plain") ?? "";
+      const txt = clipboardToText(e.clipboardData);
       if (txt.trim().length < 3) return;
       e.preventDefault();
       setPasteText(txt);

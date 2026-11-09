@@ -61,7 +61,7 @@ const isTableLine = (line: string) =>
   (line.includes("\t") && splitCells(line).filter(Boolean).length >= 2);
 const isTableSeparator = (line: string) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(line) && line.includes("-");
 
-function buildTable(label: string, rows: string[][]): ParsedItem {
+function tableConfig(rows: string[][]) {
   const width = Math.max(...rows.map((r) => r.length));
   const columns = Array.from({ length: width }, () => ({ id: uid() }));
   const headerRow = {
@@ -75,11 +75,21 @@ function buildTable(label: string, rows: string[][]): ParsedItem {
       const txt = r[i] ?? "";
       // Primera columna con texto = nombre de la fila (solo lectura); el resto se captura.
       if (i === 0 && txt) return { columnId: c.id, cellType: "texto" as const, editable: false, content: esc(txt) };
-      return { columnId: c.id, cellType: "texto" as const, editable: true };
+      // Celdas de respuesta: una casilla suelta "☐ Sí" → casilla; "____" → texto; varias ☐ → texto con la lista como guía.
+      const boxes = txt.match(/☐/g)?.length ?? 0;
+      const single = txt.match(/^☐\s*(.+)$/);
+      if (boxes === 1 && single && !/_{3,}/.test(txt)) return { columnId: c.id, cellType: "casilla" as const, editable: true, checkboxLabel: esc(single[1]!.trim()) };
+      const hint = txt.replace(/☐/g, "").replace(/_{3,}/g, "").replace(/\s{2,}/g, " ").trim();
+      return { columnId: c.id, cellType: "texto" as const, editable: true, ...(hint ? { content: esc(hint) } : {}) };
     }),
   }));
+  return { width, columns, rows: [headerRow, ...dataRows] };
+}
+
+function buildTable(label: string, rows: string[][]): ParsedItem {
+  const { width, columns, rows: trs } = tableConfig(rows);
   return {
-    element: { id: uid(), type: "tabla_datos", label: esc(label), columns, rows: [headerRow, ...dataRows], componentVersion: version("tabla_datos") } as FormElement,
+    element: { id: uid(), type: "tabla_datos", label: esc(label), columns, rows: trs, componentVersion: version("tabla_datos") } as FormElement,
     confidence: "alta",
     reason: `Detecté una tabla de ${width} columnas`,
   };
@@ -111,12 +121,53 @@ const BANNER_START = /^\s*(aviso|nota|importante|requisito|atención|atencion|re
 const MULTI_HINT = /seleccione (?:todas|todos|las que|los que)|marque (?:todas|todos|las que|los que)|una o más|una o mas|varias opciones|puede(?:n)? (?:elegir|seleccionar) (?:más|mas|varias)|todas las que apliquen|select all/i;
 const YES_NO_INLINE = /[(\[]?\s*(s[ií])\s*[\/|,]\s*(no)\s*[)\]]?\s*[?.]?\s*$/i;
 
-function makeOptions(items: { text: string; subs: string[] }[]) {
-  return items.map((o) => ({
-    id: uid(),
-    label: esc(o.text),
-    ...(o.subs.length ? { subOptions: o.subs.map((s) => ({ id: uid(), label: esc(s) })) } : {}),
-  }));
+type Opt = { text: string; subs: string[]; tableRows?: string[][]; ignored?: number };
+
+function makeOptions(items: Opt[]) {
+  return items.map((o) => {
+    const t = o.tableRows && o.tableRows.length ? tableConfig(o.tableRows) : null;
+    return {
+      id: uid(),
+      label: esc(o.text),
+      ...(o.subs.length ? { subOptions: o.subs.map((s) => ({ id: uid(), label: esc(s) })) } : {}),
+      ...(t ? { table: { columns: t.columns, rows: t.rows } } : {}),
+    };
+  });
+}
+
+// ---------- Bloques de la página S&P / CSA ----------
+const GUIDE = /^\s*(?:#\s*)?informaci[oó]n adicional(?:\s+y\s+orientaci[oó]n.*)?\s*$/i;
+// Primeras palabras típicas de las opciones de una pregunta CSA cuando se pegan sin viñeta.
+const OPT_START = /^(s[ií](?=[\s,.:;]|$)|no(?=[\s,.:;]|$)|la pregunta no es aplicable|la informaci[oó]n no est[aá] disponible|no aplica|n\/a)/i;
+const SKIP_LINE = /^\s*(comentarios? adicionales? confidenciales?|referencias a[ñn]adidas por analistas)\b/i;
+const normTitle = (l: string) => l.trim().replace(/^#+\s*/, "").replace(/[:：\s]+$/, "").toLowerCase();
+const isUrl = (l: string) => /^\s*https?:\/\/\S+\s*$/i.test(l);
+
+// Párrafos → HTML permitido por el banner (p/strong/ul/li). Títulos cortos sin punto → negrita.
+function paragraphsToHtml(lines: string[]): string {
+  const out: string[] = [];
+  let list: string[] = [];
+  const flushList = () => { if (list.length) { out.push(`<ul>${list.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`); list = []; } };
+  // agrupa líneas en párrafos separados por blancos
+  const paras: string[][] = [];
+  let cur: string[] = [];
+  for (const l of lines) { if (l.trim() === "") { if (cur.length) paras.push(cur); cur = []; } else cur.push(l.trim()); }
+  if (cur.length) paras.push(cur);
+  for (let para of paras) {
+    if (para.length >= 2 && para[0]!.length <= 60 && !/[.:?;]$/.test(para[0]!) && !isUrl(para[0]!) && !/^[-•–]/.test(para[0]!) && para[1]!.length > 40) {
+      flushList();
+      out.push(`<p><strong>${esc(para[0]!.replace(/^#\s+/, ""))}</strong></p>`);
+      para = para.slice(1);
+    }
+    const joined = para.join(" ");
+    const heading = /^#\s+/.test(joined) || (para.length === 1 && joined.length <= 60 && !/[.:?]$/.test(joined) && !isUrl(joined) && !/^[-•]/.test(joined));
+    if (/^[-•–]\s+/.test(para[0]!) ) { para.forEach((x) => list.push(x.replace(/^[-•–]\s+/, ""))); continue; }
+    flushList();
+    if (heading) out.push(`<p><strong>${esc(joined.replace(/^#\s+/, ""))}</strong></p>`);
+    else out.push(`<p>${esc(joined)}</p>`);
+  }
+  flushList();
+  return out.join("");
 }
 
 // ---------- Parser principal ----------
@@ -127,10 +178,39 @@ export function parsePastedText(input: string): ParsedItem[] {
     .split("\n");
   const out: ParsedItem[] = [];
 
+  // Si la primera línea (título) se repite más abajo, la primera aparición sobra.
+  const firstIdx = lines.findIndex((l) => l.trim() !== "");
+  const skipFirst = firstIdx >= 0 && lines[firstIdx]!.trim().length <= 100 && !lines[firstIdx]!.includes("?") &&
+    lines.slice(firstIdx + 1).some((l) => l.trim() !== "" && normTitle(l) === normTitle(lines[firstIdx]!));
+
   let i = 0;
   while (i < lines.length) {
     const raw = lines[i]!;
     if (raw.trim() === "") { i++; continue; }
+    if (skipFirst && i === firstIdx) { i++; continue; }
+
+    if (SKIP_LINE.test(raw)) { i++; continue; }
+
+    // Bloque "Información adicional y orientación…" → UN aviso contraíble con todo el texto guía
+    if (GUIDE.test(raw)) {
+      const before = new Set(lines.slice(0, i).filter((l) => l.trim() && l.trim().length <= 100 && !l.includes("?")).map(normTitle));
+      let end = -1;
+      for (let j = i + 1; j < lines.length; j++) if (before.has(normTitle(lines[j]!)) && lines[j]!.trim()) end = j; // última repetición del título
+      if (end < 0) { for (let j = i + 1; j < lines.length; j++) if (/\?\s*$/.test(lines[j]!.trim()) && lines[j]!.trim().split(/\s+/).length >= 3) { end = j; break; } }
+      if (end < 0) end = lines.length;
+      let body = lines.slice(i + 1, end);
+      // el título de la pregunta (h1) pegado justo antes de la pregunta no es guía
+      while (body.length && body[body.length - 1]!.trim() === "") body.pop();
+      if (body.length && /^#\s+/.test(body[body.length - 1]!) && end < lines.length) body.pop();
+      out.push({
+        element: { id: uid(), type: "banner", label: esc("Información adicional y orientación para preguntas"), content: paragraphsToHtml(body), variant: "info", startCollapsed: true, componentVersion: version("banner") } as FormElement,
+        confidence: "alta", reason: `Texto de orientación (${body.filter((l) => l.trim()).length} líneas) → aviso contraíble`,
+      });
+      i = end;
+      // si terminó en la repetición del título, esa línea se descarta
+      if (i < lines.length && before.has(normTitle(lines[i]!))) i++;
+      continue;
+    }
 
     // Encabezado markdown / todo en mayúsculas → texto informativo
     const md = raw.match(/^\s*#{1,6}\s+(.*)$/);
@@ -185,14 +265,19 @@ export function parsePastedText(input: string): ParsedItem[] {
     const numbered = NUMBERED_QUESTION.test(raw);
     const bannerHit = BANNER_START.test(text);
 
-    // Aviso/nota → banner (todo el párrafo hasta línea en blanco)
-    if (bannerHit && !text.includes("?")) {
-      const para: string[] = [text.replace(BANNER_START, "").trim()];
+    // Aviso/nota → banner: la primera línea es el título (siempre visible) y los párrafos siguientes el contenido
+    if (bannerHit && !text.includes("?") && !GUIDE.test(text)) {
+      const paras: string[] = [];
       let j = i + 1;
-      while (j < lines.length && lines[j]!.trim() !== "" && !optionMarker(lines[j]!).marker && !NUMBERED_QUESTION.test(lines[j]!)) { para.push(lines[j]!.trim()); j++; }
+      while (j < lines.length) {
+        const l = lines[j]!;
+        if (l.trim() === "") { j++; continue; }
+        if (GUIDE.test(l) || /\?\s*$/.test(l.trim()) || optionMarker(l).marker || NUMBERED_QUESTION.test(l) || /^\s*#/.test(l) || BANNER_START.test(l.trim()) || isTableLine(l)) break;
+        paras.push(l); j++;
+      }
       const head = text.match(BANNER_START)![1]!;
       out.push({
-        element: { id: uid(), type: "banner", label: esc(head.charAt(0).toUpperCase() + head.slice(1).toLowerCase()), content: esc(para.filter(Boolean).join(" ")), variant: /aviso|importante|atenci|advert/i.test(head) ? "warning" : "info", componentVersion: version("banner") } as FormElement,
+        element: { id: uid(), type: "banner", label: esc(text), content: paragraphsToHtml(paras.flatMap((x) => [x, ""])), variant: /aviso|importante|atenci|advert/i.test(head) ? "warning" : "info", componentVersion: version("banner") } as FormElement,
         confidence: "alta", reason: `Empieza con “${head}” → aviso`,
       });
       i = j; continue;
@@ -236,6 +321,37 @@ export function parsePastedText(input: string): ParsedItem[] {
       i = next; continue;
     }
 
+    // Opciones sin viñeta (copiadas como texto plano): "Sí, …" / "No, …" / "La pregunta no es aplicable…"
+    let kk = j;
+    while (kk < lines.length && lines[kk]!.trim() === "") kk++;
+    const nl2 = lines[kk] ?? "";
+    if (/\?\s*$/.test(text) && nl2.trim() !== "" && OPT_START.test(nl2.trim())) {
+      const items: Opt[] = [];
+      let q = kk;
+      while (q < lines.length) {
+        const l = lines[q]!;
+        if (l.trim() === "") { q++; continue; }
+        if (NUMBERED_QUESTION.test(l) || SKIP_LINE.test(l) || (/\?\s*$/.test(l.trim()) && !OPT_START.test(l.trim()))) break;
+        if (OPT_START.test(l.trim())) items.push({ text: l.trim(), subs: [], ignored: 0 });
+        else if (items.length) items[items.length - 1]!.ignored = (items[items.length - 1]!.ignored ?? 0) + 1;
+        q++;
+      }
+      if (items.some((o) => o.text.length >= 20)) {
+        const kept: Opt[] = [];
+        for (const o of items) {
+          if (o.text.length < 10 && kept.length) kept[kept.length - 1]!.ignored = (kept[kept.length - 1]!.ignored ?? 0) + 1 + (o.ignored ?? 0);
+          else kept.push(o);
+        }
+        items.splice(0, items.length, ...kept);
+      }
+      if (items.length >= 2) {
+        const ign = items.reduce((a, o) => a + (o.ignored ?? 0), 0);
+        const ch = buildChoice(text, help, items, false, false, text + " " + (help ?? ""));
+        out.push(ign ? { ...ch, confidence: "media", reason: ch.reason + ` · ${ign} líneas de contenido interno de una opción quedaron sin estructura (pega desde la página web para conservarlas)` } : ch);
+        i = q; continue;
+      }
+    }
+
     // Banner por longitud y sin pregunta (párrafo explicativo)
     if (!numbered && !text.includes("?") && !BLANK_FILL.test(raw) && text.length > 160) {
       out.push({ element: { id: uid(), type: "instruccion", label: esc(text), componentVersion: version("instruccion") }, confidence: "media", reason: "Párrafo largo sin pregunta → texto informativo" });
@@ -264,23 +380,45 @@ function stripHtml(s: string) {
   return s.replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 }
 
-// Lee un grupo de opciones consecutivas desde `start`. Sangría mayor = sub-opción.
+// Lee un grupo de opciones consecutivas desde `start`. Sangría mayor = contenido de la opción
+// anterior: tabla → option.table, viñetas → sub-opciones, otro texto → se cuenta como sin estructura.
 function readOptions(lines: string[], start: number) {
-  const items: { text: string; subs: string[] }[] = [];
+  const items: Opt[] = [];
   const markers: Marker[] = [];
   let j = start;
   let baseIndent: number | null = null;
+  const nextNonBlank = (from: number) => { let k = from; while (k < lines.length && lines[k]!.trim() === "") k++; return k; };
   while (j < lines.length) {
-    const ln = lines[j]!;
-    if (ln.trim() === "") break;
+    let ln = lines[j]!;
+    if (ln.trim() === "") {
+      // un blanco no corta el grupo si lo que sigue sigue siendo parte de él
+      const k = nextNonBlank(j);
+      if (k >= lines.length) break;
+      const nxt = lines[k]!;
+      const nIndent = indentOf(nxt);
+      const continues = (optionMarker(nxt).marker !== null || (baseIndent !== null && nIndent > baseIndent)) && !NUMBERED_QUESTION.test(nxt);
+      if (!continues || items.length === 0) break;
+      j = k; ln = nxt;
+    }
     const om = optionMarker(ln);
-    const isLetter = om.marker === null && LETTER.test(ln);
-    if (om.marker === null && !isLetter) break;
+    const isLetter = om.marker === null && LETTER.test(ln) && !NUMBERED_QUESTION.test(ln);
     const ind = indentOf(ln);
-    if (baseIndent === null) baseIndent = ind;
-    const text = isLetter ? ln.replace(LETTER, "").trim() : om.text;
-    if (ind >= baseIndent + 2 && items.length) items[items.length - 1]!.subs.push(text);
-    else { items.push({ text, subs: [] }); markers.push(isLetter ? "letter" : om.marker); }
+    if (baseIndent === null) {
+      if (om.marker === null && !isLetter) break;
+      baseIndent = ind;
+    }
+    const nested = items.length > 0 && ind >= baseIndent + 2;
+    if (nested) {
+      const last = items[items.length - 1]!;
+      if (isTableLine(ln)) (last.tableRows ??= []).push(...(isTableSeparator(ln) ? [] : [splitCells(ln)]));
+      else if (isTableSeparator(ln)) { /* separador */ }
+      else if (om.marker !== null || isLetter) last.subs.push(isLetter ? ln.replace(LETTER, "").trim() : om.text);
+      else last.ignored = (last.ignored ?? 0) + 1;
+      j++; continue;
+    }
+    if (om.marker === null && !isLetter) break;
+    items.push({ text: isLetter ? ln.replace(LETTER, "").trim() : om.text, subs: [] });
+    markers.push(isLetter ? "letter" : om.marker);
     j++;
   }
   const multi = markers.includes("check");
@@ -288,7 +426,7 @@ function readOptions(lines: string[], start: number) {
   return { items, next: j, multi, hasBullet };
 }
 
-function buildChoice(label: string, help: string | undefined, items: { text: string; subs: string[] }[], multi: boolean, hasBullet: boolean, context: string): ParsedItem {
+function buildChoice(label: string, help: string | undefined, items: Opt[], multi: boolean, hasBullet: boolean, context: string): ParsedItem {
   const multiHint = MULTI_HINT.test(context);
   const isMulti = multi || multiHint;
   const type: ElementType = isMulti ? "seleccion_multiple" : "seleccion_unica";
@@ -299,6 +437,6 @@ function buildChoice(label: string, help: string | undefined, items: { text: str
       id: uid(), type, label: esc(label), ...(help ? { helpText: esc(help) } : {}),
       options: makeOptions(items), componentVersion: version(type),
     } as FormElement,
-    confidence, reason: reason + (items.some((o) => o.subs.length) ? " · con sub-opciones" : ""),
+    confidence, reason: reason + (items.some((o) => o.subs.length) ? " · con sub-opciones" : "") + (items.some((o) => o.tableRows?.length) ? " · con tabla dentro de una opción" : ""),
   };
 }

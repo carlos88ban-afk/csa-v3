@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { clipboardToText } from "@/lib/html-to-text";
 import { parsePastedText, stripCommentHtml, componentRegistry, type FormElement, type ParsedItem } from "@plataforma-csa/sdk-core";
 
 const TYPE_CHOICES: { type: FormElement["type"]; label: string }[] = [
@@ -113,6 +114,10 @@ export function PasteImport({ initialText, onClose, onInsert }: {
               ref={taRef}
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onPaste={(e) => {
+                const t = clipboardToText(e.clipboardData);
+                if (t && t !== e.clipboardData.getData("text/plain")) { e.preventDefault(); setText(t); }
+              }}
               placeholder={"Pega aquí tu cuestionario…\n\n¿Tiene política de eficiencia?\n○ Sí\n○ No"}
               aria-label="Texto del cuestionario"
               spellCheck={false}

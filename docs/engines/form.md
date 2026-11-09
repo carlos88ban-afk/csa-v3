@@ -1957,3 +1957,12 @@ Framework QA temporal en producción: tabla Fase 2 con celda multi-componente ex
 `parsePastedText(texto)` (`packages/sdk-core/src/paste-parser.ts`, función pura) convierte texto de Word/Excel/PDF/Typeform/CSA en `FormElement[]` con `confidence` (alta/media/baja) y `reason`. El Builder lo muestra como borrador (panel "Pegar cuestionario"): el usuario cambia el tipo, quita elementos o inserta todo tras la pregunta activa. Pegar con Ctrl+V fuera de un campo abre el panel.
 
 Reglas: `○`/`( )` → selección única; `☐`/`[ ]` → múltiple; viñetas/letras → única (múltiple si el texto dice "marque todas…"); sangría mayor = sub-opciones; `___ kWh` → número con unidad; `| a | b |` o tabs (Excel) → `tabla_datos` (primera fila = encabezados); "Aviso/Nota/Requisito:" → `banner`; evidencia/URL/fecha por palabras clave; `¿…? Sí/No` → única Sí/No; texto sin pistas → texto corto (confianza baja). No interpreta "Responsable" ni "Aplica a" (se ajustan después en la pregunta).
+
+### Pegado desde la página de CSA (HTML) y texto plano de una pregunta completa
+
+- **HTML del portapapeles** (`apps/web/lib/html-to-text.ts`): al copiar desde la página de CSA/Word/Typeform el portapapeles trae `text/html` con radios, casillas y tablas reales. `clipboardToText` lo convierte a texto estructurado (`○`, `☐`, `____`, `| a | b |`, sangría = contenido de una opción, `# ` títulos) y el intérprete lo lee igual que el texto escrito a mano. También acepta HTML pegado como código fuente.
+- **Aviso** ("Aviso/Nota/Requisito: …") → `banner` (título = primera línea, contenido = párrafos siguientes).
+- **"Información adicional y orientación…"** → UN `banner` contraíble (`startCollapsed`) con secciones en negrita, listas y URLs; termina donde se repite el título o aparece la pregunta.
+- **Opciones sin viñeta** tras una pregunta con `?` (patrón CSA: "Sí, …", "No, …", "La pregunta no es aplicable…", "La información no está disponible") → `seleccion_unica`.
+- **Contenido dentro de una opción**: tabla → `option.table` (casilla suelta → celda `casilla`, `___` → texto, listas de ☐ → texto con guía); viñetas → sub-opciones. En texto plano ese contenido no es recuperable: se cuenta y se avisa ("sin estructura") — pegar desde la página lo conserva.
+- Se descartan los comentarios confidenciales y las referencias de analistas de la plataforma de origen.

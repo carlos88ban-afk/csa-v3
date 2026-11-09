@@ -4,6 +4,10 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### Builder — Pegado desde la página de CSA (2026-11-09)
+
+`clipboardToText`/`htmlToMarkedText` (web) + intérprete ampliado: una pregunta CSA completa (aviso, orientación contraíble, selección única con tabla interna) se construye en un solo pegado. Ver `docs/engines/form.md`.
+
 ### Builder — Importar desde texto pegado (2026-11-06)
 
 `parsePastedText` (sdk-core) + panel "Pegar cuestionario" en el Builder: el texto pegado se interpreta en preguntas, opciones, tablas y avisos; el usuario revisa y ajusta. Ver `docs/engines/form.md` "Importar desde texto pegado".
