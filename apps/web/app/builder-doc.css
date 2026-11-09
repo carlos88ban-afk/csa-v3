@@ -225,3 +225,19 @@ select.pi__type { font: inherit; font-size: var(--text-xs); border: 0; backgroun
 .lc-menu>button:hover{background:var(--surface-muted,#2a3142)}
 .lc-menu>button.is-on{background:var(--accent-soft,#26365a)}
 .lc-menu__title,.lc-menu__note{color:var(--text-muted,#98a2b3)!important}
+
+/* Documento vivo: todas las preguntas se ven como las verá el evaluado */
+.element-list > .element-card--live { margin: 4px 0; padding: 12px 16px 14px; border-radius: 10px; background: transparent; box-shadow: 0 0 0 1px transparent; transition: box-shadow .12s, background .12s; position: relative; }
+.element-list > .element-card--live:hover { box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 14%, transparent); }
+.element-list > .element-card--live.is-active { background: var(--surface); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent), 0 6px 24px rgba(0,0,0,.06); }
+.element-list > .element-card--live.is-dragover { box-shadow: 0 -3px 0 0 var(--accent); }
+.element-card--live .qa__bar { opacity: 0; transition: opacity .12s; min-height: 30px; }
+.element-card--live:hover .qa__bar, .element-card--live:focus-within .qa__bar, .element-card--live.is-active .qa__bar { opacity: 1; }
+.element-card--live:not(.is-active) .qa__bar .qa__icon, .element-card--live:not(.is-active) select.qa__type { display: none; }
+.element-card--live:not(.is-active):hover .qa__bar .qa__icon, .element-card--live:not(.is-active):hover select.qa__type { display: inline-block; }
+.element-card--live:not(.is-active) input.qa__desc:placeholder-shown { display: none; }
+.qa__grip { cursor: grab; color: var(--ink-muted); padding: 0 6px; user-select: none; font-size: 1.1rem; }
+.lc-answer { width: 100%; max-width: 640px; font: inherit; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--ink) 4%, transparent); box-sizing: border-box; }
+.lc-answer--short { max-width: 220px; }
+.lc-answer--drop { border-style: dashed; color: var(--ink-muted); font-size: var(--text-sm); }
+.lc-numeric--q { display: flex; gap: 8px; align-items: center; margin: 6px 0; }

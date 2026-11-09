@@ -408,3 +408,36 @@ export function LiveCanvas({ el, onChange }: { el: FormElement; onChange: (patch
 
 export const canvasHandles = (el: FormElement) =>
   el.type === "seleccion_unica" || el.type === "seleccion_multiple" || el.type === "seleccion_desplegable" || el.type === "tabla_datos";
+
+/* Controles de respuesta simples, tal como los ve el evaluado (vista de maqueta, no editable salvo la unidad). */
+export function AnswerPreview({ el, onChange }: { el: FormElement; onChange: (patch: Partial<FormElement>) => void }) {
+  switch (el.type) {
+    case "texto_corto":
+      return <input className="lc-answer" disabled placeholder="Respuesta corta" aria-hidden="true" tabIndex={-1} />;
+    case "texto_largo":
+      return <textarea className="lc-answer" disabled rows={3} placeholder="Respuesta larga" aria-hidden="true" tabIndex={-1} />;
+    case "fecha":
+      return <input className="lc-answer lc-answer--short" type="date" disabled aria-hidden="true" tabIndex={-1} />;
+    case "numero":
+      return (
+        <span className="lc-numeric lc-numeric--q">
+          <input className="lc-answer lc-answer--short" disabled placeholder="0" aria-hidden="true" tabIndex={-1} />
+          <input
+            className="lc-unit"
+            value={el.unit ?? ""}
+            placeholder="unidad"
+            aria-label="Unidad"
+            onChange={(e) => onChange({ unit: e.target.value === "" ? undefined : e.target.value } as Partial<FormElement>)}
+          />
+        </span>
+      );
+    case "evidencia":
+      return <div className="lc-answer lc-answer--drop">📎 El evaluado adjunta aquí sus archivos</div>;
+    case "url_publica":
+      return <input className="lc-answer" disabled placeholder="https://" aria-hidden="true" tabIndex={-1} />;
+    case "calculado":
+      return <div className="lc-answer lc-answer--drop">Resultado calculado automáticamente</div>;
+    default:
+      return null;
+  }
+}

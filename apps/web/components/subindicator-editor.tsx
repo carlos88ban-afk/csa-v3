@@ -21,7 +21,7 @@ import { FormPreview } from "@/components/form-preview";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { RichLabel } from "@/components/rich-label";
 import { PasteImport } from "@/components/paste-import";
-import { LiveCanvas, canvasHandles } from "@/components/live-canvas";
+import { LiveCanvas, AnswerPreview, canvasHandles } from "@/components/live-canvas";
 import { HistoricalPanel, hasTables } from "@/components/historical-panel";
 import { clipboardToText } from "@/lib/html-to-text";
 
@@ -1135,6 +1135,8 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
   const [pasteText, setPasteText] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [focusNewId, setFocusNewId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   // Estado de plegado por card (contrato 4): overrides del usuario sobre los
@@ -1212,6 +1214,16 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
   function commit(next: FormElement[]) {
     setElements(next);
     scheduleAutosave(next);
+  }
+
+  function dropBefore(fromId: string, toId: string) {
+    const from = elements.findIndex((x) => x.id === fromId);
+    const to = elements.findIndex((x) => x.id === toId);
+    if (from < 0 || to < 0 || from === to) return;
+    const next = [...elements];
+    const [m] = next.splice(from, 1);
+    next.splice(from < to ? to - 1 : to, 0, m!);
+    commit(next);
   }
 
   function updateElement(id: string, patch: Partial<FormElement>) {
@@ -2213,52 +2225,6 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
             const advancedOpen = isSectionOpen(el.id, "advanced", false);
 
             const isActive = activeId === el.id;
-            if (!isActive) {
-              const optionPreview = "options" in el ? el.options.slice(0, 4) : [];
-              const restricted = el.appliesTo && el.appliesTo.length > 0;
-              return (
-                <li
-                  key={el.id}
-                  className="element-card element-card--compact"
-                  ref={(node) => {
-                    elementRefs.current[el.id] = node;
-                  }}
-                >
-                  <div
-                    className="qc"
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Editar ${typeName(el.type)} ${numberBadge}`}
-                    onClick={() => setActiveId(el.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setActiveId(el.id);
-                      }
-                    }}
-                  >
-                    <span className="qc__num">{isQuestion(el) ? numberBadge : "•"}</span>
-                    <span className="qc__body">
-                      <span className="qc__title">
-                        {el.type === "banner" ? el.label || <em>Aviso sin título</em> : <RichLabel html={el.label} fallback={<em>Pregunta sin escribir</em>} />}
-                      </span>
-                      {optionPreview.length > 0 && (
-                        <span className="qc__opts">
-                          {optionPreview.map((o) => plainOf(o.label) || "…").join(" · ")}
-                          {"options" in el && el.options.length > 4 ? " · …" : ""}
-                        </span>
-                      )}
-                    </span>
-                    <span className="qc__meta">
-                      <span className="qc__type">{typeName(el.type)}</span>
-                      {isQuestion(el) && el.type !== "calculado" && el.required && <Pill variant="warn">Obligatoria</Pill>}
-                      {restricted && <Pill>{el.appliesTo!.length} unidad{el.appliesTo!.length === 1 ? "" : "es"}</Pill>}
-                      {el.visibleIf && <Pill>Condicional</Pill>}
-                    </span>
-                  </div>
-                </li>
-              );
-            }
             const hasOptionList =
               el.type === "seleccion_unica" || el.type === "seleccion_multiple" || el.type === "seleccion_desplegable";
             const moreOpenDefault = el.type === "calculado";
@@ -2266,12 +2232,17 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
             return (
               <li
                 key={el.id}
-                className="element-card element-card--active"
+                className={`element-card element-card--live${isActive ? " is-active" : ""}${dragOverId === el.id ? " is-dragover" : ""}`}
                 ref={(node) => {
                   elementRefs.current[el.id] = node;
                 }}
+                onFocusCapture={() => { if (activeId !== el.id) setActiveId(el.id); }}
+                onMouseDownCapture={() => { if (activeId !== el.id) setActiveId(el.id); }}
+                onDragOver={(e) => { if (dragId && dragId !== el.id) { e.preventDefault(); setDragOverId(el.id); } }}
+                onDrop={() => { if (dragId) dropBefore(dragId, el.id); setDragId(null); setDragOverId(null); }}
               >
                 <div className="qa__bar">
+                  <span className="qa__grip" draggable title="Arrastra para mover" aria-label="Mover" onDragStart={() => setDragId(el.id)} onDragEnd={() => { setDragId(null); setDragOverId(null); }}>⠿</span>
                   <span className="qa__num">{isQuestion(el) ? numberBadge : "Contenido"}</span>
                   <select
                     className="qa__type"
@@ -2378,17 +2349,9 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                 {canvasHandles(el) && <LiveCanvas el={el} onChange={(patch) => updateElement(el.id, patch)} />}
 
 
-                {el.type === "numero" && (
-                  <label className="qa__inline">
-                    <span>Unidad</span>
-                    <input
-                      placeholder="ej. kg, %, S/"
-                      value={el.unit ?? ""}
-                      onChange={(e) => updateElement(el.id, { unit: e.target.value === "" ? undefined : e.target.value })}
-                    />
-                  </label>
-                )}
+                <AnswerPreview el={el} onChange={(patch) => updateElement(el.id, patch)} />
 
+                {isActive && (<>
                 {isQuestion(el) && (
                   <div className="qa__foot">
                     {el.type !== "calculado" && (
@@ -3737,6 +3700,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                 )}
                   </div>
                 </details>
+                </>)}
               </li>
             );
           })}
