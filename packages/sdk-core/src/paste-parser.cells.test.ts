@@ -64,3 +64,13 @@ describe("varias tablas dentro de la misma opción", () => {
     expect(formElement.safeParse(r[0]!.element).success).toBe(true);
   });
 });
+
+describe("primera columna con campo de respuesta", () => {
+  it("una celda de la primera columna con un campo es de respuesta, no etiqueta", () => {
+    const r = parsePastedText("¿Informa?\n○ Sí\n    | Organización | Tipo | Importe |\n    | _____ ¦ 300 de un máximo de 1000 caracteres | ▾ | #_____ |\n○ No\n");
+    const row = (r[0]!.element as any).options[0].table.rows[1];
+    expect(row.cells[0].editable).toBe(true);
+    expect(normalizeCellComponents(row.cells[0]).map((c) => c.type)).toEqual(["texto_corto"]);
+    expect((normalizeCellComponents(row.cells[0])[0] as any).maxLength).toBe(1000);
+  });
+});

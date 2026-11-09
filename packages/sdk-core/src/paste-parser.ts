@@ -63,6 +63,8 @@ const isTableSeparator = (line: string) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:
 
 // Celdas con varias piezas (texto + campo + lista + casilla + enlaces): el HTML las separa con " ¦ ".
 const SEP = " ¦ ";
+// Piezas que son un campo, lista, casilla u opción: la celda es de respuesta aunque esté en la primera columna.
+const HAS_CONTROL = /(?:^|¦ )[#%]?_{3,}(?: ¦|$)|▾|☐|○/;
 const REF_HINT = /m[aá]ximo de (\d+)[^¦]*\bURLs?/i;
 function pieceHtml(pieces: string[]) {
   if (pieces.length === 1) return esc(pieces[0]!);
@@ -133,8 +135,8 @@ function tableConfig(rows: string[][]) {
     cells: columns.map((c, i) => {
       const txt = r[i] ?? "";
       // Primera columna con texto = nombre de la fila (solo lectura); el resto se captura.
-      if (i === 0 && txt) return { columnId: c.id, cellType: "texto" as const, editable: false, content: pieceHtml(txt.split(SEP).filter(Boolean)) };
-      if (txt.includes(SEP) || REF_HINT.test(txt)) {
+      if (i === 0 && txt && !HAS_CONTROL.test(txt)) return { columnId: c.id, cellType: "texto" as const, editable: false, content: pieceHtml(txt.split(SEP).filter(Boolean)) };
+      if (txt.includes(SEP) || REF_HINT.test(txt) || txt.includes("▾")) {
         const cc = cellComponents(txt);
         if (cc) { listsToReview += cc.lists; return { columnId: c.id, cellType: "texto" as const, editable: true, components: cc.comps as never }; }
       }
