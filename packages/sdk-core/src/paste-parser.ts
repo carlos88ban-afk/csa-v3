@@ -136,7 +136,7 @@ function makeOptions(items: Opt[]) {
 }
 
 // ---------- Bloques de la página S&P / CSA ----------
-const GUIDE = /^\s*(?:#\s*)?informaci[oó]n adicional(?:\s+y\s+orientaci[oó]n.*)?\s*$/i;
+const GUIDE = /^\s*(?:#\s*)?informaci[oó]n adicional(?:\s+y\s+.{1,60})?\s*$/i;
 // Primeras palabras típicas de las opciones de una pregunta CSA cuando se pegan sin viñeta.
 const OPT_START = /^(s[ií](?=[\s,.:;]|$)|no(?=[\s,.:;]|$)|la pregunta no es aplicable|la informaci[oó]n no est[aá] disponible|no aplica|n\/a)/i;
 const SKIP_LINE = /^\s*(comentarios? adicionales? confidenciales?|referencias a[ñn]adidas por analistas)\b/i;
@@ -203,7 +203,7 @@ export function parsePastedText(input: string): ParsedItem[] {
       while (body.length && body[body.length - 1]!.trim() === "") body.pop();
       if (body.length && /^#\s+/.test(body[body.length - 1]!) && end < lines.length) body.pop();
       out.push({
-        element: { id: uid(), type: "banner", label: esc("Información adicional y orientación para preguntas"), content: paragraphsToHtml(body), variant: "info", startCollapsed: true, componentVersion: version("banner") } as FormElement,
+        element: { id: uid(), type: "banner", label: esc(raw.trim().replace(/^#\s*/, "")), content: paragraphsToHtml(body), variant: "info", startCollapsed: true, componentVersion: version("banner") } as FormElement,
         confidence: "alta", reason: `Texto de orientación (${body.filter((l) => l.trim()).length} líneas) → aviso contraíble`,
       });
       i = end;
