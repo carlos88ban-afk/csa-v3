@@ -156,6 +156,13 @@ function TableCanvas({ table, onChange }: { table: TablaDatosConfig; onChange: (
 
   return (
     <div className="lc-table-wrap" ref={root}>
+      <input
+        className="lc-table-title"
+        value={plainOf(table.title ?? "")}
+        placeholder="Título de la tabla (opcional)"
+        aria-label="Título de la tabla"
+        onChange={(e) => onChange({ ...table, title: e.target.value ? toLabel(e.target.value) : undefined } as TablaDatosConfig)}
+      />
       <table className="runtime-table lc-table">
         <thead>
           <tr className="lc-colbar" aria-hidden="false">
@@ -293,6 +300,7 @@ type Opt = {
   table?: TablaDatosConfig | undefined;
   references?: object | undefined;
   moreTables?: TablaDatosConfig[] | undefined;
+  field?: ({ type: "texto_corto" | "seleccion_desplegable" | "numero"; label?: string; options: { id: string; label: string }[] } & Record<string, unknown>) | undefined;
   [k: string]: unknown;
 };
 
@@ -376,6 +384,15 @@ function OptionsCanvas({ el, onChange }: { el: Extract<FormElement, { options: u
             </span>
           </div>
 
+          {o.field && (
+            <div className="lc-sub">
+              <div className="lc-mixed__field">
+                <input className="lc-input" value={plainOf(o.field.label ?? "")} placeholder="Título del campo" aria-label="Título del campo" onChange={(e) => patch(o.id, { field: { ...o.field!, label: toLabel(e.target.value) } as Opt["field"] })} />
+                {o.field.type === "seleccion_desplegable" ? <select className="lc-input" defaultValue="" aria-label="Lista (vista previa)"><option value="">Elegir…</option>{o.field.options.map((x) => <option key={x.id} value={x.id}>{plainOf(x.label)}</option>)}</select> : <input className="lc-input lc-input--ghost" disabled placeholder="Respuesta" />}
+              </div>
+              <button type="button" className="lc-ghost lc-ghost--danger" onClick={() => patch(o.id, { field: undefined })}>Quitar este campo</button>
+            </div>
+          )}
           {o.references && (
             <div className="lc-sub">
               <RefChip max={(o.references as { maxUrls?: number }).maxUrls ?? 3} onChange={(n) => patch(o.id, { references: { ...(o.references as object), maxUrls: n } })} onRemove={() => patch(o.id, { references: undefined })} />

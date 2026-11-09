@@ -375,6 +375,14 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
   }
 
   if (notFound) return <main className="page">Este enlace no existe o ya no está disponible.</main>;
+  if (evaluation && flat.length === 0) {
+    return (
+      <main className="loading" role="status">
+        <p><strong>Todavía no tienes preguntas por responder en esta evaluación.</strong></p>
+        <p>Puede ser que aún no te hayan asignado un bloque, o que ninguna pregunta aplique a tu unidad. Consulta al administrador de tu unidad.</p>
+      </main>
+    );
+  }
   if (!evaluation || !active) return <main className="loading">Cargando...</main>;
 
   const { snapshot } = evaluation;
@@ -758,6 +766,7 @@ function SubOptionsView({
               label={sub.label}
               unitKeyPrefix={`${subKey}::${sub.id}::table`}
               columns={sub.table.columns}
+              title={sub.table.title}
               rows={sub.table.rows}
               value={answers[`${subKey}::${sub.id}::table`] as TableValue | undefined}
               onChange={(next) => onAnswerChange(`${subKey}::${sub.id}::table`, next)}
@@ -1373,6 +1382,7 @@ type FormTableRows = TablaDatosConfig["rows"];
 // identidad de los tipos del schema cambia de una comparación a otra
 // (TS2719 "unrelated"), aunque sean estructuralmente idénticos.
 type FormTableViewProps = {
+  title?: string | undefined;
   label: string;
   unitKeyPrefix: string;
   columns: FormTableColumns;
@@ -1724,6 +1734,7 @@ function TableCellComponentControl({
 
 function FormTableView({
   label,
+  title,
   unitKeyPrefix,
   columns,
   rows,
@@ -2296,6 +2307,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                   label={opt.label}
                   unitKeyPrefix={`${element.id}::${opt.id}::table`}
                   columns={opt.table.columns}
+                  title={opt.table.title}
                   rows={opt.table.rows}
                   value={answers[`${element.id}::${opt.id}::table`] as TableValue | undefined}
                   onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::table`, next)}
@@ -2313,6 +2325,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                   label={opt.label}
                   unitKeyPrefix={`${element.id}::${opt.id}::table${ti + 2}`}
                   columns={mt.columns}
+                  title={mt.title}
                   rows={mt.rows}
                   value={answers[`${element.id}::${opt.id}::table${ti + 2}`] as TableValue | undefined}
                   onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::table${ti + 2}`, next)}
@@ -2418,6 +2431,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                       label={opt.label}
                       unitKeyPrefix={`${element.id}::${opt.id}::table`}
                       columns={opt.table.columns}
+                      title={opt.table.title}
                       rows={opt.table.rows}
                       value={answers[`${element.id}::${opt.id}::table`] as TableValue | undefined}
                       onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::table`, next)}
@@ -2435,6 +2449,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                       label={opt.label}
                       unitKeyPrefix={`${element.id}::${opt.id}::table${ti + 2}`}
                       columns={mt.columns}
+                      title={mt.title}
                       rows={mt.rows}
                       value={answers[`${element.id}::${opt.id}::table${ti + 2}`] as TableValue | undefined}
                       onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::table${ti + 2}`, next)}

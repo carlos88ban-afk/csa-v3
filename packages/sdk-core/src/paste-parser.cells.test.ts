@@ -74,3 +74,18 @@ describe("primera columna con campo de respuesta", () => {
     expect((normalizeCellComponents(row.cells[0])[0] as any).maxLength).toBe(1000);
   });
 });
+
+describe("contenido de una opción: enlaces, campo con rótulo y tablas con título", () => {
+  const r = parsePastedText("¿Declara contribuciones?\n○ Sí, la empresa informa.\n    Se permiten un máximo de 3 URL\n    Divisa: _____\n    § Problemas y temas\n    | Tema | Importe |\n    | x | #_____ |\n\n    § Otros gastos importantes\n    | Nombre | Importe |\n    | y | #_____ |\n○ No\n");
+  const o = (r[0]!.element as any).options[0];
+  it("el rótulo no ensucia la opción y cada pieza va a su sitio", () => {
+    expect(o.label).toBe("Sí, la empresa informa.");
+    expect(o.references).toEqual({ maxUrls: 3 });
+    expect(o.field).toMatchObject({ type: "texto_corto", label: "Divisa:" });
+  });
+  it("cada tabla conserva su título", () => {
+    expect(o.table.title).toBe("Problemas y temas");
+    expect(o.moreTables[0].title).toBe("Otros gastos importantes");
+    expect(formElement.safeParse(r[0]!.element).success).toBe(true);
+  });
+});

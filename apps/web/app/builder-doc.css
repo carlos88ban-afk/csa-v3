@@ -274,3 +274,6 @@ select.pi__type { font: inherit; font-size: var(--text-xs); border: 0; backgroun
 .lc-mixed__field > input.lc-input:not(.lc-input--ghost):placeholder-shown:not(:focus){height:0;padding:0;border:0;opacity:0;overflow:hidden}
 .lc-mixed__item:hover .lc-mixed__field > input.lc-input:not(.lc-input--ghost):placeholder-shown{height:auto;padding:4px 8px;opacity:1}
 .lc-mixed__field .lc-input--ghost{max-width:100%}
+.runtime-table__title{caption-side:top;text-align:left;font-weight:600;padding:8px 2px}
+.lc-table-title{width:100%;font-weight:600;border:1px solid transparent;background:transparent;padding:4px 6px;font:inherit}
+.lc-table-title:hover,.lc-table-title:focus{border-color:var(--border,#475467)}

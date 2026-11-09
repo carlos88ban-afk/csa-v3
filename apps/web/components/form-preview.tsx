@@ -334,6 +334,7 @@ function PreviewElement({
                 label={opt.label}
                 unitKeyPrefix={`${element.id}::${opt.id}::table`}
                 columns={opt.table.columns}
+                title={opt.table.title}
                 rows={opt.table.rows}
                 table={(answers[`${element.id}::${opt.id}::table`] as TableValue | undefined) ?? {}}
                 answers={answers}
@@ -347,6 +348,7 @@ function PreviewElement({
                 label={opt.label}
                 unitKeyPrefix={`${element.id}::${opt.id}::table${ti + 2}`}
                 columns={mt.columns}
+                title={mt.title}
                 rows={mt.rows}
                 table={(answers[`${element.id}::${opt.id}::table${ti + 2}`] as TableValue | undefined) ?? {}}
                 answers={answers}
@@ -458,6 +460,7 @@ function PreviewTableCalculatedCell({
 
 function PreviewTableView({
   label,
+  title,
   unitKeyPrefix,
   columns,
   rows,
@@ -466,6 +469,7 @@ function PreviewTableView({
   onAnswerChange,
   onChange,
 }: {
+  title?: string | undefined;
   label: string;
   unitKeyPrefix: string;
   columns: TablaDatosConfig["columns"];
@@ -477,7 +481,7 @@ function PreviewTableView({
 }) {
   return (
     <table className="runtime-table">
-      <caption className="sr-only">{stripCommentHtml(label)}</caption>
+      <caption className={title ? "runtime-table__title" : "sr-only"}>{stripCommentHtml(title || label)}</caption>
       <tbody>
         {rows.map((row) => {
           // VS-066 (docs/engines/form.md "Combinar columnas (colspan)"): ver
@@ -1030,6 +1034,7 @@ function PreviewSubOptions({
               label={sub.label}
               unitKeyPrefix={`${subKey}::${sub.id}::table`}
               columns={sub.table.columns}
+              title={sub.table.title}
               rows={sub.table.rows}
               table={(answers[`${subKey}::${sub.id}::table`] as TableValue | undefined) ?? {}}
               answers={answers}

@@ -13,7 +13,7 @@ interface Block {
   userId: string | null;
   userName: string | null;
 }
-interface UserRow { userId: string; name: string; unitId: string | null }
+interface UserRow { userId: string; name: string; email?: string; unitId: string | null }
 
 export default function ResponsablesPage() {
   const { me, loading } = useMe();
@@ -72,7 +72,7 @@ export default function ResponsablesPage() {
                     <select value={b.userId ?? ""} onChange={(e) => void assign(b.subindicatorId, e.target.value)}>
                       <option value="">Sin asignar</option>
                       {users.map((u) => (
-                        <option key={u.userId} value={u.userId}>{u.name}</option>
+                        <option key={u.userId} value={u.userId}>{u.email && users.filter((x) => x.name === u.name).length > 1 ? `${u.name} (${u.email})` : u.name}</option>
                       ))}
                     </select>
                   </td>

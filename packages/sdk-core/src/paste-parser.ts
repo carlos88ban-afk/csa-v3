@@ -206,7 +206,7 @@ const BANNER_START = /^\s*(aviso|nota|importante|requisito|atención|atencion|re
 const MULTI_HINT = /seleccione (?:todas|todos|las que|los que)|marque (?:todas|todos|las que|los que)|una o más|una o mas|varias opciones|puede(?:n)? (?:elegir|seleccionar) (?:más|mas|varias)|todas las que apliquen|select all/i;
 const YES_NO_INLINE = /[(\[]?\s*(s[ií])\s*[\/|,]\s*(no)\s*[)\]]?\s*[?.]?\s*$/i;
 
-type Opt = { text: string; subs: string[]; tableRows?: string[][]; tables?: string[][][]; ignored?: number };
+type Opt = { text: string; subs: string[]; tableRows?: string[][]; tables?: string[][][]; titles?: (string | undefined)[] | undefined; refMax?: number; field?: { label: string; list: boolean }; pendingTitle?: string | undefined; ignored?: number };
 
 let listsSeen = 0;
 function makeOptions(items: Opt[]) {
@@ -214,17 +214,28 @@ function makeOptions(items: Opt[]) {
   return items.map((o) => {
     const t = o.tableRows && o.tableRows.length ? tableConfig(o.tableRows) : null;
     if (t) listsSeen += t.lists;
+    if (o.field?.list) listsSeen += 1;
     const more = (o.tables ?? []).slice(1).filter((r) => r.length).map((r) => {
       const c = tableConfig(r);
       listsSeen += c.lists;
       return { columns: c.columns, rows: c.rows };
     });
+    (o.tables ?? []).slice(1).filter((r) => r.length).forEach((_, k) => {
+      const ttl = o.titles?.[k + 1];
+      if (ttl) (more[k] as { title?: string }).title = esc(ttl);
+    });
     return {
       id: uid(),
       label: esc(o.text),
       ...(o.subs.length ? { subOptions: o.subs.map((s) => ({ id: uid(), label: esc(s) })) } : {}),
-      ...(t ? { table: { columns: t.columns, rows: t.rows } } : {}),
+      ...(t ? { table: { ...(o.titles?.[0] ? { title: esc(o.titles[0]) } : {}), columns: t.columns, rows: t.rows } } : {}),
       ...(more.length ? { moreTables: more } : {}),
+      ...(o.refMax ? { references: { maxUrls: o.refMax } } : {}),
+      ...(o.field
+        ? { field: o.field.list
+            ? { type: "seleccion_desplegable" as const, label: esc(o.field.label), options: [{ id: uid(), label: "Opción 1" }, { id: uid(), label: "Opción 2" }] }
+            : { type: "texto_corto" as const, label: esc(o.field.label) } }
+        : {}),
     };
   });
 }
@@ -523,10 +534,21 @@ function readOptions(lines: string[], start: number) {
     const nested = items.length > 0 && ind >= baseIndent + 2;
     if (nested) {
       const last = items[items.length - 1]!;
+      const trimmed = ln.trim();
+      const refHint = trimmed.match(/^Se permiten un m[aá]ximo de (\d+)/i);
+      const titleMark = trimmed.match(/^§\s*(.+)$/);
+      const fieldMark = trimmed.match(/^(.{1,80}?)\s*(_{3,}|▾)\s*$/);
+      if (refHint) { last.refMax = Number(refHint[1]); j++; continue; }
+      if (titleMark) { last.pendingTitle = titleMark[1]!.trim(); j++; continue; }
+      if (fieldMark && !isTableLine(ln) && om.marker === null && !isLetter) { last.field = { label: fieldMark[1]!.trim(), list: fieldMark[2] === "▾" }; j++; continue; }
       if (isTableLine(ln)) {
         // una línea en blanco entre tablas = otra tabla (una pregunta puede traer varias dentro de la misma opción)
         const prevBlank = j > 0 && lines[j - 1]!.trim() === "";
-        if (!last.tables || (prevBlank && last.tables[last.tables.length - 1]!.length > 0)) (last.tables ??= []).push([]);
+        if (!last.tables || (prevBlank && last.tables[last.tables.length - 1]!.length > 0) || last.pendingTitle !== undefined) {
+          (last.tables ??= []).push([]);
+          (last.titles ??= [])[last.tables.length - 1] = last.pendingTitle ?? undefined;
+          last.pendingTitle = undefined;
+        }
         if (!isTableSeparator(ln)) last.tables[last.tables.length - 1]!.push(splitCells(ln));
         last.tableRows = last.tables[0]!;
       }

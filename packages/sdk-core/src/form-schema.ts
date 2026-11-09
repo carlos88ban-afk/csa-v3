@@ -293,6 +293,8 @@ const formTableRow = z.object({
 // una sub-opción (VS-042) — un solo tipo zod, sin duplicación. Sin
 // label/visibleIf propios: la tabla embebida hereda los de la sub-opción.
 const tablaDatosConfig = z.object({
+  // Título visible sobre la tabla (el original suele rotular cada tabla).
+  title: z.string().optional(),
   columns: z.array(formTableColumn).min(1),
   rows: z.array(formTableRow).min(1),
 });

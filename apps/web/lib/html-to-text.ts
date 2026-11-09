@@ -101,7 +101,44 @@ function nestedOf(li: Element) {
   return [...li.querySelectorAll("table, ol, ul")].filter((n) => n.parentElement?.closest("table, ol, ul, li") === li);
 }
 
+// <li> del portal: párrafo de la opción + widgets (enlaces, campos con rótulo, tablas con título).
+function liSp(e: Element, level: Element, ind: number, out: string[], marker: string) {
+  let first = true;
+  const kids = [...level.children];
+  for (let k = 0; k < kids.length; k++) {
+    const c = kids[k]!;
+    if (c.tagName === "P" && first) { out.push(PAD.repeat(ind) + marker + clean(inl(c))); first = false; continue; }
+    if (first) { out.push(PAD.repeat(ind) + marker); first = false; }
+    if (c.matches(".sims-input.reference")) {
+      const n = clean(c.querySelector(".hint, .level, span")?.textContent ?? c.textContent ?? "").match(/\d+/)?.[0] ?? "3";
+      out.push(PAD.repeat(ind + 1) + `Se permiten un máximo de ${n} URL`);
+      continue;
+    }
+    const nxt = kids[k + 1];
+    if (c.tagName === "P") {
+      const label = clean(inl(c));
+      if (nxt?.querySelector("table") && !nxt.closest(".reference-table")) { out.push(PAD.repeat(ind + 1) + "§ " + label); continue; }
+      if (nxt && (nxt.querySelector("input.sims-select-trigger") || nxt.querySelector("select"))) { out.push(PAD.repeat(ind + 1) + label + " ▾"); k++; continue; }
+      if (nxt?.querySelector("input, textarea")) { out.push(PAD.repeat(ind + 1) + label + " _____"); k++; continue; }
+      if (label) out.push(PAD.repeat(ind + 1) + label);
+      continue;
+    }
+    if (c.tagName === "TABLE" || c.querySelector("table")) {
+      const tb = c.tagName === "TABLE" ? c : c.querySelector("table")!;
+      if (!tb.classList.contains("reference-table") && !tb.closest(".reference-table")) table(tb, ind + 1, out);
+      continue;
+    }
+    if (c.tagName === "OL" || c.tagName === "UL") { list(c, ind + 1, out); continue; }
+  }
+}
+
 function li(e: Element, ind: number, out: string[]) {
+  const levelDiv = [...e.children].find((x) => x.classList.contains("level"));
+  if (levelDiv && levelDiv.querySelector(":scope > p")) {
+    const inp = [...e.querySelectorAll("input")].find((i) => i.closest("li") === e && ["radio", "checkbox"].includes((i.getAttribute("type") || "").toLowerCase()));
+    liSp(e, levelDiv, ind, out, inp ? token(inp) : "- ");
+    return;
+  }
   const input = [...e.querySelectorAll("input")].find((i) => i.closest("li") === e && ["radio", "checkbox"].includes((i.getAttribute("type") || "").toLowerCase()));
   const nested = nestedOf(e);
   const copy = e.cloneNode(true) as Element;
