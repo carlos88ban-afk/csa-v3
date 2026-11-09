@@ -171,3 +171,57 @@ select.pi__type { font: inherit; font-size: var(--text-xs); border: 0; backgroun
 .hist__none { color: var(--ink-muted); }
 .hist__detail { font-size: var(--text-xs); color: var(--ink-muted); }
 .hist__hint { margin: var(--space-2) 0 0; font-size: var(--text-xs); color: var(--ink-muted); }
+
+/* Lienzo vivo: la pregunta se ve como la verá el evaluado */
+.lc-options{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.lc-option__row,.lc-sub__row{display:flex;align-items:center;gap:8px}
+.lc-option__row input[type=radio],.lc-option__row input[type=checkbox],.lc-sub__row input[type=radio],.lc-sub__row input[type=checkbox]{flex:none;width:16px;height:16px;pointer-events:none}
+.lc-n{width:22px;color:var(--text-muted,#667)}
+.lc-input{flex:1;min-width:0;border:1px solid transparent;background:transparent;padding:4px 6px;border-radius:4px;font:inherit}
+.lc-input:hover,.lc-input:focus{border-color:var(--border,#d0d5dd);background:#fff}
+.lc-input--ghost{border-color:var(--border,#d0d5dd);background:var(--surface-muted,#f6f7f9)}
+.lc-option__tools{display:flex;gap:4px;opacity:0;transition:opacity .12s}
+.lc-option:hover .lc-option__tools,.lc-option:focus-within .lc-option__tools{opacity:1}
+.lc-option__tools button,.lc-ghost,.lc-colbar button,.lc-rowbar button{border:0;background:transparent;color:var(--text-muted,#667);cursor:pointer;font-size:12px;padding:2px 6px;border-radius:4px}
+.lc-option__tools button:hover,.lc-ghost:hover,.lc-colbar button:hover,.lc-rowbar button:hover{background:var(--surface-muted,#eef0f3)}
+.lc-ghost{align-self:flex-start;opacity:.7}
+.lc-ghost--danger:hover{color:#b42318}
+.lc-sub{margin:4px 0 4px 26px;display:flex;flex-direction:column;gap:2px}
+.lc-nested{margin:8px 0 8px 26px}
+.lc-table-wrap{overflow-x:auto}
+.lc-table td,.lc-table th{padding:2px}
+.lc-gutter{width:64px;border:0!important;background:transparent!important}
+.lc-colbar th{border:0!important;text-align:center;opacity:0;transition:opacity .12s}
+.lc-table:hover .lc-colbar th,.lc-table:focus-within .lc-colbar th{opacity:1}
+.lc-rowbar{display:flex;align-items:center;opacity:0;transition:opacity .12s}
+.lc-row:hover .lc-rowbar,.lc-row:focus-within .lc-rowbar{opacity:1}
+.lc-grip{cursor:grab;color:var(--text-muted,#667);padding:0 4px}
+.lc-row--drag{opacity:.4}
+.lc-cell{position:relative}
+.lc-cell__box{display:flex;align-items:center;gap:2px}
+.lc-cell__kind{border:0;background:transparent;cursor:pointer;opacity:0;font-size:11px;color:var(--text-muted,#667)}
+.lc-cell:hover .lc-cell__kind,.lc-cell:focus-within .lc-cell__kind{opacity:1}
+.lc-cell--head{background:var(--surface-muted,#f3f4f6);font-weight:600}
+.lc-cell--head .lc-input{font-weight:600}
+.lc-numeric{display:flex;gap:4px;flex:1;align-items:center}
+.lc-unit{width:7ch;border:0;border-bottom:1px dashed var(--border,#d0d5dd);background:transparent;font:inherit;font-size:12px}
+.lc-check{display:flex;align-items:center;gap:6px;flex:1}
+.lc-check input[type=checkbox]{width:16px;pointer-events:none}
+.lc-special{font-size:12px;color:var(--text-muted,#667);font-style:italic;flex:1;padding:4px}
+.lc-menu{position:absolute;z-index:30;top:100%;right:0;width:280px;background:#fff;border:1px solid var(--border,#d0d5dd);border-radius:8px;box-shadow:0 8px 24px rgba(16,24,40,.14);padding:6px;display:flex;flex-direction:column;gap:2px}
+.lc-menu__title{font-size:11px;text-transform:uppercase;color:var(--text-muted,#667);padding:4px 8px}
+.lc-menu>button{text-align:left;border:0;background:transparent;padding:6px 8px;border-radius:4px;cursor:pointer;font:inherit;font-size:13px}
+.lc-menu>button:hover{background:var(--surface-muted,#eef0f3)}
+.lc-menu>button.is-on{background:#e8f0fe;font-weight:600}
+.lc-menu__opts{display:flex;flex-direction:column;gap:4px;font-size:12px;padding:6px 8px}
+.lc-menu__note{font-size:12px;color:var(--text-muted,#667);padding:4px 8px}
+.lc-options input.lc-input,.lc-table input.lc-input{width:auto;flex:1;min-height:0;height:auto;padding:4px 8px;border:1px solid transparent;background:transparent;box-shadow:none}
+.lc-options input.lc-input:hover,.lc-options input.lc-input:focus,.lc-table input.lc-input:hover,.lc-table input.lc-input:focus{border-color:var(--border,#475467)}
+.lc-table input.lc-input--ghost{border-color:var(--border,#475467);opacity:.6}
+.lc-table input.lc-unit{width:7ch;min-width:0;flex:none;padding:2px 4px;border:0;border-bottom:1px dashed var(--border,#475467);background:transparent;box-shadow:none}
+.lc-table td{vertical-align:middle}
+.lc-menu{position:fixed!important;right:auto!important;background:var(--surface,#1d2330)!important;color:var(--text,inherit)!important;border-color:var(--border,#475467)!important}
+.lc-menu>button{color:inherit}
+.lc-menu>button:hover{background:var(--surface-muted,#2a3142)}
+.lc-menu>button.is-on{background:var(--accent-soft,#26365a)}
+.lc-menu__title,.lc-menu__note{color:var(--text-muted,#98a2b3)!important}

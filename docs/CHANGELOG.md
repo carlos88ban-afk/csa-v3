@@ -4,6 +4,10 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### Builder: lienzo vivo WYSIWYG (2026-11-09)
+
+Opciones y tablas se editan directamente con su aspecto real; sin vocabulario técnico. Ver `docs/engines/form.md` "Lienzo vivo".
+
 ### Datos históricos por unidad + auditoría del portal CSA (2026-11-09)
 
 Celdas de tabla con dato histórico por unidad (vista expandida/consolidada en el Builder, aislado por unidad en el servidor) y tipos numéricos/porcentaje/Sí-No en el pegado. Auditoría de las 152 preguntas del portal: `docs/research/csa-portal-audit.md`. Ver `docs/engines/form.md` "Datos históricos por unidad".

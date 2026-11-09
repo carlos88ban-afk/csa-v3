@@ -21,6 +21,7 @@ import { FormPreview } from "@/components/form-preview";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { RichLabel } from "@/components/rich-label";
 import { PasteImport } from "@/components/paste-import";
+import { LiveCanvas, canvasHandles } from "@/components/live-canvas";
 import { HistoricalPanel, hasTables } from "@/components/historical-panel";
 import { clipboardToText } from "@/lib/html-to-text";
 
@@ -2260,7 +2261,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
             }
             const hasOptionList =
               el.type === "seleccion_unica" || el.type === "seleccion_multiple" || el.type === "seleccion_desplegable";
-            const moreOpenDefault = el.type === "tabla_datos" || el.type === "calculado";
+            const moreOpenDefault = el.type === "calculado";
 
             return (
               <li
@@ -2374,60 +2375,8 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                   />
                 )}
 
-                {hasOptionList && (
-                  <div className="q-options">
-                    {el.options.map((opt, oi) => (
-                      <div className="q-option" key={opt.id}>
-                        <span className="q-option__mark" aria-hidden="true">
-                          {el.type === "seleccion_unica" ? "○" : el.type === "seleccion_multiple" ? "☐" : `${oi + 1}.`}
-                        </span>
-                        <GrowArea
-                          dataOpt={opt.id}
-                          placeholder={`Opción ${oi + 1}`}
-                          ariaLabel={`Opción ${oi + 1}`}
-                          value={plainOf(opt.label)}
-                          onChange={(v) => updateOption(el.id, opt.id, toLabel(v))}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              addOptionAfter(el.id, opt.id);
-                            } else if (e.key === "Backspace" && plainOf(opt.label) === "" && el.options.length > 1) {
-                              e.preventDefault();
-                              const prev = el.options[oi - 1] ?? el.options[oi + 1];
-                              removeOption(el.id, opt.id);
-                              if (prev) focusOption(prev.id);
-                            }
-                          }}
-                        />
-                        {el.type !== "seleccion_desplegable" && (opt.subOptions?.length || opt.table || opt.field || opt.references || opt.secondaryOptions?.length) ? (
-                          <button
-                            type="button"
-                            className="q-option__detail"
-                            title="Esta opción tiene sub-opciones, tabla, campo o enlaces"
-                            onClick={() => {
-                              toggleSection(el.id, "more", true);
-                              toggleSection(el.id, "options", true);
-                            }}
-                          >
-                            con detalle
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="q-option__x"
-                          aria-label={`Quitar opción ${oi + 1}`}
-                          disabled={el.options.length <= 1}
-                          onClick={() => removeOption(el.id, opt.id)}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                    <button type="button" className="q-option__add" onClick={() => addOptionAfter(el.id, null)}>
-                      + Agregar opción
-                    </button>
-                  </div>
-                )}
+                {canvasHandles(el) && <LiveCanvas el={el} onChange={(patch) => updateElement(el.id, patch)} />}
+
 
                 {el.type === "numero" && (
                   <label className="qa__inline">
@@ -2472,10 +2421,10 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                 >
                   <summary>
                     {el.type === "tabla_datos"
-                      ? "Estructura de la tabla y opciones avanzadas"
+                      ? "Ajustes especiales (celdas con campos, enlaces, fórmulas)"
                       : el.type === "calculado"
                         ? "Fórmula y opciones avanzadas"
-                        : "Más opciones (condiciones, límites, sub-opciones)"}
+                        : "Ajustes especiales (condiciones, enlaces, niveles adicionales)"}
                   </summary>
                   <div className="more-options__body">
 

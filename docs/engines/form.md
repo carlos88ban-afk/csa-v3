@@ -1975,3 +1975,9 @@ Reglas: `○`/`( )` → selección única; `☐`/`[ ]` → múltiple; viñetas/l
 - **Dos vistas (Builder)**: *Expandida* — se elige una unidad y se editan sus valores (se admite pegar rangos de Excel desde la primera celda); *Consolidada* — total por celda (suma si todos son numéricos; si no, detalle) con el desglose por unidad al pasar el cursor.
 - **Importación**: las columnas con año anterior al más reciente ("Año fiscal 2023/2024" frente a 2025) se señalan como candidatas a histórico; no se cargan solas (el portal solo entrega datos consolidados).
 - Tipos de celda al importar: `#____` (Float/Integer del portal) → `numero`; `%____` (Percent) → `numero` con unidad `%`; `☐ X` suelta → `casilla`; `○ Sí ○ No` → desplegable.
+
+## Lienzo vivo del Builder (WYSIWYG)
+
+- La pregunta activa se dibuja como la ve el evaluado (`apps/web/components/live-canvas.tsx`): radios/casillas/lista reales con el texto editable en sitio (Enter agrega opción, Backspace en vacío la quita), tablas reales con celdas editables, `＋ Tabla` y `＋ Casillas` dentro de cada opción.
+- Tablas: `＋`/`✕` por fila y columna, arrastrar filas (⠿), pegar un bloque de Excel en una celda de texto (la tabla crece). El tipo de celda se elige con lenguaje de negocio ("El evaluado escribe un número / porcentaje / elige de una lista / marca una casilla / Título de la tabla"); el modelo (`cellType`, `editable`, `unit`) se traduce internamente.
+- Lo que el lienzo no cubre (celdas con campos extra, enlaces, fórmulas, condiciones) sigue en "Ajustes especiales", plegado por defecto.
