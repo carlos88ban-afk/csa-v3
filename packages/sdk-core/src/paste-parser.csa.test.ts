@@ -123,7 +123,7 @@ Texto.
 
 describe("variantes del título del bloque de orientación", () => {
   it("'Información adicional y guía para preguntas' también se colapsa en un solo aviso", () => {
-    const r = parsePastedText("Aviso: Algo
+    const r = parsePastedText(`Aviso: Algo
 
 Información adicional y guía para preguntas
 # Justificación
@@ -132,7 +132,7 @@ Texto largo de la justificación de la pregunta que sigue.
 ¿Ha evaluado la empresa los impactos?
 ○ Sí, la empresa ha evaluado.
 ○ No, la empresa no evalúa.
-");
+`);
     expect(r.map((p) => p.element.type)).toEqual(["banner", "banner", "seleccion_unica"]);
     expect((r[1]!.element as any).label).toBe("Información adicional y guía para preguntas");
   });
