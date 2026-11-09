@@ -1776,6 +1776,11 @@ function FormTableView({
                 // Fase 2 (`components`), ver `TableCellComponentsView`.
                 return (
                   <td key={col.id} colSpan={cellCfg.colSpan}>
+                    {cellCfg.historicalValue !== undefined && (
+                      <div className="runtime-table__hist" title="Dato histórico de tu unidad, cargado por el administrador">
+                        Histórico: <strong>{String(cellCfg.historicalValue)}</strong>
+                      </div>
+                    )}
                     <TableCellComponentsView
                       row={row}
                       col={col}

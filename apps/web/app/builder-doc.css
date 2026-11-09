@@ -150,3 +150,24 @@ select.pi__type { font: inherit; font-size: var(--text-xs); border: 0; backgroun
 .pi__src { min-height: 0; }
 .pi__body { overflow: hidden; }
 .pi__foot { flex: none; }
+
+/* Dato histórico en celdas de tabla (evaluado / vista previa) */
+.runtime-table__hist { font-size: var(--text-xs); color: var(--ink-muted); background: color-mix(in srgb, var(--ink) 7%, transparent); border-radius: 6px; padding: 2px 8px; margin-bottom: 4px; width: fit-content; }
+.runtime-table__hist strong { color: var(--ink); }
+
+/* Datos históricos (admin) */
+.hist__lead { margin: 0 0 var(--space-3); font-size: var(--text-sm); color: var(--ink-muted); }
+.hist__bar { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; margin-bottom: var(--space-3); }
+.hist__seg, .hist__units { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.hist__seg button, .hist__units button { font: inherit; font-size: var(--text-sm); border: 0; background: transparent; padding: 4px 12px; border-radius: 999px; cursor: pointer; color: var(--ink-muted); }
+.hist__seg button.on, .hist__units button.on { background: var(--accent); color: #fff; font-weight: 600; }
+.hist__title { font-weight: 600; font-size: var(--text-sm); margin: var(--space-3) 0 4px; }
+.hist__scroll { overflow-x: auto; }
+.hist__table table { border-collapse: collapse; width: 100%; font-size: var(--text-sm); }
+.hist__table th, .hist__table td { border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent); padding: 4px 6px; text-align: left; vertical-align: middle; }
+.hist__table th { background: color-mix(in srgb, var(--ink) 6%, transparent); font-weight: 600; min-width: 90px; }
+.hist__table td input { width: 100%; min-width: 70px; border: 0; background: transparent; font: inherit; padding: 2px 0; outline: none; }
+.hist__table td input:focus { box-shadow: inset 0 -2px 0 var(--accent); }
+.hist__none { color: var(--ink-muted); }
+.hist__detail { font-size: var(--text-xs); color: var(--ink-muted); }
+.hist__hint { margin: var(--space-2) 0 0; font-size: var(--text-xs); color: var(--ink-muted); }

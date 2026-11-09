@@ -1966,3 +1966,12 @@ Reglas: `○`/`( )` → selección única; `☐`/`[ ]` → múltiple; viñetas/l
 - **Opciones sin viñeta** tras una pregunta con `?` (patrón CSA: "Sí, …", "No, …", "La pregunta no es aplicable…", "La información no está disponible") → `seleccion_unica`.
 - **Contenido dentro de una opción**: tabla → `option.table` (casilla suelta → celda `casilla`, `___` → texto, listas de ☐ → texto con guía); viñetas → sub-opciones. En texto plano ese contenido no es recuperable: se cuenta y se avisa ("sin estructura") — pegar desde la página lo conserva.
 - Se descartan los comentarios confidenciales y las referencias de analistas de la plataforma de origen.
+
+## Datos históricos por unidad
+
+- **Modelo**: `formTableCell.historical` (`unitId → valor`) lo carga el admin en el Builder ("📊 Datos históricos por unidad", en cualquier pregunta con tabla: suelta, de una opción o de una sub-opción) y se guarda con el formulario. `historicalValue` es el valor ya resuelto para una unidad y **nunca se guarda**.
+- **Aislamiento**: `getEvaluationForBusinessUnit` aplica `resolveHistoricalForUnit` (sdk-core `historical.ts`): deja solo `historicalValue` de la unidad y elimina `historical`, de modo que el histórico de otra unidad no sale del servidor. Descarta cualquier `historicalValue` escrito a mano.
+- **Evaluado**: ve en la celda "Histórico: X" (solo el de su unidad) como referencia, y completa el dato actual. El snapshot de una evaluación es una foto: el histórico cargado después no aparece en evaluaciones ya creadas.
+- **Dos vistas (Builder)**: *Expandida* — se elige una unidad y se editan sus valores (se admite pegar rangos de Excel desde la primera celda); *Consolidada* — total por celda (suma si todos son numéricos; si no, detalle) con el desglose por unidad al pasar el cursor.
+- **Importación**: las columnas con año anterior al más reciente ("Año fiscal 2023/2024" frente a 2025) se señalan como candidatas a histórico; no se cargan solas (el portal solo entrega datos consolidados).
+- Tipos de celda al importar: `#____` (Float/Integer del portal) → `numero`; `%____` (Percent) → `numero` con unidad `%`; `☐ X` suelta → `casilla`; `○ Sí ○ No` → desplegable.

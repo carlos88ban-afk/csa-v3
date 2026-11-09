@@ -76,22 +76,42 @@ function tableConfig(rows: string[][]) {
       // Primera columna con texto = nombre de la fila (solo lectura); el resto se captura.
       if (i === 0 && txt) return { columnId: c.id, cellType: "texto" as const, editable: false, content: esc(txt) };
       // Celdas de respuesta: una casilla suelta "☐ Sí" → casilla; "____" → texto; varias ☐ → texto con la lista como guía.
+      if (/%_{3,}/.test(txt)) return { columnId: c.id, cellType: "numero" as const, editable: true, unit: "%" };
+      if (/#_{3,}/.test(txt)) {
+        const hintN = txt.replace(/#_{3,}/g, "").replace(/\b(num[eé]rico|numeric)\b/gi, "").replace(/\s{2,}/g, " ").trim();
+        return { columnId: c.id, cellType: "numero" as const, editable: true, ...(hintN ? { content: esc(hintN) } : {}) };
+      }
+      const radios = txt.split("○").map((x) => x.trim()).filter(Boolean);
+      if ((txt.match(/○/g)?.length ?? 0) >= 2 && radios.length >= 2)
+        return { columnId: c.id, cellType: "seleccion_desplegable" as const, editable: true, options: radios.map((r) => ({ id: uid(), label: esc(r) })) };
       const boxes = txt.match(/☐/g)?.length ?? 0;
       const single = txt.match(/^☐\s*(.+)$/);
       if (boxes === 1 && single && !/_{3,}/.test(txt)) return { columnId: c.id, cellType: "casilla" as const, editable: true, checkboxLabel: esc(single[1]!.trim()) };
-      const hint = txt.replace(/☐/g, "").replace(/_{3,}/g, "").replace(/\s{2,}/g, " ").trim();
+      const hint = txt.replace(/☐/g, "").replace(/[#%]?_{3,}/g, "").replace(/\s{2,}/g, " ").trim();
       return { columnId: c.id, cellType: "texto" as const, editable: true, ...(hint ? { content: esc(hint) } : {}) };
     }),
   }));
   return { width, columns, rows: [headerRow, ...dataRows] };
 }
 
+// Encabezados con año anterior al más reciente ("FY 2022"… "FY 2025") = candidatos a dato histórico.
+export function pastYearHeaders(rows: string[][]): string[] {
+  const head = rows[0] ?? [];
+  const years = head.map((h) => Number(h.match(/\b(19|20)\d{2}\b/)?.[0] ?? NaN));
+  const max = Math.max(...years.filter((y) => Number.isFinite(y)), -Infinity);
+  return head.filter((_, i) => Number.isFinite(years[i]!) && years[i]! < max);
+}
+const histNote = (rows: string[][]) => {
+  const p = pastYearHeaders(rows);
+  return p.length ? ` · ${p.length} columna(s) de años anteriores (${p.join(", ")}): cárgalas como dato histórico en la pregunta` : "";
+};
+
 function buildTable(label: string, rows: string[][]): ParsedItem {
   const { width, columns, rows: trs } = tableConfig(rows);
   return {
     element: { id: uid(), type: "tabla_datos", label: esc(label), columns, rows: trs, componentVersion: version("tabla_datos") } as FormElement,
     confidence: "alta",
-    reason: `Detecté una tabla de ${width} columnas`,
+    reason: `Detecté una tabla de ${width} columnas${histNote(rows)}`,
   };
 }
 
@@ -312,6 +332,22 @@ export function parsePastedText(input: string): ParsedItem[] {
     const helpCand = lines[k] ?? "";
     if (!fillLine && /^\s*\(.*\)\s*$/.test(helpCand)) { help = helpCand.trim().replace(/^\(|\)$/g, ""); j = k + 1; }
 
+    // Párrafos explicativos entre una pregunta ("…?") y su grupo de opciones → descripción de la pregunta.
+    if (/\?\s*$/.test(text) && !help) {
+      const gather: string[] = [];
+      let q = j;
+      while (q < lines.length && gather.length < 4) {
+        const l = lines[q]!;
+        if (l.trim() === "") { q++; continue; }
+        if (optionMarker(l).marker !== null || isTableLine(l) || /^\s*#/.test(l) || NUMBERED_QUESTION.test(l) || /\?\s*$/.test(l.trim()) || OPT_START.test(l.trim()) || GUIDE.test(l)) break;
+        gather.push(l.trim()); q++;
+      }
+      let kk2 = q;
+      while (kk2 < lines.length && lines[kk2]!.trim() === "") kk2++;
+      const after = lines[kk2] ?? "";
+      if (gather.length && after.trim() !== "" && optionMarker(after).marker !== null) { help = gather.join(" "); j = q; }
+    }
+
     k = peek();
     const nl = lines[k] ?? "";
     const optNext = nl.trim() !== "" && (optionMarker(nl).marker !== null || LETTER.test(nl)) && !NUMBERED_QUESTION.test(nl);
@@ -437,6 +473,6 @@ function buildChoice(label: string, help: string | undefined, items: Opt[], mult
       id: uid(), type, label: esc(label), ...(help ? { helpText: esc(help) } : {}),
       options: makeOptions(items), componentVersion: version(type),
     } as FormElement,
-    confidence, reason: reason + (items.some((o) => o.subs.length) ? " · con sub-opciones" : "") + (items.some((o) => o.tableRows?.length) ? " · con tabla dentro de una opción" : ""),
+    confidence, reason: reason + (items.some((o) => o.subs.length) ? " · con sub-opciones" : "") + (items.some((o) => o.tableRows?.length) ? " · con tabla dentro de una opción" + items.map((o) => histNote(o.tableRows ?? [])).find(Boolean) : ""),
   };
 }

@@ -13,6 +13,10 @@ function token(el: Element): string {
   if (t === "radio") return "○ ";
   if (t === "checkbox") return "☐ ";
   if (t === "hidden" || t === "button" || t === "submit" || el.classList.contains("sims-select-trigger")) return "";
+  // El portal marca el tipo de dato de cada campo: números (Float/Integer) y porcentajes (Percent).
+  const dpd = el.getAttribute("data-dpd-type") || "";
+  if (dpd === "Percent") return "%_____ ";
+  if (dpd === "Float" || dpd === "Integer") return "#_____ ";
   return "_____ ";
 }
 

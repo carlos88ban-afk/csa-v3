@@ -10,3 +10,4 @@ export * from "./rule.js";
 export * from "./formula.js";
 export * from "./rich-text.js";
 export * from "./paste-parser.js";
+export * from "./historical.js";

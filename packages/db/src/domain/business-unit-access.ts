@@ -3,6 +3,7 @@ import {
   isAnswered,
   isElementVisible,
   naKey,
+  resolveHistoricalForUnit,
   type EvaluationSnapshot,
   type FormElement,
   type ResponseAnswers,
@@ -74,6 +75,10 @@ function filterSnapshotByExclusions(
   }
 
   function filterSubindicator(sub: SnapshotSubindicator): SnapshotSubindicator {
+    // Dato histórico: solo el de esta unidad (el de las demás nunca sale del servidor).
+    if (sub.formSchema) {
+      sub = { ...sub, formSchema: resolveHistoricalForUnit(sub.formSchema, unitId) };
+    }
     // Aplicabilidad por unidad (appliesTo en el elemento): ausente = todas.
     if (sub.formSchema) {
       const applicable = sub.formSchema.elements.filter((el) => !el.appliesTo || el.appliesTo.includes(unitId));

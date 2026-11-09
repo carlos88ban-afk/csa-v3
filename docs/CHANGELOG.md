@@ -4,6 +4,10 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### Datos históricos por unidad + auditoría del portal CSA (2026-11-09)
+
+Celdas de tabla con dato histórico por unidad (vista expandida/consolidada en el Builder, aislado por unidad en el servidor) y tipos numéricos/porcentaje/Sí-No en el pegado. Auditoría de las 152 preguntas del portal: `docs/research/csa-portal-audit.md`. Ver `docs/engines/form.md` "Datos históricos por unidad".
+
 ### Builder — Pegado desde la página de CSA (2026-11-09)
 
 `clipboardToText`/`htmlToMarkedText` (web) + intérprete ampliado: una pregunta CSA completa (aviso, orientación contraíble, selección única con tabla interna) se construye en un solo pegado. Ver `docs/engines/form.md`.

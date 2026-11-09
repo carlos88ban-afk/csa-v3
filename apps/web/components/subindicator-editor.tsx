@@ -21,6 +21,7 @@ import { FormPreview } from "@/components/form-preview";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { RichLabel } from "@/components/rich-label";
 import { PasteImport } from "@/components/paste-import";
+import { HistoricalPanel, hasTables } from "@/components/historical-panel";
 import { clipboardToText } from "@/lib/html-to-text";
 
 interface Props {
@@ -2453,6 +2454,15 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                     )}
                     <AppliesToPicker value={el.appliesTo} onChange={(next) => updateElement(el.id, { appliesTo: next })} />
                   </div>
+                )}
+
+                {hasTables(el) && (
+                  <details className="more-options hist-details">
+                    <summary>📊 Datos históricos por unidad (referencia para el evaluado)</summary>
+                    <div className="more-options__body">
+                      <HistoricalPanel el={el} onChange={(patch) => updateElement(el.id, patch)} />
+                    </div>
+                  </details>
                 )}
 
                 <details

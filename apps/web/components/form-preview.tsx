@@ -494,6 +494,11 @@ function PreviewTableView({
                 // misma nota en Runtime (page.tsx).
                 return (
                   <td key={col.id} colSpan={cellCfg.colSpan}>
+                    {(cellCfg.historicalValue !== undefined || (cellCfg.historical && Object.keys(cellCfg.historical).length > 0)) && (
+                      <div className="runtime-table__hist" title="Dato histórico cargado por el administrador">
+                        Histórico: <strong>{cellCfg.historicalValue !== undefined ? String(cellCfg.historicalValue) : `${Object.keys(cellCfg.historical ?? {}).length} unidad(es)`}</strong>
+                      </div>
+                    )}
                     <PreviewTableCellComponentsView
                       row={row}
                       col={col}

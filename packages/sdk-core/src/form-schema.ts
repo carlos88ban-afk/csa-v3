@@ -235,6 +235,13 @@ const formTableCell = z.object({
   // fila no llevan celda propia (mismo criterio "grillas irregulares" de
   // VS-048: sin entrada = celda en blanco/cubierta).
   colSpan: z.number().int().min(2).optional(),
+  // Dato histórico por unidad de negocio (docs/engines/form.md "Datos
+  // históricos"): lo carga el admin en el Builder (`historical`: unitId → valor,
+  // se guarda con el formulario) y al armar la evaluación de UNA unidad el
+  // servidor lo reemplaza por `historicalValue` (solo el de esa unidad) para que
+  // ningún evaluado vea el histórico de otra unidad. Aditivo, nunca `.default()`.
+  historical: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+  historicalValue: z.union([z.string(), z.number()]).optional(),
   // VS-067 (docs/engines/form.md "Adjuntar archivos o enlaces por celda"):
   // mismo `optionReferences` ya usado por formOption/subOption/pregunta
   // (VS-039/045/056) — el pedido del usuario ("que las celdas también
