@@ -243,3 +243,17 @@ select.pi__type { font: inherit; font-size: var(--text-xs); border: 0; backgroun
 .lc-numeric--q { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
 .lc-numeric--q input.lc-unit{width:12ch;flex:none;padding:6px 8px;border:1px solid color-mix(in srgb, var(--ink) 25%, transparent);border-radius:6px;background:transparent}
 .lc-numeric--q input.lc-answer--short{width:220px}
+
+/* Avisos: contraídos ocupan una línea (como un bloque de Notion) */
+.element-list > .element-card--live.is-banner { padding: 4px 12px; }
+.is-banner .qa__bar { position: absolute; right: 8px; top: 2px; margin: 0; z-index: 2; background: var(--surface); border-radius: 6px; }
+.is-banner .qa__num, .is-banner select.qa__type { display: none !important; }
+.bn { border-left: 3px solid var(--accent); padding: 2px 8px; border-radius: 4px; background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.bn--warning { border-left-color: #d9a400; background: color-mix(in srgb, #d9a400 9%, transparent); }
+.bn__head { display: flex; align-items: center; gap: 6px; min-height: 32px; }
+.bn__head input.qa__title-input { font-size: var(--text-base); font-weight: 600; flex: 0 1 auto; width: auto; min-width: 12ch; max-width: 55%; padding: 2px 0; }
+.bn__chev { border: 0; background: transparent; cursor: pointer; color: var(--ink-muted); width: 24px; height: 24px; border-radius: 4px; }
+.bn__chev:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.bn__snip { color: var(--ink-muted); font-size: var(--text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+.bn__body { padding: 4px 0 8px 30px; }
+.bn__opt { display: flex; gap: 6px; align-items: center; font-size: var(--text-sm); color: var(--ink-muted); margin-top: 6px; }

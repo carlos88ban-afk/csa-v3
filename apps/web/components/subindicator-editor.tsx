@@ -1135,6 +1135,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
   const [pasteText, setPasteText] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [bannerOpen, setBannerOpen] = useState<Record<string, boolean>>({});
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [focusNewId, setFocusNewId] = useState<string | null>(null);
@@ -2232,7 +2233,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
             return (
               <li
                 key={el.id}
-                className={`element-card element-card--live${isActive ? " is-active" : ""}${dragOverId === el.id ? " is-dragover" : ""}`}
+                className={`element-card element-card--live${el.type === "banner" ? " is-banner" : ""}${isActive ? " is-active" : ""}${dragOverId === el.id ? " is-dragover" : ""}`}
                 ref={(node) => {
                   elementRefs.current[el.id] = node;
                 }}
@@ -2303,18 +2304,45 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                   </button>
                 </div>
 
-                <div className="qa__title">
-                  {el.type === "banner" ? (
-                    <input
-                      className="qa__title-input"
-                      placeholder="Título del aviso"
-                      value={el.label}
-                      onChange={(e) => updateElement(el.id, { label: e.target.value })}
-                      ref={(node) => {
-                        labelRefs.current[el.id] = node;
-                      }}
-                    />
-                  ) : (
+                {el.type === "banner" ? (() => {
+                  const long = plainOf(el.content).length > 120;
+                  const open = bannerOpen[el.id] ?? (el.startCollapsed === undefined ? !long : !el.startCollapsed && !long);
+                  return (
+                    <div className={`bn bn--${el.variant}${open ? " is-open" : ""}`}>
+                      <div className="bn__head">
+                        <button type="button" className="bn__chev" aria-expanded={open} aria-label={open ? "Contraer aviso" : "Expandir aviso"} onClick={() => setBannerOpen((p) => ({ ...p, [el.id]: !open }))}>
+                          {open ? "▾" : "▸"}
+                        </button>
+                        <input
+                          className="qa__title-input"
+                          placeholder="Título del aviso"
+                          value={el.label}
+                          onChange={(e) => updateElement(el.id, { label: e.target.value })}
+                          ref={(node) => {
+                            labelRefs.current[el.id] = node;
+                          }}
+                        />
+                        {!open && <span className="bn__snip">{plainOf(el.content).slice(0, 90)}…</span>}
+                      </div>
+                      {open && (
+                        <div className="bn__body">
+                          <RichTextEditor
+                            value={el.content}
+                            onChange={(html) => updateElement(el.id, { content: html })}
+                            ariaLabel="Contenido del aviso"
+                            placeholder="Contenido del aviso…"
+                            bare
+                          />
+                          <label className="bn__opt">
+                            <input type="checkbox" checked={el.startCollapsed ?? long} onChange={(e) => updateElement(el.id, { startCollapsed: e.target.checked })} />
+                            <span>El evaluado lo ve contraído al abrir</span>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })() : (
+                  <div className="qa__title">
                     <RichTextEditor
                       value={el.label}
                       onChange={(html) => updateElement(el.id, { label: html })}
@@ -2323,17 +2351,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                       autoFocus={focusNewId === el.id}
                       bare
                     />
-                  )}
-                </div>
-
-                {el.type === "banner" && (
-                  <RichTextEditor
-                    value={el.content}
-                    onChange={(html) => updateElement(el.id, { content: html })}
-                    ariaLabel="Contenido del aviso"
-                    placeholder="Contenido del aviso…"
-                    bare
-                  />
+                  </div>
                 )}
 
                 {isQuestion(el) && (
