@@ -1,4 +1,4 @@
-import { getAppContext, listBlocks, setBlockResponsible } from "@plataforma-csa/db";
+import { assignResponsibleByEmail, getAppContext, listBlocks, setBlockResponsible } from "@plataforma-csa/db";
 import { toErrorResponse } from "@/lib/api-errors";
 
 interface Params {
@@ -30,8 +30,20 @@ export async function PUT(request: Request, { params }: Params) {
   try {
     const ctx = await getAppContext(request.headers);
     const { id } = await params;
-    const body = (await request.json()) as { unitId?: string; subindicatorId?: string; userId?: string | null };
+    const body = (await request.json()) as {
+      unitId?: string;
+      subindicatorId?: string;
+      userId?: string | null;
+      email?: string;
+      name?: string;
+      subindicatorIds?: string[];
+    };
     const unitId = unitFor(ctx, body.unitId);
+    if (body.email !== undefined) {
+      return Response.json(
+        await assignResponsibleByEmail(id, unitId, { email: body.email, name: body.name, subindicatorIds: body.subindicatorIds ?? [] }),
+      );
+    }
     if (!body.subindicatorId) return Response.json({ error: "subindicatorId_REQUIRED" }, { status: 400 });
     await setBlockResponsible(id, unitId, body.subindicatorId, body.userId ?? null);
     return Response.json({ ok: true });

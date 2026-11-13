@@ -187,13 +187,14 @@ export interface BlockRow {
   title: string;
   userId: string | null;
   userName: string | null;
+  userEmail: string | null;
 }
 
 export async function listBlocks(evaluationId: string, unitId: string): Promise<BlockRow[]> {
   const [ev] = await db.select().from(evaluation).where(eq(evaluation.id, evaluationId));
   if (!ev) throw new NotFoundError("evaluation");
   const assigned = await db
-    .select({ subindicatorId: blockAssignment.subindicatorId, userId: blockAssignment.userId, name: user.name })
+    .select({ subindicatorId: blockAssignment.subindicatorId, userId: blockAssignment.userId, name: user.name, email: user.email })
     .from(blockAssignment)
     .innerJoin(user, eq(user.id, blockAssignment.userId))
     .where(and(eq(blockAssignment.evaluationId, evaluationId), eq(blockAssignment.businessUnitId, unitId)));
@@ -211,6 +212,7 @@ export async function listBlocks(evaluationId: string, unitId: string): Promise<
       title: sub.title,
       userId: a?.userId ?? null,
       userName: a?.name ?? null,
+      userEmail: a?.email ?? null,
     });
   };
   for (const dim of snapshot.dimensions) {
@@ -250,6 +252,50 @@ export async function setBlockResponsible(
       target: [blockAssignment.evaluationId, blockAssignment.businessUnitId, blockAssignment.subindicatorId],
       set: { userId },
     });
+}
+
+/**
+ * Asigna un responsable por correo a varios bloques (alcance dimensión/indicador/bloque).
+ * Si el correo no tiene cuenta, se crea como evaluador de la unidad y se devuelve la contraseña.
+ */
+export async function assignResponsibleByEmail(
+  evaluationId: string,
+  unitId: string,
+  input: { email: string; name?: string | undefined; subindicatorIds: string[] },
+) {
+  const email = input.email.trim().toLowerCase();
+  if (!email || !email.includes("@")) throw new ValidationError("EMAIL_REQUIRED");
+  if (input.subindicatorIds.length === 0) throw new ValidationError("NO_BLOCKS");
+  const valid = new Set((await listBlocks(evaluationId, unitId)).map((b) => b.subindicatorId));
+  const ids = input.subindicatorIds.filter((id) => valid.has(id));
+  if (ids.length === 0) throw new ValidationError("NO_BLOCKS");
+
+  let userId: string;
+  let created = false;
+  let password: string | undefined;
+  const [existing] = await db.select().from(user).where(eq(user.email, email));
+  if (existing) {
+    const [m] = await db.select().from(member).where(and(eq(member.userId, existing.id), eq(member.organizationId, unitId)));
+    if (!m) throw new ValidationError("EMAIL_IN_OTHER_UNIT");
+    userId = existing.id;
+  } else {
+    password = randomBytes(9).toString("base64url");
+    const name = (input.name ?? "").trim() || email.split("@")[0]!;
+    const res = await auth.api.signUpEmail({ body: { name, email, password } });
+    userId = res.user.id;
+    created = true;
+    await db.insert(member).values({ id: randomUUID(), organizationId: unitId, userId, role: "evaluator", createdAt: new Date() });
+  }
+  for (const subindicatorId of ids) {
+    await db
+      .insert(blockAssignment)
+      .values({ id: randomUUID(), evaluationId, businessUnitId: unitId, subindicatorId, userId })
+      .onConflictDoUpdate({
+        target: [blockAssignment.evaluationId, blockAssignment.businessUnitId, blockAssignment.subindicatorId],
+        set: { userId },
+      });
+  }
+  return { userId, email, created, assigned: ids.length, ...(password ? { password } : {}) };
 }
 
 /** Un evaluador solo puede escribir en los bloques que tiene asignados. */
