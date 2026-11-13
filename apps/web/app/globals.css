@@ -2753,3 +2753,14 @@ textarea::placeholder {
 .assign-chip--empty { font-size: 14px; }
 
 .dash__partial { color: var(--warn); font-weight: 600; }
+
+/* VS-034: barra de filtros fija bajo la barra superior */
+.fbar { position: sticky; top: 56px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; margin: 0 0 var(--space-3, 12px); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.fbar__search { flex: 1 1 240px; min-width: 200px; max-width: 420px; }
+.fbar select { max-width: 220px; }
+.fbar__count { margin-left: auto; font-size: var(--text-sm); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.fbar__mark { background: color-mix(in srgb, var(--accent) 28%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+.fbar__chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.fbar__chip { cursor: pointer; border: 1px solid var(--border); background: transparent; color: inherit; border-radius: 999px; padding: 4px 12px; font-size: var(--text-sm); }
+.fbar__chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); }
+.inq-meta { font-size: var(--text-sm); color: var(--ink-muted); margin: 0 0 6px; }

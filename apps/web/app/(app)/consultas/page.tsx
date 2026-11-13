@@ -5,6 +5,7 @@ import { api } from "@/lib/api-client";
 import { useCachedGet } from "@/lib/api-cache";
 import { Button, Card, Pill } from "@/components/ui";
 import { useMe } from "@/lib/use-me";
+import { FilterBar, Highlight, NoResults, matchesText } from "@/components/filter-bar";
 
 interface Inquiry {
   id: string;
@@ -32,6 +33,8 @@ export default function ConsultasPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<"all" | "open" | "answered">("all");
   const [error, setError] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [unitF, setUnitF] = useState("");
 
   const load = reload;
 
@@ -59,7 +62,16 @@ export default function ConsultasPage() {
   }
 
   const isCorp = me.appRole === "corporate_admin";
-  const shown = (items ?? []).filter((i) => filter === "all" || i.status === filter);
+  const all = items ?? [];
+  const unitsInList = [...new Map(all.map((i) => [i.unitSigla ?? i.unitName, i.unitSigla ?? i.unitName])).values()].sort();
+  const base = all.filter((i) => matchesText(q, i.subject, i.body, i.authorName, i.answer) && (!unitF || (i.unitSigla ?? i.unitName) === unitF));
+  const count = { all: base.length, open: base.filter((i) => i.status === "open").length, answered: base.filter((i) => i.status === "answered").length };
+  // Pendientes primero; dentro de cada grupo, la más reciente arriba.
+  const shown = base
+    .filter((i) => filter === "all" || i.status === filter)
+    .sort((a, b) => (a.status === b.status ? b.createdAt.localeCompare(a.createdAt) : a.status === "open" ? -1 : 1));
+  const filtering = !!(q || unitF || filter !== "all");
+  const clear = () => { setQ(""); setUnitF(""); setFilter("all"); };
 
   return (
     <main className="page">
@@ -85,31 +97,36 @@ export default function ConsultasPage() {
           </form>
         </Card>
       )}
-      <p>
-        <label>
-          Ver:{" "}
-          <select value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
-            <option value="all">Todas</option>
-            <option value="open">Pendientes</option>
-            <option value="answered">Respondidas</option>
+      <FilterBar query={q} onQuery={setQ} placeholder="Buscar en asunto, texto o autor…" shown={shown.length} total={all.length} active={filtering} onClear={clear}>
+        <span className="fbar__chips">
+          {([["all", "Todas"], ["open", "Pendientes"], ["answered", "Respondidas"]] as const).map(([k, label]) => (
+            <button key={k} type="button" className="fbar__chip" aria-pressed={filter === k} onClick={() => setFilter(k)}>
+              {label} ({count[k]})
+            </button>
+          ))}
+        </span>
+        {isCorp && unitsInList.length > 1 && (
+          <select aria-label="Unidad" value={unitF} onChange={(e) => setUnitF(e.target.value)}>
+            <option value="">Todas las unidades</option>
+            {unitsInList.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
-        </label>
-      </p>
+        )}
+      </FilterBar>
       {items === null ? (
         <p className="empty">Cargando...</p>
       ) : shown.length === 0 ? (
-        <Card><p className="empty">No hay consultas.</p></Card>
+        <Card>{all.length === 0 ? <p className="empty">No hay consultas.</p> : <NoResults onClear={clear} />}</Card>
       ) : (
         shown.map((i) => (
           <Card key={i.id}>
             <h3>
-              {i.subject}{" "}
+              <Highlight text={i.subject} query={q} />{" "}
               {i.status === "answered" ? <Pill variant="good">Respondida</Pill> : <Pill variant="warn">Pendiente</Pill>}
             </h3>
-            <p style={{ whiteSpace: "pre-wrap" }}>{i.body}</p>
-            <p className="comment-preview">
-              {i.authorName} · {i.unitSigla ?? i.unitName} · {fmt(i.createdAt)}
+            <p className="inq-meta">
+              <strong>{i.unitSigla ?? i.unitName}</strong> · <Highlight text={i.authorName} query={q} /> · {fmt(i.createdAt)}
             </p>
+            <p style={{ whiteSpace: "pre-wrap" }}><Highlight text={i.body} query={q} /></p>
             {i.answer && (
               <p className="comment-preview" style={{ whiteSpace: "pre-wrap" }}>
                 <strong>Respuesta de {i.answeredByName}{i.answeredAt ? ` (${fmt(i.answeredAt)})` : ""}:</strong> {i.answer}

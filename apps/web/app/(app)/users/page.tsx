@@ -5,6 +5,7 @@ import { api } from "@/lib/api-client";
 import { useCachedGet } from "@/lib/api-cache";
 import { Button, Card, Pill } from "@/components/ui";
 import { PasswordReveal } from "@/components/password-reveal";
+import { FilterBar, Highlight, NoResults, matchesText } from "@/components/filter-bar";
 import { ROLE_LABEL, useMe, type Me } from "@/lib/use-me";
 
 interface UserRow {
@@ -33,6 +34,9 @@ export default function UsersPage() {
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [roleF, setRoleF] = useState("");
+  const [unitF, setUnitF] = useState("");
 
   const load = reload;
 
@@ -80,6 +84,15 @@ export default function UsersPage() {
 
   if (me.appRole === "evaluator") return <main className="page">No tienes acceso a esta sección.</main>;
   const isCorp = me.appRole === "corporate_admin";
+  const all = users ?? [];
+  const shown = all.filter(
+    (u) =>
+      matchesText(q, u.name, u.email) &&
+      (!roleF || u.appRole === roleF) &&
+      (!unitF || (unitF === "__corp" ? !u.unitId : u.unitId === unitF)),
+  );
+  const filtering = !!(q || roleF || unitF);
+  const clear = () => { setQ(""); setRoleF(""); setUnitF(""); };
 
   return (
     <main className="page">
@@ -124,16 +137,31 @@ export default function UsersPage() {
         </form>
       </Card>
       <Card>
+        <FilterBar query={q} onQuery={setQ} placeholder="Buscar por nombre o correo…" shown={shown.length} total={all.length} active={filtering} onClear={clear}>
+          <select aria-label="Rol" value={roleF} onChange={(e) => setRoleF(e.target.value)}>
+            <option value="">Todos los roles</option>
+            <option value="evaluator">{ROLE_LABEL.evaluator}</option>
+            <option value="unit_admin">{ROLE_LABEL.unit_admin}</option>
+            {isCorp && <option value="corporate_admin">{ROLE_LABEL.corporate_admin}</option>}
+          </select>
+          {isCorp && (
+            <select aria-label="Unidad" value={unitF} onChange={(e) => setUnitF(e.target.value)}>
+              <option value="">Todas las unidades</option>
+              <option value="__corp">Corporativo</option>
+              {units.map((u) => <option key={u.id} value={u.id}>{u.sigla ?? u.name}</option>)}
+            </select>
+          )}
+        </FilterBar>
         {users === null ? (
           <p className="empty">Cargando...</p>
         ) : (
           <table className="data-table">
             <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Unidad</th><th></th></tr></thead>
             <tbody>
-              {users.map((u) => (
+              {shown.map((u) => (
                 <tr key={u.userId}>
-                  <td>{u.name}</td>
-                  <td>{u.email}</td>
+                  <td><Highlight text={u.name} query={q} /></td>
+                  <td><Highlight text={u.email} query={q} /></td>
                   <td><Pill>{ROLE_LABEL[u.appRole]}</Pill></td>
                   <td>{u.unitName ? `${u.unitSigla ?? ""} ${u.unitName}`.trim() : "Corporativo"}</td>
                   <td>
@@ -155,6 +183,7 @@ export default function UsersPage() {
             </tbody>
           </table>
         )}
+        {users !== null && shown.length === 0 && <NoResults onClear={clear} />}
       </Card>
     </main>
   );

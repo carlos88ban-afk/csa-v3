@@ -4,6 +4,11 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-034 · Filtros en Usuarios, Unidades y Consultas (2026-11-13)
+
+- Barra de filtros fija con búsqueda (sin tildes ni mayúsculas), resaltado, contador «N de M» y «Limpiar».
+- Usuarios: rol y unidad. Unidades: estado. Consultas: estado con conteos y unidad; pendientes primero y autor/unidad/fecha sobre el texto.
+
 ### Fidelidad de pegado S&P (1.2.16 y 1.2.2) (2026-11-13)
 
 - Pegado de tablas del portal: en filas con campos, las celdas vacías y los rótulos de cualquier columna quedan de solo lectura (antes salían como campos de texto).

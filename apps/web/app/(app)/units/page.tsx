@@ -5,6 +5,7 @@ import { api } from "@/lib/api-client";
 import { useCachedGet } from "@/lib/api-cache";
 import { Button, Card, Pill } from "@/components/ui";
 import { useMe } from "@/lib/use-me";
+import { FilterBar, Highlight, NoResults, matchesText } from "@/components/filter-bar";
 
 interface Unit {
   id: string;
@@ -22,6 +23,8 @@ export default function UnitsPage() {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState({ name: "", sigla: "" });
   const [error, setError] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [stateF, setStateF] = useState("");
 
   const load = reload;
 
@@ -49,6 +52,11 @@ export default function UnitsPage() {
     }
   }
 
+  const all = units ?? [];
+  const shown = all.filter((u) => matchesText(q, u.sigla, u.name) && (!stateF || (stateF === "active") === u.active));
+  const filtering = !!(q || stateF);
+  const clear = () => { setQ(""); setStateF(""); };
+
   if (me.appRole !== "corporate_admin") return <main className="page">Solo el administrador corporativo gestiona unidades.</main>;
 
   return (
@@ -72,6 +80,13 @@ export default function UnitsPage() {
         </form>
       </Card>
       <Card>
+        <FilterBar query={q} onQuery={setQ} placeholder="Buscar por siglas o nombre…" shown={shown.length} total={all.length} active={filtering} onClear={clear}>
+          <select aria-label="Estado" value={stateF} onChange={(e) => setStateF(e.target.value)}>
+            <option value="">Todas</option>
+            <option value="active">Activas</option>
+            <option value="inactive">Desactivadas</option>
+          </select>
+        </FilterBar>
         {units === null ? (
           <p className="empty">Cargando...</p>
         ) : units.length === 0 ? (
@@ -82,7 +97,7 @@ export default function UnitsPage() {
               <tr><th>Siglas</th><th>Nombre</th><th>Estado</th><th></th></tr>
             </thead>
             <tbody>
-              {units.map((u) => (
+              {shown.map((u) => (
                 <tr key={u.id}>
                   {editing === u.id ? (
                     <>
@@ -96,8 +111,8 @@ export default function UnitsPage() {
                     </>
                   ) : (
                     <>
-                      <td><strong>{u.sigla ?? "—"}</strong></td>
-                      <td>{u.name}</td>
+                      <td><strong>{u.sigla ? <Highlight text={u.sigla} query={q} /> : "—"}</strong></td>
+                      <td><Highlight text={u.name} query={q} /></td>
                       <td>{u.active ? <Pill variant="good">Activa</Pill> : <Pill variant="warn">Desactivada</Pill>}</td>
                       <td>
                         <Button size="sm" onClick={() => { setEditing(u.id); setDraft({ name: u.name, sigla: u.sigla ?? "" }); }}>Editar</Button>{" "}
@@ -112,6 +127,7 @@ export default function UnitsPage() {
             </tbody>
           </table>
         )}
+        {units !== null && units.length > 0 && shown.length === 0 && <NoResults onClear={clear} />}
       </Card>
     </main>
   );
