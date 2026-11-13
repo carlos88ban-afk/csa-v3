@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins";
 import { defaultRoles } from "better-auth/plugins/organization/access";
-import { eq } from "drizzle-orm";
+import { asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "./client.js";
 import * as schema from "./schema/auth.js";
 import { emailTemplates, sendEmail } from "./email.js";
@@ -46,7 +46,17 @@ export const auth = betterAuth({
         // Cada usuario pertenece a una sola unidad: al iniciar sesion su
         // organizacion activa es esa (o la corporativa para administradores).
         before: async (session: { userId: string }) => {
-          const [m] = await db.select().from(schema.member).where(eq(schema.member.userId, session.userId));
+          // Determinista: si el usuario tiene varias membresías, gana la organización con más
+          // unidades hijas (la corporativa con datos); a igualdad, la membresía más antigua.
+          // Sin orden explícito Postgres devolvía una u otra y el administrador veía datos distintos.
+          const [m] = await db
+            .select()
+            .from(schema.member)
+            .where(eq(schema.member.userId, session.userId))
+            .orderBy(
+              desc(sql`(select count(*) from organization c where c.parent_organization_id = ${schema.member.organizationId})`),
+              asc(schema.member.createdAt),
+            );
           return { data: { ...session, activeOrganizationId: m?.organizationId ?? null } };
         },
       },
