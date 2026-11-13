@@ -36,5 +36,5 @@ export default function AuthenticatedEvaluationPage({ params }: Props) {
     [id],
   );
   const evidenceBase = `/api/evaluations/${id}/for-business-unit/evidences`;
-  return <RuntimeCore adapter={adapter} evidenceToken={evidenceBase} />;
+  return <RuntimeCore adapter={adapter} evidenceToken={evidenceBase} assignEvaluationId={id} />;
 }

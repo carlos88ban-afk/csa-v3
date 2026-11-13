@@ -48,6 +48,8 @@ import StarterKit from "@tiptap/starter-kit";
 import { api } from "@/lib/api-client";
 import { Pill } from "@/components/ui";
 import { RichLabel } from "@/components/rich-label";
+import { AssignNode, useAssignData } from "@/components/tree-assign";
+import { useMe } from "@/lib/use-me";
 
 const COMMENT_MAX_CHARS = 5000;
 
@@ -195,6 +197,8 @@ function blockCounts(sub: SnapshotSubindicator, answers: ResponseAnswers | undef
 }
 const addCounts = (x: Counts, y: Counts): Counts => ({ complete: x.complete + y.complete, partial: x.partial + y.partial, empty: x.empty + y.empty });
 const ZERO: Counts = { complete: 0, partial: 0, empty: 0 };
+const subIdsOfInd = (ind: SnapshotIndicator) => ind.subindicators.map((s) => s.id);
+const subIdsOfDim = (dim: SnapshotDimension) => [...dim.indicators.flatMap(subIdsOfInd), ...dim.subindicators.map((s) => s.id)];
 function indCounts(ind: SnapshotIndicator, abs: Record<string, ResponseAnswers>): Counts {
   return ind.subindicators.reduce((acc, sub) => addCounts(acc, blockCounts(sub, abs[sub.id])), ZERO);
 }
@@ -222,7 +226,7 @@ function progressState(p: { answered: number; total: number }): "" | "neutral" |
 // VS-054: `evidenceToken` sigue siendo el prop que baja a EvidenceView/
 // OptionReferencesView (evidencia pública) — `undefined` cuando el llamador
 // es el Runtime autenticado, ver guards en esos componentes arriba.
-export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapter; evidenceToken: string | undefined }) {
+export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { adapter: RuntimeAdapter; evidenceToken: string | undefined; assignEvaluationId?: string }) {
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [answersBySub, setAnswersBySub] = useState<Record<string, ResponseAnswers>>({});
@@ -231,6 +235,8 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  const { me } = useMe();
+  const assign = useAssignData(assignEvaluationId, !!assignEvaluationId && me.appRole === "unit_admin");
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Id del Subindicador recién tocado por el evaluado (ver setAnswer). null =
@@ -457,22 +463,26 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
           const dimState = dotState(dimCounts(dim, answersBySub));
           return (
             <div key={dim.id} className="runtime-nav__dim">
-              <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(dim.id)}>
+              <AssignNode data={assign} scopeIds={subIdsOfDim(dim)} label={dim.title}>
+                <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(dim.id)}>
                 <span className="runtime-nav__caret">{collapsed.has(dim.id) ? "▸" : "▾"}</span>
                 <span className={`tree-dot${dimState ? ` tree-dot--${dimState}` : ""}`} />
                 {dimensionNumber(dimIndex)} {dim.title}
               </button>
+              </AssignNode>
 
               {!collapsed.has(dim.id) &&
                 dim.indicators.map((ind, indIndex) => {
                   const indState = dotState(indCounts(ind, answersBySub));
                   return (
                     <div key={ind.id} className="runtime-nav__ind">
-                      <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(ind.id)}>
+                      <AssignNode data={assign} scopeIds={subIdsOfInd(ind)} label={ind.title}>
+                        <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(ind.id)}>
                         <span className="runtime-nav__caret">{collapsed.has(ind.id) ? "▸" : "▾"}</span>
                         <span className={`tree-dot${indState ? ` tree-dot--${indState}` : ""}`} />
                         {indicatorNumber(dimIndex, indIndex)} {ind.title}
                       </button>
+                      </AssignNode>
 
                       {!collapsed.has(ind.id) &&
                         ind.subindicators.map((sub, subIndex) => {
@@ -480,7 +490,8 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
                           const state = dotState(counts);
                           if (!matchesFilter(counts, filter)) return null;
                           return (
-                            <button
+                            <AssignNode key={sub.id} data={assign} scopeIds={[sub.id]} label={sub.title}>
+                              <button
                               key={sub.id}
                               type="button"
                               className={`runtime-nav__sub${sub.id === activeId ? " runtime-nav__sub--active" : ""}`}
@@ -489,6 +500,7 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
                               <span className={`tree-dot${state ? ` tree-dot--${state}` : ""}`} />
                               {subindicatorNumber(dimIndex, indIndex, subIndex)} {sub.title}
                             </button>
+                            </AssignNode>
                           );
                         })}
                     </div>
@@ -504,7 +516,8 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
                   const state = dotState(counts);
                   if (!matchesFilter(counts, filter)) return null;
                   return (
-                    <button
+                    <AssignNode key={sub.id} data={assign} scopeIds={[sub.id]} label={sub.title}>
+                      <button
                       key={sub.id}
                       type="button"
                       className={`runtime-nav__sub${sub.id === activeId ? " runtime-nav__sub--active" : ""}`}
@@ -513,6 +526,7 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
                       <span className={`tree-dot${state ? ` tree-dot--${state}` : ""}`} />
                       {directSubindicatorNumber(dimIndex, dim.indicators.length, subIndex)} {sub.title}
                     </button>
+                    </AssignNode>
                   );
                 })}
             </div>
