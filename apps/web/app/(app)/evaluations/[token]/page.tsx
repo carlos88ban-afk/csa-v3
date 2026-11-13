@@ -5,6 +5,7 @@ import { DueDateBanner } from "@/components/due-date-banner";
 import {
   commentKey,
   componentRegistry,
+  completionOf,
   deriveStatus,
   dimensionNumber,
   directSubindicatorNumber,
@@ -26,6 +27,7 @@ import {
   subindicatorNumber,
   unitKey,
   type AnswerValue,
+  type Completion,
   type Evaluation,
   type EvaluationSnapshot,
   type EvidenceRef,
@@ -177,6 +179,39 @@ function dimensionProgress(dim: SnapshotDimension, answersBySub: Record<string, 
   }, fromIndicators);
 }
 
+// VS-033: semáforo por pregunta. Completa = respondida (o N/A / marcada lista);
+// parcial = respondida pero incompleta (celdas editables vacías de una tabla o
+// sub-opciones sin elegir); sin responder = sin respuesta.
+interface Counts { complete: number; partial: number; empty: number }
+const COMPLETION_LABEL: Record<Completion, string> = { complete: "Completa", partial: "Parcial", empty: "Sin responder" };
+
+function blockCounts(sub: SnapshotSubindicator, answers: ResponseAnswers | undefined): Counts {
+  const a = answers ?? {};
+  const c: Counts = { complete: 0, partial: 0, empty: 0 };
+  for (const el of sub.formSchema?.elements ?? []) {
+    if (isQuestion(el) && isElementVisible(el.visibleIf, a)) c[completionOf(el, a)]++;
+  }
+  return c;
+}
+const addCounts = (x: Counts, y: Counts): Counts => ({ complete: x.complete + y.complete, partial: x.partial + y.partial, empty: x.empty + y.empty });
+const ZERO: Counts = { complete: 0, partial: 0, empty: 0 };
+function indCounts(ind: SnapshotIndicator, abs: Record<string, ResponseAnswers>): Counts {
+  return ind.subindicators.reduce((acc, sub) => addCounts(acc, blockCounts(sub, abs[sub.id])), ZERO);
+}
+function dimCounts(dim: SnapshotDimension, abs: Record<string, ResponseAnswers>): Counts {
+  const fromInd = dim.indicators.reduce((acc, ind) => addCounts(acc, indCounts(ind, abs)), ZERO);
+  return dim.subindicators.reduce((acc, sub) => addCounts(acc, blockCounts(sub, abs[sub.id])), fromInd);
+}
+function dotState(c: Counts): "" | "good" | "warn" | "critical" {
+  const t = c.complete + c.partial + c.empty;
+  if (t === 0) return "";
+  if (c.complete === t) return "good";
+  if (c.empty === t) return "critical";
+  return "warn";
+}
+type Filter = "all" | Completion;
+const matchesFilter = (c: Counts, f: Filter) => f === "all" || c[f] > 0;
+
 function progressState(p: { answered: number; total: number }): "" | "neutral" | "accent" | "good" {
   if (p.total === 0) return "";
   if (p.answered === 0) return "neutral";
@@ -195,6 +230,7 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Id del Subindicador recién tocado por el evaluado (ver setAnswer). null =
@@ -265,6 +301,12 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
       total += p.total;
     }
     return total === 0 ? 0 : Math.round((answered / total) * 100);
+  }, [flat, answersBySub]);
+
+  const totalCounts = useMemo(() => {
+    let c = ZERO;
+    for (const f of flat) c = addCounts(c, blockCounts(f.sub, answersBySub[f.sub.id]));
+    return c;
   }, [flat, answersBySub]);
 
   // VS-020: extraído de scheduleAutosave para que el botón "Guardar" pueda
@@ -393,13 +435,26 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
         <div className="runtime-nav__head">
           <strong>{snapshot.frameworkName}</strong>
           <Pill variant="accent">{globalProgress}% completado</Pill>
+          <div className="q-summary" role="group" aria-label="Filtrar preguntas por estado">
+            {([
+              ["all", "Todas", totalCounts.complete + totalCounts.partial + totalCounts.empty],
+              ["empty", "Me faltan", totalCounts.empty],
+              ["partial", "Parciales", totalCounts.partial],
+              ["complete", "Completadas", totalCounts.complete],
+            ] as [Filter, string, number][]).map(([key, label, n]) => (
+              <button key={key} type="button" aria-pressed={filter === key} className={`q-chip q-chip--${key}${filter === key ? " q-chip--on" : ""}`} onClick={() => setFilter(key)}>
+                {key !== "all" && <span className={`q-dot q-dot--${key}`} aria-hidden="true" />}
+                {label} <strong>{n}</strong>
+              </button>
+            ))}
+          </div>
           {evaluation.dueDate && (
             <p className="page__lead">Plazo: {formatDueDate(evaluation.dueDate)}</p>
           )}
         </div>
 
         {snapshot.dimensions.map((dim, dimIndex) => {
-          const dimState = progressState(dimensionProgress(dim, answersBySub));
+          const dimState = dotState(dimCounts(dim, answersBySub));
           return (
             <div key={dim.id} className="runtime-nav__dim">
               <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(dim.id)}>
@@ -410,7 +465,7 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
 
               {!collapsed.has(dim.id) &&
                 dim.indicators.map((ind, indIndex) => {
-                  const indState = progressState(indicatorProgress(ind, answersBySub));
+                  const indState = dotState(indCounts(ind, answersBySub));
                   return (
                     <div key={ind.id} className="runtime-nav__ind">
                       <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(ind.id)}>
@@ -421,7 +476,9 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
 
                       {!collapsed.has(ind.id) &&
                         ind.subindicators.map((sub, subIndex) => {
-                          const state = progressState(progressOf(sub, answersBySub[sub.id]));
+                          const counts = blockCounts(sub, answersBySub[sub.id]);
+                          const state = dotState(counts);
+                          if (!matchesFilter(counts, filter)) return null;
                           return (
                             <button
                               key={sub.id}
@@ -443,7 +500,9 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
                   normal pero sin agrupador de por medio. */}
               {!collapsed.has(dim.id) &&
                 dim.subindicators.map((sub, subIndex) => {
-                  const state = progressState(progressOf(sub, answersBySub[sub.id]));
+                  const counts = blockCounts(sub, answersBySub[sub.id]);
+                  const state = dotState(counts);
+                  if (!matchesFilter(counts, filter)) return null;
                   return (
                     <button
                       key={sub.id}
@@ -529,13 +588,19 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
               // VS-021 (docs/engines/form.md, "Numeración automática de
               // preguntas"): 0.N solo sobre elementos isQuestion, en el orden
               // ya filtrado por visibleIf — reinicia en cada Subindicador.
-              const visibleElements = active.sub.formSchema.elements.filter((el) =>
-                isElementVisible(el.visibleIf, answersBySub[active.sub.id] ?? {}),
+              const subAnswers = answersBySub[active.sub.id] ?? {};
+              const visibleElements = active.sub.formSchema.elements.filter(
+                (el) =>
+                  isElementVisible(el.visibleIf, subAnswers) &&
+                  (filter === "all" || (isQuestion(el) && completionOf(el, subAnswers) === filter)),
               );
+              if (visibleElements.length === 0)
+                return <p className="empty">Nada en este bloque coincide con el filtro. Prueba con «Todas».</p>;
               let qIndex = 0;
               return visibleElements.map((el) => {
                 const number = isQuestion(el) ? questionNumber(qIndex++) : undefined;
-                return (
+                const st = isQuestion(el) ? completionOf(el, subAnswers) : null;
+                const view = (
                   <ElementView
                     key={el.id}
                     token={evidenceToken}
@@ -548,6 +613,14 @@ export function RuntimeCore({ adapter, evidenceToken }: { adapter: RuntimeAdapte
                     onAnswerChange={setAnswer}
                     formLocked={deadlineLocked}
                   />
+                );
+                return st ? (
+                  <div key={el.id} className={`q-state q-state--${st}`}>
+                    <span className={`q-badge q-badge--${st}`}>{COMPLETION_LABEL[st]}</span>
+                    {view}
+                  </div>
+                ) : (
+                  view
                 );
               });
             })()}

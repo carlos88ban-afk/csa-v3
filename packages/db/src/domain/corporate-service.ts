@@ -402,6 +402,7 @@ export async function duplicateFramework(organizationId: string, frameworkId: st
 // ---------------------------------------------------------------- Avance
 
 import {
+  completionOf,
   componentRegistry,
   deriveStatus,
   isAnswered,
@@ -430,6 +431,9 @@ export interface OverviewRow {
   responsible: string | null;
   total: number;
   answered: number;
+  complete: number;
+  partial: number;
+  empty: number;
   completed: number;
   approved: number;
   submitted: number;
@@ -459,8 +463,12 @@ export async function getOverview(evaluationId: string, corporateOrgId: string):
         (el) => isQuestionEl(el) && isElementVisible(el.visibleIf, answers),
       );
       if (questions.length === 0) return;
-      let answered = 0, completed = 0, approved = 0, submitted = 0, returned = 0;
+      let answered = 0, completed = 0, approved = 0, submitted = 0, returned = 0, complete = 0, partial = 0, empty = 0;
       for (const q of questions) {
+        const cs = completionOf(q, answers);
+        if (cs === "complete") complete++;
+        else if (cs === "partial") partial++;
+        else empty++;
         const na = answers[naKey(q.id)] as string | undefined;
         const ok = isAnswered(answers[q.id], na);
         const st = deriveStatus(answers[statusKey(q.id)] as string | undefined, ok);
@@ -483,6 +491,9 @@ export async function getOverview(evaluationId: string, corporateOrgId: string):
         responsible: b?.userName ?? null,
         total: questions.length,
         answered,
+        complete,
+        partial,
+        empty,
         completed,
         approved,
         submitted,

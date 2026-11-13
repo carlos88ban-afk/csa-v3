@@ -12,3 +12,4 @@ export * from "./rich-text.js";
 export * from "./paste-parser.js";
 export * from "./historical.js";
 export * from "./answer-text.js";
+export * from "./completion.js";

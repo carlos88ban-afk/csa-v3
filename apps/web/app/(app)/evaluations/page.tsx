@@ -28,6 +28,9 @@ interface Row {
   responsible: string | null;
   total: number;
   answered: number;
+  complete: number;
+  partial: number;
+  empty: number;
   completed: number;
   approved: number;
   submitted: number;
@@ -68,16 +71,23 @@ export default function EvaluationsPage() {
     await reloadCurrent();
   }
 
+  const [dimFilter, setDimFilter] = useState("");
+  // Tablero: por unidad, preguntas completas / parciales / sin responder (VS-033).
   const units = useMemo(() => {
-    const m = new Map<string, { name: string; total: number; answered: number }>();
+    const m = new Map<string, { name: string; total: number; answered: number; complete: number; partial: number; empty: number }>();
     for (const r of rows ?? []) {
-      const u = m.get(r.unitId) ?? { name: r.unitSigla || r.unitName, total: 0, answered: 0 };
-      u.total += r.total;
-      u.answered += r.answered;
+      const u = m.get(r.unitId) ?? { name: r.unitSigla || r.unitName, total: 0, answered: 0, complete: 0, partial: 0, empty: 0 };
+      if (!dimFilter || r.dimension === dimFilter) {
+        u.total += r.total;
+        u.answered += r.answered;
+        u.complete += r.complete;
+        u.partial += r.partial;
+        u.empty += r.empty;
+      }
       m.set(r.unitId, u);
     }
     return m;
-  }, [rows]);
+  }, [rows, dimFilter]);
 
   if (me.appRole !== "corporate_admin") return <main className="page">Esta sección es para el administrador corporativo.</main>;
   if (current === undefined)
@@ -135,17 +145,41 @@ export default function EvaluationsPage() {
 
       <ShareLink title={current.title} closed={closed} />
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        {[...units].map(([id, u]) => {
-          const pct = u.total === 0 ? 0 : Math.round((u.answered / u.total) * 100);
-          return (
-            <Card key={id}>
-              <strong>{u.name}</strong>
-              <div>{pct}% · {u.answered}/{u.total} preguntas</div>
-            </Card>
-          );
-        })}
-      </div>
+      <section className="dash" aria-label="Avance por empresa">
+        <div className="dash__head">
+          <h2>Avance por empresa</h2>
+          <select aria-label="Filtrar tablero por dimensión" value={dimFilter} onChange={(e) => setDimFilter(e.target.value)}>
+            <option value="">Todas las dimensiones</option>
+            {dims.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+        <div className="dash__legend" aria-hidden="true">
+          <span><i className="q-dot q-dot--complete" /> Completas</span>
+          <span><i className="q-dot q-dot--partial" /> Parciales</span>
+          <span><i className="q-dot q-dot--empty" /> Sin responder</span>
+        </div>
+        <div className="dash__grid">
+          {[...units].map(([id, u]) => {
+            const pct = (n: number) => (u.total === 0 ? 0 : (n / u.total) * 100);
+            return (
+              <article key={id} className="dash__card">
+                <header><strong>{u.name}</strong><span>{Math.round(pct(u.complete))}% completo</span></header>
+                <div className="dash__bar" role="img" aria-label={`${u.complete} completas, ${u.partial} parciales, ${u.empty} sin responder de ${u.total}`}>
+                  <span className="dash__seg dash__seg--complete" style={{ width: `${pct(u.complete)}%` }} />
+                  <span className="dash__seg dash__seg--partial" style={{ width: `${pct(u.partial)}%` }} />
+                  <span className="dash__seg dash__seg--empty" style={{ width: `${pct(u.empty)}%` }} />
+                </div>
+                <dl className="dash__nums">
+                  <div><dt>Completas</dt><dd className="dash__n--complete">{u.complete}</dd></div>
+                  <div><dt>Parciales</dt><dd className="dash__n--partial">{u.partial}</dd></div>
+                  <div><dt>Sin responder</dt><dd className="dash__n--empty">{u.empty}</dd></div>
+                  <div><dt>Le corresponden</dt><dd>{u.total}</dd></div>
+                </dl>
+              </article>
+            );
+          })}
+        </div>
+      </section>
 
       <p style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
         <select aria-label="Unidad" value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })}>
