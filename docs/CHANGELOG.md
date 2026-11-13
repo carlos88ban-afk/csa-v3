@@ -4,6 +4,11 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### Fidelidad de pegado S&P (1.2.16 y 1.2.2) (2026-11-13)
+
+- Pegado de tablas del portal: en filas con campos, las celdas vacías y los rótulos de cualquier columna quedan de solo lectura (antes salían como campos de texto).
+- Builder: el campo «máx.» de enlaces ya no recorta el número.
+
 ### VS-033 · Responsables por correo, semáforo, tablero y tema (2026-11-13)
 
 - Admin de unidad asigna responsable por correo a dimensión, indicador o bloque (crea la cuenta si no existe y muestra la contraseña).

@@ -269,7 +269,8 @@ select.pi__type { font: inherit; font-size: var(--text-xs); border: 0; backgroun
 .lc-table textarea.lc-text,.lc-mixed textarea.lc-text{resize:none;overflow:hidden;field-sizing:content;min-height:0;width:auto;flex:1;font:inherit;padding:4px 8px;border:1px solid transparent;background:transparent;box-shadow:none}
 .lc-table textarea.lc-text:hover,.lc-table textarea.lc-text:focus{border-color:var(--border,#475467)}
 .lc-ref{font-size:var(--text-sm);color:var(--ink-muted);border:1px dashed color-mix(in srgb,var(--ink) 30%,transparent);border-radius:6px;padding:6px 8px;display:flex;gap:6px;align-items:center}
-.lc-ref input{width:5ch}
+.lc-ref input{box-sizing:content-box;width:3ch;min-width:3ch;padding:4px 10px;text-align:center;-moz-appearance:textfield;appearance:textfield}
+.lc-ref input::-webkit-outer-spin-button,.lc-ref input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .lc-opts{width:100%}
 /* Títulos opcionales de campos: aparecen solo al pasar el cursor (la maqueta se ve como el formulario real) */
 .lc-mixed__field > input.lc-input:not(.lc-input--ghost):placeholder-shown:not(:focus){height:0;padding:0;border:0;opacity:0;overflow:hidden}

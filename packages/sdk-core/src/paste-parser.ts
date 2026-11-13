@@ -134,6 +134,10 @@ function tableConfig(rows: string[][]) {
     id: uid(),
     cells: columns.map((c, i) => {
       const txt = r[i] ?? "";
+      // Fila con campos en otra celda (tabla del portal): las celdas vacías y los rótulos de cualquier columna son de solo lectura.
+      const rowHasControl = r.some((x) => HAS_CONTROL.test(x) || /[#%]?_{3,}/.test(x));
+      if (rowHasControl && !HAS_CONTROL.test(txt) && !/[#%]?_{3,}/.test(txt))
+        return { columnId: c.id, cellType: "texto" as const, editable: false, ...(txt ? { content: pieceHtml(txt.split(SEP).filter(Boolean)) } : {}) };
       // Primera columna con texto = nombre de la fila (solo lectura); el resto se captura.
       if (i === 0 && txt && !HAS_CONTROL.test(txt)) return { columnId: c.id, cellType: "texto" as const, editable: false, content: pieceHtml(txt.split(SEP).filter(Boolean)) };
       if (txt.includes(SEP) || REF_HINT.test(txt) || txt.includes("▾")) {

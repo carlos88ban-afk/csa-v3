@@ -23,6 +23,15 @@ describe("parsePastedText", () => {
     const r = parsePastedText("| Material | Objetivo | Evidencia |\n|---|---|---|\n| Papel | 10% | |");
     expect(r[0]!.element.type).toBe("tabla_datos");
   });
+  it("tabla del portal: rótulos y celdas vacías de una fila con campos son de solo lectura", () => {
+    const r = parsePastedText("| Tipo de tablero | Tipo de director | Número |\n| Consejo | independientes | #_____ ¦ numérico |\n|  | Otros | #_____ ¦ numérico |");
+    const rows = (r[0]!.element as any).rows;
+    for (const row of rows.slice(1)) {
+      expect(row.cells[0].editable).toBe(false);
+      expect(row.cells[1].editable).toBe(false);
+      expect(row.cells[2].editable).toBe(true);
+    }
+  });
   it("tabla pegada desde Excel (tabs)", () => {
     expect(types("Material\tObjetivo\tEvidencia\nPapel\t10\tsi")).toEqual(["tabla_datos"]);
   });
