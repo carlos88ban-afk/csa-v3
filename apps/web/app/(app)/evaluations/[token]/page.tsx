@@ -299,14 +299,15 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
     : false;
 
   const globalProgress = useMemo(() => {
-    let answered = 0;
+    // Coherente con el semáforo: solo cuentan las preguntas completas.
+    let complete = 0;
     let total = 0;
     for (const f of flat) {
-      const p = progressOf(f.sub, answersBySub[f.sub.id]);
-      answered += p.answered;
-      total += p.total;
+      const c = blockCounts(f.sub, answersBySub[f.sub.id]);
+      complete += c.complete;
+      total += c.complete + c.partial + c.empty;
     }
-    return total === 0 ? 0 : Math.round((answered / total) * 100);
+    return total === 0 ? 0 : Math.round((complete / total) * 100);
   }, [flat, answersBySub]);
 
   const totalCounts = useMemo(() => {
