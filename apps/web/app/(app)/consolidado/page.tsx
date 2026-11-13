@@ -62,7 +62,7 @@ export default function ConsolidadoPage() {
 
   const rows = useMemo(() => (data ? buildConsolidation(data.snapshot, data.units, data.responses) : []), [data]);
   const dims = [...new Set(rows.map((r) => r.dimension))];
-  const shown = rows.filter((r) => (!dim || r.dimension === dim) && (!onlyAnswered || r.answeredUnits > 0));
+  const shown = rows.filter((r) => (!dim || r.dimension === dim) && (!onlyAnswered || r.answeredUnits > 0 || r.contributions !== ""));
 
   if (loading || !me) return <main className="loading">Cargando...</main>;
   if (me.appRole !== "corporate_admin") return <main className="page">Solo el administrador corporativo ve el consolidado.</main>;
@@ -90,7 +90,7 @@ export default function ConsolidadoPage() {
           </select>
         </label>{" "}
         <label>
-          <input type="checkbox" checked={onlyAnswered} onChange={(e) => setOnlyAnswered(e.target.checked)} /> Solo preguntas con respuestas
+          <input type="checkbox" checked={onlyAnswered} onChange={(e) => setOnlyAnswered(e.target.checked)} /> Solo preguntas con respuestas o «No aplica»
         </label>
       </p>
       <Card>
