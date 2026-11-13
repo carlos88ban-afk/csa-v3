@@ -1,6 +1,7 @@
 import {
   commentKey,
   componentRegistry,
+  completionOf,
   deriveStatus,
   isAnswered,
   isElementVisible,
@@ -380,7 +381,10 @@ const STATUS_LABEL: Record<ReturnType<typeof deriveStatus>, string> = {
 
 type SnapshotSubindicator = EvaluationSnapshot["dimensions"][number]["indicators"][number]["subindicators"][number];
 
-export const EXPORT_HEADER = ["Dimensión", "Indicador", "Subindicador", "Número", "Elemento", "Tipo", "Respuesta", "Estado", "Comentario confidencial"];
+export const EXPORT_HEADER = ["Dimensión", "Indicador", "Subindicador", "Número", "Elemento", "Tipo", "Respuesta", "Estado", "Completitud", "Comentario confidencial"];
+
+// VS-033: semáforo de completitud por pregunta (misma regla que la pantalla del evaluado).
+const COMPLETION_LABEL: Record<string, string> = { complete: "Completa", partial: "Parcial", empty: "Sin responder" };
 
 // Extraído para reusarse en dos sitios: Subindicadores bajo Indicador y
 // Subindicadores directos bajo Dimensión (VS-029, docs/domain/evaluation-hierarchy.md)
@@ -407,6 +411,7 @@ function subindicatorRows(dimTitle: string, indTitle: string, sub: SnapshotSubin
       componentRegistry.find((c) => c.type === el.type)?.label ?? el.type,
       formatAnswer(el, answers[el.id], markedNA, answers),
       STATUS_LABEL[derived],
+      COMPLETION_LABEL[completionOf(el, answers)] ?? "",
       stripCommentHtml((answers[commentKey(el.id)] as string | undefined) ?? ""),
     ];
   });

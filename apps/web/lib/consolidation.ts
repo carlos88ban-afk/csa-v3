@@ -119,10 +119,14 @@ export function buildConsolidation(
       if (!QUESTION_TYPES.has(el.type)) continue;
       const applicable = units.filter((u) => !el.appliesTo || el.appliesTo.includes(u.id));
       const entries: Array<{ unit: string; value: unknown; answers: ResponseAnswers }> = [];
+      const naUnits: string[] = [];
       for (const u of applicable) {
         const answers = bySubUnit.get(`${sub.id}::${u.id}`);
         if (!answers) continue;
-        if ((answers[naKey(el.id)] as string | undefined) === "true") continue;
+        if ((answers[naKey(el.id)] as string | undefined) === "true") {
+          naUnits.push(u.sigla || u.name);
+          continue;
+        }
         const value = answers[el.id];
         if (value === undefined || value === null || value === "") continue;
         entries.push({ unit: u.sigla || u.name, value, answers });
@@ -137,7 +141,8 @@ export function buildConsolidation(
         type: el.type,
         rule: c.rule,
         value: c.value,
-        contributions: c.contributions,
+        // Las unidades que marcaron "No aplica" se listan para no perder el contexto (no cuentan en el valor).
+        contributions: [c.contributions, ...naUnits.map((n) => `${n}: No aplica`)].filter(Boolean).join("\n"),
         answeredUnits: entries.length,
         applicableUnits: applicable.length,
       });
