@@ -2718,3 +2718,13 @@ textarea::placeholder {
     flex-wrap: wrap;
   }
 }
+
+/* Avisos de éxito (verde) distintos de los de error */
+.alert--ok {
+  background: var(--good-soft);
+  color: var(--good);
+  border-color: var(--good);
+}
+.alert--ok .pw__input {
+  color: var(--ink);
+}

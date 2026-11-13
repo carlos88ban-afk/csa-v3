@@ -110,7 +110,7 @@ export default function ResponsablesPage() {
         Asigna con un correo quién responde cada tema. Esa persona entra con el mismo enlace y ve solo las preguntas que le tocan.
       </p>
       {error && <p className="alert" role="alert">{error}</p>}
-      {ok && <p className="alert" role="status">{ok}</p>}
+      {ok && <p className="alert alert--ok" role="status">{ok}</p>}
       {created && <PasswordReveal email={created.email} password={created.password} onClose={() => setCreated(null)} />}
       <Card>
         <form onSubmit={assignEmail} className="field-grid">

@@ -18,7 +18,7 @@ export function PasswordReveal({ email, password, onClose }: { email: string; pa
   }
 
   return (
-    <div className="alert pw" role="status">
+    <div className="alert alert--ok pw" role="status">
       <div>
         Contraseña nueva de <strong>{email}</strong>. Cópiala ahora: por seguridad no se guarda en claro y no se vuelve a mostrar.
         Si la olvidas, genera otra con «Nueva contraseña».

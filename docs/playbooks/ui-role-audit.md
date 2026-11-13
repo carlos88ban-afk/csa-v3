@@ -40,4 +40,4 @@ Captura de la pantalla principal de cada rol en oscuro y en claro (`document.doc
 ## Estado
 - Corporativo: auditado 2026-11-13 (7 páginas sin desborde).
 - Evaluador: revisado manualmente 2026-11-13.
-- Admin de unidad: pendiente (requiere sesión).
+- Admin de unidad: auditado 2026-11-13 (4 páginas sin desborde); asignación por correo probada en producción.
