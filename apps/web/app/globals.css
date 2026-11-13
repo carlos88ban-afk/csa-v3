@@ -2747,3 +2747,7 @@ textarea::placeholder {
 .assign-panel__form { display: flex; flex-direction: column; gap: 6px; }
 .assign-panel__form input { width: 100%; }
 .assign-panel__err { color: var(--critical); font-size: var(--text-xs); margin: 0; }
+
+/* Chip de responsable compacto: círculo con iniciales */
+.assign-chip { width: 26px; height: 26px; max-width: none; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; font-size: 11px; }
+.assign-chip--empty { font-size: 14px; }

@@ -45,7 +45,8 @@ export function useAssignData(evaluationId: string | undefined, enabled: boolean
   return enabled && ready && evaluationId ? { evaluationId, blocks, users, reload } : null;
 }
 
-const firstName = (n: string) => n.trim().split(/\s+/)[0] ?? n;
+const initials = (n: string) =>
+  n.trim().split(/[\s._@-]+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join("") || "?";
 
 export function AssignNode({ data, scopeIds, label, children }: { data: AssignData | null; scopeIds: string[]; label: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -68,7 +69,8 @@ export function AssignNode({ data, scopeIds, label, children }: { data: AssignDa
   }
   const unassigned = inScope.filter((b) => !b.userId).length;
   const list = [...people.entries()];
-  const summary = list.length === 0 ? "＋ Asignar" : list.length === 1 && unassigned === 0 ? firstName(list[0]![1].name) : `${list.length} personas`;
+  const summary = list.length === 0 ? "＋" : list.length === 1 ? initials(list[0]![1].name) : String(list.length);
+  const who = list.length === 0 ? "sin responsable" : list.map(([, p]) => p.name).join(", ");
   const known = data.users.some((u) => u.email.toLowerCase() === email.trim().toLowerCase());
 
   async function assign(e: React.FormEvent) {
@@ -112,8 +114,8 @@ export function AssignNode({ data, scopeIds, label, children }: { data: AssignDa
           type="button"
           className={`assign-chip${list.length === 0 ? " assign-chip--empty" : ""}${open ? " assign-chip--open" : ""}`}
           aria-expanded={open}
-          aria-label={`Responsable de ${label}: ${summary}`}
-          title={list.length ? list.map(([, p]) => p.name).join(", ") : "Sin responsable"}
+          aria-label={`Responsable de ${label}: ${who}`}
+          title={who}
           onClick={() => setOpen((o) => !o)}
         >
           {summary}
