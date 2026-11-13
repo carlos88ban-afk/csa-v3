@@ -4,6 +4,14 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-033 · Responsables por correo, semáforo, tablero y tema (2026-11-13)
+
+- Admin de unidad asigna responsable por correo a dimensión, indicador o bloque (crea la cuenta si no existe y muestra la contraseña).
+- Semáforo por pregunta (verde/amarillo/rojo) con filtros Me faltan / Parciales / Completadas; regla compartida `completionOf` en sdk-core.
+- Tablero corporativo por empresa (completas, parciales, sin responder) con filtro por dimensión.
+- Tema claro/oscuro con paleta azul corporativa; enlace de la evaluación vigente visible y botón de nueva contraseña por usuario.
+- Validado en producción por API y visualmente; pendiente validar con sesión de unidad. Ver `docs/slices/VS-033.md`.
+
 ### Builder: lienzo vivo WYSIWYG (2026-11-09)
 
 Opciones y tablas se editan directamente con su aspecto real; sin vocabulario técnico. Ver `docs/engines/form.md` "Lienzo vivo".
