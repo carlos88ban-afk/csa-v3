@@ -217,7 +217,10 @@ export default function EvaluationsPage() {
                   <td><strong>{r.unitSigla || r.unitName}</strong></td>
                   <td>{r.dimension}{r.indicator ? ` › ${r.indicator}` : ""} › {r.title}</td>
                   <td>{r.responsible ?? <em>Sin asignar</em>}</td>
-                  <td>{r.answered}/{r.total}</td>
+                  <td>
+                    {r.complete}/{r.total}
+                    {r.partial > 0 && <small className="dash__partial"> · {r.partial} {r.partial === 1 ? "parcial" : "parciales"}</small>}
+                  </td>
                   <td><Pill variant={stateOf(r) === "Entregada" ? "good" : stateOf(r) === "Devuelta" ? "warn" : "neutral"}>{stateOf(r)}</Pill></td>
                   <td>{r.updatedBy ? `${r.updatedBy} · ${r.updatedAt ? fmt(r.updatedAt) : ""}` : "—"}</td>
                   <td>
