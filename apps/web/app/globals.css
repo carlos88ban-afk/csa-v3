@@ -2583,3 +2583,21 @@ h1 {
   background: var(--accent-soft);
   border-color: var(--accent);
 }
+
+/* Buscadores y campos sin type explícito: mismo tratamiento que el resto (modo oscuro). */
+input[type="search"],
+input[type="url"],
+input[type="date"],
+input[type="tel"] {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-muted);
+  opacity: 1;
+}
