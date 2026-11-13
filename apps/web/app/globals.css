@@ -2445,3 +2445,141 @@ input[type="checkbox"] {
 .dash__n--complete { color: var(--good); }
 .dash__n--partial { color: var(--warn); }
 .dash__n--empty { color: var(--critical); }
+
+/* ==== VS-033 · Tema claro/oscuro inspirado en el grupo Intercorp ====
+   Azul corporativo como acento, superficies limpias, bordes suaves para
+   tarjetas (--line) y bordes de control con contraste AA (--border).
+   Sustituye los tokens anteriores (va al final para ganar la cascada). */
+:root {
+  --bg: #f3f6fb;
+  --surface: #ffffff;
+  --surface-muted: #eef2f9;
+  --ink: #0f1b2d;
+  --ink-muted: #4f5d75;
+  --line: #dbe2ee;
+  --border: #6f7c93;
+  --accent: #1553d6;
+  --accent-ink: #ffffff;
+  --accent-soft: #e3ecff;
+  --good: #1b7f45;
+  --good-soft: #e1f4e8;
+  --warn: #92560a;
+  --warn-soft: #fbefd8;
+  --critical: #b3261e;
+  --critical-soft: #fbe4e2;
+  --radius: 8px;
+  --font-sans: var(--font-montserrat), var(--font-public-sans), system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1019;
+    --surface: #131a28;
+    --surface-muted: #19223a;
+    --ink: #e9eef9;
+    --ink-muted: #a0aec8;
+    --line: #26314a;
+    --border: #7f8ca6;
+    --accent: #7aa5ff;
+    --accent-ink: #07101f;
+    --accent-soft: #1a2c52;
+    --good: #55cc88;
+    --good-soft: #14301f;
+    --warn: #f0b64e;
+    --warn-soft: #382a10;
+    --critical: #ff8f86;
+    --critical-soft: #3c1b19;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0b1019;
+  --surface: #131a28;
+  --surface-muted: #19223a;
+  --ink: #e9eef9;
+  --ink-muted: #a0aec8;
+  --line: #26314a;
+  --border: #7f8ca6;
+  --accent: #7aa5ff;
+  --accent-ink: #07101f;
+  --accent-soft: #1a2c52;
+  --good: #55cc88;
+  --good-soft: #14301f;
+  --warn: #f0b64e;
+  --warn-soft: #382a10;
+  --critical: #ff8f86;
+  --critical-soft: #3c1b19;
+}
+
+:root[data-theme="light"] {
+  --bg: #f3f6fb;
+  --surface: #ffffff;
+  --surface-muted: #eef2f9;
+  --ink: #0f1b2d;
+  --ink-muted: #4f5d75;
+  --line: #dbe2ee;
+  --border: #6f7c93;
+  --accent: #1553d6;
+  --accent-ink: #ffffff;
+  --accent-soft: #e3ecff;
+  --good: #1b7f45;
+  --good-soft: #e1f4e8;
+  --warn: #92560a;
+  --warn-soft: #fbefd8;
+  --critical: #b3261e;
+  --critical-soft: #fbe4e2;
+}
+
+/* Superficies: bordes suaves y sombra sutil (solo en modo claro). */
+.card,
+.dash__card,
+.share,
+.app-shell__sidebar {
+  border-color: var(--line);
+}
+.card,
+.dash__card {
+  box-shadow: 0 1px 2px rgb(15 27 45 / 0.06);
+}
+@media (prefers-color-scheme: dark) {
+  .card,
+  .dash__card {
+    box-shadow: none;
+  }
+}
+:root[data-theme="dark"] .card,
+:root[data-theme="dark"] .dash__card {
+  box-shadow: none;
+}
+.data-table th,
+.data-table td {
+  border-bottom-color: var(--line);
+}
+.app-shell__sidebar {
+  border-right: 1px solid var(--line);
+}
+.app-sidebar__nav-item--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+h1 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.btn--primary {
+  box-shadow: 0 1px 2px rgb(21 83 214 / 0.25);
+}
+.btn--secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--border);
+}
+.q-chip,
+.dash__legend {
+  border-color: var(--line);
+}
+.share {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}

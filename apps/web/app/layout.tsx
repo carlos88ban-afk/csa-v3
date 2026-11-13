@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { IBM_Plex_Mono, Public_Sans } from "next/font/google";
+import { IBM_Plex_Mono, Montserrat, Public_Sans } from "next/font/google";
 import "./globals.css";
 import "./builder-doc.css";
 
@@ -7,6 +7,12 @@ const publicSans = Public_Sans({
   subsets: ["latin"],
   weight: ["400", "600", "700"],
   variable: "--font-public-sans",
+});
+
+const montserrat = Montserrat({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-montserrat",
 });
 
 const plexMono = IBM_Plex_Mono({
@@ -22,7 +28,7 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="es" className={`${publicSans.variable} ${plexMono.variable}`}>
+    <html lang="es" className={`${publicSans.variable} ${montserrat.variable} ${plexMono.variable}`}>
       <body>
         {/* WCAG 2.4.1 Bypass Blocks — ver docs/architecture/accessibility.md */}
         <a href="#main-content" className="skip-link">
