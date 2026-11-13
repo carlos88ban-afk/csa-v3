@@ -111,7 +111,7 @@ export default function ConsolidadoPage() {
                   <td>{r.answeredUnits}/{r.applicableUnits}</td>
                   <td>{r.rule}</td>
                   <td style={{ whiteSpace: "pre-wrap" }}><strong>{r.value}</strong></td>
-                  <td>{r.type === "texto_corto" || r.type === "texto_largo" || r.type === "fecha" || r.type === "evidencia" || r.type === "url_publica" ? "" : r.contributions.split("\n").filter(Boolean).map((l, li) => <Contribution key={li} line={l} />)}</td>
+                  <td>{(r.type === "texto_corto" || r.type === "texto_largo" || r.type === "fecha" || r.type === "evidencia" || r.type === "url_publica") && r.value !== "" ? "" : r.contributions.split("\n").filter(Boolean).map((l, li) => <Contribution key={li} line={l} />)}</td>
                 </tr>
               ))}
             </tbody>
