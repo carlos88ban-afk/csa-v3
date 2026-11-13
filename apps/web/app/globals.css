@@ -2689,3 +2689,32 @@ textarea::placeholder {
 .runtime-content {
   min-width: 0;
 }
+
+/* Contrato de la barra superior: 6 pestañas (corporativo) + identidad caben desde 1024px.
+   Nunca hay scroll interno: la identidad se compacta antes de que la navegación se corte. */
+.app-shell:not(.app-shell--focus) .app-sidebar__nav {
+  overflow: visible;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.app-shell:not(.app-shell--focus) .app-shell__sidebar {
+  gap: var(--space-4);
+}
+.app-shell:not(.app-shell--focus) .app-sidebar__nav-item {
+  padding-inline: var(--space-2);
+}
+@media (max-width: 1500px) {
+  .app-shell:not(.app-shell--focus) .app-sidebar__footer-email {
+    display: none;
+  }
+}
+@media (max-width: 1100px) {
+  .app-shell:not(.app-shell--focus) .app-sidebar__footer strong {
+    display: none;
+  }
+}
+@media (max-width: 860px) {
+  .app-shell:not(.app-shell--focus) .app-sidebar__nav {
+    flex-wrap: wrap;
+  }
+}
