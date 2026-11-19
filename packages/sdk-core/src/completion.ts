@@ -1,4 +1,6 @@
+import { componentRegistry } from "./component-registry.js";
 import type { FormElement } from "./form-schema.js";
+import { isElementVisible } from "./rule.js";
 import { hasAnswer, naKey, statusKey, type ResponseAnswers } from "./response.js";
 
 // VS-033: semáforo por pregunta, compartido por el runtime (web) y el tablero
@@ -40,4 +42,31 @@ export function completionOf(el: FormElement, a: ResponseAnswers): Completion {
     }
   }
   return "complete";
+}
+
+// Un tema (subindicador) cuenta como UNA pregunta, aunque lleve varias preguntas
+// internas o una evidencia. Su estado resume las preguntas que de verdad se le piden al
+// usuario: visibles, que le tocan (no solo-lectura) y, si hay otras, sin contar la evidencia opcional.
+const QUESTION_TYPES = new Set<string>(componentRegistry.filter((c) => c.isQuestion).map((c) => c.type));
+
+export function temaQuestions(elements: FormElement[], a: ResponseAnswers): FormElement[] {
+  const qs = elements.filter((el) => QUESTION_TYPES.has(el.type) && !el.viewerReadOnly && isElementVisible(el.visibleIf, a));
+  const core = qs.filter((el) => !(el.type === "evidencia" && !(el as { required?: boolean }).required));
+  return core.length > 0 ? core : qs;
+}
+
+/** Estado del tema como una sola pregunta; null si no tiene nada que responder. */
+export function temaCompletion(elements: FormElement[], a: ResponseAnswers): Completion | null {
+  const qs = temaQuestions(elements, a);
+  if (qs.length === 0) return null;
+  let complete = 0;
+  let empty = 0;
+  for (const q of qs) {
+    const c = completionOf(q, a);
+    if (c === "complete") complete++;
+    else if (c === "empty") empty++;
+  }
+  if (complete === qs.length) return "complete";
+  if (empty === qs.length) return "empty";
+  return "partial";
 }

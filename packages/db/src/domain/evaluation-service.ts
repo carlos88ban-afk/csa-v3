@@ -146,6 +146,44 @@ export async function refreshEvaluationSnapshot(organizationId: string, id: stri
   return row ?? null;
 }
 
+/**
+ * ¿Qué cambió en el árbol desde la última copia de la evaluación? Cuenta temas modificados, nuevos o borrados
+ * (y títulos de dimensión/indicador). La visibilidad (appliesTo) NO cuenta: esa se aplica en vivo.
+ */
+export async function evaluationPendingChanges(organizationId: string, id: string) {
+  const current = await getEvaluation(organizationId, id);
+  if (!current) return null;
+  const { snapshot: fresh } = await buildSnapshot(organizationId, current.frameworkId);
+  const stale = current.snapshot as EvaluationSnapshot;
+  const norm = (sub: SnapshotSubindicator) =>
+    JSON.stringify([
+      sub.title,
+      sub.description,
+      (sub.formSchema?.elements ?? []).map((el) => {
+        const { appliesTo: _a, viewerReadOnly: _v, ...rest } = el as Record<string, unknown>;
+        return rest;
+      }),
+    ]);
+  const collect = (snap: EvaluationSnapshot) => {
+    const map = new Map<string, string>();
+    for (const d of snap.dimensions) {
+      map.set(d.id, JSON.stringify([d.title, d.description]));
+      for (const i of d.indicators) {
+        map.set(i.id, JSON.stringify([i.title, i.description]));
+        for (const sub of i.subindicators) map.set(sub.id, norm(sub));
+      }
+      for (const sub of d.subindicators) map.set(sub.id, norm(sub));
+    }
+    return map;
+  };
+  const a = collect(stale);
+  const b = collect(fresh);
+  let count = 0;
+  for (const [k, v] of b) if (a.get(k) !== v) count++;
+  for (const k of a.keys()) if (!b.has(k)) count++;
+  return { pending: count > 0, count };
+}
+
 export async function listEvaluations(organizationId: string, frameworkId: string) {
   return db
     .select()

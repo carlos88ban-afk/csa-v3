@@ -4,6 +4,7 @@ import { DueDateBanner } from "@/components/due-date-banner";
 
 import {
   componentRegistry,
+  temaCompletion,
   completionOf,
   deriveStatus,
   dimensionNumber,
@@ -112,11 +113,11 @@ function flatten(snapshot: EvaluationSnapshot): FlatSubindicator[] {
         out.push({
           dimId: dim.id,
           dimTitle: dim.title,
-          dimNumber: dimensionNumber(dimIndex),
+          dimNumber: (dim.number ?? dimensionNumber(dimIndex)),
           indId: ind.id,
           indTitle: ind.title,
-          indNumber: indicatorNumber(dimIndex, indIndex),
-          subNumber: subindicatorNumber(dimIndex, indIndex, subIndex),
+          indNumber: (ind.number ?? indicatorNumber(dimIndex, indIndex)),
+          subNumber: (sub.number ?? subindicatorNumber(dimIndex, indIndex, subIndex)),
           sub,
         });
       });
@@ -127,8 +128,8 @@ function flatten(snapshot: EvaluationSnapshot): FlatSubindicator[] {
       out.push({
         dimId: dim.id,
         dimTitle: dim.title,
-        dimNumber: dimensionNumber(dimIndex),
-        subNumber: directSubindicatorNumber(dimIndex, dim.indicators.length, subIndex),
+        dimNumber: (dim.number ?? dimensionNumber(dimIndex)),
+        subNumber: (sub.number ?? directSubindicatorNumber(dimIndex, dim.indicators.length, subIndex)),
         sub,
       });
     });
@@ -140,11 +141,9 @@ function flatten(snapshot: EvaluationSnapshot): FlatSubindicator[] {
 // progreso — no se le pidieron al evaluado, no son "preguntas sin responder".
 function progressOf(sub: SnapshotSubindicator, answers: ResponseAnswers | undefined) {
   const a = answers ?? {};
-  const questions = (sub.formSchema?.elements ?? []).filter((el) => isQuestion(el) && isElementVisible(el.visibleIf, a));
-  // VS-019 (docs/engines/persistence.md, "N/A + comentario confidencial"):
-  // una pregunta marcada N/A cuenta como resuelta para el progreso.
-  const answered = questions.filter((q) => isAnswered(a[q.id], undefined)).length;
-  return { answered, total: questions.length };
+  // Cada tema cuenta como UNA pregunta (aunque lleve evidencia u otras preguntas internas).
+  const st = temaCompletion(sub.formSchema?.elements ?? [], a);
+  return { answered: st === "complete" ? 1 : 0, total: st === null ? 0 : 1 };
 }
 
 // Estado por nodo en el árbol (VS-027, docs/engines/persistence.md):
@@ -185,9 +184,8 @@ const COMPLETION_LABEL: Record<Completion, string> = { complete: "Completa", par
 function blockCounts(sub: SnapshotSubindicator, answers: ResponseAnswers | undefined): Counts {
   const a = answers ?? {};
   const c: Counts = { complete: 0, partial: 0, empty: 0 };
-  for (const el of sub.formSchema?.elements ?? []) {
-    if (isQuestion(el) && isElementVisible(el.visibleIf, a)) c[completionOf(el, a)]++;
-  }
+  const st = temaCompletion(sub.formSchema?.elements ?? [], a);
+  if (st) c[st]++;
   return c;
 }
 const addCounts = (x: Counts, y: Counts): Counts => ({ complete: x.complete + y.complete, partial: x.partial + y.partial, empty: x.empty + y.empty });
@@ -475,7 +473,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
                 <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(dim.id)}>
                 <span className="runtime-nav__caret">{expanded.has(dim.id) ? "▾" : "▸"}</span>
                 <span className={`tree-dot${dimState ? ` tree-dot--${dimState}` : ""}`} />
-                {dimensionNumber(dimIndex)} {dim.title}
+                {(dim.number ?? dimensionNumber(dimIndex))} {dim.title}
               </button>
               </AssignNode>
 
@@ -488,7 +486,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
                         <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(ind.id)}>
                         <span className="runtime-nav__caret">{expanded.has(ind.id) ? "▾" : "▸"}</span>
                         <span className={`tree-dot${indState ? ` tree-dot--${indState}` : ""}`} />
-                        {indicatorNumber(dimIndex, indIndex)} {ind.title}
+                        {(ind.number ?? indicatorNumber(dimIndex, indIndex))} {ind.title}
                       </button>
                       </AssignNode>
 
@@ -506,7 +504,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
                               onClick={() => setActiveId(sub.id)}
                             >
                               <span className={`tree-dot${state ? ` tree-dot--${state}` : ""}`} />
-                              {subindicatorNumber(dimIndex, indIndex, subIndex)} {sub.title}
+                              {(sub.number ?? subindicatorNumber(dimIndex, indIndex, subIndex))} {sub.title}
                             </button>
                             </AssignNode>
                           );
@@ -532,7 +530,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
                       onClick={() => setActiveId(sub.id)}
                     >
                       <span className={`tree-dot${state ? ` tree-dot--${state}` : ""}`} />
-                      {directSubindicatorNumber(dimIndex, dim.indicators.length, subIndex)} {sub.title}
+                      {(sub.number ?? directSubindicatorNumber(dimIndex, dim.indicators.length, subIndex))} {sub.title}
                     </button>
                     </AssignNode>
                   );

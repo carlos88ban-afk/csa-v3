@@ -12,6 +12,7 @@ import { api } from "@/lib/api-client";
 import { Breadcrumb, Button, Pill } from "@/components/ui";
 import { SubindicatorEditor } from "@/components/subindicator-editor";
 import { PublishPanel } from "@/components/publish-panel";
+import { UpdateEvaluationButton } from "@/components/update-evaluation-button";
 
 // Tipos del árbol: el builder trabaja sobre la misma forma que el runtime
 // (dimensiones → indicadores → subindicadores + subindicadores directos).
@@ -892,9 +893,12 @@ export default function BuilderPage() {
             { label: framework?.name ?? "Editor" },
           ]}
         />
-        <Button type="button" variant="primary" size="sm" onClick={() => setPublishOpen(true)}>
-          Publicar
-        </Button>
+        <span className="builder-topbar__actions">
+          <UpdateEvaluationButton frameworkId={frameworkId} />
+          <Button type="button" variant="secondary" size="sm" onClick={() => setPublishOpen(true)} title="Crea una evaluación nueva y vacía; la actual se cierra">
+            Publicar nueva
+          </Button>
+        </span>
       </div>
       <span className="sr-only" role="status" aria-live="polite">
         {treeMessage}

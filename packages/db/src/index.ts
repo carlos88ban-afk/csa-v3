@@ -19,6 +19,7 @@ export * from "./domain/corporate-service.js";
 export * as corporateSchema from "./schema/corporate.js";
 export * from "./domain/service.js";
 export * from "./domain/evaluation-service.js";
+export * from "./domain/live-visibility.js";
 export * from "./domain/response-service.js";
 export * from "./test-utils.js";
 export * from "./domain/evaluation-assignment-service.js";

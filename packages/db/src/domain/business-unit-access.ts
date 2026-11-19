@@ -5,6 +5,7 @@ import {
   naKey,
   resolveHistoricalForUnit,
   type EvaluationSnapshot,
+  temaCompletion,
   type FormElement,
   type ResponseAnswers,
 } from "@plataforma-csa/sdk-core";
@@ -15,6 +16,7 @@ import { evaluationAssignment } from "../schema/evaluation-assignment.js";
 import { evaluation } from "../schema/evaluation.js";
 import { getAssignmentForBusinessUnit, listExclusions } from "./evaluation-assignment-service.js";
 import { listResponses } from "./response-service.js";
+import { prepareSnapshot } from "./live-visibility.js";
 import { NotFoundError, ValidationError } from "./service.js";
 
 // VS-053 (docs/domain/business-units.md, "Acceso del evaluado"): flujo
@@ -150,6 +152,8 @@ export async function getEvaluationForBusinessUnit(
   const assignment = await getAssignmentForBusinessUnit(evaluationId, businessUnitOrganizationId);
   if (!assignment) throw new NotFoundError("evaluation_assignment");
 
+  const liveSnapshot = await prepareSnapshot(ev.snapshot as EvaluationSnapshot);
+
   // Aplicar exclusiones.
   const exclusions = await listExclusions(assignment.id);
   let allowed: Set<string> | null = null;
@@ -166,15 +170,14 @@ export async function getEvaluationForBusinessUnit(
       );
     allowed = new Set(rows.map((r) => r.subindicatorId));
     // VS-080: temas donde el árbol lo nombra responsable.
-    const snap = ev.snapshot as EvaluationSnapshot;
-    for (const d of snap.dimensions) {
+    for (const d of liveSnapshot.dimensions) {
       for (const s of [...d.indicators.flatMap((i) => i.subindicators), ...d.subindicators]) {
         if ((s.formSchema?.elements ?? []).some((el) => el.responsibleUserId === viewer.userId)) allowed.add(s.id);
       }
     }
   }
   const filteredSnapshot = filterSnapshotByExclusions(
-    ev.snapshot as EvaluationSnapshot,
+    liveSnapshot,
     exclusions,
     businessUnitOrganizationId,
     allowed,
@@ -204,8 +207,17 @@ export async function assertAnswersRespectExclusions(
 
   // VS-080: el corporativo solo puede escribir en elementos que lo nombran en appliesTo.
   const [ev] = await db.select().from(evaluation).where(eq(evaluation.id, evaluationId));
+  if (ev) {
+    const snap = await prepareSnapshot(ev.snapshot as EvaluationSnapshot);
+    const subs0 = snap.dimensions.flatMap((d) => [...d.indicators.flatMap((i) => i.subindicators), ...d.subindicators]);
+    const sub0 = subs0.find((s) => s.id === subindicatorId);
+    // Visibilidad en vivo: una unidad no puede escribir en un tema que ya no le aplica.
+    if (sub0 && ev.organizationId !== businessUnitOrganizationId && !blockAppliesToUnit(sub0, businessUnitOrganizationId)) {
+      throw new ValidationError("ANSWER_TO_EXCLUDED_SUBINDICATOR");
+    }
+  }
   if (ev && ev.organizationId === businessUnitOrganizationId) {
-    const snap = ev.snapshot as EvaluationSnapshot;
+    const snap = await prepareSnapshot(ev.snapshot as EvaluationSnapshot);
     const subs = snap.dimensions.flatMap((d) => [...d.indicators.flatMap((i) => i.subindicators), ...d.subindicators]);
     const sub = subs.find((s) => s.id === subindicatorId);
     const mine = new Set((sub?.formSchema?.elements ?? []).filter((el) => el.appliesTo?.includes(businessUnitOrganizationId)).map((el) => el.id));
@@ -276,13 +288,15 @@ export async function getBusinessUnitProgress(evaluationId: string, businessUnit
   const responses = await listResponses(evaluationId, businessUnitOrganizationId);
   const answersBySub = new Map(responses.map((r) => [r.subindicatorId, r.answers as ResponseAnswers]));
 
+  // Cada tema cuenta como UNA pregunta (aunque lleve evidencia u otras preguntas internas).
   let total = 0;
   let answered = 0;
   function countSubindicator(sub: SnapshotSubindicator) {
     const answers = answersBySub.get(sub.id) ?? {};
-    const questions = (sub.formSchema?.elements ?? []).filter((el) => isQuestion(el) && !el.viewerReadOnly && isElementVisible(el.visibleIf, answers));
-    total += questions.length;
-    answered += questions.filter((q) => isAnswered(answers[q.id], answers[naKey(q.id)] as string | undefined)).length;
+    const st = temaCompletion(sub.formSchema?.elements ?? [], answers);
+    if (st === null) return;
+    total += 1;
+    if (st === "complete") answered += 1;
   }
   const snapshot = filtered.snapshot as EvaluationSnapshot;
   snapshot.dimensions.forEach((dim) => {

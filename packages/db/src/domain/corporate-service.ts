@@ -9,6 +9,7 @@ import { blockAssignment, deletionRequest, inquiry } from "../schema/corporate.j
 import { dimension, framework, indicator, subindicator } from "../schema/domain.js";
 import { evaluation } from "../schema/evaluation.js";
 import { NotFoundError, ValidationError } from "./service.js";
+import { prepareSnapshot } from "./live-visibility.js";
 
 // ---------------------------------------------------------------- Unidades
 
@@ -209,7 +210,7 @@ export async function listBlocks(evaluationId: string, unitId: string): Promise<
     .where(and(eq(blockAssignment.evaluationId, evaluationId), eq(blockAssignment.businessUnitId, unitId)));
   const byBlock = new Map(assigned.map((a) => [a.subindicatorId, a]));
   const rows: BlockRow[] = [];
-  const snapshot = ev.snapshot as EvaluationSnapshot;
+  const snapshot = await prepareSnapshot(ev.snapshot as EvaluationSnapshot);
   const push = (dim: Snap, ind: string | null, sub: Snap["subindicators"][number]) => {
     // Solo bloques que aplican a la unidad (al menos una pregunta).
     if (!blockAppliesToUnit(sub, unitId, ev.organizationId === unitId)) return;
@@ -450,8 +451,9 @@ import {
   deriveStatus,
   isAnswered,
   isElementVisible,
-  naKey,
   statusKey,
+  temaCompletion,
+  temaQuestions,
   type FormElement,
   type ResponseAnswers,
 } from "@plataforma-csa/sdk-core";
@@ -502,25 +504,20 @@ export async function getOverview(evaluationId: string, corporateOrgId: string):
     const visit = (dim: Snap, ind: string | null, sub: Snap["subindicators"][number]) => {
       const row = bySub.get(sub.id);
       const answers = ((row?.answers as ResponseAnswers | undefined) ?? {}) as ResponseAnswers;
-      const questions = (sub.formSchema?.elements ?? []).filter(
-        (el) => isQuestionEl(el) && isElementVisible(el.visibleIf, answers),
-      );
-      if (questions.length === 0) return;
-      let answered = 0, completed = 0, approved = 0, submitted = 0, returned = 0, complete = 0, partial = 0, empty = 0;
-      for (const q of questions) {
-        const cs = completionOf(q, answers);
-        if (cs === "complete") complete++;
-        else if (cs === "partial") partial++;
-        else empty++;
-        const na = answers[naKey(q.id)] as string | undefined;
-        const ok = isAnswered(answers[q.id], na);
-        const st = deriveStatus(answers[statusKey(q.id)] as string | undefined, ok);
-        if (ok) answered++;
-        if (st === "completed" || st === "approved" || st === "submitted") completed++;
-        if (st === "approved" || st === "submitted") approved++;
-        if (st === "submitted") submitted++;
-        if (answers[`${q.id}::review`] && (st === "not_started" || st === "in_progress")) returned++;
-      }
+      const questions = temaQuestions(sub.formSchema?.elements ?? [], answers);
+      const tema = temaCompletion(sub.formSchema?.elements ?? [], answers);
+      if (tema === null) return;
+      // Un tema = una pregunta: sus contadores valen 0 o 1.
+      const sts = questions.map((q) => deriveStatus(answers[statusKey(q.id)] as string | undefined, isAnswered(answers[q.id], undefined)));
+      const all = (f: (s: string) => boolean) => (sts.length > 0 && sts.every(f) ? 1 : 0);
+      const complete = tema === "complete" ? 1 : 0;
+      const partial = tema === "partial" ? 1 : 0;
+      const empty = tema === "empty" ? 1 : 0;
+      const answered = complete;
+      const completed = all((s) => s === "completed" || s === "approved" || s === "submitted");
+      const approved = all((s) => s === "approved" || s === "submitted");
+      const submitted = all((s) => s === "submitted");
+      const returned = questions.some((q, i) => answers[`${q.id}::review`] && (sts[i] === "not_started" || sts[i] === "in_progress")) ? 1 : 0;
       const b = respBy.get(sub.id);
       out.push({
         unitId: unit.id,
@@ -532,7 +529,7 @@ export async function getOverview(evaluationId: string, corporateOrgId: string):
         title: sub.title,
         responsibleId: b?.userId ?? null,
         responsible: b?.userName ?? null,
-        total: questions.length,
+        total: 1,
         answered,
         complete,
         partial,
@@ -583,7 +580,7 @@ export async function getConsolidationData(evaluationId: string, corporateOrgId:
   const rows = await db.select().from(response).where(eq(response.evaluationId, evaluationId));
   return {
     title: ev.title,
-    snapshot: ev.snapshot as EvaluationSnapshot,
+    snapshot: await prepareSnapshot(ev.snapshot as EvaluationSnapshot),
     units,
     responses: rows.map((r) => ({
       unitId: r.businessUnitOrganizationId,

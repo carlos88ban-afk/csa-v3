@@ -28,6 +28,8 @@ export type UpdateEvaluationInput = z.infer<typeof updateEvaluationInput>;
 
 const evaluationSnapshotSubindicator = z.object({
   id: z.string(),
+  // Número oficial (1.1.3) fijado por el servidor al servir la evaluación: no cambia aunque a una unidad solo le lleguen algunos temas.
+  number: z.string().optional(),
   title: z.string(),
   description: z.string().nullable(),
   formSchema: formSchema.nullable(),
@@ -36,6 +38,7 @@ const evaluationSnapshotSubindicator = z.object({
 
 const evaluationSnapshotIndicator = z.object({
   id: z.string(),
+  number: z.string().optional(),
   title: z.string(),
   description: z.string().nullable(),
   subindicators: z.array(evaluationSnapshotSubindicator),
@@ -43,6 +46,7 @@ const evaluationSnapshotIndicator = z.object({
 
 const evaluationSnapshotDimension = z.object({
   id: z.string(),
+  number: z.string().optional(),
   title: z.string(),
   description: z.string().nullable(),
   indicators: z.array(evaluationSnapshotIndicator),

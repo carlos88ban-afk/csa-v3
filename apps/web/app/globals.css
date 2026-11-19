@@ -2798,3 +2798,5 @@ textarea::placeholder {
 .nav-badge { display: inline-block; margin-left: 8px; min-width: 20px; padding: 0 6px; border-radius: 999px; background: #e5484d; color: #fff; font-size: 12px; font-weight: 700; text-align: center; line-height: 20px; }
 
 .inq-alert { position: fixed; right: 20px; bottom: 20px; z-index: 40; text-decoration: none; background: #e5484d; }
+
+.builder-topbar__actions { display: flex; gap: 8px; align-items: center; }
