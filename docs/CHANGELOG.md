@@ -4,6 +4,13 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-079 · Notas por opción y bloques de sub-opciones ilimitados (2026-11-18)
+
+- El pegado ya no descarta el texto explicativo bajo una opción: se guarda como `note` y se muestra en el evaluado, la vista previa y el Excel.
+- Se aceptan más de 2 grupos `§§` bajo una opción (`moreBlocks`); antes el 3.º reemplazaba al 2.º.
+- Pegado: casilla/opción separada de su rótulo en celdas de tabla (`☐ ¦ Operaciones`) ya no deja opciones vacías (6 preguntas no guardaban).
+- Herramienta de QA `/import-csa` para cargar en bloque preguntas capturadas del portal.
+
 ### VS-035 · Borrado real, confirmaciones y solicitud de eliminación (2026-11-18)
 
 - Eliminar evaluaciones completas desde Estructura, escribiendo ELIMINAR (también validado en el servidor); borra además sus archivos de evidencia.

@@ -308,7 +308,8 @@ function formatOptionLabel(opt: SeleccionOption, elementId: string, answers: Res
   });
   const subParts = formatMarkedSubOptions(opt.subOptions, optKey, answers);
   const secondaryParts = formatMarkedSubOptions(opt.secondaryOptions, `${optKey}::secondary`, answers);
-  const allParts = [...subParts, ...secondaryParts];
+  const extraParts = (opt.moreBlocks ?? []).flatMap((b, bi) => formatMarkedSubOptions(b.options, `${optKey}::block${bi + 3}`, answers));
+  const allParts = [...subParts, ...secondaryParts, ...extraParts];
   if (allParts.length > 0) label += ` — ${allParts.join("; ")}`;
   return label;
 }

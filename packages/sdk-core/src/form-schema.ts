@@ -476,6 +476,13 @@ const formOption = formOptionBase.extend({
   secondaryOptionsHeading: z.string().optional(),
   secondaryOptions: z.array(subOption).optional(),
   secondaryOptionsExclusive: z.boolean().optional(),
+  // VS-079: texto explicativo bajo la opción (solo lectura, HTML) y bloques de
+  // sub-opciones 3.º en adelante (mismo shape que el secundario). Clave de
+  // respuesta de cada bloque extra: `${elementId}::${optionId}::block${n}`, n = 3, 4, …
+  note: z.string().optional(),
+  moreBlocks: z
+    .array(z.object({ heading: z.string().optional(), options: z.array(subOption).min(1), exclusive: z.boolean().optional() }))
+    .optional(),
   // VS-060 (docs/engines/form.md "Tabla embebida directamente en una opción
   // de nivel superior"): mismo campo que subOption.table (VS-042), un nivel
   // menos de anidación — caso real: una opción de seleccion_unica trae una

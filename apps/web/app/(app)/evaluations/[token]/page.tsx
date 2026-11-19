@@ -2355,6 +2355,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                 />
                 <RichLabel html={opt.label} />
               </label>
+              {value === opt.id && opt.note && <div className="opt-note"><RichLabel html={opt.note} /></div>}
               {value === opt.id && opt.references && opt.references.position !== "after_suboptions" && (
                 <OptionReferencesView
                   refType={opt.references.refType ?? "public"}
@@ -2457,6 +2458,23 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                   elementId={element.id}
                 />
               )}
+              {value === opt.id && opt.moreBlocks?.map((b, bi) => (
+                <SubOptionsView
+                  key={bi}
+                  subKey={`${element.id}::${opt.id}::block${bi + 3}`}
+                  heading={b.heading}
+                  subOptions={b.options}
+                  value={answers[`${element.id}::${opt.id}::block${bi + 3}`]}
+                  onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::block${bi + 3}`, next)}
+                  locked={locked}
+                  answers={answers}
+                  onAnswerChange={onAnswerChange}
+                  exclusive={b.exclusive ?? false}
+                  token={token}
+                  subindicatorId={subindicatorId}
+                  elementId={element.id}
+                />
+              ))}
               {value === opt.id && opt.references && opt.references.position === "after_suboptions" && (
                 <OptionReferencesView
                   refType={opt.references.refType ?? "public"}
@@ -2492,6 +2510,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                     />
                     <RichLabel html={opt.label} />
                   </label>
+                  {selected.includes(opt.id) && opt.note && <div className="opt-note"><RichLabel html={opt.note} /></div>}
                   {selected.includes(opt.id) && opt.references && opt.references.position !== "after_suboptions" && (
                     <OptionReferencesView
                       refType={opt.references.refType ?? "public"}
@@ -2581,6 +2600,23 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
                       elementId={element.id}
                     />
                   )}
+                  {selected.includes(opt.id) && opt.moreBlocks?.map((b, bi) => (
+                    <SubOptionsView
+                      key={bi}
+                      subKey={`${element.id}::${opt.id}::block${bi + 3}`}
+                      heading={b.heading}
+                      subOptions={b.options}
+                      value={answers[`${element.id}::${opt.id}::block${bi + 3}`]}
+                      onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::block${bi + 3}`, next)}
+                      locked={locked}
+                      answers={answers}
+                      onAnswerChange={onAnswerChange}
+                      exclusive={b.exclusive ?? false}
+                      token={token}
+                      subindicatorId={subindicatorId}
+                      elementId={element.id}
+                    />
+                  ))}
                   {selected.includes(opt.id) && opt.references && opt.references.position === "after_suboptions" && (
                     <OptionReferencesView
                       refType={opt.references.refType ?? "public"}

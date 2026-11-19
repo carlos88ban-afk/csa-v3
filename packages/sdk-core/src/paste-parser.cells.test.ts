@@ -105,3 +105,48 @@ describe("celdas con casilla/opción separada de su rótulo", () => {
     expect(json).not.toContain('"options":[]');
   });
 });
+
+describe("VS-079: notas por opción y bloques ilimitados", () => {
+  const first = (text: string) => parsePastedText(text)[0]!.element as unknown as { options: Record<string, unknown>[] };
+
+  it("guarda el texto explicativo bajo una opción como nota", () => {
+    const el = first(
+      [
+        "¿Tiene declaración de independencia?",
+        "",
+        "○ Sí, la empresa cuenta con una declaración.",
+        "    Las empresas que cotizan en bolsa están obligadas a proporcionar enlaces.",
+        "    Las empresas que no cotizan deben proporcionar documentos internos.",
+        "○ No",
+        "",
+      ].join("\n"),
+    );
+    expect(String(el.options[0]!.note)).toContain("cotizan en bolsa");
+    expect(String(el.options[0]!.note)).toContain("documentos internos");
+  });
+
+  it("conserva 4 grupos §§ bajo una opción (2.º en secondaryOptions, 3.º y 4.º en moreBlocks)", () => {
+    const el = first(
+      [
+        "¿Integra TCFD?",
+        "",
+        "○ Sí, integra TCFD",
+        "    §§ Gobernanza",
+        "    ☐ a) Supervisión del consejo",
+        "    §§ Estrategia",
+        "    ☐ a) Riesgos y oportunidades",
+        "    §§ Gestión de riesgos",
+        "    ☐ a) Procesos de identificación",
+        "    §§ Métricas",
+        "    ☐ a) Métricas usadas",
+        "○ No",
+        "",
+      ].join("\n"),
+    );
+    const o = el.options[0]! as { subOptionsHeading?: string; secondaryOptionsHeading?: string; moreBlocks?: { heading: string; options: { label: string }[] }[] };
+    expect(o.subOptionsHeading).toContain("Gobernanza");
+    expect(o.secondaryOptionsHeading).toContain("Estrategia");
+    expect(o.moreBlocks?.map((b) => b.heading)).toEqual(["Gestión de riesgos", "Métricas"]);
+    expect(o.moreBlocks?.[1]!.options[0]!.label).toContain("Métricas usadas");
+  });
+});

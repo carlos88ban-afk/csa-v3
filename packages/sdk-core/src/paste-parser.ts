@@ -221,7 +221,7 @@ const BANNER_START = /^\s*(aviso|nota|importante|requisito|atención|atencion|re
 const MULTI_HINT = /seleccione (?:todas|todos|las que|los que)|marque (?:todas|todos|las que|los que)|una o más|una o mas|varias opciones|puede(?:n)? (?:elegir|seleccionar) (?:más|mas|varias)|todas las que apliquen|select all/i;
 const YES_NO_INLINE = /[(\[]?\s*(s[ií])\s*[\/|,]\s*(no)\s*[)\]]?\s*[?.]?\s*$/i;
 
-type Opt = { text: string; subs: string[]; tableRows?: string[][]; tables?: string[][][]; titles?: (string | undefined)[] | undefined; refMax?: number; refPublic?: boolean; subTables?: (string[][] | undefined)[]; subsRadio?: boolean; lastSubIndent?: number | undefined; subsHeading?: string | undefined; subSubs?: string[][]; subSubsRadio?: boolean[]; secondary?: { heading: string; subs: string[]; subSubs: string[][]; subSubsRadio: boolean[]; radio: boolean }; field?: { label: string; list: boolean }; pendingTitle?: string | undefined; ignored?: number };
+type Opt = { text: string; subs: string[]; tableRows?: string[][]; tables?: string[][][]; titles?: (string | undefined)[] | undefined; refMax?: number; refPublic?: boolean; subTables?: (string[][] | undefined)[]; subsRadio?: boolean; lastSubIndent?: number | undefined; subsHeading?: string | undefined; subSubs?: string[][]; subSubsRadio?: boolean[]; secondary?: { heading: string; subs: string[]; subSubs: string[][]; subSubsRadio: boolean[]; radio: boolean }; moreBlocks?: { heading: string; subs: string[]; subSubs: string[][]; subSubsRadio: boolean[]; radio: boolean }[]; notes?: string[]; field?: { label: string; list: boolean }; pendingTitle?: string | undefined; ignored?: number };
 
 let listsSeen = 0;
 function makeOptions(items: Opt[]) {
@@ -264,6 +264,17 @@ function makeOptions(items: Opt[]) {
           return { id: uid(), label: esc(s), ...(ss && ss.length ? { subOptions: ss.map((x) => ({ id: uid(), label: esc(x) })), ...(o.secondary!.subSubsRadio[si] ? { subOptionsExclusive: true } : {}) } : {}) };
         }),
         ...(o.secondary.radio ? { secondaryOptionsExclusive: true } : {}),
+      } : {}),
+      ...(o.notes?.length ? { note: o.notes.map((n) => `<p>${esc(n)}</p>`).join("") } : {}),
+      ...(o.moreBlocks?.some((b) => b.subs.length) ? {
+        moreBlocks: o.moreBlocks.filter((b) => b.subs.length).map((b) => ({
+          heading: esc(b.heading),
+          options: b.subs.map((s, si) => {
+            const ss = b.subSubs[si];
+            return { id: uid(), label: esc(s), ...(ss && ss.length ? { subOptions: ss.map((x) => ({ id: uid(), label: esc(x) })), ...(b.subSubsRadio[si] ? { subOptionsExclusive: true } : {}) } : {}) };
+          }),
+          ...(b.radio ? { exclusive: true } : {}),
+        })),
       } : {}),
       ...(t ? { table: { ...(o.titles?.[0] ? { title: esc(o.titles[0]) } : {}), columns: t.columns, rows: t.rows } } : {}),
       ...(more.length ? { moreTables: more } : {}),
@@ -583,7 +594,8 @@ function readOptions(lines: string[], start: number) {
       const blockMark = trimmed.match(/^§§\s*(.+)$/);
       if (blockMark) {
         if (last.subs.length === 0 && last.subsHeading === undefined) last.subsHeading = blockMark[1]!.trim();
-        else last.secondary = { heading: blockMark[1]!.trim(), subs: [], subSubs: [], subSubsRadio: [], radio: false };
+        else if (!last.secondary) last.secondary = { heading: blockMark[1]!.trim(), subs: [], subSubs: [], subSubsRadio: [], radio: false };
+        else (last.moreBlocks ??= []).push({ heading: blockMark[1]!.trim(), subs: [], subSubs: [], subSubsRadio: [], radio: false });
         last.lastSubIndent = undefined;
         j++; continue;
       }
@@ -611,21 +623,26 @@ function readOptions(lines: string[], start: number) {
       else if (isTableSeparator(ln)) { /* separador */ }
       else if (om.marker !== null || isLetter) {
         const text = isLetter ? ln.replace(LETTER, "").trim() : om.text;
-        const subsArr = last.secondary ? last.secondary.subs : last.subs;
+        const blk = last.moreBlocks?.length ? last.moreBlocks[last.moreBlocks.length - 1]! : last.secondary;
+        const subsArr = blk ? blk.subs : last.subs;
         if (last.lastSubIndent !== undefined && ind >= last.lastSubIndent + 2 && subsArr.length > 0) {
           // nivel 2: radio/casilla bajo una sub-opción (p. ej. casilla "Existe responsabilidad…" → radios de comité)
           const si = subsArr.length - 1;
-          const ssAll = last.secondary ? last.secondary.subSubs : (last.subSubs ??= []);
-          const ssRadio = last.secondary ? last.secondary.subSubsRadio : (last.subSubsRadio ??= []);
+          const ssAll = blk ? blk.subSubs : (last.subSubs ??= []);
+          const ssRadio = blk ? blk.subSubsRadio : (last.subSubsRadio ??= []);
           (ssAll[si] ??= []).push(text);
           if (om.marker === "radio") ssRadio[si] = true;
         } else {
           subsArr.push(text);
           last.lastSubIndent = ind;
-          if (om.marker === "radio") { if (last.secondary) last.secondary.radio = true; else last.subsRadio = true; }
+          if (om.marker === "radio") { if (blk) blk.radio = true; else last.subsRadio = true; }
         }
       }
-      else last.ignored = (last.ignored ?? 0) + 1;
+      else {
+        last.ignored = (last.ignored ?? 0) + 1;
+        const noteText = stripHtml(trimmed).trim();
+        if (noteText) (last.notes ??= []).push(noteText);
+      }
       j++; continue;
     }
     if (om.marker === null && !isLetter) break;

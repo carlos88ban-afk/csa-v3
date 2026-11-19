@@ -303,6 +303,7 @@ function PreviewElement({
               />
               <RichLabel html={opt.label} />
             </label>
+            {isSelected(opt.id) && opt.note && <div className="opt-note"><RichLabel html={opt.note} /></div>}
             {isSelected(opt.id) && opt.references && opt.references.position !== "after_suboptions" && (
               <PreviewOptionReferences
                 refType={opt.references.refType ?? "public"}
@@ -382,6 +383,20 @@ function PreviewElement({
                 onAnswerChange={onAnswerChange}
               />
             )}
+            {isSelected(opt.id) && opt.moreBlocks?.map((b, bi) => (
+              <PreviewSubOptions
+                key={bi}
+                level={1}
+                heading={b.heading}
+                exclusive={b.exclusive ?? false}
+                subKey={`${element.id}::${opt.id}::block${bi + 3}`}
+                subOptions={b.options}
+                value={answers[`${element.id}::${opt.id}::block${bi + 3}`]}
+                onChange={(next) => onAnswerChange(`${element.id}::${opt.id}::block${bi + 3}`, next)}
+                answers={answers}
+                onAnswerChange={onAnswerChange}
+              />
+            ))}
             {isSelected(opt.id) && opt.references && opt.references.position === "after_suboptions" && (
               <PreviewOptionReferences
                 refType={opt.references.refType ?? "public"}

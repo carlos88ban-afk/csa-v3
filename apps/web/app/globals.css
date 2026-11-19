@@ -2767,3 +2767,7 @@ textarea::placeholder {
 
 /* VS-035: aviso de borrado */
 .del-warn { color: var(--critical); font-size: var(--text-sm); display: inline-block; max-width: 38ch; vertical-align: middle; }
+
+/* VS-079: nota explicativa bajo una opción */
+.opt-note { margin: 4px 0 8px 28px; color: var(--text-muted, inherit); font-size: var(--text-sm); }
+.opt-note p { margin: 0 0 4px; }
