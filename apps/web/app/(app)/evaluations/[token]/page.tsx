@@ -231,7 +231,8 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
   const [notFound, setNotFound] = useState(false);
   const [answersBySub, setAnswersBySub] = useState<Record<string, ResponseAnswers>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Árbol contraído por defecto: se guardan los nodos expandidos.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
@@ -410,7 +411,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
   }, [answersBySub]);
 
   function toggleCollapsed(id: string) {
-    setCollapsed((prev) => {
+    setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -420,7 +421,18 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
 
   function goTo(index: number) {
     const target = flat[index];
-    if (target) setActiveId(target.sub.id);
+    if (target) {
+      setActiveId(target.sub.id);
+      // Al navegar con Anterior/Siguiente se abre el camino hasta ese tema.
+      setExpanded((prev) => {
+        const next = new Set(prev);
+        for (const d of evaluation?.snapshot.dimensions ?? []) {
+          if (d.subindicators.some((x) => x.id === target.sub.id)) next.add(d.id);
+          for (const i of d.indicators) if (i.subindicators.some((x) => x.id === target.sub.id)) { next.add(d.id); next.add(i.id); }
+        }
+        return next;
+      });
+    }
   }
 
   if (notFound) return <main className="page">Este enlace no existe o ya no está disponible.</main>;
@@ -466,26 +478,26 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
             <div key={dim.id} className="runtime-nav__dim">
               <AssignNode data={assign} scopeIds={subIdsOfDim(dim)} label={dim.title}>
                 <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(dim.id)}>
-                <span className="runtime-nav__caret">{collapsed.has(dim.id) ? "▸" : "▾"}</span>
+                <span className="runtime-nav__caret">{expanded.has(dim.id) ? "▾" : "▸"}</span>
                 <span className={`tree-dot${dimState ? ` tree-dot--${dimState}` : ""}`} />
                 {dimensionNumber(dimIndex)} {dim.title}
               </button>
               </AssignNode>
 
-              {!collapsed.has(dim.id) &&
+              {expanded.has(dim.id) &&
                 dim.indicators.map((ind, indIndex) => {
                   const indState = dotState(indCounts(ind, answersBySub));
                   return (
                     <div key={ind.id} className="runtime-nav__ind">
                       <AssignNode data={assign} scopeIds={subIdsOfInd(ind)} label={ind.title}>
                         <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(ind.id)}>
-                        <span className="runtime-nav__caret">{collapsed.has(ind.id) ? "▸" : "▾"}</span>
+                        <span className="runtime-nav__caret">{expanded.has(ind.id) ? "▾" : "▸"}</span>
                         <span className={`tree-dot${indState ? ` tree-dot--${indState}` : ""}`} />
                         {indicatorNumber(dimIndex, indIndex)} {ind.title}
                       </button>
                       </AssignNode>
 
-                      {!collapsed.has(ind.id) &&
+                      {expanded.has(ind.id) &&
                         ind.subindicators.map((sub, subIndex) => {
                           const counts = blockCounts(sub, answersBySub[sub.id]);
                           const state = dotState(counts);
@@ -511,7 +523,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
               {/* Subindicadores directos (VS-029, docs/domain/evaluation-hierarchy.md):
                   sin Indicador intermedio, mismo nivel visual que un Subindicador
                   normal pero sin agrupador de por medio. */}
-              {!collapsed.has(dim.id) &&
+              {expanded.has(dim.id) &&
                 dim.subindicators.map((sub, subIndex) => {
                   const counts = blockCounts(sub, answersBySub[sub.id]);
                   const state = dotState(counts);
