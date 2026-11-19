@@ -403,6 +403,20 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [answersBySub]);
 
+  // Filtro (Me faltan / Parciales / Completadas): el árbol se abre solo y muestra únicamente los temas que coinciden;
+  // «Todas» deja el árbol como lo dejó el usuario. Un tema es una pregunta, así que se filtra por tema completo.
+  const filtering = filter !== "all";
+  const isOpen = (id: string) => filtering || expanded.has(id);
+  const subMatches = (sub: SnapshotSubindicator) => matchesFilter(blockCounts(sub, answersBySub[sub.id]), filter);
+  useEffect(() => {
+    if (filter === "all") return;
+    const current = flat.find((x) => x.sub.id === activeId);
+    if (current && subMatches(current.sub)) return;
+    const first = flat.find((x) => subMatches(x.sub));
+    if (first) setActiveId(first.sub.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
+
   function toggleCollapsed(id: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -467,30 +481,32 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
 
         {snapshot.dimensions.map((dim, dimIndex) => {
           const dimState = dotState(dimCounts(dim, answersBySub));
+          if (filtering && ![...dim.indicators.flatMap((i) => i.subindicators), ...dim.subindicators].some(subMatches)) return null;
           return (
             <div key={dim.id} className="runtime-nav__dim">
               <AssignNode data={assign} scopeIds={subIdsOfDim(dim)} label={dim.title}>
                 <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(dim.id)}>
-                <span className="runtime-nav__caret">{expanded.has(dim.id) ? "▾" : "▸"}</span>
+                <span className="runtime-nav__caret">{isOpen(dim.id) ? "▾" : "▸"}</span>
                 <span className={`tree-dot${dimState ? ` tree-dot--${dimState}` : ""}`} />
                 {(dim.number ?? dimensionNumber(dimIndex))} {dim.title}
               </button>
               </AssignNode>
 
-              {expanded.has(dim.id) &&
+              {isOpen(dim.id) &&
                 dim.indicators.map((ind, indIndex) => {
                   const indState = dotState(indCounts(ind, answersBySub));
+                  if (filtering && !ind.subindicators.some(subMatches)) return null;
                   return (
                     <div key={ind.id} className="runtime-nav__ind">
                       <AssignNode data={assign} scopeIds={subIdsOfInd(ind)} label={ind.title}>
                         <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(ind.id)}>
-                        <span className="runtime-nav__caret">{expanded.has(ind.id) ? "▾" : "▸"}</span>
+                        <span className="runtime-nav__caret">{isOpen(ind.id) ? "▾" : "▸"}</span>
                         <span className={`tree-dot${indState ? ` tree-dot--${indState}` : ""}`} />
                         {(ind.number ?? indicatorNumber(dimIndex, indIndex))} {ind.title}
                       </button>
                       </AssignNode>
 
-                      {expanded.has(ind.id) &&
+                      {isOpen(ind.id) &&
                         ind.subindicators.map((sub, subIndex) => {
                           const counts = blockCounts(sub, answersBySub[sub.id]);
                           const state = dotState(counts);
@@ -516,7 +532,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
               {/* Subindicadores directos (VS-029, docs/domain/evaluation-hierarchy.md):
                   sin Indicador intermedio, mismo nivel visual que un Subindicador
                   normal pero sin agrupador de por medio. */}
-              {expanded.has(dim.id) &&
+              {isOpen(dim.id) &&
                 dim.subindicators.map((sub, subIndex) => {
                   const counts = blockCounts(sub, answersBySub[sub.id]);
                   const state = dotState(counts);
@@ -609,11 +625,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
               // preguntas"): 0.N solo sobre elementos isQuestion, en el orden
               // ya filtrado por visibleIf — reinicia en cada Subindicador.
               const subAnswers = answersBySub[active.sub.id] ?? {};
-              const visibleElements = active.sub.formSchema.elements.filter(
-                (el) =>
-                  isElementVisible(el.visibleIf, subAnswers) &&
-                  (filter === "all" || (isQuestion(el) && completionOf(el, subAnswers) === filter)),
-              );
+              const visibleElements = active.sub.formSchema.elements.filter((el) => isElementVisible(el.visibleIf, subAnswers));
               if (visibleElements.length === 0)
                 return <p className="empty">Nada en este bloque coincide con el filtro. Prueba con «Todas».</p>;
               let qIndex = 0;
