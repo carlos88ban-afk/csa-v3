@@ -16,17 +16,24 @@ export function markAnswersSeen(userId: string) {
   }
 }
 
-/** Cantidad de consultas respondidas por el corporativo desde la última visita a «Consultas». Solo unidades. */
+/**
+ * Unidades: consultas respondidas por el corporativo desde la última visita a «Consultas».
+ * Corporativo: consultas pendientes de responder.
+ */
 export function useNewAnswers(): number {
   const { me } = useMe();
   const [count, setCount] = useState(0);
   useEffect(() => {
-    if (me.appRole === "corporate_admin") return;
+    const corp = me.appRole === "corporate_admin";
     let alive = true;
     const run = () => {
       api
-        .get<{ inquiries: Array<{ answeredAt: string | null }> }>("/api/inquiries")
+        .get<{ inquiries: Array<{ answeredAt: string | null; status: string }> }>("/api/inquiries")
         .then((r) => {
+          if (corp) {
+            if (alive) setCount(r.inquiries.filter((i) => i.status === "open").length);
+            return;
+          }
           let seen = "";
           try {
             seen = localStorage.getItem(key(me.userId)) ?? "";
@@ -39,9 +46,11 @@ export function useNewAnswers(): number {
         .catch(() => {});
     };
     run();
+    const timer = setInterval(run, 60000);
     window.addEventListener("inq-seen", run);
     return () => {
       alive = false;
+      clearInterval(timer);
       window.removeEventListener("inq-seen", run);
     };
   }, [me.appRole, me.userId]);

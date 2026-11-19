@@ -59,7 +59,7 @@ export function AppSidebar() {
                 aria-current={active ? "page" : undefined}
               >
                 {item.label}
-                {item.href === "/consultas" && newAnswers > 0 && <span className="nav-badge" aria-label={`${newAnswers} respuesta(s) nueva(s)`}>{newAnswers}</span>}
+                {item.href === "/consultas" && newAnswers > 0 && <span className="nav-badge" aria-label={`${newAnswers} ${me.appRole === "corporate_admin" ? "consulta(s) por responder" : "respuesta(s) nueva(s)"}`}>{newAnswers}</span>}
               </Link>
             </li>
           );
