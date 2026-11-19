@@ -150,3 +150,12 @@ describe("VS-079: notas por opción y bloques ilimitados", () => {
     expect(o.moreBlocks?.[1]!.options[0]!.label).toContain("Métricas usadas");
   });
 });
+
+describe("Secciones MSA: la guía no absorbe el texto de la pregunta", () => {
+  it("guía → banner; título y texto de la sección → texto informativo (no todo en un banner)", () => {
+    const r = parsePastedText(
+      ["Información adicional y guía para preguntas", "", "Con base en un Análisis (AMPI), se revisa la coherencia.", "", "# Gobierno corporativo de MSA", "", "En esta sección se incluye una puntuación de desempeño. No se requiere información adicional de su empresa.", ""].join("\n"),
+    );
+    expect(r.map((x) => x.element.type)).toEqual(["banner", "instruccion", "instruccion"]);
+  });
+});

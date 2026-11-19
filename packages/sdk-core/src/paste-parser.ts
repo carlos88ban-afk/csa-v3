@@ -353,6 +353,8 @@ export function parsePastedText(input: string): ParsedItem[] {
       let end = -1;
       for (let j = i + 1; j < lines.length; j++) if (before.has(normTitle(lines[j]!)) && lines[j]!.trim()) end = j; // última repetición del título
       if (end < 0) { for (let j = i + 1; j < lines.length; j++) if (/\?\s*$/.test(lines[j]!.trim()) && lines[j]!.trim().split(/\s+/).length >= 3) { end = j; break; } }
+      // Sin pregunta ni título repetido (p. ej. secciones MSA, que no piden datos): la guía termina en el primer encabezado «# …»
+      if (end < 0) { for (let j = i + 1; j < lines.length; j++) if (/^\s*#\s+\S/.test(lines[j]!)) { end = j; break; } }
       if (end < 0) end = lines.length;
       let body = lines.slice(i + 1, end);
       // el título de la pregunta (h1) pegado justo antes de la pregunta no es guía
@@ -444,6 +446,16 @@ export function parsePastedText(input: string): ParsedItem[] {
     }
 
     text = stripNumbering(text);
+
+    // Párrafo sin «?» justo tras un encabezado «# …» (descripción de la sección, sin campo propio) → texto informativo
+    {
+      const prev = out[out.length - 1];
+      const nextLine = (lines.slice(i + 1).find((l) => l.trim() !== "") ?? "");
+      if (prev && prev.element.type === "instruccion" && prev.reason === "Encabezado → texto informativo" && !text.includes("?") && !numbered && !optionMarker(raw).marker && !isTableLine(raw) && !/^\s*(?:[#%]?_{3,}|▾)/.test(nextLine) && !optionMarker(nextLine).marker) {
+        out.push({ element: { id: uid(), type: "instruccion", label: esc(text), componentVersion: version("instruccion") }, confidence: "media", reason: "Descripción tras encabezado → texto informativo" });
+        i++; continue;
+      }
+    }
 
     // Sí/No en la misma línea
     const yn = text.match(YES_NO_INLINE);
