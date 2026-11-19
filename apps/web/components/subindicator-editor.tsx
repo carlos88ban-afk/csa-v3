@@ -1271,7 +1271,8 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
     const at = activeId ? elements.findIndex((x) => x.id === activeId) : -1;
     const next = [...elements];
     next.splice(at >= 0 ? at + 1 : next.length, 0, ...els);
-    commit(next);
+    // La pregunta de evidencia (se crea sola en cada tema) siempre queda al final, también tras pegar.
+    commit([...next.filter((x) => x.type !== "evidencia"), ...next.filter((x) => x.type === "evidencia")]);
     setPasteText(null);
     setActiveId(null);
     requestAnimationFrame(() => elementRefs.current[els[0]!.id]?.scrollIntoView({ behavior: "smooth", block: "center" }));
