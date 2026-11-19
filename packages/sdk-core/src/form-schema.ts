@@ -21,6 +21,9 @@ const formElementBase = {
   appliesTo: z.array(z.string().min(1)).optional(),
   // VS-080: lo fija el servidor al servir el snapshot al corporativo — el elemento es de las unidades, el corporativo solo lo ve.
   viewerReadOnly: z.boolean().optional(),
+  // VS-080: responsable del corporativo (usuario evaluador de la matriz) de este elemento; se fija por tema desde el árbol.
+  responsibleUserId: z.string().optional(),
+  responsibleEmail: z.string().optional(),
 };
 
 // label/options[].label permiten vacío a propósito: el autosave del Builder

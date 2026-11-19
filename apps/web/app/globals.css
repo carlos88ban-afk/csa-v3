@@ -2781,3 +2781,7 @@ textarea::placeholder {
 .q-state--units-only { opacity: 0.65; }
 .doc-audience { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .doc-audience__link { font-size: var(--text-sm, 14px); }
+
+.corp-resp { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.corp-resp__form { display: flex; gap: 8px; }
+.corp-resp__form input { min-width: 280px; }

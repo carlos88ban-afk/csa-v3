@@ -307,9 +307,43 @@ export async function assignResponsibleByEmail(
   return { userId, email, created, assigned: ids.length, ...(password ? { password } : {}) };
 }
 
+/** VS-080: ¿el tema tiene a este usuario como responsable del corporativo (fijado desde el árbol)? */
+export function subHasResponsible(sub: { formSchema?: { elements: Array<{ responsibleUserId?: string | undefined }> } | null }, userId: string) {
+  return (sub.formSchema?.elements ?? []).some((el) => el.responsibleUserId === userId);
+}
+
+/**
+ * VS-080: crea (o reutiliza) un evaluador del corporativo por correo, para asignarlo
+ * como responsable de un tema desde el árbol. Devuelve la contraseña solo si la cuenta es nueva.
+ */
+export async function ensureCorporateEvaluator(ctx: AppContext, input: { email: string; name?: string | undefined }) {
+  if (ctx.appRole !== "corporate_admin") throw new AuthzError("FORBIDDEN");
+  const email = input.email.trim().toLowerCase();
+  if (!email || !email.includes("@")) throw new ValidationError("EMAIL_REQUIRED");
+  const [existing] = await db.select().from(user).where(eq(user.email, email));
+  if (existing) {
+    const [m] = await db.select().from(member).where(and(eq(member.userId, existing.id), eq(member.organizationId, ctx.corporateOrgId)));
+    if (!m) throw new ValidationError("EMAIL_IN_OTHER_UNIT");
+    return { userId: existing.id, email, created: false as const };
+  }
+  const password = randomBytes(9).toString("base64url");
+  const name = (input.name ?? "").trim() || email.split("@")[0]!;
+  const res = await auth.api.signUpEmail({ body: { name, email, password } });
+  await db.insert(member).values({ id: randomUUID(), organizationId: ctx.corporateOrgId, userId: res.user.id, role: "evaluator", createdAt: new Date() });
+  return { userId: res.user.id, email, created: true as const, password };
+}
+
 /** Un evaluador solo puede escribir en los bloques que tiene asignados. */
 export async function assertCanWriteBlock(ctx: AppContext, evaluationId: string, subindicatorId: string) {
   if (ctx.appRole !== "evaluator") return;
+  // VS-080: responsable fijado en el tema (árbol) dentro del snapshot publicado.
+  const [ev] = await db.select().from(evaluation).where(eq(evaluation.id, evaluationId));
+  if (ev) {
+    const snap = ev.snapshot as EvaluationSnapshot;
+    const subs = snap.dimensions.flatMap((d) => [...d.indicators.flatMap((i) => i.subindicators), ...d.subindicators]);
+    const sub = subs.find((s) => s.id === subindicatorId);
+    if (sub && subHasResponsible(sub, ctx.userId)) return;
+  }
   const [row] = await db
     .select()
     .from(blockAssignment)

@@ -165,6 +165,13 @@ export async function getEvaluationForBusinessUnit(
         ),
       );
     allowed = new Set(rows.map((r) => r.subindicatorId));
+    // VS-080: temas donde el árbol lo nombra responsable.
+    const snap = ev.snapshot as EvaluationSnapshot;
+    for (const d of snap.dimensions) {
+      for (const s of [...d.indicators.flatMap((i) => i.subindicators), ...d.subindicators]) {
+        if ((s.formSchema?.elements ?? []).some((el) => el.responsibleUserId === viewer.userId)) allowed.add(s.id);
+      }
+    }
   }
   const filteredSnapshot = filterSnapshotByExclusions(
     ev.snapshot as EvaluationSnapshot,

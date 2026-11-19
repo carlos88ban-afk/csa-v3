@@ -1,6 +1,7 @@
 "use client";
 
 import { AppliesToPicker } from "@/components/applies-to-picker";
+import { CorporateResponsible } from "@/components/corporate-responsible";
 import {
   FormulaSyntaxError,
   componentRegistry,
@@ -2224,7 +2225,17 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
               )
             }
           />
-          <a className="doc-audience__link" href="/responsables">Asignar responsable del corporativo →</a>
+          <CorporateResponsible
+            elements={elements}
+            onChange={(patch) =>
+              commit(
+                elements.map((el) => {
+                  const { responsibleUserId: _u, responsibleEmail: _e, ...rest } = el as FormElement & { responsibleUserId?: string; responsibleEmail?: string };
+                  return (patch ? { ...rest, ...patch } : rest) as FormElement;
+                }),
+              )
+            }
+          />
         </div>
       )}
 
