@@ -108,8 +108,9 @@ export default function BuilderPage() {
   const [dims, setDims] = useState<TreeDimension[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(initialRaw);
   const [focusId, setFocusId] = useState<string | null>(initialRaw);
-  const [collapsedDims, setCollapsedDims] = useState<Set<number>>(new Set());
-  const [collapsedInds, setCollapsedInds] = useState<Set<string>>(new Set());
+  // Por defecto el árbol arranca contraído al nivel superior (solo dimensiones 1, 2, 3): se guardan los nodos EXPANDIDOS.
+  const [expandedDims, setExpandedDims] = useState<Set<number>>(new Set());
+  const [expandedInds, setExpandedInds] = useState<Set<string>>(new Set());
   const [treeOpen, setTreeOpen] = useState<boolean>(true);
   const [creating, setCreating] = useState<CreateFormState | null>(null);
   const [renaming, setRenaming] = useState<RenameFormState | null>(null);
@@ -165,6 +166,16 @@ export default function BuilderPage() {
         setFocusId(nextFocus);
         window.history.replaceState(null, "", nextFocus ? `?s=${nextFocus}` : window.location.pathname);
         setDims(tree);
+        // Abrir solo el camino hasta el tema seleccionado (si lo hay); el resto queda contraído.
+        if (resolved) {
+          const ed = new Set<number>(); const ei = new Set<string>();
+          tree.forEach((d, di) => {
+            if (d.directSubs.some((x) => x.id === resolved)) ed.add(di);
+            d.indicators.forEach((i, ii) => { if (i.indicator.id === resolved || i.subs.some((x) => x.id === resolved)) { ed.add(di); ei.add(`${di}:${ii}`); } });
+            if (d.dimension.id === resolved) ed.add(di);
+          });
+          setExpandedDims(ed); setExpandedInds(ei);
+        }
       } catch (err) {
         if (alive) setTreeMessage(err instanceof Error ? err.message : "No se pudo cargar la estructura");
       }
@@ -265,7 +276,7 @@ export default function BuilderPage() {
   }
 
   function toggleDim(i: number) {
-    setCollapsedDims((prev) => {
+    setExpandedDims((prev) => {
       const next = new Set(prev);
       if (next.has(i)) next.delete(i);
       else next.add(i);
@@ -275,7 +286,7 @@ export default function BuilderPage() {
 
   function toggleInd(di: number, ii: number) {
     const key = `${di}:${ii}`;
-    setCollapsedInds((prev) => {
+    setExpandedInds((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -504,11 +515,16 @@ export default function BuilderPage() {
             ),
           })),
         );
-        setCollapsedDims((prev) => {
+        setExpandedDims((prev) => {
           const next = new Set(prev);
           (dims ?? []).forEach((d, di) => {
-            if (d.indicators.some((i) => i.indicator.id === c.indicatorId)) next.delete(di);
+            if (d.indicators.some((i) => i.indicator.id === c.indicatorId)) next.add(di);
           });
+          return next;
+        });
+        setExpandedInds((prev) => {
+          const next = new Set(prev);
+          (dims ?? []).forEach((d, di) => d.indicators.forEach((i, ii) => { if (i.indicator.id === c.indicatorId) next.add(`${di}:${ii}`); }));
           return next;
         });
         setTreeMessage(`Tema ${subindicator.title} creado`);
@@ -531,10 +547,10 @@ export default function BuilderPage() {
             d.dimension.id === c.dimensionId ? { ...d, directSubs: [...d.directSubs, subindicator] } : d,
           ),
         );
-        setCollapsedDims((prev) => {
+        setExpandedDims((prev) => {
           const next = new Set(prev);
           const di = (dims ?? []).findIndex((d) => d.dimension.id === c.dimensionId);
-          if (di >= 0) next.delete(di);
+          if (di >= 0) next.add(di);
           return next;
         });
         setTreeMessage(`Tema ${subindicator.title} creado`);
@@ -978,7 +994,7 @@ export default function BuilderPage() {
                 )}
 
             {dims.map((d, di) => {
-              const dimOpen = !collapsedDims.has(di);
+              const dimOpen = expandedDims.has(di);
               const creatingInd =
                 creating?.kind === "indicator" && creating.dimensionId === d.dimension.id ? creating : null;
               const creatingDirectSub =
@@ -1156,7 +1172,7 @@ export default function BuilderPage() {
                   {dimOpen && (
                     <div role="group" aria-label={`Subsecciones de ${d.dimension.title}`}>
                       {d.indicators.map((ind, ii) => {
-                        const indOpen = !collapsedInds.has(`${di}:${ii}`);
+                        const indOpen = expandedInds.has(`${di}:${ii}`);
                         const creatingSub =
                           creating?.kind === "sub" && creating.indicatorId === ind.indicator.id ? creating : null;
                         const renamingInd =
