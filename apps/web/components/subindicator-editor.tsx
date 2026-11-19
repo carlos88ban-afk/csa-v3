@@ -2209,6 +2209,23 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
         </Button>
       </div>
       {saveStatus === "error" && <p className="alert" role="alert">Error al guardar: {saveError}</p>}
+      {elements.length > 0 && (
+        <div className="doc-audience">
+          {/* VS-080: la visibilidad se decide por tema; aplica a todos sus elementos. */}
+          <AppliesToPicker
+            label="Quién responde este tema"
+            value={elements.find((el) => el.type !== "evidencia")?.appliesTo}
+            onChange={(next) =>
+              commit(
+                elements.map((el) => {
+                  const { appliesTo: _omit, ...rest } = el as FormElement & { appliesTo?: string[] };
+                  return (next ? { ...rest, appliesTo: next } : rest) as FormElement;
+                }),
+              )
+            }
+          />
+        </div>
+      )}
 
       {elements.length === 0 ? (
         <div className="doc-empty">

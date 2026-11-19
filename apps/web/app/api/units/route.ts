@@ -5,7 +5,10 @@ export async function GET(request: Request) {
   try {
     const ctx = await getAppContext(request.headers);
     const units = await listUnits(ctx.corporateOrgId);
-    return Response.json({ units: ctx.appRole === "corporate_admin" ? units : units.filter((u) => u.id === ctx.unitId) });
+    return Response.json({
+      units: ctx.appRole === "corporate_admin" ? units : units.filter((u) => u.id === ctx.unitId),
+      corporateOrgId: ctx.corporateOrgId,
+    });
   } catch (error) {
     return toErrorResponse(error);
   }

@@ -106,10 +106,11 @@ export async function listUsers(ctx: AppContext) {
     name: r.name,
     email: r.email,
     deletionRequested: pending.has(r.userId),
-    appRole: (r.parent ? (r.role === "unit_admin" ? "unit_admin" : "evaluator") : "corporate_admin") as ManagedRole,
-    unitId: r.parent ? r.orgId : null,
-    unitName: r.parent ? r.orgName : null,
-    unitSigla: r.parent ? r.sigla : null,
+    appRole: (r.parent ? (r.role === "unit_admin" ? "unit_admin" : "evaluator") : r.role === "owner" ? "corporate_admin" : "evaluator") as ManagedRole,
+    // VS-080: un evaluador del corporativo pertenece a la matriz («Corporativo»).
+    unitId: r.parent || r.role !== "owner" ? r.orgId : null,
+    unitName: r.parent ? r.orgName : r.role !== "owner" ? "Corporativo" : null,
+    unitSigla: r.parent ? r.sigla : r.role !== "owner" ? "Corp." : null,
   }));
 }
 
@@ -131,7 +132,9 @@ export async function createManagedUser(
     const unitId = ctx.appRole === "unit_admin" ? ctx.unitId : (input.unitId ?? null);
     if (!unitId) throw new ValidationError("UNIT_REQUIRED");
     const [unit] = await db.select().from(organization).where(eq(organization.id, unitId));
-    if (!unit || unit.parentOrganizationId !== ctx.corporateOrgId) throw new NotFoundError("unit");
+    // VS-080: el administrador corporativo puede crear evaluadores del corporativo (unitId = matriz).
+    const isCorp = unit?.id === ctx.corporateOrgId && ctx.appRole === "corporate_admin" && input.role === "evaluator";
+    if (!unit || (unit.parentOrganizationId !== ctx.corporateOrgId && !isCorp)) throw new NotFoundError("unit");
     targetOrgId = unit.id;
     memberRole = input.role;
   }
@@ -209,7 +212,7 @@ export async function listBlocks(evaluationId: string, unitId: string): Promise<
   const snapshot = ev.snapshot as EvaluationSnapshot;
   const push = (dim: Snap, ind: string | null, sub: Snap["subindicators"][number]) => {
     // Solo bloques que aplican a la unidad (al menos una pregunta).
-    if (!blockAppliesToUnit(sub, unitId)) return;
+    if (!blockAppliesToUnit(sub, unitId, ev.organizationId === unitId)) return;
     const a = byBlock.get(sub.id);
     rows.push({
       subindicatorId: sub.id,

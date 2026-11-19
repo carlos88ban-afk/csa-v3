@@ -19,6 +19,8 @@ const formElementBase = {
   visibleIf: condition.optional(),
   // Unidades de negocio a las que aplica este elemento (ids). Ausente = todas.
   appliesTo: z.array(z.string().min(1)).optional(),
+  // VS-080: lo fija el servidor al servir el snapshot al corporativo — el elemento es de las unidades, el corporativo solo lo ve.
+  viewerReadOnly: z.boolean().optional(),
 };
 
 // label/options[].label permiten vacío a propósito: el autosave del Builder

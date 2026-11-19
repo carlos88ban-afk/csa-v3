@@ -2771,3 +2771,11 @@ textarea::placeholder {
 /* VS-079: nota explicativa bajo una opción */
 .opt-note { margin: 4px 0 8px 28px; color: var(--text-muted, inherit); font-size: var(--text-sm); }
 .opt-note p { margin: 0 0 4px; }
+
+/* VS-080: quién responde cada tema / pregunta */
+.doc-audience { margin: 0 0 var(--space-3, 12px); }
+.applies__chip--corp { font-weight: 600; }
+.q-owner { display: inline-block; margin: 0 0 6px 8px; padding: 1px 8px; border-radius: 999px; font-size: var(--text-xs, 12px); border: 1px solid currentColor; }
+.q-owner--corp { color: var(--accent, #3b82f6); }
+.q-owner--units { color: var(--text-muted, #8b94a3); }
+.q-state--units-only { opacity: 0.65; }

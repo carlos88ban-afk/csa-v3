@@ -21,8 +21,7 @@ interface Params {
 export async function PUT(request: Request, { params }: Params) {
   try {
     const ctx = await getAppContext(request.headers);
-    if (!ctx.unitId) return Response.json({ error: "FORBIDDEN" }, { status: 403 });
-    const organizationId = ctx.unitId;
+    const organizationId = ctx.responderUnitId;
     const { id: evaluationId, subindicatorId } = await params;
 
     const assignment = await getAssignmentForBusinessUnit(evaluationId, organizationId);

@@ -52,10 +52,12 @@ type SnapshotSubindicator = EvaluationSnapshot["dimensions"][number]["indicators
  * aplica. Las evidencias por defecto no cuentan: un bloque cuyas preguntas
  * (distintas de evidencias) no aplican a la unidad se oculta completo.
  */
-export function blockAppliesToUnit(sub: SnapshotSubindicator, unitId: string): boolean {
+export function blockAppliesToUnit(sub: SnapshotSubindicator, unitId: string, isCorporate = false): boolean {
   const els = sub.formSchema?.elements ?? [];
   const own = els.filter((el) => isQuestion(el) && el.type !== "evidencia");
   if (own.length === 0) return true;
+  // VS-080: el corporativo solo responde lo que lo nombra explícitamente en appliesTo (ausente = solo unidades).
+  if (isCorporate) return own.some((el) => !!el.appliesTo && el.appliesTo.includes(unitId));
   return own.some((el) => !el.appliesTo || el.appliesTo.includes(unitId));
 }
 
@@ -64,6 +66,7 @@ function filterSnapshotByExclusions(
   exclusions: Array<{ subindicatorId: string; elementId: string | null }>,
   unitId: string,
   allowedSubindicators: Set<string> | null,
+  isCorporate = false,
 ): EvaluationSnapshot {
   // Agrupar exclusiones por subindicatorId para lookup rápido.
   const exclusionMap = new Map<string, Set<string | null>>();
@@ -79,8 +82,17 @@ function filterSnapshotByExclusions(
     if (sub.formSchema) {
       sub = { ...sub, formSchema: resolveHistoricalForUnit(sub.formSchema, unitId) };
     }
-    // Aplicabilidad por unidad (appliesTo en el elemento): ausente = todas.
-    if (sub.formSchema) {
+    // VS-080: el corporativo ve todo; lo que no es suyo llega marcado de solo lectura.
+    if (isCorporate && sub.formSchema) {
+      sub = {
+        ...sub,
+        formSchema: {
+          ...sub.formSchema,
+          elements: sub.formSchema.elements.map((el) => (el.appliesTo && el.appliesTo.includes(unitId) ? el : { ...el, viewerReadOnly: true })),
+        },
+      };
+    } else if (sub.formSchema) {
+      // Aplicabilidad por unidad (appliesTo en el elemento): ausente = todas.
       const applicable = sub.formSchema.elements.filter((el) => !el.appliesTo || el.appliesTo.includes(unitId));
       if (applicable.length !== sub.formSchema.elements.length) {
         sub = { ...sub, formSchema: { ...sub.formSchema, elements: applicable } };
@@ -104,7 +116,7 @@ function filterSnapshotByExclusions(
   }
 
   const keep = (sub: SnapshotSubindicator) =>
-    blockAppliesToUnit(sub, unitId) && (!allowedSubindicators || allowedSubindicators.has(sub.id));
+    (isCorporate || blockAppliesToUnit(sub, unitId)) && (!allowedSubindicators || allowedSubindicators.has(sub.id));
   const dimensions = snapshot.dimensions
     .map((dim) => ({
       ...dim,
@@ -159,11 +171,13 @@ export async function getEvaluationForBusinessUnit(
     exclusions,
     businessUnitOrganizationId,
     allowed,
+    ev.organizationId === businessUnitOrganizationId,
   );
 
   return {
     ...ev,
     snapshot: filteredSnapshot,
+    viewerIsCorporate: ev.organizationId === businessUnitOrganizationId,
   };
 }
 
@@ -180,6 +194,19 @@ export async function assertAnswersRespectExclusions(
 ): Promise<void> {
   const assignment = await getAssignmentForBusinessUnit(evaluationId, businessUnitOrganizationId);
   if (!assignment) throw new NotFoundError("evaluation_assignment");
+
+  // VS-080: el corporativo solo puede escribir en elementos que lo nombran en appliesTo.
+  const [ev] = await db.select().from(evaluation).where(eq(evaluation.id, evaluationId));
+  if (ev && ev.organizationId === businessUnitOrganizationId) {
+    const snap = ev.snapshot as EvaluationSnapshot;
+    const subs = snap.dimensions.flatMap((d) => [...d.indicators.flatMap((i) => i.subindicators), ...d.subindicators]);
+    const sub = subs.find((s) => s.id === subindicatorId);
+    const mine = new Set((sub?.formSchema?.elements ?? []).filter((el) => el.appliesTo?.includes(businessUnitOrganizationId)).map((el) => el.id));
+    for (const key of Object.keys(answers)) {
+      const elementId = key.split("::")[0]!;
+      if (!mine.has(elementId)) throw new ValidationError("ANSWER_TO_UNIT_ONLY_ELEMENT");
+    }
+  }
 
   const exclusions = await listExclusions(assignment.id);
 
@@ -246,7 +273,7 @@ export async function getBusinessUnitProgress(evaluationId: string, businessUnit
   let answered = 0;
   function countSubindicator(sub: SnapshotSubindicator) {
     const answers = answersBySub.get(sub.id) ?? {};
-    const questions = (sub.formSchema?.elements ?? []).filter((el) => isQuestion(el) && isElementVisible(el.visibleIf, answers));
+    const questions = (sub.formSchema?.elements ?? []).filter((el) => isQuestion(el) && !el.viewerReadOnly && isElementVisible(el.visibleIf, answers));
     total += questions.length;
     answered += questions.filter((q) => isAnswered(answers[q.id], answers[naKey(q.id)] as string | undefined)).length;
   }

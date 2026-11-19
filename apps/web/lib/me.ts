@@ -4,6 +4,7 @@ export interface Me {
   email: string;
   appRole: "corporate_admin" | "unit_admin" | "evaluator";
   unitId: string | null;
+  corporateOrgId?: string;
   unitName: string | null;
   unitSigla: string | null;
 }

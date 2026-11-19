@@ -8,13 +8,12 @@ interface Params {
 export async function GET(request: Request, { params }: Params) {
   try {
     const ctx = await getAppContext(request.headers);
-    if (!ctx.unitId) return Response.json({ error: "FORBIDDEN" }, { status: 403 });
     const { id: evaluationId } = await params;
-    const assignment = await getAssignmentForBusinessUnit(evaluationId, ctx.unitId);
+    const assignment = await getAssignmentForBusinessUnit(evaluationId, ctx.responderUnitId);
     if (!assignment) {
       return Response.json({ error: "evaluation_assignment_NOT_FOUND" }, { status: 403 });
     }
-    const responses = await listResponses(evaluationId, ctx.unitId);
+    const responses = await listResponses(evaluationId, ctx.responderUnitId);
     return Response.json({ responses });
   } catch (error) {
     return toErrorResponse(error);

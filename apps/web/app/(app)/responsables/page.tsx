@@ -33,10 +33,13 @@ export default function ResponsablesPage() {
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
   const [form, setForm] = useState({ email: "", name: "", scope: "" });
 
-  const load = (id: string) => api.get<{ blocks: Block[] }>(`/api/evaluations/${id}/blocks`).then((r) => setBlocks(r.blocks));
+  // VS-080: el administrador corporativo asigna responsables del corporativo (la matriz actúa como una unidad más).
+  const corp = me?.appRole === "corporate_admin" ? me.corporateOrgId : undefined;
+  const load = (id: string) =>
+    api.get<{ blocks: Block[] }>(`/api/evaluations/${id}/blocks${corp ? `?unit=${corp}` : ""}`).then((r) => setBlocks(r.blocks));
   const loadUsers = () => api.get<{ users: UserRow[] }>("/api/users").then((r) => setUsers(r.users));
   useEffect(() => {
-    if (!me || me.appRole !== "unit_admin") return;
+    if (!me || (me.appRole !== "unit_admin" && me.appRole !== "corporate_admin")) return;
     api.get<{ evaluation: { id: string } | null }>("/api/current-evaluation").then((r) => {
       if (!r.evaluation) return setBlocks([]);
       setEvalId(r.evaluation.id);
@@ -75,6 +78,7 @@ export default function ResponsablesPage() {
         email: form.email,
         name: form.name,
         subindicatorIds: scope.ids,
+        ...(corp ? { unitId: corp } : {}),
       });
       setOk(`${r.email} quedó como responsable de ${r.assigned} ${r.assigned === 1 ? "bloque" : "bloques"}.`);
       if (r.password) setCreated({ email: r.email, password: r.password });
@@ -91,7 +95,7 @@ export default function ResponsablesPage() {
     if (!evalId) return;
     setError(null);
     try {
-      await api.put(`/api/evaluations/${evalId}/blocks`, { subindicatorId, userId: userId || null });
+      await api.put(`/api/evaluations/${evalId}/blocks`, { subindicatorId, userId: userId || null, ...(corp ? { unitId: corp } : {}) });
       await load(evalId);
     } catch {
       setError("No se pudo guardar la asignación.");
@@ -99,13 +103,14 @@ export default function ResponsablesPage() {
   }
 
   if (loading || !me) return <main className="loading">Cargando...</main>;
-  if (me.appRole !== "unit_admin") return <main className="page">Solo el administrador de la unidad asigna responsables.</main>;
+  if (me.appRole !== "unit_admin" && me.appRole !== "corporate_admin") return <main className="page">Solo el administrador asigna responsables.</main>;
+  const scopeUsers = corp ? users.filter((u) => u.unitId === corp) : users;
 
-  const known = users.some((u) => u.email.toLowerCase() === form.email.trim().toLowerCase());
+  const known = scopeUsers.some((u) => u.email.toLowerCase() === form.email.trim().toLowerCase());
 
   return (
     <main className="page">
-      <h1>Responsables de {me.unitName}</h1>
+      <h1>Responsables de {corp ? "los temas del corporativo" : me.unitName}</h1>
       <p className="page__lead">
         Asigna con un correo quién responde cada tema. Esa persona entra con el mismo enlace y ve solo las preguntas que le tocan.
       </p>
@@ -117,7 +122,7 @@ export default function ResponsablesPage() {
           <label className="field">
             <span className="field__label">Correo del responsable</span>
             <input type="email" list="resp-users" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-            <datalist id="resp-users">{users.map((u) => <option key={u.userId} value={u.email}>{u.name}</option>)}</datalist>
+            <datalist id="resp-users">{scopeUsers.map((u) => <option key={u.userId} value={u.email}>{u.name}</option>)}</datalist>
           </label>
           {form.email.includes("@") && !known && (
             <label className="field">
@@ -155,7 +160,7 @@ export default function ResponsablesPage() {
                   <td>
                     <select value={b.userId ?? ""} aria-label={`Responsable de ${b.title}`} onChange={(e) => void assign(b.subindicatorId, e.target.value)}>
                       <option value="">Sin asignar</option>
-                      {users.map((u) => (
+                      {scopeUsers.map((u) => (
                         <option key={u.userId} value={u.userId}>{u.name} ({u.email})</option>
                       ))}
                     </select>

@@ -13,8 +13,7 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const { id } = await params;
     const ctx = await getAppContext(request.headers);
-    if (!ctx.unitId) return Response.json({ error: "FORBIDDEN" }, { status: 403 });
-    const organizationId = ctx.unitId;
+    const organizationId = ctx.responderUnitId;
     const ev = await getEvaluationForBusinessUnit(id, organizationId);
     if (!isR2Configured()) {
       return Response.json({ error: "EVIDENCES_NOT_CONFIGURED" }, { status: 503 });

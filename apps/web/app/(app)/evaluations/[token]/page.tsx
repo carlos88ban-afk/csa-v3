@@ -626,12 +626,23 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
                     value={answersBySub[active.sub.id]?.[el.id]}
                     onChange={(value) => setAnswer(el.id, value)}
                     onAnswerChange={setAnswer}
-                    formLocked={deadlineLocked}
+                    formLocked={deadlineLocked || !!el.viewerReadOnly}
                   />
                 );
+                // VS-080: el corporativo distingue lo que le toca llenar de lo que es solo de las unidades.
+                const corpView = (evaluation as { viewerIsCorporate?: boolean }).viewerIsCorporate === true;
+                const owner =
+                  corpView && isQuestion(el) ? (
+                    el.viewerReadOnly ? (
+                      <span className="q-owner q-owner--units">Solo unidades de negocio · no editable</span>
+                    ) : (
+                      <span className="q-owner q-owner--corp">Responde el corporativo</span>
+                    )
+                  ) : null;
                 return st ? (
-                  <div key={el.id} className={`q-state q-state--${st}`}>
+                  <div key={el.id} className={`q-state q-state--${st}${el.viewerReadOnly ? " q-state--units-only" : ""}`}>
                     <span className={`q-badge q-badge--${st}`}>{COMPLETION_LABEL[st]}</span>
+                    {owner}
                     {view}
                   </div>
                 ) : (

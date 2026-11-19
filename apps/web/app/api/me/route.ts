@@ -16,6 +16,7 @@ export async function GET(request: Request) {
       name: ctx.userName,
       appRole: ctx.appRole,
       unitId: ctx.unitId,
+      corporateOrgId: ctx.corporateOrgId,
       unitName,
       unitSigla,
     });

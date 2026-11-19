@@ -10,6 +10,8 @@ import { HOME_BY_ROLE, ROLE_LABEL, type Me } from "@/lib/me";
 const NAV: Record<Me["appRole"], Array<{ href: string; label: string }>> = {
   corporate_admin: [
     { href: "/evaluations", label: "Evaluación" },
+    { href: "/mi-evaluacion", label: "Mi parte" },
+    { href: "/responsables", label: "Responsables" },
     { href: "/frameworks", label: "Estructura" },
     { href: "/units", label: "Unidades" },
     { href: "/users", label: "Usuarios" },

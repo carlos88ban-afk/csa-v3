@@ -90,7 +90,8 @@ export async function getAssignmentForBusinessUnit(evaluationId: string, busines
   // la asignacion se crea al primer acceso.
   const [ev] = await db.select().from(evaluation).where(eq(evaluation.id, evaluationId));
   const [unit] = await db.select().from(organization).where(eq(organization.id, businessUnitOrganizationId));
-  if (!ev || !unit || unit.parentOrganizationId !== ev.organizationId || !unit.active) return null;
+  // VS-080: la matriz también participa como evaluado (responde los temas marcados «Corporativo»).
+  if (!ev || !unit || (unit.id !== ev.organizationId && unit.parentOrganizationId !== ev.organizationId) || !unit.active) return null;
   await db
     .insert(evaluationAssignment)
     .values({ id: randomUUID(), evaluationId, businessUnitOrganizationId })

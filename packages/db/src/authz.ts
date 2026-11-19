@@ -93,6 +93,8 @@ export interface AppContext {
   corporateOrgId: string;
   /** Unidad de negocio del usuario; null para administradores corporativos. */
   unitId: string | null;
+  /** VS-080: organización con la que responde (su unidad, o la matriz si es corporativo). */
+  responderUnitId: string;
 }
 
 /**
@@ -106,12 +108,13 @@ export async function getAppContext(headers: Headers): Promise<AppContext> {
   if (!org) throw new AuthzError("NO_ACTIVE_ORGANIZATION");
   const userName = session?.user.name || session?.user.email || "Usuario";
   if (!org.parentOrganizationId) {
-    if (base.role !== "owner") throw new AuthzError("FORBIDDEN");
-    return { ...base, userName, appRole: "corporate_admin", corporateOrgId: org.id, unitId: null };
+    // VS-080: un miembro no-owner de la matriz es un evaluador corporativo (responde solo los temas que se le asignan).
+    if (base.role !== "owner") return { ...base, userName, appRole: "evaluator", corporateOrgId: org.id, unitId: org.id, responderUnitId: org.id };
+    return { ...base, userName, appRole: "corporate_admin", corporateOrgId: org.id, unitId: null, responderUnitId: org.id };
   }
   if (!org.active) throw new AuthzError("FORBIDDEN");
   const appRole: AppRole = base.role === "unit_admin" ? "unit_admin" : "evaluator";
-  return { ...base, userName, appRole, corporateOrgId: org.parentOrganizationId, unitId: org.id };
+  return { ...base, userName, appRole, corporateOrgId: org.parentOrganizationId, unitId: org.id, responderUnitId: org.id };
 }
 
 export async function requireCorporateAdmin(headers: Headers): Promise<AppContext> {
