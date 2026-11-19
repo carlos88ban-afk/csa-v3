@@ -71,7 +71,13 @@ function pieceHtml(pieces: string[]) {
   return pieces.map((t, i) => (i === 0 ? `<p><strong>${esc(t)}</strong></p>` : `<p>${esc(t)}</p>`)).join("");
 }
 function cellComponents(txt: string): { comps: Record<string, unknown>[]; lists: number } | null {
-  const pieces = txt.split(SEP).map((x) => x.trim()).filter(Boolean);
+  const raw = txt.split(SEP).map((x) => x.trim()).filter(Boolean);
+  // El portal separa a veces la casilla/opción de su rótulo ("☐ ¦ Operaciones"): se une para que el rótulo no se pierda.
+  const pieces: string[] = [];
+  for (let k = 0; k < raw.length; k++) {
+    if ((raw[k] === "☐" || raw[k] === "○") && k + 1 < raw.length && !/^(?:[#%]?_{3,}|▾|☐|○)/.test(raw[k + 1]!)) pieces.push(raw[k]! + " " + raw[++k]!);
+    else pieces.push(raw[k]!);
+  }
   const comps: Record<string, unknown>[] = [];
   let lists = 0;
   for (let i = 0; i < pieces.length; i++) {

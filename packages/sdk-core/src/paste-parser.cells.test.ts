@@ -89,3 +89,19 @@ describe("contenido de una opción: enlaces, campo con rótulo y tablas con tít
     expect(formElement.safeParse(r[0]!.element).success).toBe(true);
   });
 });
+
+describe("celdas con casilla/opción separada de su rótulo", () => {
+  it("une '☐ ¦ Operaciones' en una sola casilla con rótulo y no deja opciones vacías", () => {
+    const text = [
+      "¿Impactos?",
+      "    | Aspecto | Impacto 1 |",
+      "    | Causa | Cadena: ¦ ☐ ¦ Operaciones ¦ ☐ ¦ Productos ¦ ○ ¦ Alta ¦ ○ ¦ Baja |",
+      "",
+    ].join("\n");
+    const json = JSON.stringify(parsePastedText(text));
+    expect(json).toContain("Operaciones");
+    expect(json).toContain("Productos");
+    expect(json).toContain("Alta");
+    expect(json).not.toContain('"options":[]');
+  });
+});
