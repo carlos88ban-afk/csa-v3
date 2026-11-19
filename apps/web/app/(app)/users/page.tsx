@@ -16,6 +16,15 @@ interface UserRow {
   unitId: string | null;
   unitName: string | null;
   unitSigla: string | null;
+  deletionRequested?: boolean;
+}
+interface DelReq {
+  id: string;
+  userName: string;
+  userEmail: string;
+  unitName: string;
+  unitSigla: string | null;
+  requestedByName: string;
 }
 interface Unit {
   id: string;
@@ -29,6 +38,10 @@ export default function UsersPage() {
   const { data: usersData, reload } = useCachedGet<{ users: UserRow[] }>(me.appRole === "evaluator" ? null : "/api/users");
   const { data: unitsData } = useCachedGet<{ units: Unit[] }>(me.appRole === "evaluator" ? null : "/api/units");
   const users = usersData?.users ?? null;
+  const { data: reqData, reload: reloadReqs } = useCachedGet<{ requests: DelReq[] }>(me.appRole === "corporate_admin" ? "/api/deletion-requests" : null);
+  const requests = reqData?.requests ?? [];
+  const [approving, setApproving] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const units = (unitsData?.units ?? []).filter((u) => u.active);
   const [form, setForm] = useState({ name: "", email: "", role: "evaluator" as Me["appRole"], unitId: "" });
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
@@ -71,14 +84,35 @@ export default function UsersPage() {
     }
   }
 
+  // VS-035: el corporativo borra; el admin de unidad solicita y el corporativo confirma.
   async function remove(id: string) {
     setError(null);
+    setNotice(null);
     try {
-      await api.del(`/api/users/${id}`);
+      if (me.appRole === "corporate_admin") {
+        await api.del(`/api/users/${id}`);
+        setNotice("Usuario eliminado definitivamente.");
+      } else {
+        await api.post(`/api/users/${id}/deletion-request`, {});
+        setNotice("Solicitud enviada. El administrador corporativo debe confirmar la eliminación.");
+      }
       setConfirm(null);
       await load();
     } catch {
-      setError("No se pudo eliminar el usuario.");
+      setError(me.appRole === "corporate_admin" ? "No se pudo eliminar el usuario." : "No se pudo enviar la solicitud.");
+    }
+  }
+
+  async function resolveRequest(id: string, approve: boolean) {
+    setError(null);
+    setNotice(null);
+    try {
+      await api.post(`/api/deletion-requests/${id}`, { approve });
+      setApproving(null);
+      setNotice(approve ? "Usuario eliminado definitivamente." : "Solicitud rechazada.");
+      await Promise.all([load(), reloadReqs()]);
+    } catch {
+      setError("No se pudo resolver la solicitud.");
     }
   }
 
@@ -103,6 +137,39 @@ export default function UsersPage() {
           : `Usuarios de ${me.unitName ?? "tu unidad"}. Solo puedes crear usuarios de tu unidad.`}
       </p>
       {error && <p className="alert" role="alert">{error}</p>}
+      {notice && <p className="alert alert--ok" role="status">{notice}</p>}
+      {isCorp && requests.length > 0 && (
+        <Card>
+          <h2>Solicitudes de eliminación ({requests.length})</h2>
+          <p className="page__lead">Los administradores de unidad piden eliminar usuarios. Al aprobar, el usuario se borra de forma definitiva.</p>
+          <table className="data-table">
+            <thead><tr><th>Usuario</th><th>Unidad</th><th>Solicitado por</th><th></th></tr></thead>
+            <tbody>
+              {requests.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.userName}<br /><small>{r.userEmail}</small></td>
+                  <td>{r.unitSigla ?? r.unitName}</td>
+                  <td>{r.requestedByName}</td>
+                  <td>
+                    {approving === r.id ? (
+                      <>
+                        <small className="del-warn"><strong>No es reversible.</strong> ¿Eliminar a este usuario?</small>{" "}
+                        <Button size="sm" variant="danger" onClick={() => void resolveRequest(r.id, true)}>Sí, eliminar definitivamente</Button>{" "}
+                        <Button size="sm" onClick={() => setApproving(null)}>Cancelar</Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button size="sm" variant="danger" onClick={() => setApproving(r.id)}>Aprobar y eliminar</Button>{" "}
+                        <Button size="sm" onClick={() => void resolveRequest(r.id, false)}>Rechazar</Button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
       {created && <PasswordReveal email={created.email} password={created.password} onClose={() => setCreated(null)} />}
       <Card>
         <form onSubmit={create} className="field-grid">
@@ -168,13 +235,20 @@ export default function UsersPage() {
                     {u.userId !== me.userId &&
                       (confirm === u.userId ? (
                         <>
-                          <Button size="sm" variant="danger" onClick={() => void remove(u.userId)}>Sí, eliminar</Button>{" "}
+                          <small className="del-warn">
+                            {isCorp
+                              ? <><strong>Esta acción no es reversible.</strong> ¿Seguro que quieres eliminar a este usuario?</>
+                              : "¿Está seguro de que desea solicitar la eliminación de este usuario? El administrador corporativo deberá confirmarla."}
+                          </small>{" "}
+                          <Button size="sm" variant="danger" onClick={() => void remove(u.userId)}>{isCorp ? "Sí, eliminar definitivamente" : "Sí, solicitar"}</Button>{" "}
                           <Button size="sm" onClick={() => setConfirm(null)}>Cancelar</Button>
                         </>
                       ) : (
                         <>
-                          <Button size="sm" onClick={() => void resetPassword(u.userId)}>Nueva contraseña</Button>{" "}
-                          <Button size="sm" onClick={() => setConfirm(u.userId)}>Eliminar</Button>
+                          {isCorp && <><Button size="sm" onClick={() => void resetPassword(u.userId)}>Nueva contraseña</Button>{" "}</>}
+                          {u.deletionRequested
+                            ? <Pill variant="warn">Eliminación solicitada</Pill>
+                            : <Button size="sm" onClick={() => { setNotice(null); setConfirm(u.userId); }}>{isCorp ? "Eliminar" : "Solicitar eliminación"}</Button>}
                         </>
                       ))}
                   </td>

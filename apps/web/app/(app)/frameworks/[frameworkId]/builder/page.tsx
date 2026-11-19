@@ -1073,7 +1073,7 @@ export default function BuilderPage() {
                   {confirmingDim && (
                     <form className="builder-nav__confirm" onSubmit={submitDelete}>
                       <p>
-                        Borrar la sección <strong>{confirmingDim.title}</strong> y todo su contenido?
+                        ¿Seguro que quieres borrar la sección <strong>{confirmingDim.title}</strong> y todo su contenido? <strong>Esta acción no es reversible.</strong>
                       </p>
                       {confirmingDim.error && (
                         <p className="alert" role="alert">
@@ -1249,7 +1249,7 @@ export default function BuilderPage() {
                             {confirmingInd && (
                               <form className="builder-nav__confirm" onSubmit={submitDelete}>
                                 <p>
-                                  Borrar la subsección <strong>{confirmingInd.title}</strong> y sus temas?
+                                  ¿Seguro que quieres borrar la subsección <strong>{confirmingInd.title}</strong> y sus temas? <strong>Esta acción no es reversible.</strong>
                                 </p>
                                 {confirmingInd.error && (
                                   <p className="alert" role="alert">
@@ -1386,7 +1386,7 @@ export default function BuilderPage() {
                                       {confirmingSub && (
                                         <form className="builder-nav__confirm" onSubmit={submitDelete}>
                                           <p>
-                                            Borrar el tema <strong>{confirmingSub.title}</strong>?
+                                            ¿Seguro que quieres borrar el tema <strong>{confirmingSub.title}</strong> y sus preguntas? <strong>Esta acción no es reversible.</strong>
                                           </p>
                                           {confirmingSub.error && (
                                             <p className="alert" role="alert">
@@ -1514,7 +1514,7 @@ export default function BuilderPage() {
                                 {confirmingSub && (
                                   <form className="builder-nav__confirm" onSubmit={submitDelete}>
                                     <p>
-                                      Borrar el tema <strong>{confirmingSub.title}</strong>?
+                                      ¿Seguro que quieres borrar el tema <strong>{confirmingSub.title}</strong> y sus preguntas? <strong>Esta acción no es reversible.</strong>
                                     </p>
                                     {confirmingSub.error && (
                                       <p className="alert" role="alert">

@@ -51,3 +51,23 @@ export const inquiry = pgTable(
   },
   (t) => [index("inquiry_org_idx").on(t.organizationId), index("inquiry_unit_idx").on(t.businessUnitId)],
 );
+
+// VS-035: solicitud de eliminación de un usuario hecha por el admin de unidad; el corporativo la confirma o rechaza.
+// Al aprobar se borra el usuario (y con él esta fila por cascade); al rechazar se borra la fila: no se guarda historial.
+export const deletionRequest = pgTable(
+  "deletion_request",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    unitId: text("unit_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    requestedBy: text("requested_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [unique("deletion_request_user_unique").on(t.userId), index("deletion_request_unit_idx").on(t.unitId)],
+);

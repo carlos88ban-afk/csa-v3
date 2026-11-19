@@ -208,6 +208,15 @@ export async function deleteEvaluation(organizationId: string, id: string) {
   return row ?? null;
 }
 
+// VS-035: ids de las evaluaciones publicadas de una estructura (para limpiar sus archivos antes de borrarla).
+export async function listEvaluationIdsOfFramework(organizationId: string, frameworkId: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: evaluation.id })
+    .from(evaluation)
+    .where(and(eq(evaluation.frameworkId, frameworkId), eq(evaluation.organizationId, organizationId)));
+  return rows.map((r) => r.id);
+}
+
 export async function getEvaluationByToken(token: string) {
   const [row] = await db.select().from(evaluation).where(eq(evaluation.token, token));
   return row ?? null;

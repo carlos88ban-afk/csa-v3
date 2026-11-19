@@ -1,4 +1,4 @@
-import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 // Motor engine/evidences v1 (ver docs/engines/evidences.md). Cliente S3 para
@@ -76,4 +76,26 @@ export async function evidenceExists(key: string): Promise<boolean> {
 
 export async function deleteEvidence(key: string): Promise<void> {
   await getClient().send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+}
+
+// VS-035: al borrar una evaluación se eliminan sus archivos del almacenamiento (todo bajo `evaluations/{id}/`).
+// Mejor esfuerzo: nunca debe impedir el borrado en la base; el error queda en el log.
+export async function deleteEvaluationFiles(evaluationId: string): Promise<number> {
+  if (!configured) return 0;
+  let removed = 0;
+  try {
+    let token: string | undefined;
+    do {
+      const page = await getClient().send(new ListObjectsV2Command({ Bucket: bucket, Prefix: `evaluations/${evaluationId}/`, ContinuationToken: token }));
+      const keys = (page.Contents ?? []).map((o) => ({ Key: o.Key! }));
+      if (keys.length) {
+        await getClient().send(new DeleteObjectsCommand({ Bucket: bucket, Delete: { Objects: keys } }));
+        removed += keys.length;
+      }
+      token = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (token);
+  } catch (error) {
+    console.error("deleteEvaluationFiles failed", evaluationId, error);
+  }
+  return removed;
 }

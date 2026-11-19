@@ -1,4 +1,4 @@
-import { deleteSubindicator, getSubindicator, requireActiveMember, requireWriteAccess, updateSubindicator } from "@plataforma-csa/db";
+import { deleteSubindicator, getSubindicator, requireActiveMember, requireCorporateAdmin, requireWriteAccess, updateSubindicator } from "@plataforma-csa/db";
 import { updateSubindicatorInput } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
@@ -34,7 +34,7 @@ export async function PATCH(request: Request, { params }: Params) {
 export async function DELETE(request: Request, { params }: Params) {
   try {
     const { id } = await params;
-    const { organizationId } = await requireWriteAccess(request.headers);
+    const { corporateOrgId: organizationId } = await requireCorporateAdmin(request.headers);
     const row = await deleteSubindicator(organizationId, id);
     if (!row) return Response.json({ error: "subindicator_NOT_FOUND" }, { status: 404 });
     return Response.json({ subindicator: row });

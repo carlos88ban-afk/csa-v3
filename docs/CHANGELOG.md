@@ -4,6 +4,13 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-035 · Borrado real, confirmaciones y solicitud de eliminación (2026-11-18)
+
+- Eliminar evaluaciones completas desde Estructura, escribiendo ELIMINAR (también validado en el servidor); borra además sus archivos de evidencia.
+- Solo el administrador corporativo borra evaluaciones, dimensiones, indicadores, bloques, unidades y usuarios; todo con aviso «no es reversible».
+- El administrador de unidad solicita la eliminación de un usuario y el corporativo la aprueba (borra) o rechaza (sin historial). Nueva tabla `deletion_request`.
+- Eliminar unidad (con sus usuarios, respuestas y consultas).
+
 ### VS-034 · Filtros en Usuarios, Unidades y Consultas (2026-11-13)
 
 - Barra de filtros fija con búsqueda (sin tildes ni mayúsculas), resaltado, contador «N de M» y «Limpiar».

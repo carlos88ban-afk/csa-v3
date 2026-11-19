@@ -2,10 +2,10 @@ import { randomBytes, randomUUID } from "node:crypto";
 import type { EvaluationSnapshot } from "@plataforma-csa/sdk-core";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { auth } from "../auth.js";
-import type { AppContext } from "../authz.js";
+import { AuthzError, type AppContext } from "../authz.js";
 import { db } from "../client.js";
 import { account, member, organization, user } from "../schema/auth.js";
-import { blockAssignment, inquiry } from "../schema/corporate.js";
+import { blockAssignment, deletionRequest, inquiry } from "../schema/corporate.js";
 import { dimension, framework, indicator, subindicator } from "../schema/domain.js";
 import { evaluation } from "../schema/evaluation.js";
 import { NotFoundError, ValidationError } from "./service.js";
@@ -98,10 +98,14 @@ export async function listUsers(ctx: AppContext) {
     .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(inArray(member.organizationId, orgIds))
     .orderBy(asc(organization.name), asc(user.name));
+  const pending = new Set(
+    (await db.select({ userId: deletionRequest.userId }).from(deletionRequest).where(inArray(deletionRequest.userId, rows.map((r) => r.userId)))).map((p) => p.userId),
+  );
   return rows.map((r) => ({
     userId: r.userId,
     name: r.name,
     email: r.email,
+    deletionRequested: pending.has(r.userId),
     appRole: (r.parent ? (r.role === "unit_admin" ? "unit_admin" : "evaluator") : "corporate_admin") as ManagedRole,
     unitId: r.parent ? r.orgId : null,
     unitName: r.parent ? r.orgName : null,
@@ -169,6 +173,8 @@ export async function resetManagedUserPassword(ctx: AppContext, userId: string) 
 }
 
 export async function removeManagedUser(ctx: AppContext, userId: string) {
+  // VS-035: solo el corporativo borra; el admin de unidad solicita (requestUserDeletion).
+  if (ctx.appRole !== "corporate_admin") throw new AuthzError("FORBIDDEN");
   if (userId === ctx.userId) throw new ValidationError("CANNOT_REMOVE_SELF");
   const users = await listUsers(ctx);
   if (!users.some((u) => u.userId === userId)) throw new NotFoundError("user");
@@ -575,4 +581,74 @@ export async function evaluationBelongsToOrg(evaluationId: string, corporateOrgI
     .from(evaluation)
     .where(and(eq(evaluation.id, evaluationId), eq(evaluation.organizationId, corporateOrgId)));
   return !!row;
+}
+
+// ---------------------------------------------------- VS-035: borrado real
+
+/** Borra la unidad y, con ella, sus usuarios (si no pertenecen a otra unidad), respuestas, bloques y consultas. */
+export async function deleteUnit(corporateOrgId: string, id: string) {
+  const [unit] = await db.select().from(organization).where(eq(organization.id, id));
+  if (!unit || unit.parentOrganizationId !== corporateOrgId) throw new NotFoundError("unit");
+  const members = await db.select({ userId: member.userId }).from(member).where(eq(member.organizationId, id));
+  for (const m of members) {
+    const others = await db.select({ id: member.id }).from(member).where(eq(member.userId, m.userId));
+    if (others.length <= 1) await db.delete(user).where(eq(user.id, m.userId));
+  }
+  await db.delete(organization).where(eq(organization.id, id));
+  return { id };
+}
+
+/** Admin de unidad: pide que el corporativo elimine a un usuario de su unidad. */
+export async function requestUserDeletion(ctx: AppContext, userId: string) {
+  if (ctx.appRole !== "unit_admin" || !ctx.unitId) throw new AuthzError("FORBIDDEN");
+  if (userId === ctx.userId) throw new ValidationError("CANNOT_REMOVE_SELF");
+  const users = await listUsers(ctx);
+  if (!users.some((u) => u.userId === userId)) throw new NotFoundError("user");
+  await db
+    .insert(deletionRequest)
+    .values({ id: randomUUID(), userId, unitId: ctx.unitId, requestedBy: ctx.userId })
+    .onConflictDoNothing({ target: deletionRequest.userId });
+  return { ok: true };
+}
+
+export async function listDeletionRequests(ctx: AppContext) {
+  if (ctx.appRole !== "corporate_admin") throw new AuthzError("FORBIDDEN");
+  const rows = await db
+    .select({
+      id: deletionRequest.id,
+      userId: deletionRequest.userId,
+      userName: user.name,
+      userEmail: user.email,
+      unitName: organization.name,
+      unitSigla: organization.sigla,
+      requestedBy: deletionRequest.requestedBy,
+      createdAt: deletionRequest.createdAt,
+    })
+    .from(deletionRequest)
+    .innerJoin(user, eq(user.id, deletionRequest.userId))
+    .innerJoin(organization, eq(organization.id, deletionRequest.unitId))
+    .where(eq(organization.parentOrganizationId, ctx.corporateOrgId))
+    .orderBy(asc(deletionRequest.createdAt));
+  const reqIds = [...new Set(rows.map((r) => r.requestedBy))];
+  const names = reqIds.length ? await db.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, reqIds)) : [];
+  const byId = new Map(names.map((n) => [n.id, n.name]));
+  return rows.map((r) => ({ ...r, requestedByName: byId.get(r.requestedBy) ?? "" }));
+}
+
+/** Corporativo: aprobar borra al usuario; rechazar borra la solicitud. En ambos casos no queda nada guardado. */
+export async function resolveDeletionRequest(ctx: AppContext, requestId: string, approve: boolean) {
+  if (ctx.appRole !== "corporate_admin") throw new AuthzError("FORBIDDEN");
+  const [req] = await db
+    .select({ id: deletionRequest.id, userId: deletionRequest.userId, parent: organization.parentOrganizationId })
+    .from(deletionRequest)
+    .innerJoin(organization, eq(organization.id, deletionRequest.unitId))
+    .where(eq(deletionRequest.id, requestId));
+  if (!req || req.parent !== ctx.corporateOrgId) throw new NotFoundError("deletion_request");
+  if (approve) {
+    if (req.userId === ctx.userId) throw new ValidationError("CANNOT_REMOVE_SELF");
+    await db.delete(user).where(eq(user.id, req.userId));
+  } else {
+    await db.delete(deletionRequest).where(eq(deletionRequest.id, requestId));
+  }
+  return { ok: true };
 }

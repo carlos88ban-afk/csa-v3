@@ -1,6 +1,14 @@
-import { deleteEvaluation, getEvaluation, requireActiveMember, requireWriteAccess, updateEvaluation } from "@plataforma-csa/db";
+import { deleteEvaluation, getEvaluation, requireActiveMember, requireCorporateAdmin, requireWriteAccess, updateEvaluation, ValidationError } from "@plataforma-csa/db";
 import { updateEvaluationInput } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
+import { deleteEvaluationFiles } from "@/lib/r2";
+
+// VS-035: borrar una evaluación completa exige escribir ELIMINAR (también se valida aquí, no solo en la pantalla).
+async function requireEliminar(request: Request) {
+  const body = (await request.json().catch(() => null)) as { confirm?: string } | null;
+  if (body?.confirm !== "ELIMINAR") throw new ValidationError("CONFIRM_REQUIRED");
+}
+
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -42,7 +50,9 @@ export async function PATCH(request: Request, { params }: Params) {
 export async function DELETE(request: Request, { params }: Params) {
   try {
     const { id } = await params;
-    const { organizationId } = await requireWriteAccess(request.headers);
+    const { corporateOrgId: organizationId } = await requireCorporateAdmin(request.headers);
+    await requireEliminar(request);
+    await deleteEvaluationFiles(id);
     const row = await deleteEvaluation(organizationId, id);
     if (!row) return Response.json({ error: "evaluation_NOT_FOUND" }, { status: 404 });
     return Response.json({ evaluation: row });

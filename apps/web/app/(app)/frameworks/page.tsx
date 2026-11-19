@@ -21,6 +21,7 @@ export default function FrameworksPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dup, setDup] = useState<{ id: string; name: string } | null>(null);
+  const [del, setDel] = useState<{ id: string; name: string; typed: string } | null>(null);
 
   const load = reload;
 
@@ -52,6 +53,21 @@ export default function FrameworksPage() {
     }
   }
 
+  async function remove() {
+    if (!del || del.typed !== "ELIMINAR") return;
+    setError(null);
+    setBusy(true);
+    try {
+      await api.del(`/api/frameworks/${del.id}`, { confirm: del.typed });
+      setDel(null);
+      await load();
+    } catch {
+      setError("No se pudo eliminar la evaluación.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (me.appRole !== "corporate_admin") return <main className="page">Solo el administrador corporativo edita la estructura.</main>;
 
   const columns: DataTableColumn<Framework>[] = [
@@ -69,9 +85,14 @@ export default function FrameworksPage() {
       key: "actions",
       header: "",
       render: (fw) => (
-        <Button size="sm" onClick={() => setDup({ id: fw.id, name: `${fw.name} (siguiente año)` })}>
-          Duplicar para el próximo año
-        </Button>
+        <span className="entry-list__actions">
+          <Button size="sm" onClick={() => setDup({ id: fw.id, name: `${fw.name} (siguiente año)` })}>
+            Duplicar para el próximo año
+          </Button>
+          <Button size="sm" variant="danger" onClick={() => { setDup(null); setDel({ id: fw.id, name: fw.name, typed: "" }); }}>
+            Eliminar
+          </Button>
+        </span>
       ),
     },
   ];
@@ -93,6 +114,21 @@ export default function FrameworksPage() {
             {busy ? "Duplicando..." : "Duplicar"}
           </Button>{" "}
           <Button onClick={() => setDup(null)}>Cancelar</Button>
+        </Card>
+      )}
+      {del && (
+        <Card>
+          <p className="alert" role="alert">
+            <strong>Esta acción no es reversible.</strong> Se eliminará «{del.name}» con todas sus dimensiones, indicadores, bloques y preguntas, la evaluación publicada, las respuestas de todas las unidades y los archivos adjuntos.
+          </p>
+          <label className="field">
+            <span className="field__label">Escribe ELIMINAR para confirmar</span>
+            <input value={del.typed} onChange={(e) => setDel({ ...del, typed: e.target.value })} autoFocus autoComplete="off" />
+          </label>
+          <Button variant="danger" disabled={busy || del.typed !== "ELIMINAR"} onClick={() => void remove()}>
+            {busy ? "Eliminando..." : "Eliminar definitivamente"}
+          </Button>{" "}
+          <Button onClick={() => setDel(null)}>Cancelar</Button>
         </Card>
       )}
       <Card>

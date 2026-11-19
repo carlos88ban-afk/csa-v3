@@ -21,6 +21,7 @@ export default function UnitsPage() {
   const [name, setName] = useState("");
   const [sigla, setSigla] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
+  const [delId, setDelId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ name: "", sigla: "" });
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -56,6 +57,17 @@ export default function UnitsPage() {
   const shown = all.filter((u) => matchesText(q, u.sigla, u.name) && (!stateF || (stateF === "active") === u.active));
   const filtering = !!(q || stateF);
   const clear = () => { setQ(""); setStateF(""); };
+
+  async function remove(id: string) {
+    setError(null);
+    try {
+      await api.del(`/api/units/${id}`);
+      setDelId(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar la unidad");
+    }
+  }
 
   if (me.appRole !== "corporate_admin") return <main className="page">Solo el administrador corporativo gestiona unidades.</main>;
 
@@ -116,9 +128,20 @@ export default function UnitsPage() {
                       <td>{u.active ? <Pill variant="good">Activa</Pill> : <Pill variant="warn">Desactivada</Pill>}</td>
                       <td>
                         <Button size="sm" onClick={() => { setEditing(u.id); setDraft({ name: u.name, sigla: u.sigla ?? "" }); }}>Editar</Button>{" "}
-                        <Button size="sm" onClick={() => void patch(u.id, { active: !u.active })}>
-                          {u.active ? "Desactivar" : "Activar"}
-                        </Button>
+                        {delId === u.id ? (
+                          <>
+                            <small className="del-warn"><strong>Esta acción no es reversible.</strong> Se eliminarán la unidad, sus usuarios, respuestas y consultas. ¿Seguro?</small>{" "}
+                            <Button size="sm" variant="danger" onClick={() => void remove(u.id)}>Sí, eliminar definitivamente</Button>{" "}
+                            <Button size="sm" onClick={() => setDelId(null)}>Cancelar</Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button size="sm" onClick={() => void patch(u.id, { active: !u.active })}>
+                              {u.active ? "Desactivar" : "Activar"}
+                            </Button>{" "}
+                            <Button size="sm" onClick={() => setDelId(u.id)}>Eliminar</Button>
+                          </>
+                        )}
                       </td>
                     </>
                   )}

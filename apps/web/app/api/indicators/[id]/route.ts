@@ -1,4 +1,4 @@
-import { deleteIndicator, getIndicator, requireActiveMember, requireWriteAccess, updateIndicator } from "@plataforma-csa/db";
+import { deleteIndicator, getIndicator, requireActiveMember, requireCorporateAdmin, requireWriteAccess, updateIndicator } from "@plataforma-csa/db";
 import { updateIndicatorInput } from "@plataforma-csa/sdk-core";
 import { toErrorResponse } from "@/lib/api-errors";
 
@@ -34,7 +34,7 @@ export async function PATCH(request: Request, { params }: Params) {
 export async function DELETE(request: Request, { params }: Params) {
   try {
     const { id } = await params;
-    const { organizationId } = await requireWriteAccess(request.headers);
+    const { corporateOrgId: organizationId } = await requireCorporateAdmin(request.headers);
     const row = await deleteIndicator(organizationId, id);
     if (!row) return Response.json({ error: "indicator_NOT_FOUND" }, { status: 404 });
     return Response.json({ indicator: row });

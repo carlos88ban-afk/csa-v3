@@ -2764,3 +2764,6 @@ textarea::placeholder {
 .fbar__chip { cursor: pointer; border: 1px solid var(--border); background: transparent; color: inherit; border-radius: 999px; padding: 4px 12px; font-size: var(--text-sm); }
 .fbar__chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); }
 .inq-meta { font-size: var(--text-sm); color: var(--ink-muted); margin: 0 0 6px; }
+
+/* VS-035: aviso de borrado */
+.del-warn { color: var(--critical); font-size: var(--text-sm); display: inline-block; max-width: 38ch; vertical-align: middle; }
