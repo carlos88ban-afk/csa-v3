@@ -56,7 +56,10 @@ type SnapshotSubindicator = EvaluationSnapshot["dimensions"][number]["indicators
  */
 export function blockAppliesToUnit(sub: SnapshotSubindicator, unitId: string, isCorporate = false): boolean {
   const els = sub.formSchema?.elements ?? [];
-  const own = els.filter((el) => isQuestion(el) && el.type !== "evidencia");
+  // El selector del tema escribe appliesTo en todos sus elementos: se mira cualquiera que no sea evidencia
+  // (también banners/instrucciones, p. ej. los temas MSA que no tienen preguntas propias).
+  const nonEvidence = els.filter((el) => el.type !== "evidencia");
+  const own = nonEvidence.length > 0 ? nonEvidence : els;
   if (own.length === 0) return true;
   // VS-080: el corporativo solo responde lo que lo nombra explícitamente en appliesTo (ausente = solo unidades).
   if (isCorporate) return own.some((el) => !!el.appliesTo && el.appliesTo.includes(unitId));
