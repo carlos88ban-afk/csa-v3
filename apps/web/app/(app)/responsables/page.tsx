@@ -147,7 +147,7 @@ export default function ResponsablesPage() {
         {blocks === null ? (
           <p className="empty">Cargando...</p>
         ) : blocks.length === 0 ? (
-          <p className="empty">No hay una evaluación vigente con bloques para tu unidad.</p>
+          <p className="empty">{corp ? "Aún no hay temas del corporativo. Marca «Corporativo» en «Quién responde este tema» (editor del tema) y vuelve a publicar la evaluación." : "No hay una evaluación vigente con bloques para tu unidad."}</p>
         ) : (
           <table className="data-table">
             <thead><tr><th>Dimensión</th><th>Indicador</th><th>Bloque</th><th>Responsable</th></tr></thead>

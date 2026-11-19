@@ -23,6 +23,7 @@ export const getServerMe = cache(async (): Promise<Me | null> => {
       email: session?.user.email ?? "",
       appRole: ctx.appRole,
       unitId: ctx.unitId,
+      corporateOrgId: ctx.corporateOrgId,
       unitName,
       unitSigla,
     };

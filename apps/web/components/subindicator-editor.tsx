@@ -2224,6 +2224,7 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
               )
             }
           />
+          <a className="doc-audience__link" href="/responsables">Asignar responsable del corporativo →</a>
         </div>
       )}
 

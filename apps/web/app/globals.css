@@ -2779,3 +2779,5 @@ textarea::placeholder {
 .q-owner--corp { color: var(--accent, #3b82f6); }
 .q-owner--units { color: var(--text-muted, #8b94a3); }
 .q-state--units-only { opacity: 0.65; }
+.doc-audience { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.doc-audience__link { font-size: var(--text-sm, 14px); }
