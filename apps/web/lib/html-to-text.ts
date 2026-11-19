@@ -225,10 +225,10 @@ export function htmlToMarkedText(html: string): string {
   let lines = out;
   if (sp.length) {
     // recorta el texto de la plataforma (pasos para iniciar el cuestionario) antes del primer bloque útil
-    const start = lines.findIndex((l) => /^\s*(aviso|nota|importante|requisito|# informaci[oó]n adicional|informaci[oó]n adicional)/i.test(l));
+    const start = lines.findIndex((l) => /^\s*(aviso|nota|importante|requisito|# informaci[oó]n adicional|informaci[oó]n adicional|notice|note|important|requirement|full credit|# additional information|additional information)/i.test(l));
     if (start > 0) lines = lines.slice(start);
     // y los comentarios confidenciales / referencias de analistas de la plataforma de origen
-    const end = lines.findIndex((l) => /^\s*(comentarios? adicionales? confidenciales?|referencias a[ñn]adidas por analistas)/i.test(l));
+    const end = lines.findIndex((l) => /^\s*(comentarios? adicionales? confidenciales?|referencias a[ñn]adidas por analistas|confidential additional comments?|references added by analysts)/i.test(l));
     if (end > 0) lines = lines.slice(0, end);
   }
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
