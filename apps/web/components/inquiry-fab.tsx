@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api-client";
+import { useNewAnswers } from "@/lib/use-new-answers";
 
 // Botón flotante «¿Dudas o sugerencias?». Si hay un tema abierto, el mensaje
 // arranca con «Tengo una duda sobre el tema: …»; el usuario lo puede completar o borrar
 // (sugerencia o consulta general). Se guarda como consulta (/consultas) y no forma parte de la evaluación.
 export function InquiryFab({ topic }: { topic: string }) {
   const prefill = `Tengo una duda sobre el tema: ${topic}. `;
+  const newAnswers = useNewAnswers();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(prefill);
   const [touched, setTouched] = useState(false);
@@ -44,6 +46,11 @@ export function InquiryFab({ topic }: { topic: string }) {
     <div className="inq-fab">
       {open && (
         <form className="inq-fab__panel" onSubmit={send} aria-label="Dudas o sugerencias">
+          {newAnswers > 0 && (
+            <p className="alert alert--ok" role="status">
+              <strong>Tienes {newAnswers === 1 ? "una respuesta nueva" : `${newAnswers} respuestas nuevas`}.</strong> <Link href="/consultas">Verla en Mis consultas</Link>
+            </p>
+          )}
           <strong>¿Tienes dudas o sugerencias?</strong>
           <p className="inq-fab__hint">Cuéntanos sobre qué indicador es tu duda, o escribe una sugerencia o consulta general. Puedes borrar el texto sugerido.</p>
           <textarea
@@ -71,7 +78,8 @@ export function InquiryFab({ topic }: { topic: string }) {
         </form>
       )}
       <button type="button" className="inq-fab__btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <span aria-hidden="true">💬</span> {open ? "Cerrar" : "¿Dudas o sugerencias?"}
+        <span aria-hidden="true">💬</span> {open ? "Cerrar" : newAnswers > 0 ? "Tienes una respuesta nueva" : "¿Dudas o sugerencias?"}
+        {!open && newAnswers > 0 && <span className="nav-badge">{newAnswers}</span>}
       </button>
     </div>
   );

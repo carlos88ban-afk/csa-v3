@@ -5,6 +5,7 @@ import { api } from "@/lib/api-client";
 import { useCachedGet } from "@/lib/api-cache";
 import { Button, Card, Pill } from "@/components/ui";
 import { useMe } from "@/lib/use-me";
+import { markAnswersSeen } from "@/lib/use-new-answers";
 import { FilterBar, Highlight, NoResults, matchesText } from "@/components/filter-bar";
 
 interface Inquiry {
@@ -37,6 +38,11 @@ export default function ConsultasPage() {
   const [unitF, setUnitF] = useState("");
 
   const load = reload;
+
+  // Al abrir la bandeja se dan por vistas las respuestas (quita el aviso de «respuesta nueva»).
+  useEffect(() => {
+    if (me.appRole !== "corporate_admin" && inqData) markAnswersSeen(me.userId);
+  }, [inqData, me.appRole, me.userId]);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();

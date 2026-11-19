@@ -2794,3 +2794,5 @@ textarea::placeholder {
 .inq-fab__hint { margin: 0; font-size: 13px; opacity: .8; }
 .inq-fab__actions { display: flex; justify-content: space-between; align-items: center; }
 @keyframes inq-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+
+.nav-badge { display: inline-block; margin-left: 8px; min-width: 20px; padding: 0 6px; border-radius: 999px; background: #e5484d; color: #fff; font-size: 12px; font-weight: 700; text-align: center; line-height: 20px; }

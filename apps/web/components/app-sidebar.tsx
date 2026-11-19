@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui";
 import { useMe } from "@/components/me-provider";
+import { useNewAnswers } from "@/lib/use-new-answers";
 import { HOME_BY_ROLE, ROLE_LABEL, type Me } from "@/lib/me";
 
 const NAV: Record<Me["appRole"], Array<{ href: string; label: string }>> = {
@@ -34,6 +35,7 @@ export function AppSidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const { me } = useMe();
+  const newAnswers = useNewAnswers();
 
   async function handleSignOut() {
     await authClient.signOut();
@@ -57,6 +59,7 @@ export function AppSidebar() {
                 aria-current={active ? "page" : undefined}
               >
                 {item.label}
+                {item.href === "/consultas" && newAnswers > 0 && <span className="nav-badge" aria-label={`${newAnswers} respuesta(s) nueva(s)`}>{newAnswers}</span>}
               </Link>
             </li>
           );

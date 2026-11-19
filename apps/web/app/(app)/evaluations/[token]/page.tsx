@@ -17,7 +17,6 @@ import {
   LEGACY_CONTROL_ID,
   LEGACY_REFERENCES_ID,
   legacyExtraIndex,
-  naKey,
   normalizeCellComponents,
   questionNumber,
   sanitizeCommentHtml,
@@ -144,7 +143,7 @@ function progressOf(sub: SnapshotSubindicator, answers: ResponseAnswers | undefi
   const questions = (sub.formSchema?.elements ?? []).filter((el) => isQuestion(el) && isElementVisible(el.visibleIf, a));
   // VS-019 (docs/engines/persistence.md, "N/A + comentario confidencial"):
   // una pregunta marcada N/A cuenta como resuelta para el progreso.
-  const answered = questions.filter((q) => isAnswered(a[q.id], a[naKey(q.id)] as string | undefined)).length;
+  const answered = questions.filter((q) => isAnswered(a[q.id], undefined)).length;
   return { answered, total: questions.length };
 }
 
@@ -1962,26 +1961,6 @@ function StatusRow({
   );
 }
 
-// «No aplica» (VS-019). El comentario confidencial se retiró: las dudas se hacen por el botón de consultas.
-function NaCommentRow({
-  elementId,
-  markedNA,
-  onAnswerChange,
-}: {
-  elementId: string;
-  markedNA: boolean;
-  onAnswerChange: (key: string, value: AnswerValue) => void;
-}) {
-  return (
-    <div className="runtime-question__na">
-      <label className="field field--checkbox">
-        <input type="checkbox" checked={markedNA} onChange={(e) => onAnswerChange(naKey(elementId), e.target.checked ? "true" : "")} />
-        No aplica
-      </label>
-    </div>
-  );
-}
-
 function ElementView({ token, subindicatorId, element, number, answers, value, onChange, onAnswerChange, formLocked }: ElementViewProps) {
   if (element.type === "instruccion") {
     return (
@@ -2003,7 +1982,7 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
 
   // Estado por pregunta (VS-018) + N/A (VS-019) — solo aplica a los tipos de
   // arriba en adelante, que capturan una respuesta manual del evaluado.
-  const na = answers[naKey(element.id)] as string | undefined;
+  const na: string | undefined = undefined;
   const markedNA = na === "true";
   const answeredOrNA = isAnswered(value, na);
   const derived = deriveStatus(answers[statusKey(element.id)] as string | undefined, answeredOrNA);
@@ -2030,13 +2009,8 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
       <StatusRow elementId={element.id} derived={derived} canComplete={canComplete} onAnswerChange={onAnswerChange} />
     </>
   );
-  const naCommentRow = (
-    <NaCommentRow
-      elementId={element.id}
-      markedNA={markedNA}
-      onAnswerChange={onAnswerChange}
-    />
-  );
+  // «No aplica» se retiró: ya no hay forma de marcarlo (respuestas antiguas marcadas se ignoran).
+  const naCommentRow = null;
 
   if (element.type === "url_publica") {
     const urls = Array.isArray(value) && (value.length === 0 || typeof value[0] === "string") ? (value as string[]) : [];
