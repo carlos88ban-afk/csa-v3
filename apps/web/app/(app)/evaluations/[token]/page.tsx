@@ -3,7 +3,6 @@ import { formatDueDate } from "@/lib/due-date";
 import { DueDateBanner } from "@/components/due-date-banner";
 
 import {
-  commentKey,
   componentRegistry,
   completionOf,
   deriveStatus,
@@ -42,16 +41,13 @@ import {
   reviewKey,
 } from "@plataforma-csa/sdk-core";
 import { use, useEffect, useMemo, useRef, useState } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
-import CharacterCount from "@tiptap/extension-character-count";
-import StarterKit from "@tiptap/starter-kit";
+import { InquiryFab } from "@/components/inquiry-fab";
 import { api } from "@/lib/api-client";
 import { Pill } from "@/components/ui";
 import { RichLabel } from "@/components/rich-label";
 import { AssignNode, useAssignData } from "@/components/tree-assign";
 import { useMe } from "@/lib/use-me";
 
-const COMMENT_MAX_CHARS = 5000;
 
 interface Props {
   params: Promise<{ token: string }>;
@@ -665,6 +661,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
           </div>
         )}
       </div>
+      {me.appRole !== "corporate_admin" && <InquiryFab topic={`${active.subNumber} ${active.sub.title}`} />}
     </main>
   );
 }
@@ -1965,144 +1962,22 @@ function StatusRow({
   );
 }
 
-// N/A + comentario confidencial (VS-019, docs/engines/persistence.md):
-// universales a todo tipo de pregunta, sin config nueva en el Builder.
-// "Confidencial" es una etiqueta de UI, no control de acceso — ver doc.
-// Comentario confidencial con formato (VS-030, docs/adr/0006, sucesor de
-// VS-028/markdown-lite, ver docs/engines/form.md): editor WYSIWYG real
-// (TipTap/ProseMirror, contentEditable) en vez del <textarea> con sintaxis
-// manual. `commentKey` sigue guardando `string` — ahora HTML sanitizado
-// (`sanitizeCommentHtml`) en vez de markdown-lite. StarterKit reducido a
-// solo negrita/itálica/lista/párrafo (mismo alcance mínimo que antes), más
-// CharacterCount para el límite de 5000 caracteres (antes `maxLength` del
-// textarea nativo).
+// «No aplica» (VS-019). El comentario confidencial se retiró: las dudas se hacen por el botón de consultas.
 function NaCommentRow({
   elementId,
   markedNA,
-  comment,
-  locked,
   onAnswerChange,
 }: {
   elementId: string;
   markedNA: boolean;
-  comment: string;
-  locked: boolean;
   onAnswerChange: (key: string, value: AnswerValue) => void;
 }) {
-  const editor = useEditor({
-    // Next.js App Router hace SSR del árbol — evita el mismatch de hidratación
-    // documentado por TipTap para editores que no deben renderizar en el server.
-    immediatelyRender: false,
-    editable: !locked,
-    content: comment,
-    extensions: [
-      StarterKit.configure({
-        heading: false,
-        blockquote: false,
-        codeBlock: false,
-        code: false,
-        horizontalRule: false,
-        strike: false,
-        orderedList: false,
-      }),
-      CharacterCount.configure({ limit: COMMENT_MAX_CHARS }),
-    ],
-    editorProps: {
-      attributes: {
-        "aria-label": "Comentario confidencial",
-        class: "comment-editor__content",
-      },
-    },
-    onUpdate: ({ editor: e }) => {
-      onAnswerChange(commentKey(elementId), sanitizeCommentHtml(e.getHTML()));
-    },
-  });
-
-  // Sincroniza el editor cuando `comment` cambia por una razón EXTERNA al
-  // propio editor (Cancel/Reset restaura una foto anterior, VS-020) — no en
-  // cada tecleo: `onUpdate` ya escribió `comment` de vuelta con el mismo HTML
-  // que `editor.getHTML()`, así que la comparación evita un loop de reset
-  // que le comería el cursor al evaluado mientras escribe.
-  useEffect(() => {
-    if (!editor) return;
-    if (comment !== editor.getHTML()) {
-      editor.commands.setContent(comment || "", { emitUpdate: false });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor, comment]);
-
-  useEffect(() => {
-    editor?.setEditable(!locked);
-  }, [editor, locked]);
-
-  const chars = editor?.storage.characterCount.characters() ?? comment.length;
-
   return (
     <div className="runtime-question__na">
       <label className="field field--checkbox">
-        <input
-          type="checkbox"
-          checked={markedNA}
-          onChange={(e) => onAnswerChange(naKey(elementId), e.target.checked ? "true" : "")}
-        />
+        <input type="checkbox" checked={markedNA} onChange={(e) => onAnswerChange(naKey(elementId), e.target.checked ? "true" : "")} />
         No aplica
       </label>
-      <div className="field">
-        <span className="field__label">Comentario confidencial</span>
-        <div className="rich-toolbar" role="toolbar" aria-label="Formato del comentario">
-          {/* onMouseDown={preventDefault} en los 3 botones: sin esto, el mousedown
-              del botón le roba el foco/selección al contentEditable ANTES de que
-              corra el onClick, y ProseMirror pierde de dónde partir — patrón
-              documentado de TipTap para toolbars fuera del editor. */}
-          <button
-            type="button"
-            aria-pressed={editor?.isActive("bold") ?? false}
-            disabled={locked}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => editor?.chain().focus().toggleBold().run()}
-            aria-label="Negrita"
-          >
-            <strong>B</strong>
-          </button>
-          <button
-            type="button"
-            aria-pressed={editor?.isActive("italic") ?? false}
-            disabled={locked}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => editor?.chain().focus().toggleItalic().run()}
-            aria-label="Itálica"
-          >
-            <em>I</em>
-          </button>
-          <button
-            type="button"
-            aria-pressed={editor?.isActive("bulletList") ?? false}
-            disabled={locked}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => editor?.chain().focus().toggleBulletList().run()}
-            aria-label="Lista"
-          >
-            •
-          </button>
-        </div>
-        {/* onClick={preventDefault}: NaCommentRow vive dentro del <label
-            className="field runtime-question"> de la pregunta (texto_corto/
-            numero/etc.) o del <fieldset> (seleccion_unica/múltiple) — un
-            <label> redirige el foco a su control asociado (el input/textarea
-            principal de la pregunta) en CUALQUIER click dentro de él, salvo
-            que el target ya sea un elemento de formulario nativo que
-            intercepta su propio click (input/textarea/select). Un div
-            contentEditable NO es un elemento de formulario nativo, así que
-            sin este preventDefault el navegador le robaba el foco al editor
-            justo después de mousedown+focus (bug real, reproducido en
-            producción, no solo en tests — ver git blame de esta línea).
-            No rompe la escritura: ProseMirror ya maneja su propia selección
-            en mousedown, antes de que el evento click llegue aquí. */}
-        <EditorContent editor={editor} className="comment-editor" onClick={(e) => e.preventDefault()} />
-        <span className="comment-editor__count" aria-live="polite">
-          {chars}/{COMMENT_MAX_CHARS}
-        </span>
-      </div>
     </div>
   );
 }
@@ -2159,8 +2034,6 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
     <NaCommentRow
       elementId={element.id}
       markedNA={markedNA}
-      comment={(answers[commentKey(element.id)] as string | undefined) ?? ""}
-      locked={locked}
       onAnswerChange={onAnswerChange}
     />
   );
