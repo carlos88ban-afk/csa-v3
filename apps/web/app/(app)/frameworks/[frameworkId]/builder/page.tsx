@@ -167,7 +167,7 @@ export default function BuilderPage() {
         window.history.replaceState(null, "", nextFocus ? `?s=${nextFocus}` : window.location.pathname);
         setDims(tree);
         // Abrir solo el camino hasta el tema seleccionado (si lo hay); el resto queda contraído.
-        if (resolved) {
+        if (resolved && initialRaw) {
           const ed = new Set<number>(); const ei = new Set<string>();
           tree.forEach((d, di) => {
             if (d.directSubs.some((x) => x.id === resolved)) ed.add(di);
