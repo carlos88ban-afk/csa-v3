@@ -30,6 +30,7 @@ export default function ImportCsaPage() {
       running.current = true;
       const { titles, items, name } = e.data as { titles: string[]; items: Item[]; name?: string };
       const report: Record<string, { text: string; elements: number }> = {};
+      const failures: Record<string, string> = {};
       try {
         const titleOf = (code: string) => strip(titles.find((t) => t.split(" ")[0] === code) ?? code);
         const fw = await api.post<{ framework: { id: string } }>("/api/frameworks", { name: name ?? "CSA 2026 — Importado del portal" });
@@ -45,13 +46,14 @@ export default function ImportCsaPage() {
           const text = htmlToMarkedText(it.html);
           const elements = parsePastedText(text).map((p) => p.element);
           const sub = await api.post<{ subindicator: { id: string } }>("/api/subindicators", { indicatorId: inds.get(ck), title: strip(it.title) });
-          await api.patch(`/api/subindicators/${sub.subindicator.id}`, { formSchema: { schemaVersion: 1, elements } });
+          const res = await fetch(`/api/subindicators/${sub.subindicator.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ formSchema: { schemaVersion: 1, elements } }) });
+          if (!res.ok) failures[it.code] = JSON.stringify(await res.json().catch(() => null)).slice(0, 700);
           report[it.code] = { text, elements: elements.length };
           n++;
           if (n % 10 === 0) say(`${n}/${sorted.length}`);
         }
-        (window as unknown as { __importReport: unknown }).__importReport = { frameworkId: fwId, report };
-        say(`LISTO: ${n} preguntas importadas`);
+        (window as unknown as { __importReport: unknown }).__importReport = { frameworkId: fwId, report, failures };
+        say(`LISTO: ${n} preguntas importadas, ${Object.keys(failures).length} con error de validación`);
       } catch (err) {
         say("ERROR: " + (err instanceof Error ? err.message : String(err)));
       } finally {
