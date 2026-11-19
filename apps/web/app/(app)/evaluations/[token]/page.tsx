@@ -1113,7 +1113,7 @@ function CalculadoView({
 // (defensa en profundidad, mismo criterio que la página de Revisión) aunque
 // ya se sanitizó al guardar en el Builder.
 function BannerView({ element }: { element: Extract<FormElement, { type: "banner" }> }) {
-  const [expanded, setExpanded] = useState(!element.startCollapsed);
+  const [expanded, setExpanded] = useState(element.startCollapsed === false);
   return (
     <div className={`runtime-banner runtime-banner--${element.variant}`}>
       <button type="button" className="runtime-banner__toggle" aria-expanded={expanded} onClick={() => setExpanded((e) => !e)}>

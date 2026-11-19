@@ -3672,9 +3672,9 @@ export function SubindicatorEditor({ subindicatorId }: Props) {
                           <label className="field">
                             <span className="field__label">Estado inicial</span>
                             <select
-                              value={el.startCollapsed ? "collapsed" : "expanded"}
+                              value={el.startCollapsed === false ? "expanded" : "collapsed"}
                               onChange={(e) =>
-                                updateElement(el.id, { startCollapsed: e.target.value === "collapsed" || undefined })
+                                updateElement(el.id, { startCollapsed: e.target.value === "collapsed" })
                               }
                             >
                               <option value="expanded">Expandido</option>

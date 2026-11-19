@@ -129,6 +129,23 @@ export async function createEvaluation(organizationId: string, input: CreateEval
   return row;
 }
 
+/**
+ * Vuelve a tomar la copia (snapshot) de la estructura para una evaluación ya publicada,
+ * SIN cambiar su id, enlace, plazo ni respuestas. Así los cambios del árbol (a quién aplica
+ * cada tema, textos, preguntas) llegan a una evaluación en curso.
+ */
+export async function refreshEvaluationSnapshot(organizationId: string, id: string) {
+  const current = await getEvaluation(organizationId, id);
+  if (!current) return null;
+  const { frameworkName, snapshot } = await buildSnapshot(organizationId, current.frameworkId);
+  const [row] = await db
+    .update(evaluation)
+    .set({ snapshot, title: frameworkName })
+    .where(and(eq(evaluation.id, id), eq(evaluation.organizationId, organizationId)))
+    .returning();
+  return row ?? null;
+}
+
 export async function listEvaluations(organizationId: string, frameworkId: string) {
   return db
     .select()

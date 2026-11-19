@@ -20,6 +20,7 @@ export function PublishPanel({ frameworkId, open, onClose }: { frameworkId: stri
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [updated, setUpdated] = useState(false);
 
   const load = () =>
     api
@@ -48,6 +49,22 @@ export function PublishPanel({ frameworkId, open, onClose }: { frameworkId: stri
     }
   }
 
+  async function refreshCurrent(id: string) {
+    setPublishing(true);
+    setError(null);
+    setUpdated(false);
+    try {
+      await api.post(`/api/evaluations/${id}/refresh`, {});
+      setUpdated(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo actualizar");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  const currentEval = evaluations?.[0] && !(evaluations[0].dueDate && new Date(evaluations[0].dueDate) <= new Date()) ? evaluations[0] : null;
+
   return (
     <>
       <div className="form-preview-backdrop" onClick={onClose} aria-hidden="true" />
@@ -67,8 +84,21 @@ export function PublishPanel({ frameworkId, open, onClose }: { frameworkId: stri
             <span className="field__label">Plazo (opcional)</span>
             <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           </label>
-          <Button type="button" variant="primary" onClick={() => void publish()} disabled={publishing}>
-            {publishing ? "Publicando..." : "Publicar como vigente"}
+          {currentEval && (
+            <div className="alert" role="note">
+              <p>
+                <strong>¿Ya hay una evaluación en curso y cambiaste algo en el árbol?</strong> Usa «Actualizar evaluación vigente»: aplica
+                los cambios (a quién ve cada tema, textos, preguntas) <strong>conservando las respuestas</strong>, el enlace y el plazo.
+                «Publicar como vigente» crea una evaluación nueva y vacía.
+              </p>
+              <Button type="button" variant="primary" onClick={() => void refreshCurrent(currentEval.id)} disabled={publishing}>
+                {publishing ? "Actualizando..." : "Actualizar evaluación vigente"}
+              </Button>
+              {updated && <p role="status">Listo: la evaluación vigente ya refleja los cambios.</p>}
+            </div>
+          )}
+          <Button type="button" variant="secondary" onClick={() => void publish()} disabled={publishing}>
+            {publishing ? "Publicando..." : "Publicar como nueva evaluación"}
           </Button>
           {error && <p className="alert" role="alert">{error}</p>}
           {done && (
