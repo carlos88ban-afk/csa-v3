@@ -50,7 +50,14 @@ export function AppSidebar() {
       </Link>
       <ul className="app-sidebar__nav">
         {NAV[me.appRole].map((item) => {
-          const active = pathname?.startsWith(item.href);
+          // «Mi parte» redirige a /evaluations/authenticated/…, que también empieza por /evaluations.
+          const mine = pathname?.startsWith("/evaluations/authenticated") ?? false;
+          const active =
+            item.href === "/mi-evaluacion"
+              ? mine || !!pathname?.startsWith("/mi-evaluacion")
+              : item.href === "/evaluations"
+                ? !mine && !!pathname?.startsWith("/evaluations")
+                : !!pathname?.startsWith(item.href);
           return (
             <li key={item.href}>
               <Link
