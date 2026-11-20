@@ -1,8 +1,9 @@
 import {
+  TEMA_LEVEL_KEY,
   TEMA_STATE_KEY,
   componentRegistry,
   naKey,
-  temaCompletion,
+  temaLevel,
   type Evaluation,
   type EvaluationSnapshot,
   type FormElement,
@@ -95,9 +96,12 @@ function mergeSub(sub: Sub, parts: Array<{ unit: ReviewUnit; answers: ResponseAn
   return { sub: { ...sub, formSchema: sub.formSchema ? { ...sub.formSchema, elements } : sub.formSchema } as Sub, answers: merged };
 }
 
-function stateFor(elements: FormElement[], answers: ResponseAnswers) {
-  return temaCompletion(elements, answers);
+function levelFor(elements: FormElement[], answers: ResponseAnswers): number {
+  return temaLevel(elements, answers) ?? 1;
 }
+const stateOfLevel = (l: number) => (l === 4 ? "complete" : l === 1 ? "empty" : "partial");
+/** Puntos de avance de un nivel: 1 -> 0, 2 -> 1/3, 3 -> 2/3, 4 -> 1. */
+export const levelPoints = (l: number) => (l - 1) / 3;
 
 export interface ReviewView {
   evaluation: Evaluation;
@@ -116,18 +120,21 @@ export function buildReviewView(evaluation: Evaluation, units: ReviewUnit[], row
     if (view) {
       const own = by.get(`${sub.id}::${view.id}`) ?? {};
       const elements = (sub.formSchema?.elements ?? []).filter((e) => applies(e, view));
-      answers[sub.id] = { ...own, [TEMA_STATE_KEY]: stateFor(elements, own) ?? "empty" };
+      const level = levelFor(elements, own);
+      answers[sub.id] = { ...own, [TEMA_STATE_KEY]: stateOfLevel(level), [TEMA_LEVEL_KEY]: level };
       return { ...sub, formSchema: sub.formSchema ? { ...sub.formSchema, elements } : sub.formSchema } as Sub;
     }
     const parts = applicable.map((u) => {
       const a = by.get(`${sub.id}::${u.id}`) ?? {};
       const els = (sub.formSchema?.elements ?? []).filter((e) => applies(e, u));
-      return { unit: u, answers: a, state: stateFor(els, a) ?? "empty" };
+      return { unit: u, answers: a, level: levelFor(els, a) };
     });
-    const states = parts.map((p) => p.state);
-    const state = states.every((s) => s === "complete") ? "complete" : states.every((s) => s === "empty") ? "empty" : "partial";
+    // Consolidado: promedio del avance de las unidades a las que aplica (4 solo si todas estan completas).
+    const levels = parts.map((p) => p.level);
+    const mean = levels.reduce((x, y) => x + y, 0) / levels.length;
+    const level = levels.every((l) => l === 4) ? 4 : levels.every((l) => l === 1) ? 1 : Math.min(3, Math.max(2, Math.round(mean)));
     const m = mergeSub(sub, parts);
-    answers[sub.id] = { ...m.answers, [TEMA_STATE_KEY]: state };
+    answers[sub.id] = { ...m.answers, [TEMA_STATE_KEY]: stateOfLevel(level), [TEMA_LEVEL_KEY]: level };
     return m.sub;
   };
 
@@ -143,13 +150,16 @@ export function buildReviewView(evaluation: Evaluation, units: ReviewUnit[], row
   return { evaluation: { ...evaluation, snapshot: { ...evaluation.snapshot, dimensions } }, answers };
 }
 
-/** % de temas completos de una vista (para las pestañas). */
-export function viewProgress(view: ReviewView): { complete: number; total: number } {
+/** Avance de una vista: promedio de los temas (cada nivel vale 0, 1/3, 2/3 o 1) y cuantos estan completos. */
+export function viewProgress(view: ReviewView): { complete: number; total: number; pct: number } {
   let complete = 0;
   let total = 0;
+  let points = 0;
   for (const a of Object.values(view.answers)) {
     total++;
-    if (a[TEMA_STATE_KEY] === "complete") complete++;
+    const l = Number(a[TEMA_LEVEL_KEY] ?? 1);
+    points += levelPoints(l);
+    if (l === 4) complete++;
   }
-  return { complete, total };
+  return { complete, total, pct: total === 0 ? 0 : Math.round((points / total) * 100) };
 }

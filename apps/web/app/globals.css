@@ -2820,3 +2820,18 @@ textarea::placeholder {
 .obs-box textarea { width: 100%; margin-top: 6px; }
 .obs-box__actions { display: flex; gap: 8px; margin-top: 6px; }
 .obs-banner p { margin: 4px 0 0; white-space: pre-wrap; }
+
+/* VS-081 · cuadritos de avance (1 rojo · 2-3 amarillo · 4 verde) */
+.sq { display: inline-flex; gap: 2px; vertical-align: middle; margin-right: 6px; flex: none; }
+.sq i { width: 12px; height: 12px; border-radius: 2px; background: transparent; border: 1.5px solid #9aa3af; box-sizing: border-box; }
+.sq--lg i { width: 22px; height: 22px; border-radius: 3px; }
+.sq--bad i.on { background: #dc2626; border-color: #dc2626; }
+.sq--mid i.on { background: #f59e0b; border-color: #f59e0b; }
+.sq--good i.on { background: #16a34a; border-color: #16a34a; }
+.sq-agg { display: inline-flex; align-items: center; margin-right: 4px; }
+.sq-agg b { font-size: 0.72rem; margin-left: 2px; margin-right: 6px; }
+.level-banner { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.review-tab .sq { margin-right: 0; }
+/* respuesta marcada visible aunque el campo este bloqueado */
+.runtime-elements label:has(input:checked) { background: rgba(22, 163, 74, 0.12); border-radius: 6px; font-weight: 600; }
+.runtime-elements input:disabled:checked { accent-color: #16a34a; opacity: 1; }

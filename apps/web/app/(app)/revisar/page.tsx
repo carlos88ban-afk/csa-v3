@@ -89,12 +89,12 @@ export default function RevisarPage() {
         <div className="review-bar__tabs" role="tablist" aria-label="Vista">
           {tabs.map((t) => {
             const p = viewProgress(views.get(t.id)!);
-            const pct = p.total === 0 ? 0 : Math.round((p.complete / p.total) * 100);
+            const pct = p.pct;
             return (
               <button key={t.id} type="button" role="tab" aria-selected={viewId === t.id} className={`review-tab${viewId === t.id ? " review-tab--on" : ""}`} onClick={() => setViewId(t.id)}>
                 <span>{t.id === CONSOLIDATED ? "Avance " : "Avance "}{t.label}</span>
                 <span className="review-tab__bar"><i style={{ width: `${pct}%` }} /></span>
-                <small>{p.complete}/{p.total} temas · {pct}%</small>
+                <small>{pct}% de avance · {p.complete}/{p.total} temas completos</small>
               </button>
             );
           })}

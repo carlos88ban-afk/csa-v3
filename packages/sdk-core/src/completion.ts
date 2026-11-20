@@ -55,18 +55,29 @@ export function temaQuestions(elements: FormElement[], a: ResponseAnswers): Form
   return core.length > 0 ? core : qs;
 }
 
-/** Estado del tema como una sola pregunta; null si no tiene nada que responder. */
-export function temaCompletion(elements: FormElement[], a: ResponseAnswers): Completion | null {
-  const qs = temaQuestions(elements, a);
+/**
+ * Nivel de avance del tema (1–4 cuadritos):
+ * 1 = sin responder · 2 = respondida pero faltan sub-opciones o datos · 3 = respondida, falta la evidencia ·
+ * 4 = completa (con evidencia adjunta si el tema la pide). null = el tema no tiene nada que responder.
+ */
+export type TemaLevel = 1 | 2 | 3 | 4;
+export function temaLevel(elements: FormElement[], a: ResponseAnswers): TemaLevel | null {
+  const qs = elements.filter((el) => QUESTION_TYPES.has(el.type) && !el.viewerReadOnly && isElementVisible(el.visibleIf, a));
   if (qs.length === 0) return null;
-  let complete = 0;
-  let empty = 0;
-  for (const q of qs) {
-    const c = completionOf(q, a);
-    if (c === "complete") complete++;
-    else if (c === "empty") empty++;
-  }
-  if (complete === qs.length) return "complete";
-  if (empty === qs.length) return "empty";
-  return "partial";
+  const evidence = qs.filter((el) => el.type === "evidencia");
+  const core = qs.filter((el) => el.type !== "evidencia");
+  const hasEvidence = evidence.some((el) => hasAnswer(a[el.id]));
+  if (core.length === 0) return hasEvidence ? 4 : 1;
+  const states = core.map((el) => completionOf(el, a));
+  if (states.every((c) => c === "empty")) return 1;
+  if (!states.every((c) => c === "complete")) return 2;
+  if (evidence.length === 0) return 4;
+  return hasEvidence ? 4 : 3;
+}
+
+/** Estado del tema como una sola pregunta; null si no tiene nada que responder. Completo = 4 cuadritos. */
+export function temaCompletion(elements: FormElement[], a: ResponseAnswers): Completion | null {
+  const level = temaLevel(elements, a);
+  if (level === null) return null;
+  return level === 4 ? "complete" : level === 1 ? "empty" : "partial";
 }

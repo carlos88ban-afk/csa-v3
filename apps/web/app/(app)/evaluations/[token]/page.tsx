@@ -38,7 +38,9 @@ import {
   type TableCellValue,
   type TablaDatosConfig,
   type TableValue,
+  TEMA_LEVEL_KEY,
   TEMA_OBS_KEY,
+  temaLevel,
   TEMA_STATE_KEY,
   parseTemaObservation,
 } from "@plataforma-csa/sdk-core";
@@ -147,6 +149,21 @@ function stateOverride(a: ResponseAnswers): "complete" | "partial" | "empty" | n
   return s === "complete" || s === "partial" || s === "empty" ? s : null;
 }
 
+// Nivel del tema (1-4 cuadritos); en "Revisar avances" viene calculado en la vista.
+function levelOfSub(sub: SnapshotSubindicator, answers: ResponseAnswers | undefined): number | null {
+  const a = answers ?? {};
+  const injected = a[TEMA_LEVEL_KEY];
+  if (typeof injected === "number") return injected;
+  return temaLevel(sub.formSchema?.elements ?? [], a);
+}
+const LEVEL_TEXT: Record<number, string> = {
+  1: "Sin responder",
+  2: "Respondida, faltan sub-opciones o datos",
+  3: "Respondida, falta adjuntar evidencia",
+  4: "Completa",
+};
+const levelTone = (l: number) => (l >= 4 ? "good" : l <= 1 ? "bad" : "mid");
+
 function progressOf(sub: SnapshotSubindicator, answers: ResponseAnswers | undefined) {
   const a = answers ?? {};
   // Cada tema cuenta como UNA pregunta (aunque lleve evidencia u otras preguntas internas).
@@ -233,14 +250,28 @@ export interface ReviewProps {
   observe: (subindicatorId: string, text: string | null) => Promise<void>;
 }
 
-function TreeBar({ c }: { c: Counts }) {
-  const t = c.complete + c.partial + c.empty;
-  if (t === 0) return null;
-  const pct = Math.round((c.complete / t) * 100);
+// 4 cuadritos: rojo = sin responder, amarillo = en curso, verde = completa.
+function Squares({ level, title, size }: { level: number; title?: string; size?: "lg" }) {
+  const tone = levelTone(level);
   return (
-    <span className="tree-bar" title={`${c.complete} de ${t} temas completos`}>
-      <i style={{ width: `${pct}%` }} />
-      <b>{pct}%</b>
+    <span className={`sq sq--${tone}${size ? ` sq--${size}` : ""}`} role="img" aria-label={title ?? LEVEL_TEXT[level]} title={title ?? LEVEL_TEXT[level]}>
+      {[1, 2, 3, 4].map((n) => <i key={n} className={n <= level ? "on" : ""} />)}
+    </span>
+  );
+}
+
+// Resumen de varios temas (indicador o dimension): promedio de niveles; verde solo si todos estan completos.
+function AggSquares({ subs, answers, withPct }: { subs: SnapshotSubindicator[]; answers: Record<string, ResponseAnswers>; withPct?: boolean }) {
+  const levels = subs.map((s) => levelOfSub(s, answers[s.id])).filter((l): l is number => l !== null);
+  if (levels.length === 0) return null;
+  const done = levels.filter((l) => l === 4).length;
+  const pct = Math.round((levels.reduce((x, l) => x + (l - 1) / 3, 0) / levels.length) * 100);
+  const mean = levels.reduce((x, l) => x + l, 0) / levels.length;
+  const level = done === levels.length ? 4 : levels.every((l) => l === 1) ? 1 : Math.min(3, Math.max(2, Math.round(mean)));
+  return (
+    <span className="sq-agg">
+      <Squares level={level} title={`${pct}% de avance · ${done} de ${levels.length} temas completos`} />
+      {withPct && <b>{pct}%</b>}
     </span>
   );
 }
@@ -565,38 +596,33 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId, review
         </div>
 
         {snapshot.dimensions.map((dim, dimIndex) => {
-          const dimState = dotState(dimCounts(dim, answersBySub));
           if (filtering && ![...dim.indicators.flatMap((i) => i.subindicators), ...dim.subindicators].some(subMatches)) return null;
           return (
             <div key={dim.id} className="runtime-nav__dim">
               <AssignNode data={assign} scopeIds={subIdsOfDim(dim)} label={dim.title}>
                 <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(dim.id)}>
                 <span className="runtime-nav__caret">{isOpen(dim.id) ? "▾" : "▸"}</span>
-                <span className={`tree-dot${dimState ? ` tree-dot--${dimState}` : ""}`} />
+                <AggSquares subs={[...dim.indicators.flatMap((i) => i.subindicators), ...dim.subindicators]} answers={answersBySub} withPct={!!review} />
                 {(dim.number ?? dimensionNumber(dimIndex))} {dim.title}
-                {review && <TreeBar c={dimCounts(dim, answersBySub)} />}
               </button>
               </AssignNode>
 
               {isOpen(dim.id) &&
                 dim.indicators.map((ind, indIndex) => {
-                  const indState = dotState(indCounts(ind, answersBySub));
                   if (filtering && !ind.subindicators.some(subMatches)) return null;
                   return (
                     <div key={ind.id} className="runtime-nav__ind">
                       <AssignNode data={assign} scopeIds={subIdsOfInd(ind)} label={ind.title}>
                         <button type="button" className="runtime-nav__toggle" onClick={() => toggleCollapsed(ind.id)}>
                         <span className="runtime-nav__caret">{isOpen(ind.id) ? "▾" : "▸"}</span>
-                        <span className={`tree-dot${indState ? ` tree-dot--${indState}` : ""}`} />
+                        <AggSquares subs={ind.subindicators} answers={answersBySub} withPct={!!review} />
                         {(ind.number ?? indicatorNumber(dimIndex, indIndex))} {ind.title}
-                        {review && <TreeBar c={indCounts(ind, answersBySub)} />}
                       </button>
                       </AssignNode>
 
                       {isOpen(ind.id) &&
                         ind.subindicators.map((sub, subIndex) => {
                           const counts = blockCounts(sub, answersBySub[sub.id]);
-                          const state = dotState(counts);
                           if (!subMatches(sub)) return null;
                           return (
                             <AssignNode key={sub.id} data={assign} scopeIds={[sub.id]} label={sub.title}>
@@ -606,7 +632,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId, review
                               className={`runtime-nav__sub${sub.id === activeId ? " runtime-nav__sub--active" : ""}`}
                               onClick={() => setActiveId(sub.id)}
                             >
-                              <span className={`tree-dot${state ? ` tree-dot--${state}` : ""}`} />
+                              {levelOfSub(sub, answersBySub[sub.id]) !== null && <Squares level={levelOfSub(sub, answersBySub[sub.id])!} />}
                               {(sub.number ?? subindicatorNumber(dimIndex, indIndex, subIndex))} {sub.title}
                               {answersBySub[sub.id]?.[TEMA_OBS_KEY] ? <span className="tree-obs" title="Tiene una observación del corporativo">⚑</span> : null}
                             </button>
@@ -623,7 +649,6 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId, review
               {isOpen(dim.id) &&
                 dim.subindicators.map((sub, subIndex) => {
                   const counts = blockCounts(sub, answersBySub[sub.id]);
-                  const state = dotState(counts);
                   if (!subMatches(sub)) return null;
                   return (
                     <AssignNode key={sub.id} data={assign} scopeIds={[sub.id]} label={sub.title}>
@@ -633,7 +658,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId, review
                       className={`runtime-nav__sub${sub.id === activeId ? " runtime-nav__sub--active" : ""}`}
                       onClick={() => setActiveId(sub.id)}
                     >
-                      <span className={`tree-dot${state ? ` tree-dot--${state}` : ""}`} />
+                      {levelOfSub(sub, answersBySub[sub.id]) !== null && <Squares level={levelOfSub(sub, answersBySub[sub.id])!} />}
                       {(sub.number ?? directSubindicatorNumber(dimIndex, dim.indicators.length, subIndex))} {sub.title}
                       {answersBySub[sub.id]?.[TEMA_OBS_KEY] ? <span className="tree-obs" title="Tiene una observación del corporativo">⚑</span> : null}
                     </button>
@@ -703,6 +728,12 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId, review
           {active.subNumber} {active.sub.title}
         </h1>
         {active.sub.description && <p>{active.sub.description}</p>}
+        {levelOfSub(active.sub, answersBySub[active.sub.id]) !== null && (
+          <p className="level-banner">
+            <Squares level={levelOfSub(active.sub, answersBySub[active.sub.id])!} size="lg" />
+            <strong>{LEVEL_TEXT[levelOfSub(active.sub, answersBySub[active.sub.id])!]}</strong>
+          </p>
+        )}
         <ObservationBox key={`${active.sub.id}:${review?.unitId ?? ""}`} subId={active.sub.id} answers={answersBySub[active.sub.id] ?? {}} review={review} />
         <DueDateBanner dueDate={evaluation.dueDate} contactEmail={evaluation.contactEmail} />
 

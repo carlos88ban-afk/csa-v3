@@ -224,6 +224,7 @@ export function preserveReviewKeys(current: ResponseAnswers, incoming: ResponseA
 export const TEMA_OBS_KEY = "tema::obs";
 // Estado calculado de la vista «Revisar avances» (no se guarda).
 export const TEMA_STATE_KEY = "tema::state";
+export const TEMA_LEVEL_KEY = "tema::level";
 export interface TemaObservation {
   text: string;
   by: string;
