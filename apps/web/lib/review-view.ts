@@ -151,8 +151,9 @@ export function buildReviewView(evaluation: Evaluation, units: ReviewUnit[], row
 }
 
 /** Avance de una vista: promedio de los temas (cada nivel vale 0, 1/3, 2/3 o 1) y cuantos estan completos. */
-export function viewProgress(view: ReviewView): { complete: number; total: number; pct: number } {
+export function viewProgress(view: ReviewView): { complete: number; started: number; total: number; pct: number } {
   let complete = 0;
+  let started = 0;
   let total = 0;
   let points = 0;
   for (const a of Object.values(view.answers)) {
@@ -160,6 +161,8 @@ export function viewProgress(view: ReviewView): { complete: number; total: numbe
     const l = Number(a[TEMA_LEVEL_KEY] ?? 1);
     points += levelPoints(l);
     if (l === 4) complete++;
+    if (l > 1) started++;
   }
-  return { complete, total, pct: total === 0 ? 0 : Math.round((points / total) * 100) };
+  const raw = total === 0 ? 0 : (points / total) * 100;
+  return { complete, started, total, pct: raw > 0 && raw < 10 ? Math.round(raw * 10) / 10 : Math.round(raw) };
 }

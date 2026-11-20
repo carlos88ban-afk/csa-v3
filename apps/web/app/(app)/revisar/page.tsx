@@ -94,7 +94,7 @@ export default function RevisarPage() {
               <button key={t.id} type="button" role="tab" aria-selected={viewId === t.id} className={`review-tab${viewId === t.id ? " review-tab--on" : ""}`} onClick={() => setViewId(t.id)}>
                 <span>{t.id === CONSOLIDATED ? "Avance " : "Avance "}{t.label}</span>
                 <span className="review-tab__bar"><i style={{ width: `${pct}%` }} /></span>
-                <small>{pct}% de avance · {p.complete}/{p.total} temas completos</small>
+                <small>{String(pct).replace(".", ",")}% de avance · {p.started} de {p.total} temas con avance · {p.complete} completos</small>
               </button>
             );
           })}
