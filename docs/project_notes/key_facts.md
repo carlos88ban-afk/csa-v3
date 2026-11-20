@@ -17,6 +17,13 @@ Constantes y configuración del proyecto. **Nunca guardar contraseñas, API keys
 - Tests: Vitest (unit) + Playwright (e2e).
 - Tooling: pnpm workspaces + Turborepo + TypeScript strict.
 
+## Herramientas de navegador y visión (2026-11-09)
+
+- **Playwright MCP** (`microsoft/playwright-mcp`, Apache-2.0) en `opencode.json`: `@playwright/mcp@latest --headless --caps vision,pdf,devtools`; capturas en `.playwright-mcp/` (gitignored). 45 tools, incluye `browser_take_screenshot`, click por coordenadas, PDF y tracing.
+- **Chrome DevTools MCP** (`ChromeDevTools/chrome-devtools-mcp`, Apache-2.0) en `opencode.json`: screenshots, consola/red, `lighthouse_audit`, trazas de performance y `click_at`.
+- Verificación visual de producción: `https://csa-v3-web.vercel.app` (solo lectura; no mutar datos reales, ver R-005).
+- Prerrequisitos ya presentes: Node 20+, Chrome estable y navegadores de Playwright.
+
 ## Límites de free tier a monitorear
 
 - **Neon**: 100 CU-hours/mes, 0.5GB storage. Al superarlo → proyecto suspendido hasta el siguiente ciclo de facturación. Ver `docs/RISKS.md` R-001.

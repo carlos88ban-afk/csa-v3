@@ -13,16 +13,18 @@ export interface AssignBlock {
   userName: string | null;
   userEmail: string | null;
 }
-interface UnitUser { userId: string; name: string; email: string }
+interface UnitUser { userId: string; name: string; email: string; unitId?: string | null }
 
 export interface AssignData {
   evaluationId: string;
+  /** Corporativo: id de la matriz (el admin corporativo asigna como si fuera una unidad). */
+  unitId?: string;
   blocks: Map<string, AssignBlock>;
   users: UnitUser[];
   reload: () => Promise<void>;
 }
 
-export function useAssignData(evaluationId: string | undefined, enabled: boolean): AssignData | null {
+export function useAssignData(evaluationId: string | undefined, enabled: boolean, unitId?: string): AssignData | null {
   const [blocks, setBlocks] = useState<Map<string, AssignBlock>>(new Map());
   const [users, setUsers] = useState<UnitUser[]>([]);
   const [ready, setReady] = useState(false);
@@ -30,19 +32,19 @@ export function useAssignData(evaluationId: string | undefined, enabled: boolean
   const reload = useCallback(async () => {
     if (!evaluationId) return;
     const [b, u] = await Promise.all([
-      api.get<{ blocks: AssignBlock[] }>(`/api/evaluations/${evaluationId}/blocks`),
+      api.get<{ blocks: AssignBlock[] }>(`/api/evaluations/${evaluationId}/blocks${unitId ? `?unit=${unitId}` : ""}`),
       api.get<{ users: UnitUser[] }>("/api/users"),
     ]);
     setBlocks(new Map(b.blocks.map((x) => [x.subindicatorId, x])));
-    setUsers(u.users);
+    setUsers(unitId ? u.users.filter((x) => x.unitId === unitId) : u.users);
     setReady(true);
-  }, [evaluationId]);
+  }, [evaluationId, unitId]);
 
   useEffect(() => {
     if (enabled) void reload().catch(() => setReady(false));
   }, [enabled, reload]);
 
-  return enabled && ready && evaluationId ? { evaluationId, blocks, users, reload } : null;
+  return enabled && ready && evaluationId ? { evaluationId, ...(unitId ? { unitId } : {}), blocks, users, reload } : null;
 }
 
 const initials = (n: string) =>
@@ -80,7 +82,7 @@ export function AssignNode({ data, scopeIds, label, children }: { data: AssignDa
     setError(null);
     setCreated(null);
     try {
-      const r = await api.put<{ email: string; password?: string }>(`/api/evaluations/${data.evaluationId}/blocks`, { email, name, subindicatorIds: scopeIds });
+      const r = await api.put<{ email: string; password?: string }>(`/api/evaluations/${data.evaluationId}/blocks`, { email, name, subindicatorIds: scopeIds, ...(data.unitId ? { unitId: data.unitId } : {}) });
       if (r.password) setCreated({ email: r.email, password: r.password });
       setEmail("");
       setName("");
@@ -98,7 +100,7 @@ export function AssignNode({ data, scopeIds, label, children }: { data: AssignDa
     setBusy(true);
     try {
       for (const b of inScope) {
-        if (b.userId === userId) await api.put(`/api/evaluations/${data.evaluationId}/blocks`, { subindicatorId: b.subindicatorId, userId: null });
+        if (b.userId === userId) await api.put(`/api/evaluations/${data.evaluationId}/blocks`, { subindicatorId: b.subindicatorId, userId: null, ...(data.unitId ? { unitId: data.unitId } : {}) });
       }
       await data.reload();
     } finally {

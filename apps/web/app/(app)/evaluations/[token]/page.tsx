@@ -230,7 +230,11 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
   const [saveError, setSaveError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const { me } = useMe();
-  const assign = useAssignData(assignEvaluationId, !!assignEvaluationId && me.appRole === "unit_admin");
+  const assign = useAssignData(
+    assignEvaluationId,
+    !!assignEvaluationId && (me.appRole === "unit_admin" || (me.appRole === "corporate_admin" && !!me.corporateOrgId)),
+    me.appRole === "corporate_admin" ? me.corporateOrgId : undefined,
+  );
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Id del Subindicador recién tocado por el evaluado (ver setAnswer). null =

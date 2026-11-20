@@ -3,7 +3,39 @@
   "mcp": {
     "playwright": {
       "type": "local",
-      "command": ["npx", "-y", "@playwright/mcp"],
+      "command": [
+        "npx",
+        "-y",
+        "@playwright/mcp@latest",
+        "--headless",
+        "--caps",
+        "vision,pdf,devtools",
+        "--viewport-size",
+        "1440x900",
+        "--output-dir",
+        ".playwright-mcp",
+        "--console-level",
+        "warning"
+      ],
+      "enabled": true
+    },
+    "chrome-devtools": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--headless",
+        "--experimentalVision",
+        "--no-usage-statistics",
+        "--no-performanceCrux",
+        "--screenshotFormat",
+        "webp",
+        "--screenshotMaxWidth",
+        "1600",
+        "--viewport",
+        "1440x900"
+      ],
       "enabled": true
     }
   }
