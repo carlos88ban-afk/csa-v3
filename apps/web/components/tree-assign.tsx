@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { api } from "@/lib/api-client";
 import { PasswordReveal } from "@/components/password-reveal";
 
+// (corporativo: mismo mecanismo con unitId = matriz)
 // Asignar responsables desde el propio árbol de la evaluación (admin de unidad):
 // cada dimensión, indicador o bloque muestra quién responde y permite cambiarlo ahí mismo.
 
