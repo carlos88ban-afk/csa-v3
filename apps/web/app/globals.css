@@ -2800,3 +2800,23 @@ textarea::placeholder {
 .inq-alert { position: fixed; right: 20px; bottom: 20px; z-index: 40; text-decoration: none; background: #e5484d; }
 
 .builder-topbar__actions { display: flex; gap: 8px; align-items: center; }
+
+/* VS-081 · Revisar avances */
+.review-bar { display: flex; gap: 12px; align-items: stretch; justify-content: space-between; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--border, #d9dde3); }
+.review-bar__tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.review-bar__side { display: flex; gap: 8px; align-items: center; }
+.review-bar__ro { font-size: 0.8rem; padding: 2px 8px; border-radius: 999px; background: var(--surface-2, #eef1f5); }
+.review-tab { display: flex; flex-direction: column; gap: 4px; min-width: 150px; text-align: left; padding: 8px 12px; border: 1px solid var(--border, #d9dde3); border-radius: 8px; background: transparent; color: inherit; cursor: pointer; }
+.review-tab--on { border-color: var(--accent, #2563eb); box-shadow: inset 0 0 0 1px var(--accent, #2563eb); }
+.review-tab__bar, .tree-bar { display: inline-flex; align-items: center; background: var(--surface-2, #e5e8ee); border-radius: 999px; overflow: hidden; position: relative; height: 6px; }
+.review-tab__bar { display: block; width: 100%; }
+.review-tab__bar i, .tree-bar i { display: block; height: 100%; background: #16a34a; }
+.tree-bar { width: 56px; margin-left: 8px; vertical-align: middle; }
+.tree-bar b { position: absolute; right: -34px; font-size: 0.7rem; font-weight: 600; }
+.tree-bar { margin-right: 36px; }
+.runtime-nav__search { width: 100%; margin-top: 8px; }
+.tree-obs { margin-left: 6px; color: #d97706; }
+.obs-box, .obs-banner { margin: 12px 0; padding: 10px 12px; border-left: 4px solid #d97706; background: rgba(217, 119, 6, 0.1); border-radius: 4px; }
+.obs-box textarea { width: 100%; margin-top: 6px; }
+.obs-box__actions { display: flex; gap: 8px; margin-top: 6px; }
+.obs-banner p { margin: 4px 0 0; white-space: pre-wrap; }

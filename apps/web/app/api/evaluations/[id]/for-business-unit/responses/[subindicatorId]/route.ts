@@ -7,7 +7,7 @@ import {
   upsertResponse,
 } from "@plataforma-csa/db";
 import {
-  assertPublicResponseUpdateAllowed,
+  
   preserveReviewKeys,
   type ResponseAnswers,
   upsertResponseInput,
@@ -35,8 +35,6 @@ export async function PUT(request: Request, { params }: Params) {
 
     const current = await getResponse(evaluationId, subindicatorId, organizationId);
     const currentAnswers = (current?.answers as ResponseAnswers | undefined) ?? {};
-    // Aprobar/entregar es del revisor; lo aprobado queda congelado.
-    assertPublicResponseUpdateAllowed(currentAnswers, answers);
     const safeAnswers = preserveReviewKeys(currentAnswers, answers);
     const row = await upsertResponse(evaluationId, subindicatorId, safeAnswers, organizationId, {
       id: ctx.userId,

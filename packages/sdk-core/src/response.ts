@@ -211,11 +211,30 @@ export function parseReviewHistory(raw: unknown): ReviewEvent[] {
 export function preserveReviewKeys(current: ResponseAnswers, incoming: ResponseAnswers): ResponseAnswers {
   const next: ResponseAnswers = {};
   for (const [key, value] of Object.entries(incoming)) {
-    if (key.endsWith("::review") || key.endsWith("::history")) continue;
+    if (key.endsWith("::review") || key.endsWith("::history") || key === TEMA_OBS_KEY) continue;
     next[key] = value;
   }
   for (const [key, value] of Object.entries(current)) {
-    if (key.endsWith("::review") || key.endsWith("::history")) next[key] = value;
+    if (key.endsWith("::review") || key.endsWith("::history") || key === TEMA_OBS_KEY) next[key] = value;
   }
   return next;
+}
+
+// VS-081: observación del admin corporativo sobre un tema de una unidad (una por tema, JSON dentro de la respuesta).
+export const TEMA_OBS_KEY = "tema::obs";
+// Estado calculado de la vista «Revisar avances» (no se guarda).
+export const TEMA_STATE_KEY = "tema::state";
+export interface TemaObservation {
+  text: string;
+  by: string;
+  at: string;
+}
+export function parseTemaObservation(raw: unknown): TemaObservation | null {
+  if (typeof raw !== "string") return null;
+  try {
+    const o = JSON.parse(raw) as Partial<TemaObservation>;
+    return typeof o.text === "string" && o.text.trim() ? { text: o.text, by: o.by ?? "", at: o.at ?? "" } : null;
+  } catch {
+    return null;
+  }
 }

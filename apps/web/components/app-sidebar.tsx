@@ -16,7 +16,7 @@ const NAV: Record<Me["appRole"], Array<{ href: string; label: string }>> = {
     { href: "/frameworks", label: "Estructura" },
     { href: "/units", label: "Unidades" },
     { href: "/users", label: "Usuarios" },
-    { href: "/consolidado", label: "Consolidado" },
+    { href: "/revisar", label: "Revisar avances" },
     { href: "/consultas", label: "Consultas" },
   ],
   unit_admin: [

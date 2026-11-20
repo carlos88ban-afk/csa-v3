@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { ElementStatus, ResponseAnswers } from "@plataforma-csa/sdk-core";
 import {
   historyKey,
+  TEMA_OBS_KEY,
   parseReviewHistory,
   reviewKey,
   statusKey,
@@ -187,4 +188,32 @@ export async function setElementStatus(
     else delete answers[reviewKey(elementId)];
   }
   return upsertResponse(evaluationId, subindicatorId, answers, businessUnitOrganizationId);
+}
+
+/**
+ * VS-081: el admin corporativo deja (o quita, con `text = null`) una observación sobre un tema de una unidad.
+ * Se guarda dentro de la respuesta de la unidad (clave `tema::obs`) y funciona aunque la evaluación esté cerrada.
+ */
+export async function setTemaObservation(
+  evaluationId: string,
+  subindicatorId: string,
+  unitId: string,
+  text: string | null,
+  by: string,
+) {
+  const [ev] = await db.select().from(evaluation).where(eq(evaluation.id, evaluationId));
+  if (!ev) throw new NotFoundError("evaluation");
+  if (!snapshotHasSubindicator(ev.snapshot as EvaluationSnapshot, subindicatorId)) throw new NotFoundError("subindicator");
+  const current = await getResponse(evaluationId, subindicatorId, unitId);
+  const answers: ResponseAnswers = { ...(current?.answers as ResponseAnswers | undefined) };
+  const clean = text?.trim() ?? "";
+  if (clean === "") delete answers[TEMA_OBS_KEY];
+  else answers[TEMA_OBS_KEY] = JSON.stringify({ text: clean.slice(0, 2000), by, at: new Date().toISOString() });
+  await db
+    .insert(response)
+    .values({ id: randomUUID(), evaluationId, subindicatorId, businessUnitOrganizationId: unitId, answers })
+    .onConflictDoUpdate({
+      target: [response.evaluationId, response.subindicatorId, response.businessUnitOrganizationId],
+      set: { answers },
+    });
 }

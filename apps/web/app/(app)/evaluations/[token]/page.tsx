@@ -38,7 +38,9 @@ import {
   type TableCellValue,
   type TablaDatosConfig,
   type TableValue,
-  reviewKey,
+  TEMA_OBS_KEY,
+  TEMA_STATE_KEY,
+  parseTemaObservation,
 } from "@plataforma-csa/sdk-core";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { InquiryFab } from "@/components/inquiry-fab";
@@ -139,10 +141,16 @@ function flatten(snapshot: EvaluationSnapshot): FlatSubindicator[] {
 
 // Elementos ocultos por `visibleIf` (docs/engines/rule.md) no cuentan en el
 // progreso — no se le pidieron al evaluado, no son "preguntas sin responder".
+// «Revisar avances» (VS-081) inyecta el estado ya calculado del tema (consolidado de varias unidades).
+function stateOverride(a: ResponseAnswers): "complete" | "partial" | "empty" | null {
+  const s = a[TEMA_STATE_KEY];
+  return s === "complete" || s === "partial" || s === "empty" ? s : null;
+}
+
 function progressOf(sub: SnapshotSubindicator, answers: ResponseAnswers | undefined) {
   const a = answers ?? {};
   // Cada tema cuenta como UNA pregunta (aunque lleve evidencia u otras preguntas internas).
-  const st = temaCompletion(sub.formSchema?.elements ?? [], a);
+  const st = stateOverride(a) ?? temaCompletion(sub.formSchema?.elements ?? [], a);
   return { answered: st === "complete" ? 1 : 0, total: st === null ? 0 : 1 };
 }
 
@@ -184,7 +192,7 @@ const COMPLETION_LABEL: Record<Completion, string> = { complete: "Completa", par
 function blockCounts(sub: SnapshotSubindicator, answers: ResponseAnswers | undefined): Counts {
   const a = answers ?? {};
   const c: Counts = { complete: 0, partial: 0, empty: 0 };
-  const st = temaCompletion(sub.formSchema?.elements ?? [], a);
+  const st = stateOverride(a) ?? temaCompletion(sub.formSchema?.elements ?? [], a);
   if (st) c[st]++;
   return c;
 }
@@ -216,10 +224,67 @@ function progressState(p: { answered: number; total: number }): "" | "neutral" |
   return "accent";
 }
 
+// VS-081: «Revisar avances» — la misma pantalla del evaluado en solo lectura, con otra fuente de datos.
+export interface ReviewProps {
+  evaluation: Evaluation;
+  answers: Record<string, ResponseAnswers>;
+  /** Unidad que se está viendo; null = consolidado. */
+  unitId: string | null;
+  observe: (subindicatorId: string, text: string | null) => Promise<void>;
+}
+
+function TreeBar({ c }: { c: Counts }) {
+  const t = c.complete + c.partial + c.empty;
+  if (t === 0) return null;
+  const pct = Math.round((c.complete / t) * 100);
+  return (
+    <span className="tree-bar" title={`${c.complete} de ${t} temas completos`}>
+      <i style={{ width: `${pct}%` }} />
+      <b>{pct}%</b>
+    </span>
+  );
+}
+
+// Observación del corporativo sobre un tema: el admin la escribe (vista de una unidad); la unidad la ve en su tema.
+function ObservationBox({ subId, answers, review }: { subId: string; answers: ResponseAnswers; review: ReviewProps | undefined }) {
+  const obs = parseTemaObservation(answers[TEMA_OBS_KEY]);
+  const [text, setText] = useState(obs?.text ?? "");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setText(obs?.text ?? ""), [obs?.text]);
+  if (!review) {
+    if (!obs) return null;
+    return (
+      <div className="obs-banner" role="status">
+        <strong>Observación del corporativo{obs.by ? ` (${obs.by})` : ""}</strong>
+        <p>{obs.text}</p>
+      </div>
+    );
+  }
+  if (!review.unitId) return null;
+  return (
+    <div className="obs-box">
+      <label>
+        <strong>Observación para esta unidad</strong>
+        <textarea rows={2} value={text} maxLength={2000} placeholder="Escribe qué debe revisar o corregir la unidad en este tema…" onChange={(e) => setText(e.target.value)} />
+      </label>
+      <span className="obs-box__actions">
+        <button type="button" className="btn btn--primary btn--sm" disabled={busy || text.trim() === "" || text.trim() === obs?.text} onClick={() => { setBusy(true); void review.observe(subId, text).finally(() => setBusy(false)); }}>
+          {obs ? "Actualizar observación" : "Enviar observación"}
+        </button>
+        {obs && (
+          <button type="button" className="btn btn--secondary btn--sm" disabled={busy} onClick={() => { setBusy(true); void review.observe(subId, null).finally(() => setBusy(false)); }}>
+            Quitar observación
+          </button>
+        )}
+      </span>
+    </div>
+  );
+}
+
 // VS-054: `evidenceToken` sigue siendo el prop que baja a EvidenceView/
 // OptionReferencesView (evidencia pública) — `undefined` cuando el llamador
 // es el Runtime autenticado, ver guards en esos componentes arriba.
-export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { adapter: RuntimeAdapter; evidenceToken: string | undefined; assignEvaluationId?: string }) {
+export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId, review }: { adapter: RuntimeAdapter; evidenceToken: string | undefined; assignEvaluationId?: string; review?: ReviewProps }) {
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [answersBySub, setAnswersBySub] = useState<Record<string, ResponseAnswers>>({});
@@ -229,6 +294,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
   const { me } = useMe();
   const assign = useAssignData(
     assignEvaluationId,
@@ -279,6 +345,16 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adapter]);
 
+  // Revisar avances: al cambiar de vista (consolidado / unidad) o recargar, se reemplazan evaluación y respuestas.
+  useEffect(() => {
+    if (!review) return;
+    setEvaluation(review.evaluation);
+    setAnswersBySub(review.answers);
+    lastSavedBySub.current = review.answers;
+    const list = flatten(review.evaluation.snapshot);
+    setActiveId((prev) => (prev && list.some((f) => f.sub.id === prev) ? prev : (list[0]?.sub.id ?? null)));
+  }, [review?.evaluation, review?.answers]);
+
   const flat = useMemo(() => (evaluation ? flatten(evaluation.snapshot) : []), [evaluation]);
   const activeIndex = flat.findIndex((f) => f.sub.id === activeId);
   const active = activeIndex >= 0 ? flat[activeIndex] : null;
@@ -288,7 +364,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
   // seguir escribiendo y recién veía el error al intentar guardar. Réplica
   // en UI de la misma regla, no la reemplaza (el servidor sigue siendo la
   // fuente de verdad — este flag solo deshabilita inputs/botones).
-  const deadlineLocked = !!evaluation?.dueDate && new Date(evaluation.dueDate) <= new Date();
+  const deadlineLocked = !!review || (!!evaluation?.dueDate && new Date(evaluation.dueDate) <= new Date());
   // VS-020: "¿hay cambios pendientes?" — comparación superficial de JSON,
   // el mapa de answers de un Subindicador es chico (no justifica una
   // librería de diff). Gatea los tres botones Save/Cancel/Reset.
@@ -409,17 +485,19 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
 
   // Filtro (Me faltan / Parciales / Completadas): el árbol se abre solo y muestra únicamente los temas que coinciden;
   // «Todas» deja el árbol como lo dejó el usuario. Un tema es una pregunta, así que se filtra por tema completo.
-  const filtering = filter !== "all";
+  const q = search.trim().toLowerCase();
+  const filtering = filter !== "all" || q !== "";
   const isOpen = (id: string) => filtering || expanded.has(id);
-  const subMatches = (sub: SnapshotSubindicator) => matchesFilter(blockCounts(sub, answersBySub[sub.id]), filter);
+  const subMatches = (sub: SnapshotSubindicator) =>
+    matchesFilter(blockCounts(sub, answersBySub[sub.id]), filter) && (q === "" || `${sub.number ?? ""} ${sub.title}`.toLowerCase().includes(q));
   useEffect(() => {
-    if (filter === "all") return;
+    if (!filtering) return;
     const current = flat.find((x) => x.sub.id === activeId);
     if (current && subMatches(current.sub)) return;
     const first = flat.find((x) => subMatches(x.sub));
     if (first) setActiveId(first.sub.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+  }, [filter, q]);
 
   function toggleCollapsed(id: string) {
     setExpanded((prev) => {
@@ -468,8 +546,8 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
           <div className="q-summary" role="group" aria-label="Filtrar preguntas por estado">
             {([
               ["all", "Todas", totalCounts.complete + totalCounts.partial + totalCounts.empty],
-              ["empty", "Me faltan", totalCounts.empty],
-              ["partial", "Parciales", totalCounts.partial],
+              ["empty", review ? "Sin iniciar" : "Me faltan", totalCounts.empty],
+              ["partial", review ? "Pendientes" : "Parciales", totalCounts.partial],
               ["complete", "Completadas", totalCounts.complete],
             ] as [Filter, string, number][]).map(([key, label, n]) => (
               <button key={key} type="button" aria-pressed={filter === key} className={`q-chip q-chip--${key}${filter === key ? " q-chip--on" : ""}`} onClick={() => setFilter(key)}>
@@ -478,6 +556,9 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
               </button>
             ))}
           </div>
+          {review && (
+            <input type="search" className="runtime-nav__search" placeholder="Buscar un tema (nombre o número)" aria-label="Buscar un tema" value={search} onChange={(e) => setSearch(e.target.value)} />
+          )}
           {evaluation.dueDate && (
             <p className="page__lead">Plazo: {formatDueDate(evaluation.dueDate)}</p>
           )}
@@ -493,6 +574,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
                 <span className="runtime-nav__caret">{isOpen(dim.id) ? "▾" : "▸"}</span>
                 <span className={`tree-dot${dimState ? ` tree-dot--${dimState}` : ""}`} />
                 {(dim.number ?? dimensionNumber(dimIndex))} {dim.title}
+                {review && <TreeBar c={dimCounts(dim, answersBySub)} />}
               </button>
               </AssignNode>
 
@@ -507,6 +589,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
                         <span className="runtime-nav__caret">{isOpen(ind.id) ? "▾" : "▸"}</span>
                         <span className={`tree-dot${indState ? ` tree-dot--${indState}` : ""}`} />
                         {(ind.number ?? indicatorNumber(dimIndex, indIndex))} {ind.title}
+                        {review && <TreeBar c={indCounts(ind, answersBySub)} />}
                       </button>
                       </AssignNode>
 
@@ -514,7 +597,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
                         ind.subindicators.map((sub, subIndex) => {
                           const counts = blockCounts(sub, answersBySub[sub.id]);
                           const state = dotState(counts);
-                          if (!matchesFilter(counts, filter)) return null;
+                          if (!subMatches(sub)) return null;
                           return (
                             <AssignNode key={sub.id} data={assign} scopeIds={[sub.id]} label={sub.title}>
                               <button
@@ -525,6 +608,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
                             >
                               <span className={`tree-dot${state ? ` tree-dot--${state}` : ""}`} />
                               {(sub.number ?? subindicatorNumber(dimIndex, indIndex, subIndex))} {sub.title}
+                              {answersBySub[sub.id]?.[TEMA_OBS_KEY] ? <span className="tree-obs" title="Tiene una observación del corporativo">⚑</span> : null}
                             </button>
                             </AssignNode>
                           );
@@ -540,7 +624,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
                 dim.subindicators.map((sub, subIndex) => {
                   const counts = blockCounts(sub, answersBySub[sub.id]);
                   const state = dotState(counts);
-                  if (!matchesFilter(counts, filter)) return null;
+                  if (!subMatches(sub)) return null;
                   return (
                     <AssignNode key={sub.id} data={assign} scopeIds={[sub.id]} label={sub.title}>
                       <button
@@ -551,6 +635,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
                     >
                       <span className={`tree-dot${state ? ` tree-dot--${state}` : ""}`} />
                       {(sub.number ?? directSubindicatorNumber(dimIndex, dim.indicators.length, subIndex))} {sub.title}
+                      {answersBySub[sub.id]?.[TEMA_OBS_KEY] ? <span className="tree-obs" title="Tiene una observación del corporativo">⚑</span> : null}
                     </button>
                     </AssignNode>
                   );
@@ -618,6 +703,7 @@ export function RuntimeCore({ adapter, evidenceToken, assignEvaluationId }: { ad
           {active.subNumber} {active.sub.title}
         </h1>
         {active.sub.description && <p>{active.sub.description}</p>}
+        <ObservationBox key={`${active.sub.id}:${review?.unitId ?? ""}`} subId={active.sub.id} answers={answersBySub[active.sub.id] ?? {}} review={review} />
         <DueDateBanner dueDate={evaluation.dueDate} contactEmail={evaluation.contactEmail} />
 
         {!active.sub.formSchema || active.sub.formSchema.elements.length === 0 ? (
@@ -1938,43 +2024,6 @@ function FormTableView({
   );
 }
 
-// VS-018 (docs/engines/persistence.md, "Estado por pregunta"): fila de
-// estado + acción "Marcar como lista", compartida por todos los tipos de
-// pregunta que capturan respuesta manual (no calculado/instruccion/banner).
-function StatusRow({
-  elementId,
-  derived,
-  canComplete,
-  onAnswerChange,
-}: {
-  elementId: string;
-  derived: ReturnType<typeof deriveStatus>;
-  canComplete: boolean;
-  onAnswerChange: (key: string, value: AnswerValue) => void;
-}) {
-  if (derived === "not_started" || derived === "in_progress") {
-    if (!canComplete) return null;
-    return (
-      <div className="runtime-question__status">
-        <button
-          type="button"
-          className="btn btn--secondary btn--sm"
-          onClick={() => onAnswerChange(statusKey(elementId), "completed")}
-        >
-          Marcar como lista
-        </button>
-      </div>
-    );
-  }
-  const label = derived === "completed" ? "Lista para revisar" : derived === "approved" ? "Aprobada" : "Entregada";
-  const variant = derived === "submitted" ? "good" : derived === "approved" ? "accent" : "neutral";
-  return (
-    <div className="runtime-question__status">
-      <Pill variant={variant}>{label}</Pill>
-    </div>
-  );
-}
-
 function ElementView({ token, subindicatorId, element, number, answers, value, onChange, onAnswerChange, formLocked }: ElementViewProps) {
   if (element.type === "instruccion") {
     return (
@@ -1998,31 +2047,15 @@ function ElementView({ token, subindicatorId, element, number, answers, value, o
   // arriba en adelante, que capturan una respuesta manual del evaluado.
   const na: string | undefined = undefined;
   const markedNA = na === "true";
-  const answeredOrNA = isAnswered(value, na);
-  const derived = deriveStatus(answers[statusKey(element.id)] as string | undefined, answeredOrNA);
+  void isAnswered;
   // N/A deshabilita el control principal igual que approved/submitted —
   // son dos motivos independientes para el mismo bloqueo de edición (un
   // elemento puede estar N/A sin estar aprobado/enviado, y viceversa).
   // VS-057: `formLocked` (plazo vencido) es un cuarto motivo, independiente
   // de los otros tres.
-  const locked = formLocked || derived === "approved" || derived === "submitted" || markedNA;
-  // VS-057: "Marcar como lista" también queda oculto con el plazo
-  // vencido — es otra forma de editar el estado de la respuesta.
-  const canComplete = !formLocked && answeredOrNA && (derived === "not_started" || derived === "in_progress");
-  const observation = (answers[reviewKey(element.id)] as string | undefined) ?? "";
-  const showObservation = observation !== "" && (derived === "not_started" || derived === "in_progress");
-  const statusRow = (
-    <>
-      {showObservation && (
-        <div className="alert" role="status" style={{ whiteSpace: "pre-wrap" }}>
-          <strong>El revisor devolvió esta respuesta para corregir:</strong>
-          <br />
-          {observation}
-        </div>
-      )}
-      <StatusRow elementId={element.id} derived={derived} canComplete={canComplete} onAnswerChange={onAnswerChange} />
-    </>
-  );
+  const locked = formLocked || markedNA;
+  // Estados de revisión (Lista/Aprobada/Entregada) retirados (VS-081): solo Sin iniciar / Parcial / Completa, derivados.
+  const statusRow = null;
   // «No aplica» se retiró: ya no hay forma de marcarlo (respuestas antiguas marcadas se ignoran).
   const naCommentRow = null;
 

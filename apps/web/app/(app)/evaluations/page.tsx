@@ -125,8 +125,8 @@ export default function EvaluationsPage() {
         <h1>{current.title}</h1>
         <span className="entry-list__actions">
           <Link className="btn btn--secondary" href={`/frameworks/${current.frameworkId}/builder`}>Editar estructura</Link>
-          <Link className="btn btn--secondary" href="/consolidado">Ver consolidado</Link>
-          <a className="btn btn--primary" href={`/api/evaluations/${current.id}/export-xlsx`}>Exportar Excel</a>
+          <Link className="btn btn--primary" href="/revisar">Revisar avances</Link>
+          <a className="btn btn--secondary" href={`/api/evaluations/${current.id}/export-xlsx`}>Exportar Excel</a>
           {!closed &&
             (confirmClose ? (
               <>
@@ -181,59 +181,6 @@ export default function EvaluationsPage() {
         </div>
       </section>
 
-      <p style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
-        <select aria-label="Unidad" value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })}>
-          <option value="">Todas las unidades</option>
-          {[...units].map(([id, u]) => <option key={id} value={id}>{u.name}</option>)}
-        </select>
-        <select aria-label="Dimensión" value={f.dimension} onChange={(e) => setF({ ...f, dimension: e.target.value })}>
-          <option value="">Todas las dimensiones</option>
-          {dims.map((d) => <option key={d} value={d}>{d}</option>)}
-        </select>
-        <select aria-label="Responsable" value={f.responsible} onChange={(e) => setF({ ...f, responsible: e.target.value })}>
-          <option value="">Todos los responsables</option>
-          <option value="__none">Sin responsable</option>
-          {responsibles.map((d) => <option key={d} value={d}>{d}</option>)}
-        </select>
-        <select aria-label="Estado" value={f.state} onChange={(e) => setF({ ...f, state: e.target.value })}>
-          <option value="">Todos los estados</option>
-          {["Sin iniciar", "En progreso", "Devuelta", "Lista para revisar", "Aprobada", "Entregada"].map((s) => <option key={s}>{s}</option>)}
-        </select>
-      </p>
-
-      <Card>
-        {rows === null ? (
-          <p className="empty">Cargando avance...</p>
-        ) : shown.length === 0 ? (
-          <p className="empty">{all.length === 0 ? "Aún no hay unidades activas con bloques asignados." : "Ningún bloque coincide con los filtros."}</p>
-        ) : (
-          <table className="data-table">
-            <thead>
-              <tr><th>Unidad</th><th>Dimensión › Bloque</th><th>Responsable</th><th>Avance</th><th>Estado</th><th>Última edición</th><th></th></tr>
-            </thead>
-            <tbody>
-              {shown.map((r) => (
-                <tr key={`${r.unitId}-${r.subindicatorId}`}>
-                  <td><strong>{r.unitSigla || r.unitName}</strong></td>
-                  <td>{r.dimension}{r.indicator ? ` › ${r.indicator}` : ""} › {r.title}</td>
-                  <td>{r.responsible ?? <em>Sin asignar</em>}</td>
-                  <td>
-                    {r.complete}/{r.total}
-                    {r.partial > 0 && <small className="dash__partial"> · {r.partial} {r.partial === 1 ? "parcial" : "parciales"}</small>}
-                  </td>
-                  <td><Pill variant={stateOf(r) === "Entregada" ? "good" : stateOf(r) === "Devuelta" ? "warn" : "neutral"}>{stateOf(r)}</Pill></td>
-                  <td>{r.updatedBy ? `${r.updatedBy} · ${r.updatedAt ? fmt(r.updatedAt) : ""}` : "—"}</td>
-                  <td>
-                    <Link className="btn btn--secondary btn--sm" href={`/frameworks/${current.frameworkId}/evaluations/${current.id}/review?unit=${r.unitId}`}>
-                      Revisar
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
     </main>
   );
 }

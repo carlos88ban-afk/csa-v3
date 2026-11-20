@@ -580,6 +580,8 @@ export async function getConsolidationData(evaluationId: string, corporateOrgId:
   const rows = await db.select().from(response).where(eq(response.evaluationId, evaluationId));
   return {
     title: ev.title,
+    corporateOrgId,
+    dueDate: ev.dueDate,
     snapshot: await prepareSnapshot(ev.snapshot as EvaluationSnapshot),
     units,
     responses: rows.map((r) => ({
