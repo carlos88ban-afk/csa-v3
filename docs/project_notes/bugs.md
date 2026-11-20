@@ -12,6 +12,20 @@ Registro cronológico de bugs y su solución. Entradas breves. Limpiar entradas 
 - **Prevention**: cómo evitarlo (opcional)
 ```
 
+### 2026-11-20 - Despliegue «exitoso» que no desplegó
+- **Issue**: tras un fallo de Vercel, un commit vacío para reintentar quedó en «Skipped – Not affected» y producción siguió con la versión vieja (las insignias de responsable no aparecían).
+- **Root Cause**: Vercel omite el build si el commit no toca la app (`success` ≠ desplegado).
+- **Solution**: reintentar con un cambio real en `apps/web`; comprobar el bundle servido o la descripción del estado («Deployment has completed»).
+- **Prevention**: tras cada push, confirmar en producción que el cambio está (no solo el estado `success`).
+
+### 2026-11-20 - Menú marcaba «Evaluación» estando en «Mi parte»
+- **Issue**: ambas rutas empiezan por `/evaluations`.
+- **Solution**: `app-sidebar.tsx` marca «Mi parte» para `/mi-evaluacion` y `/evaluations/authenticated/*`, y «Evaluación» para el resto.
+
+### 2026-11-20 - «Completado» sin opción visible / consolidado en 0
+- **Issue**: en solo lectura la opción marcada (radio deshabilitado) casi no se veía; el consolidado exigía todas las unidades completas y mostraba 0 pese a avances.
+- **Solution**: CSS que resalta lo marcado; consolidado = promedio de las unidades; nueva regla de cuadritos (`temaLevel`).
+
 ### 2026-08-19 - VS-076: reordenar componentes de celda por drag & drop no completaba el drop (state con lag de render) [RESUELTO]
 
 - **Issue**: encontrado verificando el reordenamiento de componentes en el Builder de tablas — el drag arrancaba (`dragstart` disparaba) pero el drop nunca se completaba, tanto vía Playwright (`browser_drag` con timeout) como vía eventos nativos disparados manualmente.

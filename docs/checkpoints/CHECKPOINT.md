@@ -1,9 +1,21 @@
 # Checkpoint — Estado actual del proyecto
 
-**Última actualización**: 2026-08-19  
-**Branch activa**: main  
-**Último slice cerrado**: VS-078 (Export migra a render por componentes — `formatEmbeddedTable` reemplaza su lógica por `normalizeCellComponents(cellCfg)`, idéntico criterio a Runtime/Preview (VS-077); el `tabla_datos` suelto deja de duplicar la lógica y delega directo. Cierra la Fase 2 completa del rediseño UX de tablas embebidas — VS-071 a VS-078. Verificado end-to-end en producción — ver "Verificación en producción" abajo — commiteado).  
-**Slice en progreso**: ninguno — Fase 2 del rediseño UX de tablas embebidas completa. Próximo trabajo por definir (ver `docs/ROADMAP.md`/`docs/BACKLOG.md`).
+**Última actualización**: 2026-11-20
+**Branch activa**: main (despliegue automático en Vercel al hacer push)
+**Último slice cerrado**: VS-081 (Revisar avances + cuadritos) y VS-080 (visibilidad por tema, corporativo evaluador, responsables). Verificados en producción (`csa-v3-web.vercel.app`) con sesiones de admin corporativo y admin de unidad SPSA.
+**Slice en progreso**: ninguno. Pendientes en `docs/BACKLOG.md` (descarga de evidencias en Revisar avances, etc.).
+
+## Estado a 2026-11-20 (leer primero)
+
+- Producto: réplica del portal S&P CSA (dimensiones 1–3 = **149 temas**; un tema = una pregunta). Unidades de prueba: FP, RP, SPSA; corporativo = matriz. Probar **solo en producción con datos de prueba**; el asistente nunca escribe contraseñas (el usuario cambia de sesión).
+- Roles: `corporate_admin` (dueño de la matriz; también responde «Mi parte»), `unit_admin`, `evaluator` (de una unidad o del corporativo = responsable corporativo).
+- Visibilidad (`appliesTo`) y numeración oficial se calculan **en vivo** (`prepareSnapshot`, `packages/db/src/domain/live-visibility.ts`); textos, preguntas y responsables salen de la copia publicada y requieren «Actualizar evaluación en curso» (`refreshEvaluationSnapshot`).
+- Avance: `temaLevel` (sdk-core `completion.ts`) → 4 cuadritos; `temaCompletion` se deriva (4 = completa, 1 = sin responder, resto parcial). Regla de la mayoría: más de la mitad de elementos de sub-opciones/celdas.
+- «Revisar avances» (`/revisar`) reutiliza `RuntimeCore` con el prop `review`; datos desde `/api/evaluations/[id]/consolidated`; fusión en `apps/web/lib/review-view.ts`. Claves sintéticas en las respuestas: `tema::obs` (observación, guardada), `tema::state`/`tema::level` (solo vista).
+- Dato de prueba que quedó en producción: observación «Prueba UI: confirmar el año del dato.» sobre el tema 2.2.2 de SPSA (quitar desde Revisar avances → SPSA → «Quitar observación»).
+- Flujo de trabajo: scripts de edición con la herramienta Write + python/node, `pnpm build` en sdk-core y db antes de `tsc` en web, commit + push, esperar `gh api repos/carlos88ban-afk/csa-v3/commits/$sha/status` en `success`. Un commit vacío no despliega («Skipped – Not affected»).
+
+## Historial anterior (hasta 2026-08-19)
 
 ## Resumen ejecutivo
 

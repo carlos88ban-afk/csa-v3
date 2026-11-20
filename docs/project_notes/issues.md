@@ -2,6 +2,11 @@
 
 Registro rápido de trabajo completado por slice. No reemplaza `docs/slices/` ni `docs/CHANGELOG.md` — es una referencia rápida cronológica.
 
+### 2026-11-20 - VS-080/081: visibilidad por tema, corporativo evaluador, Revisar avances
+- **Status**: Completed (producción). Detalle en `docs/slices/VS-080.md`, `docs/slices/VS-081.md`, CHANGELOG y CHECKPOINT.
+- **Description**: visibilidad en vivo + numeración oficial; corporativo responde («Mi parte») y asigna responsables desde el árbol; un tema = una pregunta (149); «Revisar avances» consolidado/por unidad con cuadritos de avance y observaciones; estados de revisión retirados.
+- **Notes**: pendiente descarga de evidencias en Revisar avances; ver BACKLOG.
+
 ### 2026-08-19 - VS-078: export migra a render por componentes — cierre de la Fase 2, verificado en producción
 - **Status**: Completed. `formatEmbeddedTable` (`apps/web/lib/evaluation-export.ts`) itera `normalizeCellComponents(cellCfg)` igual que Runtime/Preview (VS-077): `formatTableCell`/`formatTableComponent` (nuevos) resuelven cada componente con la misma clave por origen (legacy vs Fase 2), respetan `gates`, unen valores no vacíos con `", "`. El `tabla_datos` suelto de nivel de Elemento (`formatAnswer`) delega directo a `formatEmbeddedTable(element, element.id, answers)` en vez de duplicar la lógica. `resolveExtraFields` eliminado (sin consumidores); su prefijo de `label` se generaliza a cualquier componente `texto_corto`/`numero`/`seleccion_desplegable` con `label`.
 - **Description**: cambio de formato de texto deliberado para celdas legacy con `extraFields`/`references` companion — de `Columna N=<control>: <extra1>, <extra2> [Referencias: ...]` a `Columna N=<referencias>, <extra1>, <extra2>, <control>` (mismo contenido, separador uniforme `", "`, orden alineado al de Runtime/Preview), documentado en `docs/engines/form.md`.

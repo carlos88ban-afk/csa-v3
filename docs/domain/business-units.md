@@ -2,6 +2,8 @@
 
 > **Estado de implementación (2026-08-18)**: feature completa, VS-050 a VS-059, **todo verificado end-to-end en producción** (`csa-v3-web.vercel.app`). Backend: VS-050 schema/assignments, VS-051 partición de `response`, VS-052 `dueDate`/bloqueo, VS-053 acceso autenticado + exclusiones. UI: VS-054 Runtime compartido público/autenticado (`RuntimeCore`/`RuntimeAdapter`) + panel Publicar, VS-055 export XLSX consolidado + dashboard de avance por unidad, VS-057 bloqueo proactivo del formulario en cliente por `dueDate` vencido, VS-058 rutas de evidencia autenticadas (espejo de las públicas), VS-059 editor de exclusiones por Subindicador/elemento en el panel Publicar. Sin pendientes conocidos de alcance central.
 
+> **Actualización 2026-11-20**: visibilidad por tema en vivo, corporativo evaluador, responsables corporativos y «Revisar avances» (consolidado/por unidad, cuadritos de avance, observaciones) están en `docs/slices/VS-080.md` y `docs/slices/VS-081.md`; el flujo Lista/Aprobada/Entregada descrito aquí quedó retirado.
+
 Extiende `organization-user.md` (jerarquía de Organización) y supera partes de `engines/publishing.md` (acceso anónimo por token → acceso autenticado por sesión + org). Motivado por un caso real de uso: un corporativo (ej. "Intercorp Retail") publica UNA evaluación que se aplica a MÚLTIPLES unidades de negocio (ej. "Supermercados Peruanos", "Farmacias Peruanas"), cada una con visibilidad de un subconjunto distinto de preguntas, sin visibilidad cruzada entre unidades, con exportación e in-platform dashboard consolidados solo para el corporativo.
 
 ## Decisión central: unidad de negocio = Organization propia, vinculada a una matriz

@@ -4,6 +4,24 @@ Registro cronológico de cambios organizados por slice vertical (feature complet
 
 ## [Unreleased]
 
+### VS-081 · Revisar avances, cuadritos de avance y observaciones (2026-11-20)
+
+- Nueva pantalla **Revisar avances** (`/revisar`, admin corporativo): la misma pantalla del evaluado en solo lectura, con vistas **Consolidado / FP / RP / SPSA / Corporativo**. Consolidado = un solo ente (números suman, textos de todas las unidades, selecciones: todo lo marcado; si una selección única difiere se muestran todas). Buscador de temas y filtros Sin iniciar / Pendientes / Completadas.
+- Se retiran: tabla de «Evaluación», pantalla Revisar y su API de estados, «Marcar como lista» y los estados Lista/Aprobada/Entregada/Devuelta; `/consolidado` redirige a `/revisar`. Solo existen Sin iniciar, Parcial y Completa (derivados).
+- **Cuadritos de avance** (4) al lado derecho de cada fila del árbol, también para el evaluado: 1 rojo = sin responder · 2 amarillo = falta la mayor parte de sub-opciones/datos · 3 amarillo = falta poco o falta evidencia · 4 verde = completa (con evidencia adjunta si el tema la pide). Regla de la mayoría: más de la mitad de los elementos de sub-opciones/sub-sub-opciones/celdas hechos. Consolidado = promedio de las unidades a las que aplica el tema (ya no queda en 0 si una unidad avanzó). **Cambio de regla para todos:** un tema que pide evidencia ya no es «completo» hasta adjuntarla.
+- **Observación** del admin sobre un tema de una unidad (`tema::obs`, `PUT /api/evaluations/[id]/observations`): la unidad la ve como aviso en el tema y con ⚑ en el árbol; el guardado de la unidad la conserva.
+- La opción marcada se resalta aunque el campo esté bloqueado.
+
+### VS-080 · Visibilidad por tema, corporativo evaluador y responsables (2026-11-18 → 2026-11-20)
+
+- Visibilidad por tema decidida en el árbol (`appliesTo`, quién responde: Corporativo / FP / RP / SPSA) y **en vivo** (no exige actualizar ni publicar). Numeración oficial estable (`number`) aunque una unidad vea solo algunos temas.
+- El admin corporativo también responde («Mi parte»): ve todo, lo que no es suyo va atenuado y en solo lectura. Responsable corporativo (evaluador sin unidad) asignable desde el tema o desde el árbol de «Mi parte» con las mismas insignias que el admin de unidad (dimensión, indicador, tema).
+- Un tema = una pregunta: todos los conteos cuentan temas (149 en total).
+- Botón **Actualizar evaluación en curso** (con nº de cambios pendientes) que re-copia la estructura sin perder respuestas, enlace ni plazo. «Publicar nueva» crea una evaluación vacía.
+- Árboles (Builder y evaluado) contraídos al nivel superior; banners contraídos; se retiran «No aplica» y «Comentario confidencial».
+- Botón flotante «¿Dudas o sugerencias?» con mensaje prellenado → `/consultas`; aviso de «respuesta nueva» (unidades) y «consultas por responder» (corporativo).
+- Filtros Me faltan/Parciales/Completadas filtran por tema (árbol se abre solo, oculta lo que no coincide). El menú marca «Mi parte» (antes marcaba «Evaluación»).
+
 ### VS-079 · Notas por opción y bloques de sub-opciones ilimitados (2026-11-18)
 
 - El pegado ya no descarta el texto explicativo bajo una opción: se guarda como `note` y se muestra en el evaluado, la vista previa y el Excel.

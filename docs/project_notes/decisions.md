@@ -2,6 +2,16 @@
 
 Las decisiones arquitectónicas formales del stack viven como ADRs en [`docs/adr/`](../adr/) (formato Nygard, una por archivo) — ese es el registro canónico, no se duplica aquí. Este archivo registra decisiones de **proceso y gobierno** que no ameritan una ADR completa.
 
+### 2026-11-20 — Reglas de producto de VS-080/081 (decididas por el usuario)
+
+**Decisiones:**
+- Un tema (subindicador) = una pregunta; todo conteo es por tema.
+- Visibilidad por unidad se decide en el árbol y es en vivo; lo demás requiere «Actualizar evaluación en curso».
+- Solo tres estados de avance (sin iniciar / parcial / completa) derivados de las respuestas; sin flujo de aprobación. Observación única por tema y unidad, escrita por el admin corporativo.
+- Avance en 4 cuadritos: rojo (nada), 2–3 amarillo, verde (completa; con evidencia adjunta si el tema la pide). Mayoría = más de la mitad de elementos de sub-opciones.
+- «Revisar avances» unifica evaluación/revisar/consolidado: un solo lugar, vistas por filtro (Consolidado, FP, RP, SPSA, Corporativo), solo lectura.
+- Probar solo en producción con datos falsos; el asistente no escribe contraseñas; no hacer lo que un usuario normal no puede hacer.
+
 ### 2026-08-04 — Documentación como única fuente de verdad
 
 **Contexto:**
