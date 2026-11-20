@@ -2835,3 +2835,6 @@ textarea::placeholder {
 /* respuesta marcada visible aunque el campo este bloqueado */
 .runtime-elements label:has(input:checked) { background: rgba(22, 163, 74, 0.12); border-radius: 6px; font-weight: 600; }
 .runtime-elements input:disabled:checked { accent-color: #16a34a; opacity: 1; }
+
+.sq--end { margin-left: auto; padding-left: 8px; }
+.sq-agg.sq--end .sq { margin-left: 0; padding-left: 0; }

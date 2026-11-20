@@ -27,3 +27,32 @@ describe("temaCompletion: un tema cuenta como una pregunta", () => {
     expect(temaCompletion([{ ...q, viewerReadOnly: true } as FormElement], {})).toBeNull();
   });
 });
+
+describe("temaLevel: regla de la mayoria de sub-opciones", () => {
+  const sub = (id: string) => ({ id, label: id });
+  const radio = el({
+    id: "r",
+    type: "seleccion_unica",
+    label: "r",
+    options: [
+      {
+        id: "o",
+        label: "o",
+        subOptions: [
+          { id: "a", label: "a", subOptions: [sub("a1")] },
+          { id: "b", label: "b", subOptions: [sub("b1")] },
+          { id: "c", label: "c", subOptions: [sub("c1")] },
+        ],
+      },
+    ],
+  });
+  it("6 elementos: con 4 hechos es la mayoria (3 cuadritos)", () => {
+    expect(temaLevel([radio], { r: "o", "r::o": ["a", "b", "c"], "r::o::a": ["a1"] })).toBe(3);
+  });
+  it("6 elementos: con 3 hechos no es la mayoria (2 cuadritos)", () => {
+    expect(temaLevel([radio], { r: "o", "r::o": ["a", "b", "c"] })).toBe(2);
+  });
+  it("opcion elegida sin marcar ninguna sub-opcion: 2 cuadritos", () => {
+    expect(temaLevel([radio], { r: "o" })).toBe(2);
+  });
+});
